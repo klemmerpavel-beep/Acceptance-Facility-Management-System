@@ -91,10 +91,20 @@ export function ImportEstimate({ code, units }: { code: string; units: string[] 
               <span className="num">{money(report.declaredWorksTotal)}</span>
             </p>
             {report.findings.map((finding, index) => (
-              <p className="row row--between" key={`${finding.kind}-${index}`}>
-                <span className="t-sm">{finding.title}</span>
-                <span className="num num--danger">{finding.amount === null ? `стр. ${finding.rows.join(", ")}` : money(finding.amount)}</span>
-              </p>
+              <div className="stack stack--tight" key={`${finding.kind}-${index}`}>
+                <p className="row row--between">
+                  <span className="t-sm">{finding.title}</span>
+                  {/* Справа стоит величина находки. Перечень строк — не
+                      денежная величина и в эту колонку не помещается:
+                      четырнадцать номеров дают 569 px при окне 360. */}
+                  <span className={finding.amount === null ? "num t-muted" : "num num--danger"}>
+                    {finding.amount === null ? `строк: ${finding.rows.length}` : money(finding.amount)}
+                  </span>
+                </p>
+                {finding.rows.length > 0 && (
+                  <p className="t-sm t-muted finding__rows">строки {finding.rows.join(", ")}</p>
+                )}
+              </div>
             ))}
             <hr className="rule" />
             <p className="row row--between">

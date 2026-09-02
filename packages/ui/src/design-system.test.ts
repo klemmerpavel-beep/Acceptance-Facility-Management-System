@@ -22,6 +22,36 @@ const OTHER_SHEETS = ["base.css", "layout.css", "components.css"].map((name) => 
   css: read(name),
 }));
 
+
+/**
+ * Всё, что потребляет слой стилей: витрина дизайн-системы и разметка
+ * приложения. Проверка мёртвых правил обязана видеть обоих потребителей,
+ * иначе класс, использованный только в приложении, читается как мёртвый.
+ */
+function consumerSources(): string[] {
+  const sources: string[] = [];
+  const design = join(repoRoot, "design");
+  if (existsSync(design)) {
+    for (const file of readdirSync(design)) {
+      if (file.endsWith(".html") && !file.startsWith("showcase.artifact")) {
+        sources.push(readFileSync(join(design, file), "utf8"));
+      }
+    }
+  }
+  const walk = (directory: string): void => {
+    if (!existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.(tsx|ts|html)$/.test(entry.name)) sources.push(readFileSync(path, "utf8"));
+    }
+  };
+  walk(join(repoRoot, "apps", "web", "src"));
+  const indexHtml = join(repoRoot, "apps", "web", "index.html");
+  if (existsSync(indexHtml)) sources.push(readFileSync(indexHtml, "utf8"));
+  return sources;
+}
+
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\([^)]*\)|\bhsla?\([^)]*\)/g;
 const TOKEN_DEFINITION = /(--[a-z0-9-]+)\s*:\s*([^;]+);/g;
 const TOKEN_REFERENCE = /var\((--[a-z0-9-]+)/g;
@@ -83,13 +113,7 @@ describe("ни один цвет не определяется только вн
 
 describe("иконки", () => {
   /** Разметка, которую сегодня потребляет слой стилей. */
-  const markup = (): string => {
-    const design = join(repoRoot, "design");
-    const files = existsSync(design)
-      ? readdirSync(design).filter((f) => f.endsWith(".html") && !f.startsWith("showcase.artifact"))
-      : [];
-    return files.map((f) => readFileSync(join(design, f), "utf8")).join("\n");
-  };
+  const markup = (): string => consumerSources().join("\n");
 
   it("типографские знаки и эмодзи не используются в роли иконок", () => {
     // Геометрические знаки, стрелки, эмодзи — всё, что подменяет иконку глифом.
@@ -107,16 +131,7 @@ describe("мёртвые правила", () => {
         if (match[1] !== undefined) declared.add(match[1]);
       }
     }
-    const consumers: string[] = [];
-    const design = join(repoRoot, "design");
-    if (existsSync(design)) {
-      for (const file of readdirSync(design)) {
-        if (file.endsWith(".html") && !file.startsWith("showcase.artifact")) {
-          consumers.push(readFileSync(join(design, file), "utf8"));
-        }
-      }
-    }
-    const haystack = consumers.join("\n");
+    const haystack = consumerSources().join("\n");
     const unused = [...declared].filter((name) => !new RegExp(`\\b${name}\\b`).test(haystack));
     expect(unused).toEqual([]);
   });

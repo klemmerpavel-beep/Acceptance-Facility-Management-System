@@ -40,7 +40,7 @@ export function App(): React.JSX.Element {
     );
   }
 
-  if (state.kind === "anonymous") return <SignIn onSignedIn={load} />;
+  if (state.kind === "anonymous") return <SignIn />;
 
   return (
     <>
