@@ -4,6 +4,7 @@ import { fetchCanonicalUnits, fetchCurrentUser, fetchProjects, logout } from "./
 import { SignIn } from "./SignIn.js";
 import { ProjectList } from "./ProjectList.js";
 import { ProjectCard } from "./ProjectCard.js";
+import { ThemeSwitch } from "./ThemeSwitch.js";
 
 type State =
   | { kind: "loading" }
@@ -58,6 +59,7 @@ export function App(): React.JSX.Element {
           Объекты
         </a>
       </nav>
+      <ThemeSwitch />
       <button type="button" className="btn btn--secondary" onClick={() => void logout().then(load)}>
         Выйти
       </button>

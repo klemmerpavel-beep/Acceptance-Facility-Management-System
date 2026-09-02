@@ -8,7 +8,11 @@
     <a class="appbar__link" href="#">Акты</a>
     <a class="appbar__link" href="#">График</a>
   </nav>
-  <button class="btn btn--secondary" id="theme">Тема<span class="visually-hidden">: переключить светлую и тёмную</span></button>
+  <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
+    <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
+    <button type="button" class="themeswitch__option" data-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-light"/></svg><span class="visually-hidden">Светлая тема</span></button>
+    <button type="button" class="themeswitch__option" data-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-dark"/></svg><span class="visually-hidden">Тёмная тема</span></button>
+  </div>
 </header>
 
 <div class="cover">
@@ -373,10 +377,10 @@
           <tr><td>--accent</td><td><span class="swatch" style="--swatch:#17457A">#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
           <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#E4EBF4">#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
           <tr><td>--on-accent-fill</td><td><span class="swatch" style="--swatch:#17457A">белая, 16 %</span></td><td>тёмная, 14 %</td><td>Накладки поверх акцентной заливки: бейдж на обложке, дорожка кольца</td></tr>
-          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2E7D57">#2E7D57</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
-          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#B8860F">#B8860F</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
+          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
+          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
           <tr><td>--danger</td><td><span class="swatch" style="--swatch:#B3261E">#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
-          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#C97A1E">#C97A1E</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
+          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
           <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
           <tr><td>--row-h</td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
           <tr><td>--control-h / --control-h-touch</td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
@@ -409,9 +413,18 @@
     bar.style.width = (bar.dataset.to - bar.dataset.from) + "%";
   }
 
-  document.getElementById("theme").addEventListener("click", () => {
+  // Переключатель темы: три состояния. Системное снимает признак —
+  // в этом состоянии тёмную тему включает медиазапрос, а не атрибут.
+  document.getElementById("theme").addEventListener("click", (event) => {
+    const option = event.target.closest(".themeswitch__option");
+    if (!option) return;
+    const mode = option.dataset.mode;
     const root = document.documentElement;
-    root.setAttribute("data-theme", root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    if (mode === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", mode);
+    for (const other of document.querySelectorAll(".themeswitch__option")) {
+      other.setAttribute("aria-pressed", String(other === option));
+    }
   });
 
   document.querySelectorAll(".tabs").forEach((group) => {
