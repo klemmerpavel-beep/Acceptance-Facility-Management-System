@@ -1,0 +1,99 @@
+/* ============================================================================
+   Приёмка — база: сброс, типографика, фокус, доступность
+   ========================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Раскладка групп — flex/grid с gap. Персональные внешние отступы
+   у элементов не используются: обнуляем их у типографических тегов. */
+h1, h2, h3, h4, p, figure, blockquote, dl, dd { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+img, svg, video { max-width: 100%; display: block; }
+
+/* Скрытие переключается свойством hidden, а не правкой display в стилях. */
+[hidden] { display: none !important; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+a { color: var(--accent); text-underline-offset: 2px; }
+
+/* --- типографические роли ------------------------------------------------ */
+.t-display { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.t-h1      { font-size: var(--fs-h1);      line-height: var(--lh-h1);      font-weight: var(--fw-h1); }
+.t-h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
+.t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }
+.t-body    { font-size: var(--fs-body);    line-height: var(--lh-body);    font-weight: var(--fw-body); }
+.t-sm      { font-size: var(--fs-sm);      line-height: var(--lh-sm);      font-weight: var(--fw-sm); }
+
+/* Надзаголовок карточки: 11px, разрядка, капитель */
+.t-cap {
+  font-size: var(--fs-cap);
+  line-height: var(--lh-cap);
+  font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.t-secondary { color: var(--ink-2); }
+.t-muted     { color: var(--ink-3); }
+
+/* --- числа ---------------------------------------------------------------
+   Правило для сумм: табличные цифры, выравнивание по правому краю,
+   разряды неразрывным пробелом, копейки всегда две цифры — 3 758 778,00 ₽.
+   Разряды и копейки формирует функция formatKopecks, а не CSS.            */
+.num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-num);
+  line-height: var(--lh-num);
+  font-weight: var(--fw-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.num--display { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.num--h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
+
+/* --- фокус ---------------------------------------------------------------
+   Видимое состояние фокуса обязательно у всех интерактивных элементов.
+   Обводка 2 px акцентом со смещением 2 px.                                 */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- доступность ---------------------------------------------------------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

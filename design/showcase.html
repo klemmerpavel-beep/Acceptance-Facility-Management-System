@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дизайн-система Приёмки</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ============================================================================
+   Приёмка — токены дизайн-системы
+   Нормативный источник: docs/03_DESIGN_SYSTEM.md, раздел 2–4.
+   Значение мимо токена — дефект. Правка значений допустима только вместе
+   с правкой нормативного документа.
+
+   Правило тёмной темы: ни один цвет не определяется только внутри
+   медиазапроса. Базовые значения всегда в :root, тёмная тема их
+   переопределяет — дважды: по системной настройке и по явному
+   переключателю, чтобы переключатель выигрывал в обе стороны.
+   ========================================================================= */
+
+:root {
+  color-scheme: light dark;
+
+  /* --- фон и поверхности ------------------------------------------------ */
+  --bg:            #F4F6F8;   /* полотно страницы, холодный нейтрал */
+  --surface:       #FFFFFF;   /* карточки, таблицы */
+  --surface-2:     #EDF0F4;   /* заголовки таблиц, вторичные плашки */
+  --overlay:       rgba(14, 26, 40, .44);
+
+  /* --- текст ------------------------------------------------------------ */
+  --ink:           #0E1A28;   /* основной */
+  --ink-2:         #46586B;   /* вторичный */
+  --ink-3:         #7C8DA0;   /* подписи, плейсхолдеры */
+  --ink-inv:       #FFFFFF;
+
+  /* --- границы ---------------------------------------------------------- */
+  --line:          #DCE2E9;
+  --line-strong:   #B7C2CE;
+
+  /* --- акцент: берлинская лазурь ---------------------------------------- */
+  --accent:        #17457A;
+  --accent-hover:  #10365F;
+  --accent-soft:   #E4EBF4;   /* заливка выбранного, бейджи */
+  --accent-ink:    #FFFFFF;   /* текст на акценте */
+
+  /* --- сигнальный: внимание, срочность, перевыработка -------------------- */
+  --signal:        #C97A1E;
+  --signal-soft:   #FBEEDC;
+
+  /* --- семантика состояний ---------------------------------------------- */
+  --ok:            #2E7D57;   /* принято, оплачено */
+  --ok-soft:       #E1F0E8;
+  --warn:          #B8860F;   /* ожидает, черновик */
+  --warn-soft:     #FAF0D7;
+  --danger:        #B3261E;   /* сторно, просрочено, расхождение */
+  --danger-soft:   #FBE4E2;
+  --neutral-soft:  #E9EDF1;   /* нейтральный статус */
+
+  /* --- гарнитуры --------------------------------------------------------
+     Golos Text — родная кириллица, деловой рисунок, не Inter.
+     IBM Plex Mono — табличные цифры, различимые ноль и буква О:
+     критично для сумм и кодов объектов.                                    */
+  --font-ui:   "Golos Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* --- типографическая шкала -------------------------------------------- */
+  --fs-display: 32px;  --lh-display: 1.15;  --fw-display: 600;
+  --fs-h1:      24px;  --lh-h1:      1.20;  --fw-h1:      600;
+  --fs-h2:      19px;  --lh-h2:      1.25;  --fw-h2:      600;
+  --fs-h3:      16px;  --lh-h3:      1.30;  --fw-h3:      600;
+  --fs-body:    15px;  --lh-body:    1.55;  --fw-body:    400;
+  --fs-sm:      13px;  --lh-sm:      1.45;  --fw-sm:      400;
+  --fs-cap:     11px;  --lh-cap:     1.30;  --fw-cap:     500;  --ls-cap: .08em;
+  --fs-num:     15px;  --lh-num:     1.30;  --fw-num:     500;
+
+  /* --- отступы ----------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* --- радиусы ----------------------------------------------------------- */
+  --radius-sm:   6px;    /* пилюли, бейджи, поля ввода */
+  --radius-md:   10px;   /* карточки, кнопки */
+  --radius-lg:   14px;   /* крупные сводные блоки */
+  --radius-pill: 999px;
+
+  /* --- тени: применяются скупо, карточки отделяются границей -------------- */
+  --shadow-1: 0 1px 2px rgba(14, 26, 40, .06);
+  --shadow-2: 0 4px 16px rgba(14, 26, 40, .10);   /* только модальные и меню */
+
+  /* --- метрика компонентов ----------------------------------------------- */
+  --header-h:        56px;   /* шапка приложения */
+  --tabbar-h:        56px;   /* нижняя таб-панель на мобильном */
+  --control-h:       40px;   /* кнопки и поля, десктоп */
+  --control-h-touch: 48px;   /* кнопки на мобильном */
+  --pill-h:          24px;
+  --row-h:           40px;   /* строка таблицы сметы */
+  --indent-level:    16px;   /* отступ вложенности раздела на уровень */
+  --ring-size:       72px;   /* кольцевой индикатор готовности */
+  --ring-width:      8px;
+  --tap-min:         44px;   /* минимальная область нажатия */
+
+  /* --- сетка -------------------------------------------------------------- */
+  --container-max: 1440px;
+  --gutter:        24px;
+  --summary-col:   320px;   /* левая колонка сводки объекта */
+  --modal-w:       480px;   /* центрированное окно на десктопе */
+
+  /* --- длительности ------------------------------------------------------- */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --ease:     cubic-bezier(.2, 0, 0, 1);
+}
+
+/* Тёмная тема по системной настройке.
+   Исключение :root[data-theme="light"] нужно, чтобы явно выбранная светлая
+   тема не переопределялась системной тёмной. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:            #0D1219;
+    --surface:       #141B24;
+    --surface-2:     #1C2530;
+    --overlay:       rgba(3, 7, 12, .62);
+
+    --ink:           #E8EDF2;
+    --ink-2:         #A8B6C4;
+    --ink-3:         #778699;
+    --ink-inv:       #0D1219;
+
+    --line:          #28323E;
+    --line-strong:   #3C4854;
+
+    --accent:        #6FA3DC;
+    --accent-hover:  #8CB8E8;
+    --accent-soft:   #1B2A3C;
+    --accent-ink:    #0D1219;
+
+    --signal:        #E0A155;
+    --signal-soft:   #33261440;
+
+    --ok:            #63B08A;
+    --ok-soft:       #172A22;
+    --warn:          #D9B24E;
+    --warn-soft:     #2B2517;
+    --danger:        #E0817A;
+    --danger-soft:   #2E1B19;
+    --neutral-soft:  #1E2731;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
+    --shadow-2: 0 4px 16px rgba(0, 0, 0, .55);
+  }
+}
+
+/* Явный переключатель. Те же значения — выигрывает у системной светлой. */
+:root[data-theme="dark"] {
+  --bg:            #0D1219;
+  --surface:       #141B24;
+  --surface-2:     #1C2530;
+  --overlay:       rgba(3, 7, 12, .62);
+
+  --ink:           #E8EDF2;
+  --ink-2:         #A8B6C4;
+  --ink-3:         #778699;
+  --ink-inv:       #0D1219;
+
+  --line:          #28323E;
+  --line-strong:   #3C4854;
+
+  --accent:        #6FA3DC;
+  --accent-hover:  #8CB8E8;
+  --accent-soft:   #1B2A3C;
+  --accent-ink:    #0D1219;
+
+  --signal:        #E0A155;
+  --signal-soft:   #33261440;
+
+  --ok:            #63B08A;
+  --ok-soft:       #172A22;
+  --warn:          #D9B24E;
+  --warn-soft:     #2B2517;
+  --danger:        #E0817A;
+  --danger-soft:   #2E1B19;
+  --neutral-soft:  #1E2731;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .55);
+}
+
+
+/* ============================================================================
+   Приёмка — база: сброс, типографика, фокус, доступность
+   ========================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Раскладка групп — flex/grid с gap. Персональные внешние отступы
+   у элементов не используются: обнуляем их у типографических тегов. */
+h1, h2, h3, h4, p, figure, blockquote, dl, dd { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+img, svg, video { max-width: 100%; display: block; }
+
+/* Скрытие переключается свойством hidden, а не правкой display в стилях. */
+[hidden] { display: none !important; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+a { color: var(--accent); text-underline-offset: 2px; }
+
+/* --- типографические роли ------------------------------------------------ */
+.t-display { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.t-h1      { font-size: var(--fs-h1);      line-height: var(--lh-h1);      font-weight: var(--fw-h1); }
+.t-h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
+.t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }
+.t-body    { font-size: var(--fs-body);    line-height: var(--lh-body);    font-weight: var(--fw-body); }
+.t-sm      { font-size: var(--fs-sm);      line-height: var(--lh-sm);      font-weight: var(--fw-sm); }
+
+/* Надзаголовок карточки: 11px, разрядка, капитель */
+.t-cap {
+  font-size: var(--fs-cap);
+  line-height: var(--lh-cap);
+  font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.t-secondary { color: var(--ink-2); }
+.t-muted     { color: var(--ink-3); }
+
+/* --- числа ---------------------------------------------------------------
+   Правило для сумм: табличные цифры, выравнивание по правому краю,
+   разряды неразрывным пробелом, копейки всегда две цифры — 3 758 778,00 ₽.
+   Разряды и копейки формирует функция formatKopecks, а не CSS.            */
+.num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-num);
+  line-height: var(--lh-num);
+  font-weight: var(--fw-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.num--display { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.num--h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
+
+/* --- фокус ---------------------------------------------------------------
+   Видимое состояние фокуса обязательно у всех интерактивных элементов.
+   Обводка 2 px акцентом со смещением 2 px.                                 */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- доступность ---------------------------------------------------------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ============================================================================
+   Приёмка — сетка. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §4.
+   Десктоп: контейнер 1440 px, поля 24 px, 12 колонок.
+   Карточка объекта: левая колонка сводки 320 px, правая рабочая — остаток.
+   Планшет от 768 px: колонки складываются, сводка уезжает наверх.
+   Мобильный от 360 px: одна колонка, нижняя таб-панель.
+   ========================================================================= */
+
+.container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--gutter); }
+
+.stack   { display: flex; flex-direction: column; gap: var(--space-4); }
+.stack-2 { display: flex; flex-direction: column; gap: var(--space-2); }
+.stack-5 { display: flex; flex-direction: column; gap: var(--space-5); }
+.row     { display: flex; align-items: center; gap: var(--space-3); }
+.row--between { justify-content: space-between; }
+
+.grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gutter); }
+
+/* Мобильный по умолчанию: одна колонка, снизу место под таб-панель. */
+.project-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+}
+
+@media (min-width: 1024px) {
+  .project-layout {
+    grid-template-columns: var(--summary-col) minmax(0, 1fr);
+    align-items: start;
+    padding-bottom: var(--space-5);
+  }
+}
+
+
+/* ============================================================================
+   Приёмка — компоненты. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §5.
+   ========================================================================= */
+
+/* --- 5.9 Кнопки ----------------------------------------------------------
+   Высота 40 px на десктопе, 48 px на мобильном. Состояние загрузки —
+   спиннер внутри кнопки, ширина не меняется. Кнопка называет действие.   */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+
+.btn--primary   { background: var(--accent); color: var(--accent-ink); }
+.btn--primary:hover:not([disabled]) { background: var(--accent-hover); }
+
+.btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.btn--secondary:hover:not([disabled]) { background: var(--surface-2); }
+
+.btn--text      { background: transparent; color: var(--accent); padding: 0 var(--space-2); }
+.btn--text:hover:not([disabled]) { background: var(--accent-soft); }
+
+.btn--danger    { background: var(--danger); color: var(--ink-inv); }
+
+.btn--touch     { height: var(--control-h-touch); font-size: var(--fs-h3); }
+.btn--block     { width: 100%; }
+
+/* Ширина не меняется при загрузке: подпись остаётся в потоке, но скрыта. */
+.btn[data-loading="true"] { position: relative; color: transparent; }
+.btn[data-loading="true"]::after {
+  content: "";
+  position: absolute;
+  width: 16px; height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 700ms linear infinite;
+  color: var(--accent-ink);
+}
+.btn--secondary[data-loading="true"]::after { color: var(--ink); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- 5.9 Пилюли статусов -------------------------------------------------
+   Высота 24 px, текст обязателен: смысл никогда не передаётся одним цветом. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--pill-h);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--neutral-soft);
+  color: var(--ink-2);
+}
+.pill--ok      { background: var(--ok-soft);     color: var(--ok); }
+.pill--warn    { background: var(--warn-soft);   color: var(--warn); }
+.pill--danger  { background: var(--danger-soft); color: var(--danger); }
+.pill--signal  { background: var(--signal-soft); color: var(--signal); }
+.pill--accent  { background: var(--accent-soft); color: var(--accent); }
+
+/* Код объекта — моноширинный бейдж на мягком акценте. Сквозной
+   идентификатор: почта, документы, разговор, акт. */
+.code-badge {
+  display: inline-flex;
+  align-items: center;
+  height: var(--pill-h);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.code-badge--lg { height: 32px; padding: 0 var(--space-3); font-size: var(--fs-h2); }
+
+/* --- 5.9 Поля ввода ------------------------------------------------------ */
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.field__label { font-size: var(--fs-sm); color: var(--ink-2); }
+.field__hint  { font-size: var(--fs-sm); color: var(--ink-3); }
+.field__error { font-size: var(--fs-sm); color: var(--danger); }
+
+.input {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+.input::placeholder { color: var(--ink-3); }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.input--touch { height: var(--control-h-touch); font-size: var(--fs-h3); }
+/* Денежные и количественные поля — моноширинные с табличными цифрами. */
+.input--num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* --- Поверхности по роли ---------------------------------------------------
+   Граница, заливка, радиус и тень означают «отдельный объект». Если их
+   получает каждый блок, иерархия исчезает. Поэтому поверхностей четыре,
+   и выбор между ними определяется ролью блока, а не удобством вёрстки.
+
+   .figure  — сводная величина. Лежит прямо на полотне, без рамки. Отделяется
+              от соседей волосяной линией. Так подаётся «Баланс проекта»
+              у референса: число, а не коробка с числом.
+   .panel   — контейнер содержимого: таблица, список, форма. Граница --line.
+   .tile    — самостоятельный объект, требующий действия: статус, почтовый
+              шлюз. Граница и заливка вторичной поверхности.
+   .tile--accent — единственный блок, залитый акцентом. На экране он один.
+   ------------------------------------------------------------------------ */
+
+.figure { display: flex; flex-direction: column; gap: var(--space-1); }
+.figure + .figure { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.figure__label { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.figure__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.figure__value--h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); }
+.figure__note { font-size: var(--fs-sm); color: var(--ink-3); }
+/* Остаток транша — единственная величина, выделенная рамкой акцента: именно
+   её руководитель ищет на экране. Выделение работает, пока оно одно. */
+.figure--framed { padding: var(--space-4); border: 2px solid var(--accent); border-radius: var(--radius-md); }
+.figure--framed .figure__value { color: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.panel--pad   { padding: var(--space-4); }
+.panel--flush { overflow: hidden; }
+.panel__head  { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.panel__body  { padding: var(--space-4); }
+
+.tile { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.tile--accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tile--accent .figure__label, .tile--accent .figure__note { color: var(--accent-ink); opacity: .78; }
+.tile--accent .figure__value { color: var(--accent-ink); }
+
+/* Волосяная линия и надзаголовок раздела. Раздел отделяется линией и
+   подписью, а не помещается в коробку. */
+.rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line-strong); }
+
+/* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
+   у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
+.metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
+.metric__label { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+
+/* --- 5.1 Глобальная навигация -------------------------------------------- */
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--header-h);
+  padding: 0 var(--gutter);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.appbar__nav { display: flex; gap: var(--space-1); margin-inline: auto; }
+.appbar__link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
+
+/* Мобильная таб-панель: пять пунктов, иконка и подпись 11 px,
+   учитывается безопасная зона снизу. */
+.tabbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap-min);
+  color: var(--ink-3);
+  text-decoration: none;
+  font-size: var(--fs-cap);
+}
+.tabbar__item[aria-current="page"] { color: var(--accent); }
+
+/* Таб-панель существует только на мобильном, пилюльная навигация — только
+   на десктопе. Правила стоят рядом с компонентом, а не в layout.css:
+   при равной специфичности исход решал бы порядок импорта, а не намерение. */
+@media (min-width: 768px) { .tabbar { display: none; } }
+@media (max-width: 767px) { .appbar__nav { display: none; } }
+
+/* --- Шапка-обложка --------------------------------------------------------
+   Цветная подложка того же акцента под шапкой несёт хлебные крошки и
+   заголовок страницы; под ней начинается рабочее полотно. Приём даёт
+   заметную обложку без отдельного сайдбара и отдаёт содержимому всю
+   ширину экрана — главная структурная находка референса.               */
+.cover { background: var(--accent); color: var(--accent-ink); padding-block: var(--space-3) var(--space-5); }
+.cover__crumbs { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); opacity: .72; }
+.cover__crumbs a { color: inherit; text-decoration: none; }
+.cover__title { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+.cover .code-badge { background: rgba(255, 255, 255, .16); color: var(--accent-ink); }
+
+/* Табы внутри карточки объекта: плотная навигация без ухода со страницы. */
+.tabs { display: flex; gap: var(--space-5); overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tabs__item { flex: none; padding: var(--space-3) 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font-size: var(--fs-body); cursor: pointer; white-space: nowrap; }
+.tabs__item[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* --- 5.3 Кольцевой индикатор готовности ----------------------------------
+   Диаметр 72 px, дуга 8 px. Считается по сумме принятых позиций
+   к итогу сметы, не по их количеству. */
+.ring { width: var(--ring-size); height: var(--ring-size); position: relative; flex: none; }
+.ring__track { stroke: var(--surface-2); }
+.ring__arc   { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset var(--dur-base) var(--ease); }
+.ring__value {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 5.4 Таблица сметы ---------------------------------------------------
+   Плотная таблица: строка 40 px, 13 px, суммы по правому краю.
+   Заголовок липкий, разделы — сворачиваемые группы. */
+.estimate { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
+.estimate thead th {
+  position: sticky; top: 0; z-index: 2;
+  height: var(--row-h);
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.estimate td { height: var(--row-h); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
+.estimate tbody tr:hover td { background: var(--surface-2); }
+
+.estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Внутренние колонки визуально маркируются: фон ячеек --surface-2 и
+   надзаголовок группы «внутреннее» — чтобы при демонстрации экрана
+   клиенту ошибка была заметна мгновенно. */
+.estimate__internal { background: var(--surface-2); color: var(--ink-3); }
+.estimate thead th.estimate__internal { background: var(--surface-2); }
+.estimate__internal-group {
+  font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* Разделы — сворачиваемые группы, отступ вложенности 16 px на уровень. */
+.estimate__section td {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--ink);
+}
+.estimate__section-toggle {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  background: none; border: 0; cursor: pointer; padding: 0;
+  min-height: var(--tap-min);
+}
+.estimate__row-name { padding-left: calc(var(--indent-level) * var(--level, 0)); }
+
+/* Итоги закреплены снизу. */
+.estimate tfoot td {
+  position: sticky; bottom: 0; z-index: 2;
+  background: var(--surface);
+  border-top: 2px solid var(--line-strong);
+  font-weight: 600;
+}
+
+/* Переключатель проекции — сегментированный контрол. */
+.segmented { display: inline-flex; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.segmented__option {
+  height: 32px; padding: 0 var(--space-3);
+  border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
+  font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
+}
+.segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
+
+/* Обёртка прокрутки: широкая таблица прокручивается внутри контейнера,
+   полотно страницы по горизонтали не двигается. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* --- 5.5 Экран приёмки (мобильный) --------------------------------------- */
+.accept-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.accept-item__name {
+  font-size: var(--fs-body);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.accept-item__qty { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.accept-item--done { background: var(--ok-soft); border-color: transparent; }
+
+/* Лист снизу на мобильном, центрированное окно шириной 480 px на десктопе. */
+.sheet-backdrop { position: fixed; inset: 0; background: var(--overlay); }
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-2);
+}
+@media (min-width: 768px) {
+  .sheet {
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    width: var(--modal-w);
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* Превью устройства: мобильный экран, показанный внутри десктопной страницы.
+   Ширина превью не связана с шириной окна, поэтому десктопные правила листа
+   внутри него не действуют — иначе лист становится шириной 480 px и режется. */
+.device {
+  position: relative;
+  width: 360px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+.device .sheet {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: auto;
+  transform: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: none;
+}
+.device--sheet { min-height: 540px; background: var(--overlay); }
+
+/* --- 5.6 Транш -----------------------------------------------------------
+   Перевыработка — нормальное событие, требующее закрытия акта,
+   поэтому показывается сигнальным цветом, а не ошибкой. */
+.tranche { display: flex; flex-direction: column; gap: var(--space-2); }
+.tranche__bar { height: 10px; background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.tranche__fill { height: 100%; background: var(--accent); border-radius: var(--radius-pill); transition: width var(--dur-base) var(--ease); }
+.tranche__fill--over { background: var(--signal); }
+.tranche__legend { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-sm); color: var(--ink-2); }
+
+/* --- 5.8 График производства работ ---------------------------------------
+   Масштаб — недели и месяцы, без дней: точность в днях избыточна. */
+.gantt__row { display: grid; grid-template-columns: 200px 1fr 120px 56px; align-items: center; gap: var(--space-3); height: var(--row-h); }
+.gantt__track { position: relative; height: 12px; background: var(--surface-2); border-radius: var(--radius-pill); }
+.gantt__bar { position: absolute; top: 0; height: 100%; background: var(--accent); border-radius: var(--radius-pill); }
+.gantt__bar--invalid { background: var(--danger); }
+.gantt__hint { font-size: var(--fs-sm); color: var(--danger); }
+
+/* --- 5.7 Чеки и расходы --------------------------------------------------- */
+.expense { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-3); border-bottom: 1px solid var(--line); }
+.expense__thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-2); }
+
+/* --- 5.9 Уведомления ------------------------------------------------------ */
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+/* --- 5.9 Пустые состояния -------------------------------------------------
+   Никаких иллюстраций и маскотов: заголовок, пояснение, одно действие. */
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-6) var(--space-4); }
+.empty__title { font-size: var(--fs-h3); font-weight: var(--fw-h3); }
+.empty__text  { font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* --- 5.9 Скелетоны вместо спиннеров на загрузке списков и таблиц ---------- */
+.skeleton { background: var(--surface-2); border-radius: var(--radius-sm); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+</style>
+</head>
+<body style="margin:0">
+<header class="appbar">
+  <strong style="font-size:var(--fs-h3);letter-spacing:-.01em">Приёмка</strong>
+  <nav class="appbar__nav">
+    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
+    <a class="appbar__link" href="#">Смета</a>
+    <a class="appbar__link" href="#">Приёмка</a>
+    <a class="appbar__link" href="#">Расходы</a>
+    <a class="appbar__link" href="#">Акты</a>
+    <a class="appbar__link" href="#">График</a>
+  </nav>
+  <button class="btn btn--secondary" id="theme" style="border-color:rgba(255,255,255,.38);color:var(--accent-ink)">Тема</button>
+</header>
+
+<div class="cover">
+  <div class="container">
+    <p class="cover__crumbs"><a href="#">Объекты</a><span aria-hidden="true">›</span><span>Московский проспект 116</span></p>
+    <div class="cover__title">
+      <span class="code-badge code-badge--lg">R-99</span>
+      <h1 class="t-h1">Московский проспект 116</h1>
+      <span class="pill pill--ok" style="margin-left:var(--space-2)">В работе</span>
+    </div>
+  </div>
+</div>
+
+<main class="container" style="padding-block:var(--space-5) var(--space-7)">
+
+  <div class="project-layout">
+
+    <!-- ── СВОДКА ОБЪЕКТА ─────────────────────────────────────────────── -->
+    <aside class="stack">
+      <div class="stack">
+        <div class="figure">
+          <span class="figure__label">Выполнено на сумму</span>
+          <span class="figure__value">1 784 222,20 ₽</span>
+          <span class="figure__note">47 % итога сметы</span>
+        </div>
+        <div class="figure">
+          <span class="figure__label">Потрачено на материалы</span>
+          <span class="figure__value figure__value--h2">312 480,00 ₽</span>
+          <span class="figure__note">возмещается заказчиком</span>
+        </div>
+      </div>
+
+      <div class="figure figure--framed">
+        <span class="figure__label">Остаток текущего транша</span>
+        <span class="figure__value">160 000,00 ₽</span>
+        <span class="figure__note">транш № 3 из 500 000,00 ₽</span>
+        <div class="tranche" style="margin-top:var(--space-2)">
+          <div class="tranche__bar"><div class="tranche__fill" style="width:68%"></div></div>
+        </div>
+      </div>
+
+      <div class="tile row row--between">
+        <div><p class="figure__label">Статус объекта</p><p class="t-body" style="margin-top:2px">Работы идут, транш открыт</p></div>
+        <button class="btn btn--secondary">Изменить</button>
+      </div>
+
+      <div class="tile stack-2">
+        <p class="figure__label">Чеки на материалы</p>
+        <p class="row" style="gap:4px;flex-wrap:wrap">
+          <code style="font-family:var(--font-mono);font-size:var(--fs-sm)">checks+</code><span class="code-badge">R99</span><code style="font-family:var(--font-mono);font-size:var(--fs-sm)">@dolgiy.studio</code>
+        </p>
+        <p class="t-sm t-muted">Код объекта ищется и в теме письма. Письмо без кода не теряется.</p>
+        <button class="btn btn--text" style="align-self:flex-start;margin-left:calc(var(--space-2) * -1)">Скопировать адрес</button>
+      </div>
+
+      <div class="tile tile--accent row row--between">
+        <div class="figure">
+          <span class="figure__label">Осталось</span>
+          <span class="figure__value">30</span>
+          <span class="figure__note">дней · дедлайн 15.08.2026</span>
+        </div>
+        <div class="ring">
+          <svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
+            <circle cx="36" cy="36" r="32" fill="none" stroke-width="8" stroke="rgba(255,255,255,.24)"/>
+            <circle cx="36" cy="36" r="32" fill="none" stroke-width="8" stroke="currentColor" stroke-linecap="round"
+                    stroke-dasharray="201.06" stroke-dashoffset="106.56" transform="rotate(-90 36 36)"/>
+          </svg>
+          <span class="ring__value">47 %</span>
+        </div>
+      </div>
+
+      <div class="stack-2">
+        <p class="figure__label" style="padding-bottom:var(--space-2);border-bottom:1px solid var(--line)">Информация</p>
+        <div class="row row--between"><span class="t-sm t-secondary">Клиент</span><span class="t-sm">[300] И. Иванов</span></div>
+        <div class="row row--between"><span class="t-sm t-secondary">Прораб</span><span class="t-sm">Рашид</span></div>
+        <div class="row row--between"><span class="t-sm t-secondary">Адрес</span><span class="t-sm">Московский пр. 116</span></div>
+        <div class="row row--between"><span class="t-sm t-secondary">Ключи</span><span class="t-sm">2 комплекта</span></div>
+        <div class="row row--between"><span class="t-sm t-secondary">Смета</span><span class="t-sm">редакция 2 от 25.08.2026</span></div>
+      </div>
+    </aside>
+
+    <!-- ── РАБОЧАЯ ОБЛАСТЬ ────────────────────────────────────────────── -->
+    <div class="stack-5">
+      <div class="tabs" role="tablist">
+        <button class="tabs__item" role="tab" aria-selected="true">Смета</button>
+        <button class="tabs__item" role="tab" aria-selected="false">Приёмка</button>
+        <button class="tabs__item" role="tab" aria-selected="false">Начисления</button>
+        <button class="tabs__item" role="tab" aria-selected="false">Расходы</button>
+        <button class="tabs__item" role="tab" aria-selected="false">Акты</button>
+        <button class="tabs__item" role="tab" aria-selected="false">График</button>
+      </div>
+
+      <div class="panel panel--flush">
+        <div class="panel__head">
+          <div class="row" style="gap:var(--space-3)">
+            <p class="t-h3">141 позиция · 27 разделов</p>
+            <span class="pill pill--danger">Расхождение 438 800,00 ₽</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Проекция сметы">
+            <button class="segmented__option" aria-pressed="true">Внутренняя</button>
+            <button class="segmented__option" aria-pressed="false">Клиентская</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="estimate">
+            <thead>
+              <tr>
+                <th colspan="7"></th>
+                <th colspan="3" class="estimate__internal estimate__internal-group">Внутреннее</th>
+              </tr>
+              <tr>
+                <th style="width:40px">№</th><th>Наименование</th><th>Ед.</th>
+                <th style="text-align:right">Кол.</th><th style="text-align:right">Цена ед.</th>
+                <th style="text-align:right">Сумма</th><th>Принято</th>
+                <th class="estimate__internal" style="text-align:right">Ставка ЗП</th>
+                <th class="estimate__internal" style="text-align:right">ЗП</th>
+                <th class="estimate__internal" style="text-align:right">Прибыль</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="estimate__section"><td colspan="10"><button class="estimate__section-toggle"><span aria-hidden="true">▾</span> Подготовительные работы</button></td></tr>
+              <tr><td class="estimate__num">1</td><td class="estimate__row-name" style="--level:1">Окрывные работы</td><td>шт</td><td class="estimate__num">2</td><td class="estimate__num">10 000,00</td><td class="estimate__num">20 000,00</td><td><span class="pill pill--ok">Принято</span></td><td class="estimate__num estimate__internal">5 000,00</td><td class="estimate__num estimate__internal">10 000,00</td><td class="estimate__num estimate__internal">10 000,00</td></tr>
+              <tr><td class="estimate__num">2</td><td class="estimate__row-name" style="--level:1">Полусухая стяжка</td><td>м²</td><td class="estimate__num">120,2</td><td class="estimate__num">1 000,00</td><td class="estimate__num">120 200,00</td><td><span class="pill pill--ok">Принято</span></td><td class="estimate__num estimate__internal">700,00</td><td class="estimate__num estimate__internal">84 140,00</td><td class="estimate__num estimate__internal">36 060,00</td></tr>
+              <tr><td class="estimate__num">3</td><td class="estimate__row-name" style="--level:1">Штукатурка стен по маякам (до 2,5 см)</td><td>м²</td><td class="estimate__num">406,91</td><td class="estimate__num">900,00</td><td class="estimate__num">366 219,00</td><td><span class="pill pill--warn">240 из 406,91</span></td><td class="estimate__num estimate__internal">350,00</td><td class="estimate__num estimate__internal">142 418,50</td><td class="estimate__num estimate__internal">223 800,50</td></tr>
+              <tr><td class="estimate__num">4</td><td class="estimate__row-name" style="--level:1">Грунтование стен (перед штукатуркой)</td><td>м²</td><td class="estimate__num">406,91</td><td class="estimate__num">120,00</td><td class="estimate__num">48 829,20</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">70,00</td><td class="estimate__num estimate__internal">28 483,70</td><td class="estimate__num estimate__internal">20 345,50</td></tr>
+              <tr><td class="estimate__num">5</td><td class="estimate__row-name" style="--level:1">Затирка цементная</td><td>м²</td><td class="estimate__num">3,3</td><td class="estimate__num">300,00</td><td class="estimate__num">990,00</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">0,00</td><td class="estimate__num estimate__internal">0,00</td><td class="estimate__num estimate__internal">990,00</td></tr>
+              <tr class="estimate__section"><td colspan="10"><button class="estimate__section-toggle"><span aria-hidden="true">▾</span> Кондиционирование (по факту)</button></td></tr>
+              <tr class="estimate__section"><td colspan="10"><span class="estimate__row-name t-secondary" style="--level:1;font-weight:400">Черновой монтаж</span></td></tr>
+              <tr><td class="estimate__num">6</td><td class="estimate__row-name" style="--level:2">Сквозное отверстие Ф52 мм</td><td>шт</td><td class="estimate__num">3</td><td class="estimate__num">3 100,00</td><td class="estimate__num">9 300,00</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">500,00</td><td class="estimate__num estimate__internal">1 500,00</td><td class="estimate__num estimate__internal">7 800,00</td></tr>
+              <tr><td class="estimate__num">7</td><td class="estimate__row-name" style="--level:2">Штробление стен в бетон (до 5×5 см)</td><td>м.п.</td><td class="estimate__num">8</td><td class="estimate__num">3 500,00</td><td class="estimate__num">28 000,00</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">170,00</td><td class="estimate__num estimate__internal">1 360,00</td><td class="estimate__num estimate__internal">26 640,00</td></tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5">Итого по работам · пересчёт по позициям</td>
+                <td class="estimate__num">3 794 852,10</td>
+                <td colspan="4" class="t-sm t-muted">в файле заявлено 3 356 052,10</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel panel--pad stack-2">
+        <p class="figure__label">Отчёт о расхождениях · импорт от 02.09.2026</p>
+        <hr class="rule">
+        <div class="row row--between"><span class="t-sm">Раздел «Черновой электромонтаж» не входит в формулу итога</span><span class="num" style="color:var(--danger)">295 000,00 ₽</span></div>
+        <div class="row row--between"><span class="t-sm">У раздела «Монтажные работы» ячейка итога пуста</span><span class="num" style="color:var(--danger)">143 800,00 ₽</span></div>
+        <div class="row row--between"><span class="t-sm">Двойной учёт подытога кондиционирования в фонде оплаты</span><span class="num" style="color:var(--danger)">24 160,00 ₽</span></div>
+        <div class="row row--between"><span class="t-sm">Позиции 161 и 162: стоимость есть, ставка и прибыль отсутствуют</span><span class="num t-muted">2 позиции</span></div>
+        <div class="row row--between"><span class="t-sm">Единицы измерения сведены к справочнику</span><span class="num t-muted">15 → 9</span></div>
+        <hr class="rule">
+        <div class="row row--between"><span class="t-body">Недосчёт итога по работам</span><span class="num" style="font-size:var(--fs-h2);color:var(--danger)">438 800,00 ₽</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ПРИЁМКА НА МОБИЛЬНОМ ──────────────────────────────────────────── -->
+  <section class="stack-5" style="margin-top:var(--space-7)">
+    <div class="section-head">
+      <h2 class="t-h2">Приёмка · мобильный, 360 px</h2>
+      <p class="t-sm t-muted">раздел → отметка → «Принять» → затвор → «Подтвердить»</p>
+    </div>
+    <div class="row" style="align-items:flex-start;gap:var(--space-5);flex-wrap:wrap">
+
+      <div class="device">
+        <div class="appbar" style="padding-inline:var(--space-3);gap:var(--space-2)">
+          <button class="btn btn--text" style="color:var(--accent-ink);padding:0" aria-label="Назад">←</button>
+          <span class="code-badge">R-99</span>
+          <span class="t-sm" style="margin-inline:auto">Подготовительные работы</span>
+        </div>
+        <div class="stack-2" style="padding:var(--space-3)">
+          <div class="accept-item accept-item--done">
+            <div><p class="accept-item__name">Полусухая стяжка</p><p class="accept-item__qty">120,2 м² · принято полностью</p></div>
+            <span class="pill pill--ok">Принято</span>
+          </div>
+          <div class="accept-item">
+            <div><p class="accept-item__name">Штукатурка стен по маякам (до 2,5 см)</p><p class="accept-item__qty">406,91 м² · принято 240</p></div>
+            <input type="checkbox" checked style="width:24px;height:24px;accent-color:var(--accent)">
+          </div>
+          <div class="accept-item">
+            <div><p class="accept-item__name">Грунтование стен (перед штукатуркой)</p><p class="accept-item__qty">406,91 м² · принято 0</p></div>
+            <input type="checkbox" checked style="width:24px;height:24px;accent-color:var(--accent)">
+          </div>
+          <div class="accept-item">
+            <div><p class="accept-item__name">Установка перфорированного уголка и планки примыкания к окну</p><p class="accept-item__qty">39,07 м.п. · принято 0</p></div>
+            <input type="checkbox" style="width:24px;height:24px;accent-color:var(--accent)">
+          </div>
+          <button class="btn btn--primary btn--touch btn--block" style="margin-top:var(--space-2)">Принять 2 позиции</button>
+        </div>
+      </div>
+
+      <div class="device device--sheet">
+        <div class="sheet">
+          <div class="row row--between"><p class="t-h3">Приёмка · 2 позиции</p><button class="btn btn--text" style="padding:0">Отмена</button></div>
+          <label class="field"><span class="field__label">Штукатурка стен · остаток 166,91 м²</span><input class="input input--num input--touch" value="166,91"></label>
+          <label class="field"><span class="field__label">Грунтование стен · остаток 406,91 м²</span><input class="input input--num input--touch" value="406,91"></label>
+          <div style="display:grid;place-items:center;height:96px;border:1px dashed var(--line-strong);border-radius:var(--radius-md)">
+            <p class="t-sm t-muted">Фото раздела · камера открывается сразу</p>
+          </div>
+          <label class="field"><span class="field__label">Комментарий, необязательно</span><input class="input input--touch" placeholder="Угол у окна доделать"></label>
+          <div class="row row--between"><span class="t-sm t-secondary">Бригада</span><span class="t-sm">Фархат · от этапа графика</span></div>
+          <button class="btn btn--primary btn--touch btn--block">Подтвердить</button>
+        </div>
+      </div>
+
+      <div style="width:360px" class="stack">
+        <div class="toast">
+          <span class="pill pill--ok">Принято</span>
+          <span class="t-sm">Начислено <b class="num">198 508,20 ₽</b> — Фархат</span>
+        </div>
+        <div class="stack-2">
+          <p class="figure__label" style="padding-bottom:var(--space-2);border-bottom:1px solid var(--line)">Начисления · Фархат</p>
+          <div class="row row--between"><span class="t-sm t-secondary">За текущий транш</span><span class="num">417 137,10 ₽</span></div>
+          <div class="row row--between"><span class="t-sm t-secondary">За неделю</span><span class="num">198 508,20 ₽</span></div>
+          <div class="row row--between"><span class="t-sm t-secondary">Всего по объекту</span><span class="num">1 210 044,00 ₽</span></div>
+        </div>
+        <div class="panel panel--pad stack-2">
+          <div class="row row--between"><span class="t-sm">Монтаж ГКЛ стена · 5,36 м²</span><span class="pill pill--danger">Сторно</span></div>
+          <p class="t-sm t-muted">Принято по ошибке, работа не выполнена. Р. Долгий, 28.08.2026.</p>
+          <p class="t-sm">Начисление сторнировано на <span class="num" style="color:var(--danger)">−4 288,00 ₽</span>. Запись приёмки сохранена.</p>
+        </div>
+        <div class="empty">
+          <p class="empty__title">Приёмок пока нет</p>
+          <p class="empty__text">Отметьте первую позицию раздела — начисление появится сразу.</p>
+          <button class="btn btn--primary" style="margin-top:var(--space-2)">К разделам</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ГРАФИК ────────────────────────────────────────────────────────── -->
+  <section class="stack" style="margin-top:var(--space-7)">
+    <div class="section-head">
+      <h2 class="t-h2">График производства работ</h2>
+      <div class="row">
+        <span class="metric"><span class="metric__value">148 / 244</span><span class="metric__label">рабочих дней</span></span>
+        <span class="metric"><span class="metric__value">273</span><span class="metric__label">дня по договору</span></span>
+        <span class="metric"><span class="metric__value">8</span><span class="metric__label">ошибок в датах</span></span>
+      </div>
+    </div>
+    <div class="stack-2">
+      <div class="gantt__row"><span class="t-sm">Подготовительные работы</span><div class="gantt__track"><div class="gantt__bar" style="left:0;width:8%"></div></div><span class="t-sm t-secondary">—</span><span class="num">100 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" style="left:8%;width:12%"></div></div><span class="t-sm t-secondary">Евгений</span><span class="num">62 %</span></div>
+      <div class="gantt__row" style="height:auto"><span></span><p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p><span></span><span></span></div>
+      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" style="left:20%;width:18%"></div></div><span class="t-sm t-secondary">Фархат</span><span class="num">59 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Вентиляция</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" style="left:38%;width:10%"></div></div><span class="t-sm t-secondary">Алексей</span><span class="num">0 %</span></div>
+      <div class="gantt__row" style="height:auto"><span></span><p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p><span></span><span></span></div>
+      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" style="left:48%;width:16%"></div></div><span class="t-sm t-secondary">Рашид</span><span class="num">12 %</span></div>
+    </div>
+  </section>
+
+  <!-- ── РАСХОДЫ ───────────────────────────────────────────────────────── -->
+  <section class="stack" style="margin-top:var(--space-7)">
+    <div class="section-head">
+      <h2 class="t-h2">Расходы и чеки</h2>
+      <p class="t-sm t-muted">письмо без опознанного кода не теряется</p>
+    </div>
+    <div class="panel panel--flush">
+      <div class="expense"><div class="skeleton expense__thumb"></div><div><p class="t-body">Леруа Мерлен · грунтовка, профиль</p><p class="t-sm t-muted">из письма checks+R99@ · 28.08.2026</p></div><div class="row"><span class="num">12 480,00 ₽</span><span class="pill pill--warn">Черновик</span></div></div>
+      <div class="expense"><div class="skeleton expense__thumb"></div><div><p class="t-body">Петрович · гипсокартон, 12 листов</p><p class="t-sm t-muted">подтверждено руководителем · 27.08.2026</p></div><div class="row"><span class="num">18 900,00 ₽</span><span class="pill pill--ok">Учтено</span></div></div>
+      <div class="expense" style="border-bottom:0"><div class="skeleton expense__thumb"></div><div><p class="t-body">Письмо без кода объекта</p><p class="t-sm t-muted">тема: «чек» · 26.08.2026</p></div><div class="row"><span class="num">3 200,00 ₽</span><span class="pill">Не распознано</span></div></div>
+    </div>
+  </section>
+
+  <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->
+  <section class="stack" style="margin-top:var(--space-7)">
+    <div class="section-head">
+      <h2 class="t-h2">Объём полевого испытания</h2>
+      <p class="t-sm t-muted">одна функция и пять решений</p>
+    </div>
+
+    <div class="figure figure--framed">
+      <span class="figure__label">Ключевая функция</span>
+      <p class="t-h2" style="margin-top:var(--space-1)">Пакетная приёмка позиций раздела с фотофиксацией, порождающая начисление сдельной оплаты</p>
+      <p class="t-body t-secondary" style="max-width:76ch;margin-top:var(--space-2)">Одно действие прораба: отметить выполненное, снять помещение, подтвердить. Тем же действием начисляется оплата бригаде по ставке позиции, уменьшается остаток транша, позиция становится доступной для акта.</p>
+      <p class="t-sm t-muted" style="margin-top:var(--space-2)">Проверяемые пороги: три касания на пакет · не более 30 секунд на позицию · не менее 80 % выполненного отмечено</p>
+    </div>
+
+    <div class="table-scroll">
+      <table class="estimate">
+        <thead><tr><th style="width:22%">Решение</th><th style="width:34%">Что делает</th><th>Почему без него испытание не состоится</th></tr></thead>
+        <tbody>
+          <tr><td>Вход по ссылке</td><td>Прораб открывает объект персональной ссылкой без регистрации, пароля и кода из СМС</td><td>Заказчик не смог завершить регистрацию в продукте-конкуренте. Пока барьер входа не снят, метрика измеряет порог освоения, а не продукт</td></tr>
+          <tr><td>Импорт сметы</td><td>Разбор `.xlsx` заказчика с отчётом о расхождениях</td><td>Единственный способ наполнить систему. Отчёт показывает недосчёт 438 800 ₽ до того, как принята первая позиция</td></tr>
+          <tr><td>Сводка объекта</td><td>Выполнено на сумму, остаток транша, процент готовности; транш заводится одним числом</td><td>Без неё руководителю незачем заходить, и приёмка остаётся односторонней</td></tr>
+          <tr><td>Свод начислений</td><td>Итог по бригаде за транш, за неделю, всего по объекту</td><td>Единственный механизм удержания прораба: прекращение приёмки немедленно останавливает начисления</td></tr>
+          <tr><td>Сторно с причиной</td><td>Обратная запись руководителя, а не удаление</td><td>Без него первая ошибка делает данные недостоверными, и прораб перестаёт отмечать</td></tr>
+          <tr><td class="t-muted">Поля по ролям</td><td class="t-muted">Ставка, ЗП и прибыль не попадают в ответ сервера для прораба</td><td class="t-muted">Действует с первого дня, но экраном не является</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="t-sm t-muted">За пределами испытания: акты и выгрузка в PDF, почтовый шлюз чеков, график производства работ. Входят в первую версию, для замера двух определяющих метрик не нужны.</p>
+  </section>
+
+  <!-- ── СПЕЦИФИКАЦИЯ ──────────────────────────────────────────────────── -->
+  <section class="stack" style="margin-top:var(--space-7)">
+    <div class="section-head">
+      <h2 class="t-h2">Спецификация</h2>
+      <p class="t-sm t-muted">значение мимо токена — дефект</p>
+    </div>
+
+    <div class="stack-2" style="max-width:76ch">
+      <p class="figure__label">Типографика</p>
+      <p class="num num--display">3 758 778,35 ₽</p>
+      <p class="t-sm t-muted">IBM Plex Mono · 32/1,15/600 · табличные цифры, разряды неразрывным пробелом, копейки всегда две цифры</p>
+      <hr class="rule">
+      <p class="t-h1">Московский проспект 116</p>
+      <p class="t-h2">Штукатурка и малярные работы</p>
+      <p class="t-body">Golos Text — родная кириллица, деловой рисунок, не Inter. Плотность выше воздушности: 141 позиция сметы должна помещаться на экране без бесконечной прокрутки.</p>
+      <p class="t-sm t-secondary">Вторичный текст и подписи полей · 13/1,45/400</p>
+    </div>
+
+    <div class="row" style="flex-wrap:wrap;margin-top:var(--space-4)">
+      <button class="btn btn--primary">Принять</button>
+      <button class="btn btn--secondary">Изменить смету</button>
+      <button class="btn btn--text">Скопировать адрес</button>
+      <button class="btn btn--danger">Сторнировать</button>
+      <button class="btn btn--primary" data-loading="true">Подтвердить</button>
+      <button class="btn btn--primary" disabled>Закрыть транш</button>
+    </div>
+    <div class="row" style="flex-wrap:wrap">
+      <span class="pill pill--ok">Принято</span>
+      <span class="pill pill--warn">Ожидает приёмки</span>
+      <span class="pill pill--danger">Сторно</span>
+      <span class="pill pill--signal">Перевыработка</span>
+      <span class="pill">Не распознано</span>
+      <span class="code-badge">R-99</span>
+    </div>
+    <div class="row" style="align-items:flex-end;flex-wrap:wrap">
+      <label class="field" style="width:200px"><span class="field__label">Количество</span><input class="input input--num" value="406,91"><span class="field__hint">По смете осталось 406,91 м²</span></label>
+      <label class="field" style="width:300px"><span class="field__label">Количество</span><input class="input input--num" value="12" aria-invalid="true"><span class="field__error">Нельзя принять 12 м² — по смете осталось 8,4 м². Уменьшите количество или измените смету.</span></label>
+    </div>
+
+    <div class="table-scroll" style="margin-top:var(--space-4)">
+      <table class="estimate">
+        <thead><tr><th style="width:180px">Токен</th><th style="width:120px">Светлая</th><th style="width:120px">Тёмная</th><th>Где применяется</th></tr></thead>
+        <tbody>
+          <tr><td><code>--accent</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#17457A;border:1px solid var(--line)"></span>#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
+          <tr><td><code>--accent-soft</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#E4EBF4;border:1px solid var(--line)"></span>#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
+          <tr><td><code>--ok</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#2E7D57;border:1px solid var(--line)"></span>#2E7D57</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
+          <tr><td><code>--warn</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#B8860F;border:1px solid var(--line)"></span>#B8860F</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
+          <tr><td><code>--danger</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#B3261E;border:1px solid var(--line)"></span>#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
+          <tr><td><code>--signal</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#C97A1E;border:1px solid var(--line)"></span>#C97A1E</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
+          <tr><td><code>--surface-2</code></td><td><span class="row" style="gap:var(--space-2)"><span style="width:14px;height:14px;border-radius:3px;background:#EDF0F4;border:1px solid var(--line)"></span>#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
+          <tr><td><code>--row-h</code></td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
+          <tr><td><code>--control-h</code> / <code>--control-h-touch</code></td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
+          <tr><td><code>--tap-min</code></td><td class="estimate__num" colspan="2">44 px</td><td>Минимальная область нажатия на мобильном</td></tr>
+          <tr><td><code>--indent-level</code></td><td class="estimate__num" colspan="2">16 px</td><td>Отступ вложенности раздела на уровень; в файле заказчика два уровня</td></tr>
+          <tr><td><code>--summary-col</code></td><td class="estimate__num" colspan="2">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <a class="tabbar__item" aria-current="page" href="#"><span aria-hidden="true">◆</span>Объект</a>
+  <a class="tabbar__item" href="#"><span aria-hidden="true">≡</span>Смета</a>
+  <a class="tabbar__item" href="#"><span aria-hidden="true">✓</span>Приёмка</a>
+  <a class="tabbar__item" href="#"><span aria-hidden="true">₽</span>Расходы</a>
+  <a class="tabbar__item" href="#"><span aria-hidden="true">▤</span>График</a>
+</nav>
+
+<script>
+  document.getElementById("theme").addEventListener("click", () => {
+    const root = document.documentElement;
+    root.setAttribute("data-theme", root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+  document.querySelectorAll(".tabs").forEach((group) => {
+    group.addEventListener("click", (event) => {
+      const tab = event.target.closest(".tabs__item");
+      if (!tab) return;
+      group.querySelectorAll(".tabs__item").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    });
+  });
+  document.querySelectorAll(".segmented").forEach((group) => {
+    group.addEventListener("click", (event) => {
+      const option = event.target.closest(".segmented__option");
+      if (!option) return;
+      group.querySelectorAll(".segmented__option").forEach((o) => o.setAttribute("aria-pressed", String(o === option)));
+      const internal = group.querySelector('[aria-pressed="true"]')?.textContent.trim() === "Внутренняя";
+      document.querySelectorAll(".estimate__internal").forEach((cell) => { cell.hidden = !internal; });
+      // Итоговая строка перекрывает те же колонки, что и шапка: без правки
+      // колонтитул расходится с таблицей на три колонки.
+      const footNote = document.querySelector(".estimate tfoot td:last-child");
+      if (footNote) footNote.colSpan = internal ? 4 : 1;
+    });
+  });
+</script>
+
+</body>
+</html>

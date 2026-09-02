@@ -1,0 +1,33 @@
+/* ============================================================================
+   Приёмка — сетка. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §4.
+   Десктоп: контейнер 1440 px, поля 24 px, 12 колонок.
+   Карточка объекта: левая колонка сводки 320 px, правая рабочая — остаток.
+   Планшет от 768 px: колонки складываются, сводка уезжает наверх.
+   Мобильный от 360 px: одна колонка, нижняя таб-панель.
+   ========================================================================= */
+
+.container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--gutter); }
+
+.stack   { display: flex; flex-direction: column; gap: var(--space-4); }
+.stack-2 { display: flex; flex-direction: column; gap: var(--space-2); }
+.stack-5 { display: flex; flex-direction: column; gap: var(--space-5); }
+.row     { display: flex; align-items: center; gap: var(--space-3); }
+.row--between { justify-content: space-between; }
+
+.grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gutter); }
+
+/* Мобильный по умолчанию: одна колонка, снизу место под таб-панель. */
+.project-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+}
+
+@media (min-width: 1024px) {
+  .project-layout {
+    grid-template-columns: var(--summary-col) minmax(0, 1fr);
+    align-items: start;
+    padding-bottom: var(--space-5);
+  }
+}

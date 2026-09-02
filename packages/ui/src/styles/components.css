@@ -1,0 +1,412 @@
+/* ============================================================================
+   Приёмка — компоненты. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §5.
+   ========================================================================= */
+
+/* --- 5.9 Кнопки ----------------------------------------------------------
+   Высота 40 px на десктопе, 48 px на мобильном. Состояние загрузки —
+   спиннер внутри кнопки, ширина не меняется. Кнопка называет действие.   */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+
+.btn--primary   { background: var(--accent); color: var(--accent-ink); }
+.btn--primary:hover:not([disabled]) { background: var(--accent-hover); }
+
+.btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.btn--secondary:hover:not([disabled]) { background: var(--surface-2); }
+
+.btn--text      { background: transparent; color: var(--accent); padding: 0 var(--space-2); }
+.btn--text:hover:not([disabled]) { background: var(--accent-soft); }
+
+.btn--danger    { background: var(--danger); color: var(--ink-inv); }
+
+.btn--touch     { height: var(--control-h-touch); font-size: var(--fs-h3); }
+.btn--block     { width: 100%; }
+
+/* Ширина не меняется при загрузке: подпись остаётся в потоке, но скрыта. */
+.btn[data-loading="true"] { position: relative; color: transparent; }
+.btn[data-loading="true"]::after {
+  content: "";
+  position: absolute;
+  width: 16px; height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 700ms linear infinite;
+  color: var(--accent-ink);
+}
+.btn--secondary[data-loading="true"]::after { color: var(--ink); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- 5.9 Пилюли статусов -------------------------------------------------
+   Высота 24 px, текст обязателен: смысл никогда не передаётся одним цветом. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--pill-h);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--neutral-soft);
+  color: var(--ink-2);
+}
+.pill--ok      { background: var(--ok-soft);     color: var(--ok); }
+.pill--warn    { background: var(--warn-soft);   color: var(--warn); }
+.pill--danger  { background: var(--danger-soft); color: var(--danger); }
+.pill--signal  { background: var(--signal-soft); color: var(--signal); }
+.pill--accent  { background: var(--accent-soft); color: var(--accent); }
+
+/* Код объекта — моноширинный бейдж на мягком акценте. Сквозной
+   идентификатор: почта, документы, разговор, акт. */
+.code-badge {
+  display: inline-flex;
+  align-items: center;
+  height: var(--pill-h);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.code-badge--lg { height: 32px; padding: 0 var(--space-3); font-size: var(--fs-h2); }
+
+/* --- 5.9 Поля ввода ------------------------------------------------------ */
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.field__label { font-size: var(--fs-sm); color: var(--ink-2); }
+.field__hint  { font-size: var(--fs-sm); color: var(--ink-3); }
+.field__error { font-size: var(--fs-sm); color: var(--danger); }
+
+.input {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+.input::placeholder { color: var(--ink-3); }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.input--touch { height: var(--control-h-touch); font-size: var(--fs-h3); }
+/* Денежные и количественные поля — моноширинные с табличными цифрами. */
+.input--num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* --- Поверхности по роли ---------------------------------------------------
+   Граница, заливка, радиус и тень означают «отдельный объект». Если их
+   получает каждый блок, иерархия исчезает. Поэтому поверхностей четыре,
+   и выбор между ними определяется ролью блока, а не удобством вёрстки.
+
+   .figure  — сводная величина. Лежит прямо на полотне, без рамки. Отделяется
+              от соседей волосяной линией. Так подаётся «Баланс проекта»
+              у референса: число, а не коробка с числом.
+   .panel   — контейнер содержимого: таблица, список, форма. Граница --line.
+   .tile    — самостоятельный объект, требующий действия: статус, почтовый
+              шлюз. Граница и заливка вторичной поверхности.
+   .tile--accent — единственный блок, залитый акцентом. На экране он один.
+   ------------------------------------------------------------------------ */
+
+.figure { display: flex; flex-direction: column; gap: var(--space-1); }
+.figure + .figure { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.figure__label { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.figure__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+.figure__value--h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); }
+.figure__note { font-size: var(--fs-sm); color: var(--ink-3); }
+/* Остаток транша — единственная величина, выделенная рамкой акцента: именно
+   её руководитель ищет на экране. Выделение работает, пока оно одно. */
+.figure--framed { padding: var(--space-4); border: 2px solid var(--accent); border-radius: var(--radius-md); }
+.figure--framed .figure__value { color: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.panel--pad   { padding: var(--space-4); }
+.panel--flush { overflow: hidden; }
+.panel__head  { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.panel__body  { padding: var(--space-4); }
+
+.tile { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.tile--accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tile--accent .figure__label, .tile--accent .figure__note { color: var(--accent-ink); opacity: .78; }
+.tile--accent .figure__value { color: var(--accent-ink); }
+
+/* Волосяная линия и надзаголовок раздела. Раздел отделяется линией и
+   подписью, а не помещается в коробку. */
+.rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line-strong); }
+
+/* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
+   у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
+.metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
+.metric__label { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+
+/* --- 5.1 Глобальная навигация -------------------------------------------- */
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--header-h);
+  padding: 0 var(--gutter);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.appbar__nav { display: flex; gap: var(--space-1); margin-inline: auto; }
+.appbar__link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
+
+/* Мобильная таб-панель: пять пунктов, иконка и подпись 11 px,
+   учитывается безопасная зона снизу. */
+.tabbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap-min);
+  color: var(--ink-3);
+  text-decoration: none;
+  font-size: var(--fs-cap);
+}
+.tabbar__item[aria-current="page"] { color: var(--accent); }
+
+/* Таб-панель существует только на мобильном, пилюльная навигация — только
+   на десктопе. Правила стоят рядом с компонентом, а не в layout.css:
+   при равной специфичности исход решал бы порядок импорта, а не намерение. */
+@media (min-width: 768px) { .tabbar { display: none; } }
+@media (max-width: 767px) { .appbar__nav { display: none; } }
+
+/* --- Шапка-обложка --------------------------------------------------------
+   Цветная подложка того же акцента под шапкой несёт хлебные крошки и
+   заголовок страницы; под ней начинается рабочее полотно. Приём даёт
+   заметную обложку без отдельного сайдбара и отдаёт содержимому всю
+   ширину экрана — главная структурная находка референса.               */
+.cover { background: var(--accent); color: var(--accent-ink); padding-block: var(--space-3) var(--space-5); }
+.cover__crumbs { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); opacity: .72; }
+.cover__crumbs a { color: inherit; text-decoration: none; }
+.cover__title { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+.cover .code-badge { background: rgba(255, 255, 255, .16); color: var(--accent-ink); }
+
+/* Табы внутри карточки объекта: плотная навигация без ухода со страницы. */
+.tabs { display: flex; gap: var(--space-5); overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tabs__item { flex: none; padding: var(--space-3) 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font-size: var(--fs-body); cursor: pointer; white-space: nowrap; }
+.tabs__item[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* --- 5.3 Кольцевой индикатор готовности ----------------------------------
+   Диаметр 72 px, дуга 8 px. Считается по сумме принятых позиций
+   к итогу сметы, не по их количеству. */
+.ring { width: var(--ring-size); height: var(--ring-size); position: relative; flex: none; }
+.ring__track { stroke: var(--surface-2); }
+.ring__arc   { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset var(--dur-base) var(--ease); }
+.ring__value {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 5.4 Таблица сметы ---------------------------------------------------
+   Плотная таблица: строка 40 px, 13 px, суммы по правому краю.
+   Заголовок липкий, разделы — сворачиваемые группы. */
+.estimate { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
+.estimate thead th {
+  position: sticky; top: 0; z-index: 2;
+  height: var(--row-h);
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.estimate td { height: var(--row-h); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
+.estimate tbody tr:hover td { background: var(--surface-2); }
+
+.estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Внутренние колонки визуально маркируются: фон ячеек --surface-2 и
+   надзаголовок группы «внутреннее» — чтобы при демонстрации экрана
+   клиенту ошибка была заметна мгновенно. */
+.estimate__internal { background: var(--surface-2); color: var(--ink-3); }
+.estimate thead th.estimate__internal { background: var(--surface-2); }
+.estimate__internal-group {
+  font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* Разделы — сворачиваемые группы, отступ вложенности 16 px на уровень. */
+.estimate__section td {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--ink);
+}
+.estimate__section-toggle {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  background: none; border: 0; cursor: pointer; padding: 0;
+  min-height: var(--tap-min);
+}
+.estimate__row-name { padding-left: calc(var(--indent-level) * var(--level, 0)); }
+
+/* Итоги закреплены снизу. */
+.estimate tfoot td {
+  position: sticky; bottom: 0; z-index: 2;
+  background: var(--surface);
+  border-top: 2px solid var(--line-strong);
+  font-weight: 600;
+}
+
+/* Переключатель проекции — сегментированный контрол. */
+.segmented { display: inline-flex; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.segmented__option {
+  height: 32px; padding: 0 var(--space-3);
+  border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
+  font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
+}
+.segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
+
+/* Обёртка прокрутки: широкая таблица прокручивается внутри контейнера,
+   полотно страницы по горизонтали не двигается. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* --- 5.5 Экран приёмки (мобильный) --------------------------------------- */
+.accept-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.accept-item__name {
+  font-size: var(--fs-body);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.accept-item__qty { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.accept-item--done { background: var(--ok-soft); border-color: transparent; }
+
+/* Лист снизу на мобильном, центрированное окно шириной 480 px на десктопе. */
+.sheet-backdrop { position: fixed; inset: 0; background: var(--overlay); }
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-2);
+}
+@media (min-width: 768px) {
+  .sheet {
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    width: var(--modal-w);
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* Превью устройства: мобильный экран, показанный внутри десктопной страницы.
+   Ширина превью не связана с шириной окна, поэтому десктопные правила листа
+   внутри него не действуют — иначе лист становится шириной 480 px и режется. */
+.device {
+  position: relative;
+  width: 360px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+.device .sheet {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: auto;
+  transform: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: none;
+}
+.device--sheet { min-height: 540px; background: var(--overlay); }
+
+/* --- 5.6 Транш -----------------------------------------------------------
+   Перевыработка — нормальное событие, требующее закрытия акта,
+   поэтому показывается сигнальным цветом, а не ошибкой. */
+.tranche { display: flex; flex-direction: column; gap: var(--space-2); }
+.tranche__bar { height: 10px; background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.tranche__fill { height: 100%; background: var(--accent); border-radius: var(--radius-pill); transition: width var(--dur-base) var(--ease); }
+.tranche__fill--over { background: var(--signal); }
+.tranche__legend { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-sm); color: var(--ink-2); }
+
+/* --- 5.8 График производства работ ---------------------------------------
+   Масштаб — недели и месяцы, без дней: точность в днях избыточна. */
+.gantt__row { display: grid; grid-template-columns: 200px 1fr 120px 56px; align-items: center; gap: var(--space-3); height: var(--row-h); }
+.gantt__track { position: relative; height: 12px; background: var(--surface-2); border-radius: var(--radius-pill); }
+.gantt__bar { position: absolute; top: 0; height: 100%; background: var(--accent); border-radius: var(--radius-pill); }
+.gantt__bar--invalid { background: var(--danger); }
+.gantt__hint { font-size: var(--fs-sm); color: var(--danger); }
+
+/* --- 5.7 Чеки и расходы --------------------------------------------------- */
+.expense { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-3); border-bottom: 1px solid var(--line); }
+.expense__thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-2); }
+
+/* --- 5.9 Уведомления ------------------------------------------------------ */
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+/* --- 5.9 Пустые состояния -------------------------------------------------
+   Никаких иллюстраций и маскотов: заголовок, пояснение, одно действие. */
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-6) var(--space-4); }
+.empty__title { font-size: var(--fs-h3); font-weight: var(--fw-h3); }
+.empty__text  { font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* --- 5.9 Скелетоны вместо спиннеров на загрузке списков и таблиц ---------- */
+.skeleton { background: var(--surface-2); border-radius: var(--radius-sm); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
