@@ -24,6 +24,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 
 img, svg, video { max-width: 100%; display: block; }
 
+/* Скрытие переключается свойством hidden, а не правкой display в стилях. */
+[hidden] { display: none !important; }
+
 button, input, select, textarea { font: inherit; color: inherit; }
 
 a { color: var(--accent); text-underline-offset: 2px; }
