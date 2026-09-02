@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatKopecks, formatPercent, formatQty, formatQtyWithUnit, kopecks, milliunits } from "./format.js";
+import { kopecks, milliunits } from "@priyomka/domain";
+import { formatKopecks, formatPercent, formatQty, formatQtyWithUnit } from "./format.js";
 
 const NBSP = " ";
 

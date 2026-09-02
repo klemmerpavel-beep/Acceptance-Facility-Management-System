@@ -12,19 +12,7 @@
 /** Неразрывный пробел U+00A0 — разделитель разрядов. */
 const NBSP = " ";
 
-/** Целое число копеек. Отдельный именованный тип, чтобы копейки нельзя
- *  было перепутать с рублями или с количеством. */
-export type Kopecks = bigint & { readonly __brand: "Kopecks" };
-
-export const kopecks = (value: bigint | number | string): Kopecks =>
-  BigInt(value) as Kopecks;
-
-/** Количество хранится в тысячных долях единицы измерения: 406,91 м² → 406910.
- *  Дробные количества в смете доходят до сотых (406,91), запас на порядок. */
-export type Milliunits = bigint & { readonly __brand: "Milliunits" };
-
-export const milliunits = (value: bigint | number | string): Milliunits =>
-  BigInt(value) as Milliunits;
+import type { BasisPoints, Kopecks, Milliunits } from "@priyomka/domain";
 
 const groupDigits = (digits: string): string =>
   digits.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
@@ -61,9 +49,9 @@ export function formatQty(value: Milliunits | bigint): string {
 }
 
 /** Доля в сотых долях процента (1200 = 12,00 %) → «12 %» или «12,5 %». */
-export function formatPercent(basisPoints: bigint): string {
-  const whole = basisPoints / 100n;
-  const fraction = (basisPoints % 100n).toString().padStart(2, "0").replace(/0+$/, "");
+export function formatPercent(share: BasisPoints | bigint): string {
+  const whole = share / 100n;
+  const fraction = (share % 100n).toString().padStart(2, "0").replace(/0+$/, "");
   const body = fraction.length > 0 ? `${whole},${fraction}` : whole.toString();
   return `${body}${NBSP}%`;
 }

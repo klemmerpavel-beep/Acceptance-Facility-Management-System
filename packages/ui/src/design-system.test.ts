@@ -28,8 +28,9 @@ const TOKEN_REFERENCE = /var\((--[a-z0-9-]+)/g;
 
 const definitionsIn = (css: string): Map<string, string> => {
   const found = new Map<string, string>();
-  for (const [, name, value] of css.matchAll(TOKEN_DEFINITION)) {
-    found.set(name, value.trim());
+  for (const match of css.matchAll(TOKEN_DEFINITION)) {
+    const [, name, value] = match;
+    if (name !== undefined && value !== undefined) found.set(name, value.trim());
   }
   return found;
 };
@@ -47,7 +48,9 @@ describe("значение мимо токена — дефект", () => {
     }
     const referenced = new Set<string>();
     for (const css of [TOKENS, ...OTHER_SHEETS.map((s) => s.css)]) {
-      for (const [, name] of css.matchAll(TOKEN_REFERENCE)) referenced.add(name);
+      for (const match of css.matchAll(TOKEN_REFERENCE)) {
+        if (match[1] !== undefined) referenced.add(match[1]);
+      }
     }
     // Локальные свойства компонентов объявляются через var(--x, запасное)
     // и определяются в разметке, а не в стилях: они исключены.
@@ -100,7 +103,9 @@ describe("мёртвые правила", () => {
   it("каждый объявленный класс используется в разметке", () => {
     const declared = new Set<string>();
     for (const { css } of OTHER_SHEETS) {
-      for (const [, name] of css.matchAll(/^\.([a-z][a-z0-9_-]*)/gm)) declared.add(name);
+      for (const match of css.matchAll(/^\.([a-z][a-z0-9_-]*)/gm)) {
+        if (match[1] !== undefined) declared.add(match[1]);
+      }
     }
     const consumers: string[] = [];
     const design = join(repoRoot, "design");

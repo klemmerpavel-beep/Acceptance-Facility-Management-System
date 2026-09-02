@@ -13,5 +13,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
-  "peerDependencies": { "react": "^19.0.0" }
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@priyomka/domain": "workspace:*"
+  }
 }
