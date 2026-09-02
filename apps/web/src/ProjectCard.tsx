@@ -266,7 +266,12 @@ export function ProjectCard({
 
             {tab === "estimate" && (
               <>
-                {loading && <span className="skeleton skeleton--row" />}
+                {/* Скелет показывается, пока показывать нечего. Условие по
+                    признаку загрузки давало полосу поверх уже отрисованной
+                    таблицы: смета приходит раньше протоколов импорта. */}
+                {loading && estimate === null && error === null && (
+                  <span className="skeleton skeleton--row" />
+                )}
                 {error !== null && !loading && (
                   <div className="empty">
                     <p className="empty__title">Сметы пока нет</p>
