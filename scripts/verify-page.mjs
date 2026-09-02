@@ -114,10 +114,39 @@ const focusVisible = await page.evaluate(() => {
 });
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
+// Карточка объекта. Открывается объект со сметой: у остальных карточка
+// показывает пустое состояние, и это правильное поведение, а не сбой.
+await page.click('table.estimate tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".cover__title .code-badge");
+await page.waitForSelector("table.estimate tbody tr");
+await step("карточка объекта", "04-kartochka.png");
+await overflow("карточка, 1440");
+
+const sections = await page.locator("tr.estimate__section").count();
+const items = await page.locator("table.estimate tbody tr").count();
+console.log(`  строк в смете: ${items}, из них заголовков и подытогов разделов: ${sections}`);
+
+// Сворачивание раздела и переключение проекции.
+const before = await page.locator("table.estimate tbody tr").count();
+await page.locator(".estimate__section-toggle").first().click();
+const after = await page.locator("table.estimate tbody tr").count();
+if (after >= before) note("сворачивание раздела", "число строк не уменьшилось");
+await page.locator(".estimate__section-toggle").first().click();
+
+const internalBefore = await page.locator(".estimate__internal").count();
+await page.click('.segmented__option:has-text("Клиентская")');
+await page.waitForTimeout(200);
+const internalAfter = await page.locator(".estimate__internal").count();
+if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
+if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
+await step("клиентская проекция", "05-klientskaya.png");
+await page.click('.segmented__option:has-text("Внутренняя")');
+
 // Импорт сметы.
+await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
 await page.waitForSelector("text=Отчёт о расхождениях");
-await step("отчёт о расхождениях", "04-otchet.png");
+await step("отчёт о расхождениях", "06-otchet.png");
 await overflow("отчёт, 1440");
 
 const decisions = await page.locator("select").count();
@@ -125,24 +154,95 @@ console.log(`  написаний единиц ждут решения: ${decisi
 
 await page.click('button:has-text("Импортировать")');
 await page.waitForSelector("text=Импортировано", { timeout: 30_000 });
-await step("импорт выполнен", "05-import.png");
+await step("импорт выполнен", "07-import.png");
 
 // Мобильная ширина на том же состоянии.
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(400);
 await overflow("после импорта, 360");
-await step("мобильный, 360 px", "06-mobile-360.png");
+await step("мобильный, 360 px", "08-mobile-360.png");
 
 await page.setViewportSize({ width: 768, height: 1000 });
 await page.waitForTimeout(300);
 await overflow("после импорта, 768");
-await step("планшет, 768 px", "07-tablet-768.png");
+await step("планшет, 768 px", "09-tablet-768.png");
 
-// Тёмная тема.
+// Иконки. Экраны ссылаются на символы через <use href="#i-…">: если набора
+// нет в документе, ссылка ведёт в пустоту и иконка не рисуется, причём молча.
+const brokenIcons = await page.evaluate(() =>
+  [...document.querySelectorAll("use")]
+    .map((node) => node.getAttribute("href") ?? "")
+    .filter((href) => href.startsWith("#") && document.getElementById(href.slice(1)) === null),
+);
+if (brokenIcons.length > 0) note("иконка без символа", [...new Set(brokenIcons)].join(", "));
+
+// Тёмная тема по системной настройке.
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "08-dark.png");
+await step("тёмная тема", "10-dark.png");
+
+/**
+ * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
+ * побеждает системную настройку: браузер здесь эмулирует системную тёмную,
+ * и выбранная светлая обязана её перекрыть.
+ */
+const themeState = async () =>
+  page.evaluate(() => ({
+    attribute: document.documentElement.getAttribute("data-theme"),
+    background: getComputedStyle(document.body).backgroundColor,
+    scheme: getComputedStyle(document.documentElement).colorScheme,
+  }));
+
+const systemDark = await themeState();
+if (systemDark.attribute !== null) note("тема", `в системном режиме признак не снят: ${systemDark.attribute}`);
+
+await page.click('.themeswitch__option[title="Светлая тема"]');
+await page.waitForTimeout(200);
+const forcedLight = await themeState();
+if (forcedLight.attribute !== "light") note("тема", "выбор светлой не выставил data-theme");
+if (forcedLight.background === systemDark.background) {
+  note("тема", `светлая не перекрыла системную тёмную: фон остался ${forcedLight.background}`);
+}
+if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")) {
+  note("тема", `светлая не сообщена браузеру: color-scheme = ${forcedLight.scheme}`);
+}
+await step("светлая тема поверх системной тёмной", "11-svetlaya.png");
+
+await page.emulateMedia({ colorScheme: "light" });
+await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.waitForTimeout(200);
+const forcedDark = await themeState();
+if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной не выставил data-theme");
+if (forcedDark.background === forcedLight.background) {
+  note("тема", `тёмная не перекрыла системную светлую: фон остался ${forcedDark.background}`);
+}
+await step("тёмная тема поверх системной светлой", "12-tyomnaya.png");
+
+await page.click('.themeswitch__option[title="Как в системе"]');
+await page.waitForTimeout(200);
+const backToSystem = await themeState();
+if (backToSystem.attribute !== null) note("тема", "возврат к системной не снял признак");
+if (backToSystem.background !== forcedLight.background) {
+  note("тема", "возврат к системной не вернул системный фон");
+}
+
+// Выбор обязан пережить перезагрузку: иначе переключатель бесполезен.
+await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(300);
+const afterReload = await themeState();
+if (afterReload.attribute !== "dark") note("тема", "выбор не пережил перезагрузку страницы");
+
+// Переключатель на узком экране: он стоит в шапке рядом с выходом.
+await page.setViewportSize({ width: 360, height: 800 });
+await page.waitForTimeout(300);
+await overflow("шапка с переключателем темы, 360");
+const tap = await page.locator(".themeswitch__option").first().boundingBox();
+if (tap === null || tap.width < 44 || tap.height < 44) {
+  note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
+}
+await step("переключатель темы, 360 px", "13-tema-360.png");
 
 await browser.close();
 

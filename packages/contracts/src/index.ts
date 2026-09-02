@@ -118,3 +118,83 @@ export const importResultSchema = z.object({
   report: importReportSchema,
 });
 export type ImportResult = z.infer<typeof importResultSchema>;
+
+/** Позиция сметы в ответе. Внутренние поля приходят только роли OWNER. */
+export const estimateItemSchema = z.object({
+  id: z.string().uuid(),
+  order: z.number().int(),
+  name: z.string(),
+  unit: z.string(),
+  qty: milliunitsString,
+  qtyAccepted: milliunitsString,
+  unitPrice: kopecksString,
+  total: kopecksString,
+  unitWage: kopecksString.optional(),
+  wageTotal: kopecksString.optional(),
+  profit: kopecksString.optional(),
+  profitShare: z.number().int().optional(),
+});
+
+export interface EstimateSectionNode {
+  id: string;
+  name: string;
+  level: number;
+  sourceRow: number | null;
+  items: z.infer<typeof estimateItemSchema>[];
+  children: EstimateSectionNode[];
+  subtotal: string;
+  subtotalWage?: string | undefined;
+}
+
+/** Раздел рекурсивен, поэтому схема объявляется отложенно. */
+export const estimateSectionSchema: z.ZodType<EstimateSectionNode> = z.lazy(() =>
+  z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    level: z.number().int(),
+    sourceRow: z.number().int().nullable(),
+    items: z.array(estimateItemSchema),
+    children: z.array(estimateSectionSchema),
+    subtotal: kopecksString,
+    subtotalWage: kopecksString.optional(),
+  }),
+);
+
+export const estimateViewSchema = z.object({
+  version: z.number().int(),
+  importedAt: z.string().nullable(),
+  positions: z.number().int(),
+  sectionsTopLevel: z.number().int(),
+  sectionsNested: z.number().int(),
+  sections: z.array(estimateSectionSchema),
+  otherExpenses: z.array(
+    z.object({
+      id: z.string().uuid(),
+      name: z.string(),
+      unit: z.string(),
+      unitPrice: kopecksString,
+      order: z.number().int(),
+    }),
+  ),
+  totals: z.object({
+    works: kopecksString,
+    supervisionShare: z.number().int(),
+    supervision: kopecksString,
+    estimate: kopecksString,
+    wage: kopecksString.optional(),
+    profit: kopecksString.optional(),
+  }),
+  /** Заявленный в исходном файле итог и расхождение с пересчётом (БП-09). */
+  declaredWorksTotal: kopecksString.nullable(),
+  worksTotalDelta: kopecksString.nullable(),
+});
+export type EstimateView = z.infer<typeof estimateViewSchema>;
+
+export const importRecordSchema = z.object({
+  id: z.string().uuid(),
+  fileName: z.string(),
+  importedAt: z.string(),
+  positions: z.number().int(),
+  report: importReportSchema,
+});
+export type ImportRecord = z.infer<typeof importRecordSchema>;

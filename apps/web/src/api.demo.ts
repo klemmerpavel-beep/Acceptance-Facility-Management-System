@@ -9,7 +9,9 @@
  * базу, не разбирает приложенный файл. Разграничение по ролям показано
  * данными, которые сервер отдал каждой роли на самом деле.
  */
-import type { CurrentUser, ImportReport, ImportResult, ProjectSummary, Role } from "@priyomka/contracts";
+import type {
+  CurrentUser, EstimateView, ImportRecord, ImportReport, ImportResult, ProjectSummary, Role,
+} from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 type Snapshot = {
@@ -18,6 +20,9 @@ type Snapshot = {
   "projects-owner": ProjectSummary[];
   "projects-foreman": ProjectSummary[];
   units: string[];
+  "estimate-owner": EstimateView;
+  "estimate-foreman": EstimateView;
+  imports: ImportRecord[];
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
 };
@@ -92,4 +97,22 @@ export async function importEstimate(
     );
   }
   return data.import;
+}
+
+/**
+ * Смета в проекции той роли, за которую сейчас смотрят. Слепки сняты с
+ * сервера порознь: у прораба внутренних величин нет не потому, что их
+ * скрыл интерфейс, а потому, что сервер их не отдал.
+ */
+export async function fetchEstimate(code: string): Promise<EstimateView> {
+  await pause(320);
+  if (code !== "R-99") {
+    throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
+  }
+  return role === "OWNER" ? data["estimate-owner"] : data["estimate-foreman"];
+}
+
+export async function fetchImports(code: string): Promise<ImportRecord[]> {
+  await pause(120);
+  return code === "R-99" ? data.imports : [];
 }

@@ -1,13 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import type { ImportReport, ImportResult } from "@priyomka/contracts";
+import type { EstimateView, ImportRecord, ImportReport, ImportResult } from "@priyomka/contracts";
 import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
+import { basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
+import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
+import { projectScope } from "../common/project-scope";
 import { toImportReport } from "./report.mapper";
 
 @Injectable()
@@ -17,8 +20,9 @@ export class EstimatesService {
     private readonly audit: AuditService,
   ) {}
 
+  /** Видимость объекта берётся из общего правила: своего здесь нет. */
   private async projectOf(user: RequestUser, code: string) {
-    const project = await this.prisma.project.findFirst({ where: { orgId: user.orgId, code } });
+    const project = await this.prisma.project.findFirst({ where: { ...projectScope(user), code } });
     if (!project) throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     return project;
   }
@@ -176,6 +180,88 @@ export class EstimatesService {
       map.set(code, created.id);
     }
     return map;
+  }
+
+  /**
+   * Действующая редакция сметы объекта, собранная в дерево и спроецированная
+   * по роли. Отдаётся последняя версия: прежние редакции сохраняются, но
+   * показывается та, по которой работают сейчас (Р11).
+   */
+  async view(user: RequestUser, code: string): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.prisma.estimate.findFirst({
+      where: { projectId: project.id },
+      orderBy: { version: "desc" },
+      include: {
+        sections: { orderBy: { order: "asc" } },
+        items: { orderBy: { order: "asc" }, include: { unit: true } },
+        otherExpenses: { orderBy: { order: "asc" }, include: { unit: true } },
+        imports: { orderBy: { importedAt: "desc" }, take: 1 },
+      },
+    });
+    if (!estimate) {
+      throw new NotFoundException({
+        message: `У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`,
+      });
+    }
+
+    const view = buildEstimateView({
+      role: user.role,
+      supervisionShare: basisPoints(BigInt(estimate.supervisionShare)),
+      sections: estimate.sections.map((section) => ({
+        id: section.id,
+        parentId: section.parentId,
+        name: section.name,
+        order: section.order,
+        sourceRow: section.sourceRow,
+      })),
+      items: estimate.items.map((item) => ({
+        id: item.id,
+        sectionId: item.sectionId,
+        order: item.order,
+        name: item.name,
+        unit: item.unit.code,
+        qty: milliunits(item.qty),
+        qtyAccepted: milliunits(0n),
+        unitPrice: kopecks(item.unitPrice),
+        unitWage: kopecks(item.unitWage),
+      })),
+      otherExpenses: estimate.otherExpenses.map((expense) => ({
+        id: expense.id,
+        name: expense.name,
+        unit: expense.unit.code,
+        unitPrice: kopecks(expense.unitPrice),
+        order: expense.order,
+      })),
+    });
+
+    return toEstimateViewDto(view, {
+      version: estimate.version,
+      importedAt: estimate.imports[0]?.importedAt ?? null,
+      declaredWorksTotal: estimate.declaredWorksTotal,
+    });
+  }
+
+  /**
+   * Протоколы импорта действующей редакции. Отчёт о расхождениях сохранён
+   * целиком и доступен после перезагрузки страницы (БП-09).
+   */
+  async imports(user: RequestUser, code: string): Promise<ImportRecord[]> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.prisma.estimate.findFirst({
+      where: { projectId: project.id },
+      orderBy: { version: "desc" },
+      include: { imports: { orderBy: { importedAt: "desc" } } },
+    });
+    if (!estimate) return [];
+
+    return estimate.imports.map((record) => ({
+      id: record.id,
+      fileName: record.fileName,
+      importedAt: record.importedAt.toISOString(),
+      positions: record.positions,
+      report: record.report as unknown as ImportReport,
+    }));
   }
 
   /** Эталонный шаблон выгрузки для объекта. */

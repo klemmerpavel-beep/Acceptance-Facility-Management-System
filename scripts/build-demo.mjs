@@ -56,6 +56,18 @@ const fontLinks = fontUrls.map((url) => `<link rel="stylesheet" href="${url}">`)
 
 const page = `<title>Приёмка</title>
 ${fontLinks}
+<script>
+  // Тема применяется до первой отрисовки: разметка появляется только после
+  // загрузки модуля, и без этого выбранная светлая тема мигнула бы тёмной.
+  try {
+    var stored = localStorage.getItem("priyomka.theme");
+    if (stored === "light" || stored === "dark") {
+      document.documentElement.setAttribute("data-theme", stored);
+    }
+  } catch (error) {
+    // Хранилище недоступно: остаётся системная тема.
+  }
+<\/script>
 <style>
 ${css}
 </style>

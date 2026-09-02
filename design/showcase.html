@@ -30,7 +30,7 @@
   /* --- текст ------------------------------------------------------------ */
   --ink:           #0E1A28;   /* основной */
   --ink-2:         #46586B;   /* вторичный */
-  --ink-3:         #7C8DA0;   /* подписи, плейсхолдеры */
+  --ink-3:         #5E6E81;   /* подписи, плейсхолдеры */
   --ink-inv:       #FFFFFF;
 
   /* --- границы ---------------------------------------------------------- */
@@ -49,13 +49,13 @@
   --on-accent-track: rgba(255, 255, 255, .24);   /* дорожка кольца на акценте */
 
   /* --- сигнальный: внимание, срочность, перевыработка -------------------- */
-  --signal:        #C97A1E;
+  --signal:        #9C5E17;
   --signal-soft:   #FBEEDC;
 
   /* --- семантика состояний ---------------------------------------------- */
-  --ok:            #2E7D57;   /* принято, оплачено */
+  --ok:            #2C7753;   /* принято, оплачено */
   --ok-soft:       #E1F0E8;
-  --warn:          #B8860F;   /* ожидает, черновик */
+  --warn:          #8E670C;   /* ожидает, черновик */
   --warn-soft:     #FAF0D7;
   --danger:        #B3261E;   /* сторно, просрочено, расхождение */
   --danger-soft:   #FBE4E2;
@@ -135,7 +135,7 @@
 
     --ink:           #E8EDF2;
     --ink-2:         #A8B6C4;
-    --ink-3:         #778699;
+    --ink-3:         #7E8C9E;
     --ink-inv:       #0D1219;
 
     --line:          #28323E;
@@ -149,7 +149,7 @@
     --on-accent-track: rgba(13, 18, 25, .20);
 
     --signal:        #E0A155;
-    --signal-soft:   #33261440;
+    --signal-soft:   #2E2314;
 
     --ok:            #63B08A;
     --ok-soft:       #172A22;
@@ -173,7 +173,7 @@
 
   --ink:           #E8EDF2;
   --ink-2:         #A8B6C4;
-  --ink-3:         #778699;
+  --ink-3:         #7E8C9E;
   --ink-inv:       #0D1219;
 
   --line:          #28323E;
@@ -187,7 +187,7 @@
   --on-accent-track: rgba(13, 18, 25, .20);
 
   --signal:        #E0A155;
-  --signal-soft:   #33261440;
+  --signal-soft:   #2E2314;
 
   --ok:            #63B08A;
   --ok-soft:       #172A22;
@@ -534,6 +534,25 @@ a { color: var(--accent); text-underline-offset: 2px; }
 }
 .appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
 
+/* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
+   что «светлая», и пользователь, не менявший тему, должен оставаться на
+   системной. Подложка берётся из --on-accent-fill: переключатель лежит на
+   акцентной заливке шапки, и белая плашка читалась бы там как отдельная
+   карточка. Область нажатия 44 px — норма §7; на десктопе она сжимается. */
+.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--on-accent-fill); border-radius: var(--radius-sm); }
+.themeswitch__option {
+  display: grid;
+  place-items: center;
+  width: var(--tap-min); height: var(--tap-min);
+  border: 0;
+  background: transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.themeswitch__option[aria-pressed="true"] { background: var(--surface); color: var(--accent); }
+@media (min-width: 768px) { .themeswitch__option { width: 32px; height: 32px; } }
+
 /* Мобильная таб-панель: пять пунктов, иконка и подпись 11 px,
    учитывается безопасная зона снизу. */
 .tabbar {
@@ -863,6 +882,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
     <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
     <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
+    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
+    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
+    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
   </defs>
 </svg>
 <header class="appbar">
@@ -875,7 +898,11 @@ a { color: var(--accent); text-underline-offset: 2px; }
     <a class="appbar__link" href="#">Акты</a>
     <a class="appbar__link" href="#">График</a>
   </nav>
-  <button class="btn btn--secondary" id="theme">Тема<span class="visually-hidden">: переключить светлую и тёмную</span></button>
+  <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
+    <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
+    <button type="button" class="themeswitch__option" data-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-light"/></svg><span class="visually-hidden">Светлая тема</span></button>
+    <button type="button" class="themeswitch__option" data-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-dark"/></svg><span class="visually-hidden">Тёмная тема</span></button>
+  </div>
 </header>
 
 <div class="cover">
@@ -1240,10 +1267,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
           <tr><td>--accent</td><td><span class="swatch" style="--swatch:#17457A">#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
           <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#E4EBF4">#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
           <tr><td>--on-accent-fill</td><td><span class="swatch" style="--swatch:#17457A">белая, 16 %</span></td><td>тёмная, 14 %</td><td>Накладки поверх акцентной заливки: бейдж на обложке, дорожка кольца</td></tr>
-          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2E7D57">#2E7D57</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
-          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#B8860F">#B8860F</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
+          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
+          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
           <tr><td>--danger</td><td><span class="swatch" style="--swatch:#B3261E">#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
-          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#C97A1E">#C97A1E</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
+          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
           <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
           <tr><td>--row-h</td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
           <tr><td>--control-h / --control-h-touch</td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
@@ -1276,9 +1303,18 @@ a { color: var(--accent); text-underline-offset: 2px; }
     bar.style.width = (bar.dataset.to - bar.dataset.from) + "%";
   }
 
-  document.getElementById("theme").addEventListener("click", () => {
+  // Переключатель темы: три состояния. Системное снимает признак —
+  // в этом состоянии тёмную тему включает медиазапрос, а не атрибут.
+  document.getElementById("theme").addEventListener("click", (event) => {
+    const option = event.target.closest(".themeswitch__option");
+    if (!option) return;
+    const mode = option.dataset.mode;
     const root = document.documentElement;
-    root.setAttribute("data-theme", root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    if (mode === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", mode);
+    for (const other of document.querySelectorAll(".themeswitch__option")) {
+      other.setAttribute("aria-pressed", String(other === option));
+    }
   });
 
   document.querySelectorAll(".tabs").forEach((group) => {

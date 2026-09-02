@@ -187,6 +187,25 @@
 }
 .appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
 
+/* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
+   что «светлая», и пользователь, не менявший тему, должен оставаться на
+   системной. Подложка берётся из --on-accent-fill: переключатель лежит на
+   акцентной заливке шапки, и белая плашка читалась бы там как отдельная
+   карточка. Область нажатия 44 px — норма §7; на десктопе она сжимается. */
+.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--on-accent-fill); border-radius: var(--radius-sm); }
+.themeswitch__option {
+  display: grid;
+  place-items: center;
+  width: var(--tap-min); height: var(--tap-min);
+  border: 0;
+  background: transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.themeswitch__option[aria-pressed="true"] { background: var(--surface); color: var(--accent); }
+@media (min-width: 768px) { .themeswitch__option { width: 32px; height: 32px; } }
+
 /* Мобильная таб-панель: пять пунктов, иконка и подпись 11 px,
    учитывается безопасная зона снизу. */
 .tabbar {
