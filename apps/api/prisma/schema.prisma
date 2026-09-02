@@ -58,6 +58,7 @@ model Organization {
   clients  Client[]
   projects Project[]
   workers  Worker[]
+  units    Unit[]
   auditLog AuditLog[]
 
   @@map("organizations")
@@ -117,10 +118,134 @@ model Project {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   client       Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
   foreman      User?        @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
+  estimates    Estimate[]
 
   @@unique([orgId, code])
   @@index([orgId, status])
   @@map("projects")
+}
+
+/// Нормализованный справочник единиц измерения. Редактируется руководителем:
+/// в сметах встречаются написания, которых нет в каноническом наборе.
+model Unit {
+  id    String @id @default(uuid()) @db.Uuid
+  orgId String @db.Uuid
+  /// Каноническая форма: м², м.п., шт, точка, ед, рейс, ч/ч, этаж, %.
+  code  String
+
+  organization  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  estimateItems EstimateItem[]
+  otherExpenses OtherExpense[]
+
+  @@unique([orgId, code])
+  @@map("units")
+}
+
+/// Смета объекта. Редакция растёт при правке цен и ставок; правка
+/// количеств и наименований идёт на месте с записью в AuditLog (Р11).
+model Estimate {
+  id               String   @id @default(uuid()) @db.Uuid
+  projectId        String   @db.Uuid
+  version          Int      @default(1)
+  /// Надбавка «сопровождение объекта» в сотых долях процента.
+  supervisionShare Int      @default(1200)
+  /// Заявленный в исходном файле итог по работам, копейки. Хранится, чтобы
+  /// расхождение оставалось проверяемым и после импорта (БП-09).
+  declaredWorksTotal BigInt?
+  isLocked         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sections      EstimateSection[]
+  items         EstimateItem[]
+  otherExpenses OtherExpense[]
+  imports       EstimateImport[]
+
+  @@unique([projectId, version])
+  @@map("estimates")
+}
+
+/// Раздел сметы. Вложенность — через parentId; в файле заказчика два уровня.
+model EstimateSection {
+  id         String  @id @default(uuid()) @db.Uuid
+  estimateId String  @db.Uuid
+  parentId   String? @db.Uuid
+  name       String
+  order      Int
+  /// Строка исходного файла: связь с источником для разбора расхождений.
+  sourceRow  Int?
+
+  estimate Estimate          @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  parent   EstimateSection?  @relation("SectionTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children EstimateSection[] @relation("SectionTree")
+  items    EstimateItem[]
+
+  @@index([estimateId, order])
+  @@map("estimate_sections")
+}
+
+/// Позиция сметы. Приёмке подлежат именно эти строки.
+model EstimateItem {
+  id         String @id @default(uuid()) @db.Uuid
+  estimateId String @db.Uuid
+  sectionId  String @db.Uuid
+  unitId     String @db.Uuid
+  name       String
+  order      Int
+  /// Количество в тысячных долях единицы измерения.
+  qty        BigInt
+  /// Цена единицы и ставка оплаты труда, копейки.
+  unitPrice  BigInt
+  unitWage   BigInt @default(0)
+  sourceRow  Int?
+
+  estimate Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  section  EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  unit     Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@index([estimateId, order])
+  @@index([sectionId, order])
+  @@map("estimate_items")
+}
+
+/// Прочий расход: цена без объёма. Входит в итог сметы, приёмке не подлежит.
+model OtherExpense {
+  id         String @id @default(uuid()) @db.Uuid
+  estimateId String @db.Uuid
+  unitId     String @db.Uuid
+  name       String
+  order      Int
+  unitPrice  BigInt
+  sourceRow  Int?
+
+  estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@index([estimateId, order])
+  @@map("other_expenses")
+}
+
+/// Протокол импорта с отчётом о расхождениях. Отчёт хранится целиком:
+/// он и есть главное доказательство ценности системы, и его нельзя
+/// потерять при следующем импорте.
+model EstimateImport {
+  id                 String   @id @default(uuid()) @db.Uuid
+  estimateId         String   @db.Uuid
+  fileName           String
+  importedById       String?  @db.Uuid
+  importedAt         DateTime @default(now())
+  positions          Int
+  sectionsTotal      Int
+  computedWorksTotal BigInt
+  declaredWorksTotal BigInt?
+  /// Пересчёт минус заявленное. Положительное — недосчёт в файле.
+  worksTotalDelta    BigInt?
+  report             Json
+
+  estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@index([estimateId, importedAt])
+  @@map("estimate_imports")
 }
 
 model Worker {

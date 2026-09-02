@@ -33,11 +33,13 @@ export class AuthController {
     return this.auth.issueForemanLink(body.userId);
   }
 
+  /**
+   * Обмен ссылки на сессию. Отвечает переадресацией в приложение, а не
+   * телом: по ссылке из письма человек переходит браузером, и ответ
+   * с JSON оставил бы его на странице со служебным текстом.
+   */
   @Get("consume")
-  async consume(
-    @Query() query: unknown,
-    @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ ok: true }> {
+  async consume(@Query() query: unknown, @Res() reply: FastifyReply): Promise<void> {
     const { token } = consumeTokenSchema.parse(query);
     const { sessionToken, expiresAt } = await this.auth.consume(token);
     reply.setCookie(SESSION_COOKIE, sessionToken, {
@@ -47,7 +49,7 @@ export class AuthController {
       path: "/",
       expires: expiresAt,
     });
-    return { ok: true };
+    await reply.redirect(process.env["WEB_ORIGIN"] ?? "/", 302);
   }
 
   @Get("me")

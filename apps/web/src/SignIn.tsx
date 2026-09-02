@@ -5,7 +5,7 @@ import { requestMagicLink } from "./api.js";
  * Вход по ссылке. Пароля нет, кода из СМС нет: заказчик не смог завершить
  * регистрацию в продукте-конкуренте, и барьер входа снят целиком.
  */
-export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.Element {
+export function SignIn(): React.JSX.Element {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState<{ token?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +60,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
           {sent.token !== undefined && (
             // Вне промышленной среды ссылка показывается прямо здесь:
             // почтовый отправитель на стенде не настроен.
-            <a
-              className="btn btn--primary"
-              href={`/api/auth/consume?token=${sent.token}`}
-              onClick={() => window.setTimeout(onSignedIn, 300)}
-            >
+            <a className="btn btn--primary" href={`/api/auth/consume?token=${sent.token}`}>
               Открыть ссылку входа
             </a>
           )}

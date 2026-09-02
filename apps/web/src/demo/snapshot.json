@@ -1,0 +1,286 @@
+{
+ "me-owner": {
+  "id": "7d35971e-61a5-442b-a4cf-2ca6da91de75",
+  "role": "OWNER",
+  "name": "Руководитель",
+  "organization": {
+   "id": "00000000-0000-4000-8000-000000000001",
+   "name": "DOLGIY STUDIO"
+  }
+ },
+ "me-foreman": {
+  "id": "b15fc6de-95e2-44f5-97bb-4a7daddae306",
+  "role": "FOREMAN",
+  "name": "Прораб",
+  "organization": {
+   "id": "00000000-0000-4000-8000-000000000001",
+   "name": "DOLGIY STUDIO"
+  }
+ },
+ "projects-owner": [
+  {
+   "id": "4e1d9fbe-10cc-4532-9e94-308861dae0d6",
+   "code": "R-42",
+   "address": "Плехановская 22",
+   "status": "NEW",
+   "deadline": null,
+   "keysCount": 0,
+   "supervisionShare": 1200,
+   "client": {
+    "code": "300",
+    "name": "Клиент 300"
+   },
+   "foreman": null
+  },
+  {
+   "id": "549176a2-5c30-4408-9365-dd8b8a7c78fc",
+   "code": "R-99",
+   "address": "Московский проспект 116",
+   "status": "IN_PROGRESS",
+   "deadline": "2026-08-15",
+   "keysCount": 2,
+   "supervisionShare": 1200,
+   "client": {
+    "code": "300",
+    "name": "Клиент 300"
+   },
+   "foreman": {
+    "id": "b15fc6de-95e2-44f5-97bb-4a7daddae306",
+    "name": "Прораб"
+   }
+  }
+ ],
+ "projects-foreman": [
+  {
+   "id": "549176a2-5c30-4408-9365-dd8b8a7c78fc",
+   "code": "R-99",
+   "address": "Московский проспект 116",
+   "status": "IN_PROGRESS",
+   "deadline": "2026-08-15",
+   "keysCount": 2,
+   "supervisionShare": 1200,
+   "client": {
+    "code": "300",
+    "name": "Клиент 300"
+   },
+   "foreman": {
+    "id": "b15fc6de-95e2-44f5-97bb-4a7daddae306",
+    "name": "Прораб"
+   }
+  }
+ ],
+ "units": [
+  "м²",
+  "м.п.",
+  "шт",
+  "точка",
+  "ед",
+  "рейс",
+  "ч/ч",
+  "этаж",
+  "%"
+ ],
+ "preview": {
+  "fileName": "smeta-obezlichennaya.xlsx",
+  "report": {
+   "positions": 132,
+   "sectionsTopLevel": 11,
+   "sectionsNested": 11,
+   "otherExpenses": 7,
+   "computedWorksTotal": "379485210",
+   "declaredWorksTotal": "335605210",
+   "worksTotalDelta": "43880000",
+   "computedWageTotal": "222434330",
+   "declaredWageTotal": "200360830",
+   "wageTotalDelta": "22073500",
+   "supervisionShare": 1200,
+   "supervisionAmount": "45538225",
+   "computedEstimateTotal": "425023435",
+   "declaredEstimateTotal": "375877835",
+   "hasDiscrepancy": true,
+   "unitDecisions": [
+    {
+     "raw": "м2/мп",
+     "suggestion": "м²",
+     "rows": [
+      8,
+      10,
+      12,
+      14,
+      20,
+      59,
+      66,
+      70,
+      76,
+      100,
+      101,
+      102,
+      103,
+      104
+     ],
+     "positions": 14
+    },
+    {
+     "raw": "м2/пм",
+     "suggestion": "м²",
+     "rows": [
+      89,
+      90,
+      91,
+      92
+     ],
+     "positions": 4
+    },
+    {
+     "raw": "уп",
+     "suggestion": "шт",
+     "rows": [
+      169
+     ],
+     "positions": 1
+    }
+   ],
+   "findings": [
+    {
+     "kind": "section-total-empty",
+     "title": "У раздела «МОНТАЖНЫЕ РАБОТЫ» ячейка итога пуста: формулы в ней нет",
+     "amount": "14380000",
+     "rows": [
+      164
+     ]
+    },
+    {
+     "kind": "unit-needs-decision",
+     "title": "Написание «м2/мп» не определяет физическую величину. Предложено: м²",
+     "amount": null,
+     "rows": [
+      8,
+      10,
+      12,
+      14,
+      20,
+      59,
+      66,
+      70,
+      76,
+      100,
+      101,
+      102,
+      103,
+      104
+     ]
+    },
+    {
+     "kind": "unit-needs-decision",
+     "title": "Написание «м2/пм» не определяет физическую величину. Предложено: м²",
+     "amount": null,
+     "rows": [
+      89,
+      90,
+      91,
+      92
+     ]
+    },
+    {
+     "kind": "unit-needs-decision",
+     "title": "Написание «уп» не определяет физическую величину. Предложено: шт",
+     "amount": null,
+     "rows": [
+      169
+     ]
+    },
+    {
+     "kind": "empty-wage",
+     "title": "Цена есть, ставка оплаты труда не задана",
+     "amount": null,
+     "rows": [
+      161,
+      162
+     ]
+    },
+    {
+     "kind": "zero-quantity",
+     "title": "Цена есть, количество не задано: позиция даёт нулевую стоимость",
+     "amount": null,
+     "rows": [
+      152,
+      153,
+      154,
+      155,
+      156
+     ]
+    },
+    {
+     "kind": "unrecognized-row",
+     "title": "Строка не отнесена ни к одному виду: «ВЫВОД ПОД СЛАБОТОЧКУ ( ОБСУДИТЬ)»",
+     "amount": null,
+     "rows": [
+      43
+     ]
+    }
+   ]
+  }
+ },
+ "import": {
+  "importId": "a4fb529d-a2fd-4e8f-80d3-c967ff51ecf7",
+  "estimateId": "e4fe7923-3f15-4ad3-aeaf-9904508a4e3e",
+  "version": 1,
+  "report": {
+   "positions": 132,
+   "sectionsTopLevel": 11,
+   "sectionsNested": 11,
+   "otherExpenses": 7,
+   "computedWorksTotal": "379485210",
+   "declaredWorksTotal": "335605210",
+   "worksTotalDelta": "43880000",
+   "computedWageTotal": "222434330",
+   "declaredWageTotal": "200360830",
+   "wageTotalDelta": "22073500",
+   "supervisionShare": 1200,
+   "supervisionAmount": "45538225",
+   "computedEstimateTotal": "425023435",
+   "declaredEstimateTotal": "375877835",
+   "hasDiscrepancy": true,
+   "unitDecisions": [],
+   "findings": [
+    {
+     "kind": "section-total-empty",
+     "title": "У раздела «МОНТАЖНЫЕ РАБОТЫ» ячейка итога пуста: формулы в ней нет",
+     "amount": "14380000",
+     "rows": [
+      164
+     ]
+    },
+    {
+     "kind": "empty-wage",
+     "title": "Цена есть, ставка оплаты труда не задана",
+     "amount": null,
+     "rows": [
+      161,
+      162
+     ]
+    },
+    {
+     "kind": "zero-quantity",
+     "title": "Цена есть, количество не задано: позиция даёт нулевую стоимость",
+     "amount": null,
+     "rows": [
+      152,
+      153,
+      154,
+      155,
+      156
+     ]
+    },
+    {
+     "kind": "unrecognized-row",
+     "title": "Строка не отнесена ни к одному виду: «ВЫВОД ПОД СЛАБОТОЧКУ ( ОБСУДИТЬ)»",
+     "amount": null,
+     "rows": [
+      43
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -7,9 +7,14 @@ import { RolesGuard } from "./common/roles.guard";
 import { AuditService } from "./common/audit.service";
 import { ProjectsService } from "./projects/projects.service";
 import { ProjectsController } from "./projects/projects.controller";
+import { EstimatesService } from "./estimates/estimates.service";
+import { EstimatesController } from "./estimates/estimates.controller";
 
 @Module({
-  controllers: [AuthController, ProjectsController],
-  providers: [PrismaService, AuthService, SessionGuard, RolesGuard, AuditService, ProjectsService],
+  controllers: [AuthController, ProjectsController, EstimatesController],
+  providers: [
+    PrismaService, AuthService, SessionGuard, RolesGuard, AuditService,
+    ProjectsService, EstimatesService,
+  ],
 })
 export class AppModule {}
