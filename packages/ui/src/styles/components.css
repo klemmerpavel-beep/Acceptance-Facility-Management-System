@@ -161,6 +161,64 @@
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
+/* --- Счётчик: число и подпись под ним ------------------------------------
+   Отличается от метрики назначением: метрика стоит в рамке внутри блока,
+   счётчик — самостоятельная карточка ряда и ведёт на отфильтрованный
+   список. Поэтому у него есть состояние наведения, а у метрики нет.      */
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.counter:hover { border-color: var(--line-strong); }
+.counter__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h1); font-weight: 600; }
+.counter__label { font-size: var(--fs-cap); line-height: var(--lh-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.counter--danger .counter__value { color: var(--danger); }
+
+/* --- Недельная полоса ------------------------------------------------------
+   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
+   Полоса прокручивается внутри себя, полотно страницы по горизонтали
+   не двигается.                                                            */
+.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr); gap: var(--space-2); overflow-x: auto; }
+.daycard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 96px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
+.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
+.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
+.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
+.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
+.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
+.daycard__empty { font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* --- Лента событий ---------------------------------------------------------
+   Время слева отдельной колонкой: события читают сверху вниз, и колонка
+   времени держит взгляд на одной вертикали.                                */
+.feed { display: flex; flex-direction: column; }
+.feed__item { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.feed__item:last-child { border-bottom: 0; }
+.feed__time { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; }
+.feed__title { font-size: var(--fs-sm); }
+.feed__detail { font-size: var(--fs-sm); color: var(--ink-3); overflow-wrap: anywhere; }
+@media (max-width: 767px) { .feed__item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
+
 /* --- 5.1 Глобальная навигация -------------------------------------------- */
 .appbar {
   display: flex;
@@ -186,6 +244,10 @@
   font-weight: 500;
 }
 .appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
+/* Имя работающего в шапке. На узком экране уступает место переключателю
+   темы и выходу: кто вошёл — видно на первом же экране. */
+.appbar__user { display: none; font-size: var(--fs-sm); opacity: .82; }
+@media (min-width: 768px) { .appbar__user { display: inline; } }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
@@ -213,7 +275,9 @@
   inset-inline: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* Пунктов столько, сколько их в разметке: правило не знает их числа. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface);
@@ -327,9 +391,13 @@
 }
 
 /* Переключатель проекции — сегментированный контрол. */
-.segmented { display: inline-flex; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); }
+/* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
+   не помещаются в 360 px и без этого сминаются в две строки. */
+.segmented { display: inline-flex; max-width: 100%; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); overflow-x: auto; }
 .segmented__option {
+  flex: none;
   height: 32px; padding: 0 var(--space-3);
+  white-space: nowrap;
   border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
 }
@@ -368,8 +436,13 @@
   border-radius: var(--radius-md); color: var(--ink-3); font-size: var(--fs-sm); text-align: center; }
 
 /* Лист снизу на мобильном, центрированное окно шириной 480 px на десктопе. */
+/* Затемнение под листом. Токен --overlay до сих пор существовал без
+   потребителя: лист жил только в витрине. */
+.scrim { position: fixed; inset: 0; z-index: 10; background: var(--overlay); border: 0; }
+
 .sheet {
-  position: fixed; inset-inline: 0; bottom: 0;
+  position: fixed;
+  z-index: 11; inset-inline: 0; bottom: 0;
   display: flex; flex-direction: column; gap: var(--space-4);
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
@@ -471,6 +544,9 @@
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
+/* Денежная величина в карточке сводки читается как заголовок блока и
+   выравнивается по началу строки, а не по колонке чисел таблицы. */
+.num--start { text-align: start; }
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */

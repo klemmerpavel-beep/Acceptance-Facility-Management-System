@@ -1,8 +1,10 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
-  currentUserSchema, estimateViewSchema, importPreviewResponseSchema, importRecordSchema,
-  importResultSchema, projectSummarySchema,
-  type EstimateView, type ImportRecord, type ImportReport, type ImportResult,
+  clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
+  importPreviewResponseSchema, importRecordSchema, importResultSchema, projectSummarySchema,
+  workerRowSchema,
+  type ClientRow, type Dashboard, type EstimateView, type ImportRecord, type ImportReport,
+  type ImportResult, type ProjectEvent, type WorkerRow,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -78,3 +80,25 @@ export const fetchEstimate = (code: string): Promise<EstimateView> =>
 
 export const fetchImports = (code: string): Promise<ImportRecord[]> =>
   request(`/projects/${code}/estimate/imports`, z.array(importRecordSchema));
+
+export const fetchDashboard = (): Promise<Dashboard> => request("/summary", dashboardSchema);
+
+export const fetchClients = (): Promise<ClientRow[]> =>
+  request("/clients", z.array(clientRowSchema));
+
+export const fetchWorkers = (): Promise<WorkerRow[]> =>
+  request("/workers", z.array(workerRowSchema));
+
+export const fetchEvents = (code: string): Promise<ProjectEvent[]> =>
+  request(`/projects/${code}/events`, z.array(eventSchema));
+
+/** Смена статуса объекта. Ответ — обновлённая карточка, а не признак успеха. */
+export const setProjectStatus = (
+  code: string,
+  status: ProjectSummary["status"],
+): Promise<ProjectSummary> =>
+  request(`/projects/${code}/status`, projectSummarySchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status }),
+  });

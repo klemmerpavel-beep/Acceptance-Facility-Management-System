@@ -123,6 +123,12 @@
   --ease:     cubic-bezier(.2, 0, 0, 1);
 }
 
+/* Явно выбранная светлая тема сообщает схему браузеру: без этого полосы
+   прокрутки, поля ввода и другие системные элементы останутся тёмными,
+   когда тёмная тема выбрана в системе, а в приложении выбрана светлая.
+   Парное объявление для тёмной темы стоит внутри её собственного блока. */
+:root[data-theme="light"] { color-scheme: light; }
+
 /* Тёмная тема по системной настройке.
    Исключение :root[data-theme="light"] нужно, чтобы явно выбранная светлая
    тема не переопределялась системной тёмной. */
@@ -166,6 +172,8 @@
 
 /* Явный переключатель. Те же значения — выигрывает у системной светлой. */
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   --bg:            #0D1219;
   --surface:       #141B24;
   --surface-2:     #1C2530;
@@ -200,7 +208,6 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
   --shadow-2: 0 4px 16px rgba(0, 0, 0, .55);
 }
-
 
 /* ============================================================================
    Приёмка — база: сброс, типографика, фокус, доступность
@@ -301,7 +308,6 @@ a { color: var(--accent); text-underline-offset: 2px; }
   }
 }
 
-
 /* ============================================================================
    Приёмка — сетка. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §4.
    Десктоп: контейнер 1440 px, поля 24 px, 12 колонок.
@@ -328,22 +334,38 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .row--top     { align-items: flex-start; }
 .row--loose   { --row-gap: var(--space-5); }
 
-/* Мобильный по умолчанию: одна колонка, снизу место под таб-панель. */
+/* Ряд карточек сводки. Число колонок определяет ширина, а не медиазапрос:
+   карточек в ряду бывает три или четыре — фонд оплаты труда приходит
+   только руководителю, и вёрстка не должна знать про роли. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: var(--space-4); }
+
+/* Две колонки равной ширины, складывающиеся на планшете. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+@media (min-width: 1024px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Нижняя таб-панель прибита к экрану и перекрывает конец страницы, поэтому
+   место под неё держит рабочее полотно. Правило стоит на элементе, а не на
+   классе: заголовочная обложка тоже .container, и отступ ей не нужен. */
+@media (max-width: 767px) {
+  main.container {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  }
+}
+
+/* Мобильный по умолчанию: одна колонка. */
 .project-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
-  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  padding-bottom: var(--space-5);
 }
 
 @media (min-width: 1024px) {
   .project-layout {
     grid-template-columns: var(--summary-col) minmax(0, 1fr);
     align-items: start;
-    padding-bottom: var(--space-5);
   }
 }
-
 
 /* ============================================================================
    Приёмка — компоненты. Нормативный источник: docs/03_DESIGN_SYSTEM.md, §5.
@@ -508,6 +530,64 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
+/* --- Счётчик: число и подпись под ним ------------------------------------
+   Отличается от метрики назначением: метрика стоит в рамке внутри блока,
+   счётчик — самостоятельная карточка ряда и ведёт на отфильтрованный
+   список. Поэтому у него есть состояние наведения, а у метрики нет.      */
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.counter:hover { border-color: var(--line-strong); }
+.counter__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h1); font-weight: 600; }
+.counter__label { font-size: var(--fs-cap); line-height: var(--lh-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.counter--danger .counter__value { color: var(--danger); }
+
+/* --- Недельная полоса ------------------------------------------------------
+   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
+   Полоса прокручивается внутри себя, полотно страницы по горизонтали
+   не двигается.                                                            */
+.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr); gap: var(--space-2); overflow-x: auto; }
+.daycard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 96px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
+.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
+.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
+.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
+.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
+.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
+.daycard__empty { font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* --- Лента событий ---------------------------------------------------------
+   Время слева отдельной колонкой: события читают сверху вниз, и колонка
+   времени держит взгляд на одной вертикали.                                */
+.feed { display: flex; flex-direction: column; }
+.feed__item { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.feed__item:last-child { border-bottom: 0; }
+.feed__time { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; }
+.feed__title { font-size: var(--fs-sm); }
+.feed__detail { font-size: var(--fs-sm); color: var(--ink-3); overflow-wrap: anywhere; }
+@media (max-width: 767px) { .feed__item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
+
 /* --- 5.1 Глобальная навигация -------------------------------------------- */
 .appbar {
   display: flex;
@@ -533,6 +613,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
   font-weight: 500;
 }
 .appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
+/* Имя работающего в шапке. На узком экране уступает место переключателю
+   темы и выходу: кто вошёл — видно на первом же экране. */
+.appbar__user { display: none; font-size: var(--fs-sm); opacity: .82; }
+@media (min-width: 768px) { .appbar__user { display: inline; } }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
@@ -560,7 +644,9 @@ a { color: var(--accent); text-underline-offset: 2px; }
   inset-inline: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* Пунктов столько, сколько их в разметке: правило не знает их числа. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface);
@@ -674,9 +760,13 @@ a { color: var(--accent); text-underline-offset: 2px; }
 }
 
 /* Переключатель проекции — сегментированный контрол. */
-.segmented { display: inline-flex; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); }
+/* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
+   не помещаются в 360 px и без этого сминаются в две строки. */
+.segmented { display: inline-flex; max-width: 100%; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); overflow-x: auto; }
 .segmented__option {
+  flex: none;
   height: 32px; padding: 0 var(--space-3);
+  white-space: nowrap;
   border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
 }
@@ -715,8 +805,13 @@ a { color: var(--accent); text-underline-offset: 2px; }
   border-radius: var(--radius-md); color: var(--ink-3); font-size: var(--fs-sm); text-align: center; }
 
 /* Лист снизу на мобильном, центрированное окно шириной 480 px на десктопе. */
+/* Затемнение под листом. Токен --overlay до сих пор существовал без
+   потребителя: лист жил только в витрине. */
+.scrim { position: fixed; inset: 0; z-index: 10; background: var(--overlay); border: 0; }
+
 .sheet {
-  position: fixed; inset-inline: 0; bottom: 0;
+  position: fixed;
+  z-index: 11; inset-inline: 0; bottom: 0;
   display: flex; flex-direction: column; gap: var(--space-4);
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
@@ -818,7 +913,17 @@ a { color: var(--accent); text-underline-offset: 2px; }
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
+/* Денежная величина в карточке сводки читается как заголовок блока и
+   выравнивается по началу строки, а не по колонке чисел таблицы. */
+.num--start { text-align: start; }
 
+/* Перечень строк исходного файла в находке отчёта. Переносится по словам:
+   четырнадцать номеров в одну строку шире мобильного экрана. */
+.finding__rows { font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+/* Полоса демонстрационной сборки. В продукте её нет: она сообщает, что
+   сервер и база не участвуют, а данные сняты с работающего стенда. */
+.demo-bar { padding-block: var(--space-2); background: var(--signal-soft); border-bottom: 1px solid var(--signal); color: var(--ink); }
 
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
@@ -865,10 +970,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .device__body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
 .device-column { inline-size: min(360px, 100%); }
 .tranche-demo { flex: 1 1 320px; }
-
 </style>
 </head>
 <body>
+
 <svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <!-- Контурная геометрия: прямые и прямые углы. Тот же чертёжный рисунок,
@@ -1186,6 +1291,48 @@ a { color: var(--accent); text-underline-offset: 2px; }
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Петрович · гипсокартон, 12 листов</p><p class="t-sm t-muted">подтверждено руководителем · 27.08.2026</p></div><span class="row"><span class="num">18 900,00 ₽</span><span class="pill pill--ok">Учтено</span></span></div>
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Письмо без кода объекта</p><p class="t-sm t-muted">тема: «чек» · 26.08.2026</p></div><span class="row"><span class="num">3 200,00 ₽</span><span class="pill">Не распознано</span></span></div>
     </div>
+  </section>
+
+
+  <!-- ── СВОДКА ────────────────────────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Сводка портфеля</h2>
+      <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
+    </div>
+    <div class="cards">
+      <div class="panel panel--pad stack stack--tight">
+        <span class="figure__label">Портфель</span>
+        <div><p class="num num--start">4 250 234,35 ₽</p><p class="t-sm t-muted">итог смет для клиентов</p></div>
+        <div><p class="num num--start">455 382,25 ₽</p><p class="t-sm t-muted">сопровождение объектов</p></div>
+      </div>
+      <div class="panel panel--pad stack stack--tight">
+        <span class="figure__label">Расхождения смет</span>
+        <div><p class="num num--start">3 794 852,10 ₽</p><p class="t-sm t-muted">пересчёт по позициям</p></div>
+        <div><p class="num num--start num--danger">438 800,00 ₽</p><p class="t-sm t-muted">недосчёт в файлах · объектов: 1</p></div>
+      </div>
+    </div>
+    <div class="weekstrip">
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--warn">Дедлайн R-38</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--danger">Просрочен R-99</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p><span class="daycard__empty">событий нет</span></div>
+    </div>
+    <div class="cards">
+      <button type="button" class="counter"><span class="counter__value">4</span><span class="counter__label">В работе</span></button>
+      <button type="button" class="counter"><span class="counter__value">132</span><span class="counter__label">Позиций в сметах</span></button>
+      <div class="counter counter--danger"><span class="counter__value">1</span><span class="counter__label">Просрочены</span></div>
+    </div>
+    <div class="panel panel--pad">
+      <div class="feed">
+        <div class="feed__item"><span class="feed__time">02.09.26, 19:15</span><span><span class="feed__title">R-99 · Импорт сметы: редакция 1, позиций 132</span><span class="feed__detail"> smeta-obezlichennaya.xlsx</span></span></div>
+        <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Руководитель студии</span></span></div>
+      </div>
+    </div>
+    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>
   </section>
 
   <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->

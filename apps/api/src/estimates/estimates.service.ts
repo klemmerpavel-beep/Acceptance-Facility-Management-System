@@ -257,6 +257,8 @@ export class EstimatesService {
 
     return estimate.imports.map((record) => ({
       id: record.id,
+      estimateId: estimate.id,
+      version: estimate.version,
       fileName: record.fileName,
       importedAt: record.importedAt.toISOString(),
       positions: record.positions,

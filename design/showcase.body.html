@@ -1,3 +1,22 @@
+<svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Контурная геометрия: прямые и прямые углы. Тот же чертёжный рисунок,
+         из которого выведен акцент — берлинская лазурь. -->
+    <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></symbol>
+    <symbol id="i-estimate" viewBox="0 0 20 20"><path d="M3 5h9M3 10h9M3 15h9"/><path d="M15 5h2M15 10h2M15 15h2"/></symbol>
+    <symbol id="i-acceptance" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M6.5 10.5 9 13l4.5-4.5"/></symbol>
+    <symbol id="i-expense" viewBox="0 0 20 20"><path d="M5 3h10v14l-2.5-1.5L10 17l-2.5-1.5L5 17z"/><path d="M8 7h4M8 10h4"/></symbol>
+    <symbol id="i-schedule" viewBox="0 0 20 20"><path d="M3 5h8M6 10h9M3 15h6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 20 20"><path d="M12 4 6 10l6 6"/></symbol>
+    <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
+    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
+    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
+    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
+  </defs>
+</svg>
 <header class="appbar">
   <span class="appbar__brand">Приёмка</span>
   <nav class="appbar__nav">
@@ -298,6 +317,48 @@
     </div>
   </section>
 
+
+  <!-- ── СВОДКА ────────────────────────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Сводка портфеля</h2>
+      <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
+    </div>
+    <div class="cards">
+      <div class="panel panel--pad stack stack--tight">
+        <span class="figure__label">Портфель</span>
+        <div><p class="num num--start">4 250 234,35 ₽</p><p class="t-sm t-muted">итог смет для клиентов</p></div>
+        <div><p class="num num--start">455 382,25 ₽</p><p class="t-sm t-muted">сопровождение объектов</p></div>
+      </div>
+      <div class="panel panel--pad stack stack--tight">
+        <span class="figure__label">Расхождения смет</span>
+        <div><p class="num num--start">3 794 852,10 ₽</p><p class="t-sm t-muted">пересчёт по позициям</p></div>
+        <div><p class="num num--start num--danger">438 800,00 ₽</p><p class="t-sm t-muted">недосчёт в файлах · объектов: 1</p></div>
+      </div>
+    </div>
+    <div class="weekstrip">
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--warn">Дедлайн R-38</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--danger">Просрочен R-99</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p><span class="daycard__empty">событий нет</span></div>
+    </div>
+    <div class="cards">
+      <button type="button" class="counter"><span class="counter__value">4</span><span class="counter__label">В работе</span></button>
+      <button type="button" class="counter"><span class="counter__value">132</span><span class="counter__label">Позиций в сметах</span></button>
+      <div class="counter counter--danger"><span class="counter__value">1</span><span class="counter__label">Просрочены</span></div>
+    </div>
+    <div class="panel panel--pad">
+      <div class="feed">
+        <div class="feed__item"><span class="feed__time">02.09.26, 19:15</span><span><span class="feed__title">R-99 · Импорт сметы: редакция 1, позиций 132</span><span class="feed__detail"> smeta-obezlichennaya.xlsx</span></span></div>
+        <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Руководитель студии</span></span></div>
+      </div>
+    </div>
+    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>
+  </section>
+
   <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->
   <section class="doc__block">
     <div class="section-head">
@@ -461,3 +522,4 @@
     });
   });
 </script>
+

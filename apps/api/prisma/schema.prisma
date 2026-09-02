@@ -109,6 +109,9 @@ model Project {
   clientId  String        @db.Uuid
   foremanId String?       @db.Uuid
   status    ProjectStatus @default(NEW)
+  /// Дата начала работ на объекте. Отличается от даты заведения объекта в
+  /// системе: объект может быть заведён задолго до выхода бригады.
+  startedAt DateTime?     @db.Date
   deadline  DateTime?     @db.Date
   keysCount Int           @default(0)
   /// Надбавка «сопровождение объекта» в сотых долях процента: 1200 = 12,00 %.

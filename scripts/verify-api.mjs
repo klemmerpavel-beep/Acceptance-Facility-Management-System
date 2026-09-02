@@ -33,7 +33,7 @@ async function signIn(email) {
   }).then((r) => r.json());
   const response = await fetch(`${BASE}/auth/consume?token=${link.token}`, { redirect: "manual" });
   const cookie = response.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
-  return (path) => fetch(`${BASE}${path}`, { headers: { cookie } });
+  return (path, init = {}) => fetch(`${BASE}${path}`, { ...init, headers: { cookie, ...init.headers } });
 }
 
 const owner = await signIn("owner@dolgiy.studio");
@@ -53,10 +53,42 @@ check(foremanEstimate.totals.works !== undefined, "прораб не получ�
 const foreign = await foreman("/projects/R-42/estimate");
 check(foreign.status === 404, `чужой объект отдан прорабу с кодом ${foreign.status}`);
 
+/**
+ * Сводка — такой же носитель внутренних величин, как позиция сметы:
+ * фонд оплаты труда попадает в неё только руководителю.
+ */
+const ownerSummary = await owner("/summary").then((r) => r.json());
+const foremanSummary = await foreman("/summary").then((r) => r.json());
+check(ownerSummary.money.wage !== undefined, "руководителю не пришёл фонд оплаты труда в сводке");
+const summaryLeaks = findInternal(foremanSummary);
+check(summaryLeaks.length === 0, `в сводке прораба внутренние поля: ${summaryLeaks.join(", ")}`);
+check(
+  foremanSummary.projects.total < ownerSummary.projects.total,
+  `сводка прораба охватывает ${foremanSummary.projects.total} объектов из ${ownerSummary.projects.total}`,
+);
+
+// Справочник заказчиков ограничен объектами, доступными роли.
+const ownerClients = await owner("/clients").then((r) => r.json());
+const foremanClients = await foreman("/clients").then((r) => r.json());
+check(
+  foremanClients.length > 0 && foremanClients.length < ownerClients.length,
+  `прорабу пришло ${foremanClients.length} заказчиков из ${ownerClients.length}`,
+);
+
+// Статус объекта меняет руководитель.
+const forbidden = await foreman("/projects/R-99/status", {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ status: "PAUSED" }),
+});
+check(forbidden.status === 403, `смена статуса прорабом отдана с кодом ${forbidden.status}`);
+
 const anonymous = await fetch(`${BASE}/projects/R-99/estimate`);
 check(anonymous.status === 401, `смета отдана без сессии с кодом ${anonymous.status}`);
 
 console.log(`Позиций в ответе: ${foremanEstimate.positions}, разделов ${foremanEstimate.sectionsTopLevel} + ${foremanEstimate.sectionsNested}`);
 console.log(`Внутренних полей у руководителя: ${findInternal(ownerEstimate).length}, у прораба: ${leaks.length}`);
+console.log(`Сводка: объектов у руководителя ${ownerSummary.projects.total}, у прораба ${foremanSummary.projects.total};`,
+  `заказчиков ${ownerClients.length} и ${foremanClients.length}`);
 console.log(problems.length === 0 ? "\nРазграничение на уровне полей: замечаний нет" : "\nЗамечания:\n  " + problems.join("\n  "));
 process.exit(problems.length === 0 ? 0 : 1);

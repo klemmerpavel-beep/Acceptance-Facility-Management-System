@@ -24,18 +24,35 @@
 .row--top     { align-items: flex-start; }
 .row--loose   { --row-gap: var(--space-5); }
 
-/* Мобильный по умолчанию: одна колонка, снизу место под таб-панель. */
+/* Ряд карточек сводки. Число колонок определяет ширина, а не медиазапрос:
+   карточек в ряду бывает три или четыре — фонд оплаты труда приходит
+   только руководителю, и вёрстка не должна знать про роли. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: var(--space-4); }
+
+/* Две колонки равной ширины, складывающиеся на планшете. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+@media (min-width: 1024px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Нижняя таб-панель прибита к экрану и перекрывает конец страницы, поэтому
+   место под неё держит рабочее полотно. Правило стоит на элементе, а не на
+   классе: заголовочная обложка тоже .container, и отступ ей не нужен. */
+@media (max-width: 767px) {
+  main.container {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  }
+}
+
+/* Мобильный по умолчанию: одна колонка. */
 .project-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
-  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  padding-bottom: var(--space-5);
 }
 
 @media (min-width: 1024px) {
   .project-layout {
     grid-template-columns: var(--summary-col) minmax(0, 1fr);
     align-items: start;
-    padding-bottom: var(--space-5);
   }
 }

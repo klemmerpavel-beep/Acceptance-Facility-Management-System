@@ -97,12 +97,21 @@ await step("ссылка выдана", "02-ssylka.png");
 const href = await page.getAttribute('a.btn:has-text("Открыть ссылку входа")', "href");
 await page.goto(`${BASE}${href}`);
 await page.goto(BASE, { waitUntil: "networkidle" });
-await page.waitForSelector("table.estimate");
-await step("объекты", "03-obekty.png");
-await overflow("объекты, 1440");
 
-const rows = await page.locator("table.estimate tbody tr").count();
-console.log(`  объектов в списке: ${rows}`);
+// Первый экран — сводка по портфелю.
+await page.waitForSelector(".weekstrip");
+await step("сводка", "03-svodka.png");
+await overflow("сводка, 1440");
+
+const cards = await page.locator(".cards .panel").count();
+const week = await page.locator(".daycard").count();
+const feed = await page.locator(".feed__item").count();
+console.log(`  карточек сводки: ${cards}, дней в неделе: ${week}, событий в ленте: ${feed}`);
+if (week !== 7) note("неделя", `в полосе ${week} дней вместо семи`);
+if (cards < 3) note("сводка", `карточек ${cards}: ряд денежных величин не собран`);
+if ((await page.locator(".daycard--today").count()) !== 1) {
+  note("неделя", "сегодняшний день не отмечен ровно один раз");
+}
 
 // Видимое состояние фокуса.
 await page.keyboard.press("Tab");
@@ -114,13 +123,55 @@ const focusVisible = await page.evaluate(() => {
 });
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
+// Переход в список объектов через шапку.
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector("table.estimate tbody tr");
+await step("объекты", "04-obekty.png");
+await overflow("объекты, 1440");
+
+const rows = await page.locator("table.estimate tbody tr").count();
+console.log(`  объектов в списке: ${rows}`);
+
+// Фильтр по статусу: выбор сужает таблицу и снимается обратно.
+const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
+await page.click('.segmented__option:has-text("В работе")');
+await page.waitForTimeout(200);
+const filtered = await page.locator("table.estimate tbody tr").count();
+if (filtered >= rows) note("фильтр по статусу", `после выбора «${inProgress}» строк не убавилось`);
+await page.click('.segmented__option:has-text("Все")');
+await page.waitForTimeout(200);
+if ((await page.locator("table.estimate tbody tr").count()) !== rows) {
+  note("фильтр по статусу", "снятие фильтра не вернуло полный список");
+}
+
 // Карточка объекта. Открывается объект со сметой: у остальных карточка
 // показывает пустое состояние, и это правильное поведение, а не сбой.
 await page.click('table.estimate tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".cover__title .code-badge");
-await page.waitForSelector("table.estimate tbody tr");
-await step("карточка объекта", "04-kartochka.png");
+await page.waitForSelector(".metric__value");
+await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
+
+const metrics = await page.locator(".metric").count();
+if (metrics === 0) note("обзор", "метрики графика производства работ не показаны");
+
+// Смена статуса: лист открывается, значение меняется, пилюля обновляется.
+const statusBefore = await page.locator("aside .pill").first().textContent();
+await page.click('button:has-text("Изменить статус")');
+await page.waitForSelector('.sheet[role="dialog"]');
+await step("смена статуса", "06-status.png");
+await page.click('.sheet button:has-text("Пауза")');
+await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+const statusAfter = await page.locator("aside .pill").first().textContent();
+if (statusAfter?.trim() !== "Пауза") note("смена статуса", `после выбора пилюля показывает «${statusAfter}»`);
+// Объект возвращается в прежний статус: проверка не оставляет следов.
+await page.click('button:has-text("Изменить статус")');
+await page.waitForSelector('.sheet[role="dialog"]');
+await page.click(`.sheet button:has-text("${statusBefore?.trim() ?? "В работе"}")`);
+await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+
+await page.click('.tabs__item:has-text("Смета")');
+await page.waitForSelector("table.estimate tbody tr");
 
 const sections = await page.locator("tr.estimate__section").count();
 const items = await page.locator("table.estimate tbody tr").count();
@@ -139,14 +190,14 @@ await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
 if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
-await step("клиентская проекция", "05-klientskaya.png");
+await step("клиентская проекция", "07-klientskaya.png");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
 await page.waitForSelector("text=Отчёт о расхождениях");
-await step("отчёт о расхождениях", "06-otchet.png");
+await step("отчёт о расхождениях", "08-otchet.png");
 await overflow("отчёт, 1440");
 
 const decisions = await page.locator("select").count();
@@ -154,18 +205,63 @@ console.log(`  написаний единиц ждут решения: ${decisi
 
 await page.click('button:has-text("Импортировать")');
 await page.waitForSelector("text=Импортировано", { timeout: 30_000 });
-await step("импорт выполнен", "07-import.png");
+await step("импорт выполнен", "09-import.png");
 
-// Мобильная ширина на том же состоянии.
+// Контрагенты: заказчики и бригады.
+await page.click('.appbar__link:has-text("Контрагенты")');
+await page.waitForSelector('h2:has-text("Заказчики")');
+const clients = await page.locator("table.estimate tbody tr").count();
+const brigades = await page.locator(".tile").count();
+console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
+if (clients === 0) note("контрагенты", "список заказчиков пуст");
+await step("контрагенты", "09b-kontragenty.png");
+await overflow("контрагенты, 1440");
+
+// Мобильная ширина. Нижняя таб-панель существует только здесь.
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(400);
-await overflow("после импорта, 360");
-await step("мобильный, 360 px", "08-mobile-360.png");
+await overflow("контрагенты, 360");
+const tabbar = await page.locator(".tabbar__item").count();
+if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
+
+/**
+ * Панель прибита к низу экрана и перекрывает конец страницы, если под неё
+ * не отведено место. Проверяется поведением: в конце прокрутки последний
+ * блок содержимого не должен оказаться под панелью.
+ */
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+await page.waitForTimeout(300);
+const covered = await page.evaluate(() => {
+  const blocks = [...document.querySelectorAll("main .tile, main .panel, main .counter")];
+  const last = blocks.at(-1);
+  if (last === undefined) return null;
+  const box = last.getBoundingClientRect();
+  const point = document.elementFromPoint(box.x + box.width / 2, box.bottom - 4);
+  return point === null || point.closest(".tabbar") !== null ? last.textContent?.slice(0, 40) : null;
+});
+if (covered !== null) note("мобильная навигация", `таб-панель перекрывает содержимое: «${covered}»`);
+
+/**
+ * Список объектов на телефоне: карточки, а не таблица. Семь колонок на
+ * ширине 360 px уводят половину сведений за край экрана, а работает там
+ * прораб.
+ */
+await page.click('.tabbar__item:has-text("Объекты")');
+await page.waitForSelector(".segmented__option");
+await page.waitForTimeout(300);
+const mobileTable = await page.locator("main table.estimate").count();
+const mobileCards = await page.locator("main .panel--pad .code-badge").count();
+if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо карточек");
+if (mobileCards === 0) note("список объектов, 360", "карточки объектов не отрисованы");
+console.log(`  карточек объектов на 360 px: ${mobileCards}`);
+await overflow("объекты, 360");
+await step("объекты на телефоне", "10b-obekty-360.png");
+await step("мобильный, 360 px", "10-mobile-360.png");
 
 await page.setViewportSize({ width: 768, height: 1000 });
 await page.waitForTimeout(300);
 await overflow("после импорта, 768");
-await step("планшет, 768 px", "09-tablet-768.png");
+await step("планшет, 768 px", "11-tablet-768.png");
 
 // Иконки. Экраны ссылаются на символы через <use href="#i-…">: если набора
 // нет в документе, ссылка ведёт в пустоту и иконка не рисуется, причём молча.
@@ -180,7 +276,7 @@ if (brokenIcons.length > 0) note("иконка без символа", [...new S
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "10-dark.png");
+await step("тёмная тема", "12-dark.png");
 
 /**
  * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
@@ -207,7 +303,7 @@ if (forcedLight.background === systemDark.background) {
 if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")) {
   note("тема", `светлая не сообщена браузеру: color-scheme = ${forcedLight.scheme}`);
 }
-await step("светлая тема поверх системной тёмной", "11-svetlaya.png");
+await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
 
 await page.emulateMedia({ colorScheme: "light" });
 await page.click('.themeswitch__option[title="Тёмная тема"]');
@@ -217,7 +313,7 @@ if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной �
 if (forcedDark.background === forcedLight.background) {
   note("тема", `тёмная не перекрыла системную светлую: фон остался ${forcedDark.background}`);
 }
-await step("тёмная тема поверх системной светлой", "12-tyomnaya.png");
+await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
 await page.click('.themeswitch__option[title="Как в системе"]');
 await page.waitForTimeout(200);
@@ -242,7 +338,7 @@ const tap = await page.locator(".themeswitch__option").first().boundingBox();
 if (tap === null || tap.width < 44 || tap.height < 44) {
   note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
 }
-await step("переключатель темы, 360 px", "13-tema-360.png");
+await step("переключатель темы, 360 px", "15-tema-360.png");
 
 await browser.close();
 
