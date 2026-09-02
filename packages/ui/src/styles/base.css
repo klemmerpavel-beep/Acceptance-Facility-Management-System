@@ -32,7 +32,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); text-underline-offset: 2px; }
 
 /* --- типографические роли ------------------------------------------------ */
-.t-display { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
 .t-h1      { font-size: var(--fs-h1);      line-height: var(--lh-h1);      font-weight: var(--fw-h1); }
 .t-h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
 .t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }

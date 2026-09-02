@@ -26,6 +26,40 @@
 - Разграничение доступа на уровне полей, а не экранов.
 - Все цвета, размеры и отступы — из токенов дизайн-системы.
 
+## Как поднять стенд
+
+```bash
+cp .env.example .env      # задайте пароли
+docker compose up --build # база, объектное хранилище, API с миграциями, веб-клиент
+```
+
+Веб-клиент — http://localhost:5173, API — http://localhost:3000.
+
+Без Docker:
+
+```bash
+pnpm install
+pnpm --filter @priyomka/api exec prisma generate
+DATABASE_URL=… pnpm --filter @priyomka/api run migrate:deploy
+DATABASE_URL=… node apps/api/prisma/seed.mjs   # обезличенный стенд
+pnpm --filter @priyomka/api run build && pnpm --filter @priyomka/api run start
+pnpm --filter @priyomka/web run dev
+```
+
+## Вход
+
+Пароля и кода из СМС нет. Руководитель запрашивает ссылку на почту, прораб
+получает персональную ссылку и не вводит ничего вообще. Вне промышленной
+среды ссылка показывается прямо в ответе: почтовый отправитель на стенде
+не настроен.
+
+## Проверки
+
+```bash
+pnpm test        # тесты доменных правил, форматирования и норм дизайн-системы
+pnpm typecheck   # строгий режим во всех пакетах
+```
+
 ## Приватность данных
 
 Реальные сметы, фотографии объектов и данные клиентов в репозиторий не попадают.

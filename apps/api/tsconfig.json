@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "rootDir": "../..",
+    "baseUrl": "../..",
+    "paths": {
+      "@priyomka/domain": [
+        "packages/domain/src/index.ts"
+      ],
+      "@priyomka/contracts": [
+        "packages/contracts/src/index.ts"
+      ]
+    },
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "../../packages/domain/src",
+    "../../packages/contracts/src"
+  ],
+  "exclude": [
+    "**/*.test.ts"
+  ]
+}

@@ -1,0 +1,189 @@
+// Схема базы данных «Приёмки».
+//
+// Денежные величины — BigInt копеек (БП-08). Количества — BigInt тысячных
+// долей единицы измерения. Доли и проценты — Int сотых долей процента.
+// Тип с плавающей точкой для денег не используется нигде.
+//
+// Миграции только вперёд, применяются с нуля на чистой базе в CI.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Роли системы. Клиент личного кабинета в первой версии не имеет
+/// и в таблице пользователей не заводится.
+enum Role {
+  OWNER
+  FOREMAN
+  SUPPLY
+}
+
+/// Текущий рабочий статус объекта.
+enum ProjectStatus {
+  NEW
+  IN_PROGRESS
+  PAUSED
+  WAITING_CLIENT
+  DONE
+  ARCHIVED
+}
+
+/// Расчётная единица сдельной оплаты. По решению допроса расчёт ведётся
+/// с бригадой через бригадира, состав бригады не хранится; тип PERSON
+/// оставлен для объектов, где рассчитываются с конкретным мастером.
+enum WorkerKind {
+  BRIGADE
+  PERSON
+}
+
+/// Назначение одноразовой ссылки входа.
+enum AuthPurpose {
+  /// Магическая ссылка руководителя, живёт минуты.
+  MAGIC_LINK
+  /// Персональная ссылка прораба: он не вводит ничего вообще.
+  FOREMAN_LINK
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+
+  users    User[]
+  clients  Client[]
+  projects Project[]
+  workers  Worker[]
+  auditLog AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  role      Role
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  organization      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  authTokens        AuthToken[]
+  sessions          Session[]
+  projectsAsForeman Project[]    @relation("ProjectForeman")
+  auditEntries      AuditLog[]
+
+  @@unique([orgId, email])
+  @@index([orgId, role])
+  @@map("users")
+}
+
+model Client {
+  id         String  @id @default(uuid()) @db.Uuid
+  orgId      String  @db.Uuid
+  /// Короткий код клиента, как в обиходе заказчика: [300] И. Иванов.
+  code       String
+  name       String
+  isCompany  Boolean @default(false)
+  requisites String?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  projects     Project[]
+
+  @@unique([orgId, code])
+  @@map("clients")
+}
+
+model Project {
+  id        String        @id @default(uuid()) @db.Uuid
+  orgId     String        @db.Uuid
+  /// Сквозной короткий код объекта: почта, документы, разговор, акт — R-99.
+  code      String
+  address   String
+  clientId  String        @db.Uuid
+  foremanId String?       @db.Uuid
+  status    ProjectStatus @default(NEW)
+  deadline  DateTime?     @db.Date
+  keysCount Int           @default(0)
+  /// Надбавка «сопровождение объекта» в сотых долях процента: 1200 = 12,00 %.
+  supervisionShare Int    @default(1200)
+  createdAt DateTime      @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  foreman      User?        @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, code])
+  @@index([orgId, status])
+  @@map("projects")
+}
+
+model Worker {
+  id    String     @id @default(uuid()) @db.Uuid
+  orgId String     @db.Uuid
+  name  String
+  kind  WorkerKind @default(BRIGADE)
+  /// Ставка по умолчанию в копейках за единицу; необязательна, поскольку
+  /// начисление всегда идёт по ставке позиции сметы, а не по этой.
+  defaultRate BigInt?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, name])
+  @@map("workers")
+}
+
+model AuthToken {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  /// Хранится только хеш: утечка таблицы не даёт войти.
+  tokenHash String      @unique
+  purpose   AuthPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("auth_tokens")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Журнал аудита. Обязателен для всех денежных полей (БП-10).
+/// Записи не удаляются и не изменяются.
+model AuditLog {
+  id       String   @id @default(uuid()) @db.Uuid
+  orgId    String   @db.Uuid
+  actorId  String?  @db.Uuid
+  entity   String
+  entityId String
+  field    String
+  oldValue String?
+  newValue String?
+  at       DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, entity, entityId])
+  @@index([orgId, at])
+  @@map("audit_log")
+}
