@@ -64,3 +64,57 @@ export const errorSchema = z.object({
   message: z.string(),
   details: z.array(z.string()).optional(),
 });
+
+/** Написание единицы, требующее решения оператора. */
+export const unitDecisionSchema = z.object({
+  raw: z.string(),
+  suggestion: z.string(),
+  rows: z.array(z.number().int()),
+  positions: z.number().int(),
+});
+
+/** Находка отчёта о расхождениях. Вид определяет набор полей. */
+export const findingSchema = z.object({
+  kind: z.string(),
+  title: z.string(),
+  /** Денежная величина находки, копейки строкой. Пусто, если находка не о деньгах. */
+  amount: kopecksString.nullable(),
+  rows: z.array(z.number().int()),
+});
+
+export const importReportSchema = z.object({
+  positions: z.number().int(),
+  sectionsTopLevel: z.number().int(),
+  sectionsNested: z.number().int(),
+  otherExpenses: z.number().int(),
+  computedWorksTotal: kopecksString,
+  declaredWorksTotal: kopecksString.nullable(),
+  worksTotalDelta: kopecksString.nullable(),
+  computedWageTotal: kopecksString,
+  declaredWageTotal: kopecksString.nullable(),
+  wageTotalDelta: kopecksString.nullable(),
+  supervisionShare: z.number().int().nullable(),
+  supervisionAmount: kopecksString.nullable(),
+  computedEstimateTotal: kopecksString,
+  declaredEstimateTotal: kopecksString.nullable(),
+  hasDiscrepancy: z.boolean(),
+  unitDecisions: z.array(unitDecisionSchema),
+  findings: z.array(findingSchema),
+});
+export type ImportReport = z.infer<typeof importReportSchema>;
+
+/** Подтверждённые оператором сопоставления единиц: написание → каноническая форма. */
+export const unitOverridesSchema = z.record(z.string(), z.string());
+
+export const importPreviewResponseSchema = z.object({
+  fileName: z.string(),
+  report: importReportSchema,
+});
+
+export const importResultSchema = z.object({
+  importId: z.string().uuid(),
+  estimateId: z.string().uuid(),
+  version: z.number().int(),
+  report: importReportSchema,
+});
+export type ImportResult = z.infer<typeof importResultSchema>;

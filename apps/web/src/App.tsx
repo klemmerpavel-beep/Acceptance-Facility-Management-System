@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
-import { fetchCurrentUser, fetchProjects, logout } from "./api.js";
+import { fetchCanonicalUnits, fetchCurrentUser, fetchProjects, logout } from "./api.js";
 import { SignIn } from "./SignIn.js";
 import { ProjectList } from "./ProjectList.js";
+import { ImportEstimate } from "./ImportEstimate.js";
 
 type State =
   | { kind: "loading" }
   | { kind: "anonymous" }
-  | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[] };
+  | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
 
 export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -16,7 +17,12 @@ export function App(): React.JSX.Element {
     void (async () => {
       try {
         const user = await fetchCurrentUser();
-        setState({ kind: "signed", user, projects: await fetchProjects() });
+        const projects = await fetchProjects();
+        // Справочник единиц нужен экрану импорта; у прораба импорта нет.
+        const first = projects[0];
+        const units =
+          user.role === "OWNER" && first !== undefined ? await fetchCanonicalUnits(first.code) : [];
+        setState({ kind: "signed", user, projects, units });
       } catch {
         setState({ kind: "anonymous" });
       }
@@ -63,6 +69,9 @@ export function App(): React.JSX.Element {
       </div>
       <main className="container stack stack--loose">
         <ProjectList projects={state.projects} role={state.user.role} />
+        {state.user.role === "OWNER" && state.projects[0] !== undefined && (
+          <ImportEstimate code={state.projects[0].code} units={state.units} />
+        )}
       </main>
     </>
   );

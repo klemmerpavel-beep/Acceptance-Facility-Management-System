@@ -1,5 +1,8 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
-import { currentUserSchema, projectSummarySchema } from "@priyomka/contracts";
+import {
+  currentUserSchema, importPreviewResponseSchema, importResultSchema, projectSummarySchema,
+  type ImportReport, type ImportResult,
+} from "@priyomka/contracts";
 import { z } from "zod";
 
 /**
@@ -36,3 +39,35 @@ export const requestMagicLink = (
 
 export const logout = (): Promise<{ ok: true }> =>
   request("/auth/logout", z.object({ ok: z.literal(true) }), { method: "POST" });
+
+
+/** Разбор без записи: отчёт и написания единиц, ждущие решения оператора. */
+export async function previewEstimate(
+  code: string,
+  file: File,
+): Promise<{ fileName: string; report: ImportReport }> {
+  const form = new FormData();
+  form.append("file", file);
+  return request(`/projects/${code}/estimate/preview`, importPreviewResponseSchema, {
+    method: "POST",
+    body: form,
+  });
+}
+
+/** Импорт с записью новой редакции сметы. */
+export async function importEstimate(
+  code: string,
+  file: File,
+  overrides: Record<string, string>,
+): Promise<ImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("units", JSON.stringify(overrides));
+  return request(`/projects/${code}/estimate/import`, importResultSchema, {
+    method: "POST",
+    body: form,
+  });
+}
+
+export const fetchCanonicalUnits = (code: string): Promise<string[]> =>
+  request(`/projects/${code}/estimate/units`, z.array(z.string()));

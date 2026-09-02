@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "module": "commonjs",
     "moduleResolution": "node",
     "experimentalDecorators": true,
@@ -15,10 +17,25 @@
     "rootDir": "../..",
     "baseUrl": "../..",
     "paths": {
-      "@priyomka/domain": ["packages/domain/src/index.ts"],
-      "@priyomka/contracts": ["packages/contracts/src/index.ts"]
+      "@priyomka/domain": [
+        "packages/domain/src/index.ts"
+      ],
+      "@priyomka/contracts": [
+        "packages/contracts/src/index.ts"
+      ],
+      "@priyomka/importer": [
+        "packages/importer/src/index.ts"
+      ]
     }
   },
-  "include": ["src", "../../packages/domain/src", "../../packages/contracts/src"],
-  "exclude": ["**/*.test.ts"]
+  "include": [
+    "src",
+    "../../packages/domain/src",
+    "../../packages/contracts/src",
+    "../../packages/importer/src"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "../../packages/*/src/**/*.test.ts"
+  ]
 }

@@ -21,6 +21,9 @@
       ],
       "@priyomka/contracts": [
         "packages/contracts/src/index.ts"
+      ],
+      "@priyomka/importer": [
+        "packages/importer/src/index.ts"
       ]
     },
     "noEmit": true
@@ -28,9 +31,11 @@
   "include": [
     "src",
     "../../packages/domain/src",
-    "../../packages/contracts/src"
+    "../../packages/contracts/src",
+    "../../packages/importer/src"
   ],
   "exclude": [
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "../../packages/*/src/**/*.test.ts"
   ]
 }
