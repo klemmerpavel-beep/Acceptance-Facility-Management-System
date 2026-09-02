@@ -9,7 +9,15 @@ import { importEstimate, previewEstimate } from "./api.js";
  * сохранено, — именно расхождение является главным доказательством
  * ценности системы (БП-09).
  */
-export function ImportEstimate({ code, units }: { code: string; units: string[] }): React.JSX.Element {
+export function ImportEstimate({
+  code,
+  units,
+  onImported,
+}: {
+  code: string;
+  units: string[];
+  onImported?: () => void;
+}): React.JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -43,6 +51,7 @@ export function ImportEstimate({ code, units }: { code: string; units: string[] 
       const result = await importEstimate(code, file, overrides);
       setDone({ version: result.version, positions: result.report.positions });
       setReport(result.report);
+      onImported?.();
     });
   };
 

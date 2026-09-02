@@ -48,19 +48,31 @@ await prisma.project.upsert({
   },
 });
 
-// Объект без назначенного прораба: на нём проверяется, что прораб его не видит.
-await prisma.project.upsert({
-  where: { orgId_code: { orgId: org.id, code: "R-42" } },
-  update: {},
-  create: {
-    orgId: org.id,
-    code: "R-42",
-    address: "Плехановская 22",
-    clientId: client.id,
-    status: ProjectStatus.NEW,
-    keysCount: 0,
-  },
-});
+// Объекты без назначенного прораба: на них проверяется, что прораб их не
+// видит. Разные статусы и сроки — чтобы список отражал реальный портфель
+// в три-пять объектов, а не одну строку.
+const другие = [
+  { code: "R-42", address: "Плехановская 22", status: ProjectStatus.NEW, keys: 0, deadline: null },
+  { code: "R-31", address: "Кольцовская 24б, кв. 118", status: ProjectStatus.IN_PROGRESS, keys: 1, deadline: "2026-11-30" },
+  { code: "R-27", address: "Ленинский проспект 174п", status: ProjectStatus.WAITING_CLIENT, keys: 2, deadline: "2026-10-15" },
+  { code: "R-19", address: "Революции 9а, офис 3", status: ProjectStatus.DONE, keys: 0, deadline: "2026-06-01" },
+];
+
+for (const объект of другие) {
+  await prisma.project.upsert({
+    where: { orgId_code: { orgId: org.id, code: объект.code } },
+    update: {},
+    create: {
+      orgId: org.id,
+      code: объект.code,
+      address: объект.address,
+      clientId: client.id,
+      status: объект.status,
+      keysCount: объект.keys,
+      ...(объект.deadline === null ? {} : { deadline: new Date(объект.deadline) }),
+    },
+  });
+}
 
 for (const name of ["Фархат", "Рашид", "Евгений", "Сергей"]) {
   await prisma.worker.upsert({

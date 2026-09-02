@@ -2,27 +2,15 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import type { ProjectSummary } from "@priyomka/contracts";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
+import { projectScope } from "../common/project-scope";
 
 @Injectable()
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Принадлежность объекта организации проверяется в самом запросе к базе,
-   * а не сверкой после выборки: обработчик физически не может получить
-   * чужой объект.
-   *
-   * Прораб видит только объекты, где он назначен прорабом.
-   */
-  private scope(user: RequestUser) {
-    return user.role === "FOREMAN"
-      ? { orgId: user.orgId, foremanId: user.id }
-      : { orgId: user.orgId };
-  }
-
   async list(user: RequestUser): Promise<ProjectSummary[]> {
     const projects = await this.prisma.project.findMany({
-      where: this.scope(user),
+      where: projectScope(user),
       include: { client: true, foreman: true },
       orderBy: { code: "asc" },
     });
@@ -31,7 +19,7 @@ export class ProjectsService {
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
     const project = await this.prisma.project.findFirst({
-      where: { ...this.scope(user), code },
+      where: { ...projectScope(user), code },
       include: { client: true, foreman: true },
     });
     if (!project) {

@@ -114,10 +114,39 @@ const focusVisible = await page.evaluate(() => {
 });
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
+// Карточка объекта. Открывается объект со сметой: у остальных карточка
+// показывает пустое состояние, и это правильное поведение, а не сбой.
+await page.click('table.estimate tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".cover__title .code-badge");
+await page.waitForSelector("table.estimate tbody tr");
+await step("карточка объекта", "04-kartochka.png");
+await overflow("карточка, 1440");
+
+const sections = await page.locator("tr.estimate__section").count();
+const items = await page.locator("table.estimate tbody tr").count();
+console.log(`  строк в смете: ${items}, из них заголовков и подытогов разделов: ${sections}`);
+
+// Сворачивание раздела и переключение проекции.
+const before = await page.locator("table.estimate tbody tr").count();
+await page.locator(".estimate__section-toggle").first().click();
+const after = await page.locator("table.estimate tbody tr").count();
+if (after >= before) note("сворачивание раздела", "число строк не уменьшилось");
+await page.locator(".estimate__section-toggle").first().click();
+
+const internalBefore = await page.locator(".estimate__internal").count();
+await page.click('.segmented__option:has-text("Клиентская")');
+await page.waitForTimeout(200);
+const internalAfter = await page.locator(".estimate__internal").count();
+if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
+if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
+await step("клиентская проекция", "05-klientskaya.png");
+await page.click('.segmented__option:has-text("Внутренняя")');
+
 // Импорт сметы.
+await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
 await page.waitForSelector("text=Отчёт о расхождениях");
-await step("отчёт о расхождениях", "04-otchet.png");
+await step("отчёт о расхождениях", "06-otchet.png");
 await overflow("отчёт, 1440");
 
 const decisions = await page.locator("select").count();
@@ -125,24 +154,24 @@ console.log(`  написаний единиц ждут решения: ${decisi
 
 await page.click('button:has-text("Импортировать")');
 await page.waitForSelector("text=Импортировано", { timeout: 30_000 });
-await step("импорт выполнен", "05-import.png");
+await step("импорт выполнен", "07-import.png");
 
 // Мобильная ширина на том же состоянии.
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(400);
 await overflow("после импорта, 360");
-await step("мобильный, 360 px", "06-mobile-360.png");
+await step("мобильный, 360 px", "08-mobile-360.png");
 
 await page.setViewportSize({ width: 768, height: 1000 });
 await page.waitForTimeout(300);
 await overflow("после импорта, 768");
-await step("планшет, 768 px", "07-tablet-768.png");
+await step("планшет, 768 px", "09-tablet-768.png");
 
 // Тёмная тема.
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "08-dark.png");
+await step("тёмная тема", "10-dark.png");
 
 await browser.close();
 

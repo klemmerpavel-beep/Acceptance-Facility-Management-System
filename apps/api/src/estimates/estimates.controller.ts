@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { ImportReport, ImportResult } from "@priyomka/contracts";
+import type { EstimateView, ImportRecord, ImportReport, ImportResult } from "@priyomka/contracts";
 import { unitOverridesSchema } from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
 import { normalizeSpelling } from "@priyomka/importer";
@@ -22,6 +22,18 @@ interface UploadedEstimate {
 @UseGuards(SessionGuard, RolesGuard)
 export class EstimatesController {
   constructor(private readonly estimates: EstimatesService) {}
+
+  /** Действующая редакция сметы, спроецированная по роли. */
+  @Get()
+  view(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<EstimateView> {
+    return this.estimates.view(user, code);
+  }
+
+  /** Протоколы импорта: отчёт о расхождениях остаётся доступным. */
+  @Get("imports")
+  imports(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ImportRecord[]> {
+    return this.estimates.imports(user, code);
+  }
 
   /** Справочник для экрана сопоставления единиц. */
   @Get("units")

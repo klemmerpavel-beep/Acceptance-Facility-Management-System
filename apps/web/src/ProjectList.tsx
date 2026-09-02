@@ -21,9 +21,11 @@ const STATUS_PILL: Record<ProjectSummary["status"], string> = {
 export function ProjectList({
   projects,
   role,
+  onOpen,
 }: {
   projects: ProjectSummary[];
   role: Role;
+  onOpen: (project: ProjectSummary) => void;
 }): React.JSX.Element {
   if (projects.length === 0) {
     return (
@@ -58,7 +60,19 @@ export function ProjectList({
                 <td>
                   <span className="code-badge">{project.code}</span>
                 </td>
-                <td>{project.address}</td>
+                <td>
+                  {/* Ссылка, а не строка с обработчиком: объект открывается
+                      и клавиатурой, и в новой вкладке средствами браузера. */}
+                  <a
+                    href={`#${project.code}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onOpen(project);
+                    }}
+                  >
+                    {project.address}
+                  </a>
+                </td>
                 <td>
                   <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
                 </td>

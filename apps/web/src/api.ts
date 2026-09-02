@@ -1,7 +1,8 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
-  currentUserSchema, importPreviewResponseSchema, importResultSchema, projectSummarySchema,
-  type ImportReport, type ImportResult,
+  currentUserSchema, estimateViewSchema, importPreviewResponseSchema, importRecordSchema,
+  importResultSchema, projectSummarySchema,
+  type EstimateView, type ImportRecord, type ImportReport, type ImportResult,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -71,3 +72,9 @@ export async function importEstimate(
 
 export const fetchCanonicalUnits = (code: string): Promise<string[]> =>
   request(`/projects/${code}/estimate/units`, z.array(z.string()));
+
+export const fetchEstimate = (code: string): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate`, estimateViewSchema);
+
+export const fetchImports = (code: string): Promise<ImportRecord[]> =>
+  request(`/projects/${code}/estimate/imports`, z.array(importRecordSchema));
