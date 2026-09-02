@@ -8,13 +8,21 @@
 
 .container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--gutter); }
 
-.stack   { display: flex; flex-direction: column; gap: var(--space-4); }
-.stack-2 { display: flex; flex-direction: column; gap: var(--space-2); }
-.stack-5 { display: flex; flex-direction: column; gap: var(--space-5); }
-.row     { display: flex; align-items: center; gap: var(--space-3); }
-.row--between { justify-content: space-between; }
+/* На узком экране поля контейнера уменьшаются: 24 px с каждой стороны
+   съедают восьмую часть экрана в 360 px. */
+@media (max-width: 767px) { :root { --gutter: var(--space-4); } }
 
-.grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gutter); }
+/* Вертикальная группа. Шаг задаётся намерением, а не номером в имени:
+   .stack-2 и .stack-5 ничего не сообщали читателю кода. */
+.stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-4)); }
+.stack--tight { --stack-gap: var(--space-2); }
+.stack--loose { --stack-gap: var(--space-5); }
+
+.row { display: flex; align-items: center; gap: var(--row-gap, var(--space-3)); }
+.row--between { justify-content: space-between; }
+.row--wrap    { flex-wrap: wrap; }
+.row--top     { align-items: flex-start; }
+.row--loose   { --row-gap: var(--space-5); }
 
 /* Мобильный по умолчанию: одна колонка, снизу место под таб-панель. */
 .project-layout {
