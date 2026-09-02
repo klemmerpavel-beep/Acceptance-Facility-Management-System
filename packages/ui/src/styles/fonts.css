@@ -1,0 +1,4 @@
+/* Подключение гарнитур. display=swap обязателен: интерфейс читается
+   запасным стеком, пока грузится основной. Запасные стеки объявлены
+   в токенах --font-ui и --font-mono. */
+@import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
