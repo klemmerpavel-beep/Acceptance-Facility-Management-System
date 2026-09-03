@@ -53,6 +53,18 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
     void fetchUnits().then(setUnits).catch((cause: Error) => setError(cause.message));
   }, [tab, units]);
 
+  const onTabKey = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const index = TABS.findIndex((item) => item.key === tab);
+    const next = TABS[(index + step + TABS.length) % TABS.length];
+    if (next === undefined) return;
+    setTab(next.key);
+    setSaved(false);
+    document.getElementById(`settings-tab-${next.key}`)?.focus();
+  };
+
   const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -72,14 +84,17 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
 
   return (
     <main className="container stack stack--loose">
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" onKeyDown={onTabKey}>
         {TABS.map((item) => (
           <button
             key={item.key}
+            id={`settings-tab-${item.key}`}
             type="button"
             role="tab"
             className="tabs__item"
             aria-selected={tab === item.key}
+            aria-controls={`settings-panel-${item.key}`}
+            tabIndex={tab === item.key ? 0 : -1}
             onClick={() => { setTab(item.key); setSaved(false); }}
           >
             {item.label}
@@ -87,28 +102,30 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
         ))}
       </div>
 
-      {error !== null && <p className="field__error" role="alert">{error}</p>}
+      {error !== null && <p className="field__error" id="settings-error" role="alert">{error}</p>}
 
+      <div role="tabpanel" id="settings-panel-overview" aria-labelledby="settings-tab-overview" hidden={tab !== "overview"}>
       {tab === "overview" && organization !== null && (
         <section className="panel panel--pad stack stack--loose settings__panel">
           <h2 className="t-h2">Данные организации</h2>
-          <div className="settings__identity">
-            <span className="settings__logo" aria-hidden="true">
-              <svg className="icon" aria-hidden="true"><use href="#i-acceptance" /></svg>
-            </span>
-            <form
+          {/* Д-29: обязательность названа текстом. Атрибут title на сенсорном
+              экране не показывается, и звёздочка оставалась без объяснения. */}
+          {role === "OWNER" && (
+            <p className="t-sm t-muted">Поля со звёздочкой обязательны.</p>
+          )}
+          <form
               key={`${organization.phone ?? ""}|${organization.email ?? ""}`}
               className="stack stack--loose settings__form"
               onSubmit={submit}
             >
               <label className="field">
-                <span className="field__label">Название <abbr className="settings__required" title="обязательное поле">*</abbr></span>
-                <input className="input" name="name" required defaultValue={organization.name} disabled={role !== "OWNER"} />
+                <span className="field__label">Название <span className="settings__required">*</span></span>
+                <input className="input" name="name" required defaultValue={organization.name} disabled={role !== "OWNER"} aria-describedby={error === null ? undefined : "settings-error"} aria-invalid={error === null ? undefined : true} />
               </label>
 
               <div className="settings__grid">
                 <label className="field">
-                  <span className="field__label">Часовой пояс <abbr className="settings__required" title="обязательное поле">*</abbr></span>
+                  <span className="field__label">Часовой пояс <span className="settings__required">*</span></span>
                   <span className="selectwrap">
                     <select className="input" name="timeZone" defaultValue={organization.timeZone} disabled={role !== "OWNER"}>
                       {TIME_ZONES.map((zone) => (
@@ -118,12 +135,13 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
                     <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
                   </span>
                 </label>
-                <label className="field">
+                {/* Валюта одна на организацию: суммы в разных валютах не
+                    складываются. Поле, которое нельзя править, выглядело как
+                    редактируемое и не попадало в обход клавиатурой (Д-21). */}
+                <div className="field">
                   <span className="field__label">Валюта</span>
-                  {/* Валюта одна на организацию: суммы в разных валютах
-                      не складываются, поэтому поле только показывает. */}
-                  <input className="input" value="₽ рубль" readOnly disabled />
-                </label>
+                  <p className="field__value">₽ рубль</p>
+                </div>
                 <label className="field">
                   <span className="field__label">Телефон</span>
                   <input className="input input--tel" name="phone" type="tel" defaultValue={shownPhone(organization.phone)} disabled={role !== "OWNER"} placeholder="+7 (___) ___-__-__" />
@@ -139,14 +157,15 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
                   <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
                     Сохранить изменения
                   </button>
-                  {saved && <span className="pill pill--ok">Сохранено</span>}
+                  {saved && <span className="pill pill--ok" role="status">Сохранено</span>}
                 </div>
               )}
-            </form>
-          </div>
+          </form>
         </section>
       )}
+      </div>
 
+      <div role="tabpanel" id="settings-panel-estimate" aria-labelledby="settings-tab-estimate" hidden={tab !== "estimate"}>
       {tab === "estimate" && (
         <section className="panel panel--pad stack settings__panel">
           <h2 className="t-h2">Единицы измерения</h2>
@@ -169,6 +188,7 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
           )}
         </section>
       )}
+      </div>
 
       <p className="t-sm t-muted">
         Чего в системе пока нет и когда появится —{" "}

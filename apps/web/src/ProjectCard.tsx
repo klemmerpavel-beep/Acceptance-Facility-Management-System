@@ -121,6 +121,23 @@ export function ProjectCard({
    * Срок объекта. Дедлайн в прошлом — обычное дело на ремонте, и подпись
    * должна называть это просрочкой, а не «осталось минус восемнадцать дней».
    */
+  /* Состав вкладок зависит от роли: импорт доступен только руководителю.
+     Список нужен целиком, чтобы стрелки переводили выбор по нему. */
+  const tabList = user.role === "OWNER"
+    ? [...TABS, { key: "import" as const, label: "Импорт" }]
+    : [...TABS];
+
+  const onTabKey = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const index = tabList.findIndex((item) => item.key === tab);
+    const next = tabList[(index + step + tabList.length) % tabList.length];
+    if (next === undefined) return;
+    setTab(next.key);
+    document.getElementById(`tab-${next.key}`)?.focus();
+  };
+
   const deadline =
     project.deadline === null
       ? null
@@ -250,42 +267,40 @@ export function ProjectCard({
           </aside>
 
           <div className="stack stack--loose">
-            <div className="tabs" role="tablist">
-              {TABS.map((item) => (
+            {/* Шаблон вкладок целиком: вкладка связана с панелью, панель
+                названа вкладкой, стрелки переводят выбор, а Tab уводит из
+                полосы вкладок в её содержимое (реестр Д-11). */}
+            <div className="tabs" role="tablist" onKeyDown={onTabKey}>
+              {tabList.map((item) => (
                 <button
                   key={item.key}
+                  id={`tab-${item.key}`}
                   type="button"
                   className="tabs__item"
                   role="tab"
                   aria-selected={tab === item.key}
+                  aria-controls={`panel-${item.key}`}
+                  tabIndex={tab === item.key ? 0 : -1}
                   onClick={() => setTab(item.key)}
                 >
                   {item.label}
                 </button>
               ))}
-              {user.role === "OWNER" && (
-                <button
-                  type="button"
-                  className="tabs__item"
-                  role="tab"
-                  aria-selected={tab === "import"}
-                  onClick={() => setTab("import")}
-                >
-                  Импорт
-                </button>
-              )}
             </div>
 
-            {tab === "overview" && (
+            <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" hidden={tab !== "overview"}>
+              {tab === "overview" && (
               <Overview
                 project={project}
                 estimate={estimate}
                 events={events}
                 today={today}
               />
-            )}
+              )}
+            </div>
 
-            {tab === "estimate" && (
+            <div role="tabpanel" id="panel-estimate" aria-labelledby="tab-estimate" hidden={tab !== "estimate"}>
+              {tab === "estimate" && (
               <>
                 {/* Скелет показывается, пока показывать нечего. Условие по
                     признаку загрузки давало полосу поверх уже отрисованной
@@ -334,9 +349,12 @@ export function ProjectCard({
                   </div>
                 )}
               </>
-            )}
+              )}
+            </div>
 
-            {tab === "import" && <ImportEstimate code={project.code} units={units} onImported={load} />}
+            <div role="tabpanel" id="panel-import" aria-labelledby="tab-import" hidden={tab !== "import"}>
+              {tab === "import" && <ImportEstimate code={project.code} units={units} onImported={load} />}
+            </div>
           </div>
         </div>
       </main>
@@ -353,7 +371,7 @@ export function ProjectCard({
   );
 }
 
-/** Вкладка «Обзор»: сроки, состав сметы, транши и события объекта. */
+/** Вкладка «Обзор»: сроки, состав сметы и события объекта. */
 function Overview({
   project,
   estimate,
@@ -382,7 +400,7 @@ function Overview({
     <div className="stack stack--loose">
       <section className="stack">
         <div className="section-head">
-          <h2 className="t-h2">График производства работ</h2>
+          <h2 className="t-h2">Сроки объекта</h2>
           <span className="t-sm t-muted">
             {started === null ? "работы не начаты" : `начало ${formatDate(started)}`}
           </span>
@@ -417,7 +435,7 @@ function Overview({
             {estimate !== null && (
               <span className="metric">
                 <span className="metric__value">{estimate.positions}</span>
-                <span className="metric__label">Позиций к приёмке</span>
+                <span className="metric__label">Позиций в смете</span>
               </span>
             )}
           </div>

@@ -5,6 +5,9 @@ import { plural } from "./status.js";
 
 type Projection = "internal" | "client";
 
+/** Выше этого числа строк отрисовка таблицы целиком перестаёт быть уместной. */
+const ROW_LIMIT = 400;
+
 const money = (value: string | undefined): string =>
   value === undefined ? "—" : formatKopecks(BigInt(value));
 
@@ -30,6 +33,8 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
 
   const showInternal = hasInternal && projection === "internal";
   const sections = estimate.sectionsTopLevel + estimate.sectionsNested;
+  /* Заголовок и подытог на раздел плюс позиции — столько строк уходит в DOM. */
+  const rendered = estimate.positions + sections * 2;
   const columns = showInternal ? 9 : 6;
 
   const toggle = (id: string): void =>
@@ -208,6 +213,16 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
           </tfoot>
         </table>
       </div>
+
+      {/* Порог назван, чтобы переход на виртуализацию был решением, а не
+          авралом. Виртуализация тела с липкой шапкой, сворачиваемыми
+          разделами и подытогами — отдельная работа (реестр Д-25). */}
+      {rendered > ROW_LIMIT && (
+        <p className="field__hint">
+          В смете {rendered} строк — больше порога в {ROW_LIMIT}. Таблица отрисовывается целиком,
+          и на таком объёме это уже заметно.
+        </p>
+      )}
     </div>
   );
 }

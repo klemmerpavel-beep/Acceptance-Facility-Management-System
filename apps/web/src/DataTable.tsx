@@ -114,21 +114,6 @@ export function DataTable<Row>({
           </div>
         )}
         <div className="datatable__controls">
-          <label className="datatable__size">
-            <span className="field__label">Записей</span>
-            <span className="selectwrap">
-              <select
-                className="input"
-                value={size}
-                onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }}
-              >
-                {PAGE_SIZES.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
-            </span>
-          </label>
           <label className="datatable__search">
             <svg className="icon" aria-hidden="true"><use href="#i-search" /></svg>
             <span className="visually-hidden">{searchLabel}</span>
@@ -149,7 +134,7 @@ export function DataTable<Row>({
         </div>
       ) : (
         <div className="table-scroll">
-          <table className="datatable__table">
+          <table className="datatable__table" aria-label={title ?? searchLabel}>
             <thead>
               <tr>
                 {columns.map((column) => {
@@ -190,6 +175,23 @@ export function DataTable<Row>({
       )}
 
       <div className="datatable__foot">
+        {/* Д-18: выбор числа записей стоит рядом со счётчиком показанного,
+            а не отдельной полосой над данными. */}
+        <label className="datatable__size">
+          <span className="field__label">Записей</span>
+          <span className="selectwrap">
+            <select
+              className="input"
+              value={size}
+              onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }}
+            >
+              {PAGE_SIZES.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
+          </span>
+        </label>
         <p className="t-sm t-muted">
           {ordered.length === 0
             ? "Записей нет"

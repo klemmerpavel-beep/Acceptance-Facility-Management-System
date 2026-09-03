@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ImportReport } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
+import { plural } from "./status.js";
 import { importEstimate, previewEstimate } from "./api.js";
 
 /**
@@ -22,6 +23,7 @@ export function ImportEstimate({
   const [report, setReport] = useState<ImportReport | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [done, setDone] = useState<{ version: number; positions: number } | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,6 +49,7 @@ export function ImportEstimate({
 
   const onImport = (): void => {
     if (file === null) return;
+    setConfirming(false);
     run(async () => {
       const result = await importEstimate(code, file, overrides);
       setDone({ version: result.version, positions: result.report.positions });
@@ -70,6 +73,7 @@ export function ImportEstimate({
           <input
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            aria-describedby={error === null ? undefined : "import-error"}
             onChange={(event) => {
               const chosen = event.target.files?.[0];
               if (chosen) onPreview(chosen);
@@ -83,8 +87,9 @@ export function ImportEstimate({
         </label>
       </div>
 
-      {error !== null && <p className="field__error">{error}</p>}
-      {busy && <span className="skeleton skeleton--row" />}
+      {error !== null && <p className="field__error" id="import-error" role="alert">{error}</p>}
+      {/* Д-23: загрузка объявляется, а не только рисуется. */}
+      {busy && <span className="skeleton skeleton--row" aria-busy="true" aria-label="Идёт разбор файла" />}
 
       {report !== null && (
         <>
@@ -117,7 +122,14 @@ export function ImportEstimate({
                   </span>
                 </p>
                 {finding.rows.length > 0 && (
-                  <p className="t-sm t-muted finding__rows">строки {finding.rows.join(", ")}</p>
+                  // Д-22: четырнадцать номеров строк сплошной строкой — стена
+                  // цифр; раскрытие оставляет её тем, кому она нужна.
+                  <details className="finding__rows">
+                    <summary className="t-sm t-muted">
+                      {finding.rows.length} {plural(finding.rows.length, "строка", "строки", "строк")} файла
+                    </summary>
+                    <p className="t-sm t-muted">строки {finding.rows.join(", ")}</p>
+                  </details>
                 )}
               </div>
             ))}
@@ -137,7 +149,9 @@ export function ImportEstimate({
               </p>
               <hr className="rule" />
               {report.unitDecisions.map((decision) => (
-                <p className="row row--between" key={decision.raw}>
+                // Д-22: подпись и орган управления в одной строке ведомости,
+                // а не по разным краям экрана в 900 px друг от друга.
+                <p className="unitdecision" key={decision.raw}>
                   <span className="t-sm">
                     «{decision.raw.trim() || "пусто"}» — {decision.positions} позиц.
                   </span>
@@ -162,11 +176,17 @@ export function ImportEstimate({
           )}
 
           {done === null ? (
-            <button className="btn btn--primary" type="button" onClick={onImport} data-loading={busy || undefined}>
-              Импортировать
+            <button
+              className="btn btn--primary"
+              type="button"
+              onClick={() => setConfirming(true)}
+              data-loading={busy || undefined}
+            >
+              Создать редакцию сметы
             </button>
           ) : (
-            <p className="toast">
+            // Д-10: результат объявляется, а не только показывается.
+            <p className="toast" role="status">
               <span className="pill pill--ok">Импортировано</span>
               <span className="t-sm">
                 Редакция {done.version}, позиций {done.positions}. Расхождение сохранено в протоколе импорта.
@@ -175,6 +195,99 @@ export function ImportEstimate({
           )}
         </>
       )}
+
+      {/* Д-01: смета — основание расчётов с заказчиком и бригадой. Запись
+          новой редакции называет последствия до того, как что-то изменится. */}
+      {confirming && report !== null && (
+        <ConfirmImport
+          positions={report.positions}
+          delta={money(report.worksTotalDelta)}
+          decisions={report.unitDecisions.length}
+          busy={busy}
+          onCancel={() => setConfirming(false)}
+          onConfirm={onImport}
+        />
+      )}
     </section>
+  );
+}
+
+/** Подтверждение записи сметы. Перечисляет ровно то, что изменится. */
+function ConfirmImport({
+  positions,
+  delta,
+  decisions,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  positions: number;
+  delta: string;
+  decisions: number;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const first = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    first.current?.focus();
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") { onCancel(); return; }
+      if (event.key !== "Tab" || dialog.current === null) return;
+      // Ловушка фокуса: Tab внутри диалога не уводит на элементы под ним.
+      const stops = dialog.current.querySelectorAll<HTMLElement>("button, [href], input, select, textarea");
+      const list = [...stops].filter((node) => !node.hasAttribute("disabled"));
+      const edge = event.shiftKey ? list[0] : list.at(-1);
+      if (document.activeElement === edge) {
+        event.preventDefault();
+        (event.shiftKey ? list.at(-1) : list[0])?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); opener?.focus(); };
+  }, [onCancel]);
+
+  return (
+    <>
+      <button type="button" className="scrim" aria-label="Отменить" onClick={onCancel} />
+      <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-import-title" ref={dialog}>
+        <p className="t-h3" id="confirm-import-title">Записать смету в объект?</p>
+        <dl className="deflist">
+          <div className="deflist__row">
+            <dt className="deflist__term">Позиций будет записано</dt>
+            <dd className="deflist__value">{positions}</dd>
+          </div>
+          <div className="deflist__row">
+            <dt className="deflist__term">Недосчёт итога по файлу</dt>
+            <dd className="deflist__value">{delta}</dd>
+          </div>
+          <div className="deflist__row">
+            <dt className="deflist__term">Решений по единицам применится</dt>
+            <dd className="deflist__value">{decisions}</dd>
+          </div>
+        </dl>
+        <p className="t-sm t-secondary">
+          Новая редакция станет действующей. Прежняя останется в протоколе импорта и в журнале
+          объекта — история не переписывается.
+        </p>
+        <div className="stack stack--tight">
+          <button
+            ref={first}
+            type="button"
+            className="btn btn--primary btn--block btn--touch"
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            Записать смету
+          </button>
+          <button type="button" className="btn btn--text btn--block" onClick={onCancel}>
+            Отмена
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

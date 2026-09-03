@@ -15,13 +15,37 @@ import { z } from "zod";
  */
 const BASE = "/api";
 
+/**
+ * Отказ сети и неожиданный ответ сервера — разные события, и человеку нужно
+ * знать, какое случилось: в первом случае данные не ушли и попытку надо
+ * повторить, во втором повторять бессмысленно. Текст браузера «Failed to
+ * fetch» не говорит ни того, ни другого и вдобавок на английском (Д-02).
+ */
+export class OfflineError extends Error {
+  constructor() {
+    super("Нет связи с сервером. Данные не отправлены — повторите, когда появится сеть.");
+    this.name = "OfflineError";
+  }
+}
+
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { credentials: "include", ...init });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, { credentials: "include", ...init });
+  } catch {
+    throw new OfflineError();
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string };
     throw new Error(body.message ?? `Запрос ${path} завершился кодом ${response.status}`);
   }
-  return schema.parse(await response.json());
+  const payload: unknown = await response.json();
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    // Текст ZodError адресован разработчику; пользователю он ничего не даёт.
+    throw new Error("Сервер вернул неожиданный ответ. Обновите страницу; если повторится — сообщите в поддержку.");
+  }
+  return parsed.data;
 }
 
 export const fetchCurrentUser = (): Promise<CurrentUser> =>

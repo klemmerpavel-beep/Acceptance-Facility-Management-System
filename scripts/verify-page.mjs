@@ -294,7 +294,27 @@ if (bareSelects > 0) note("списки", `${bareSelects} выпадающих �
 const decisions = await page.locator("select").count();
 console.log(`  написаний единиц ждут решения: ${decisions}`);
 
-await page.click('button:has-text("Импортировать")');
+/*
+ * Запись сметы проходит через подтверждение: смета — основание расчётов
+ * с заказчиком и бригадой, и одного нажатия для её замены мало. Диалог
+ * обязан назвать, что именно изменится (реестр Д-01).
+ */
+await page.click('button:has-text("Создать редакцию сметы")');
+await page.waitForSelector('.sheet[role="dialog"]');
+const confirmText = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+for (const must of ["Позиций будет записано", "Недосчёт итога", "станет действующей"]) {
+  if (!confirmText.includes(must)) {
+    note("подтверждение импорта", `диалог не называет «${must}»`);
+  }
+}
+const confirmFocus = await page.evaluate(() =>
+  document.activeElement?.textContent?.trim() ?? "",
+);
+if (!confirmFocus.includes("Записать смету")) {
+  note("подтверждение импорта", `фокус при открытии на «${confirmFocus}»`);
+}
+await step("подтверждение записи сметы", "08b-podtverzhdenie.png");
+await page.click('.sheet button:has-text("Записать смету")');
 await page.waitForSelector("text=Импортировано", { timeout: 30_000 });
 await step("импорт выполнен", "09-import.png");
 
@@ -476,10 +496,14 @@ await page.click('.tabbar__item:has-text("Объекты")');
 await page.waitForSelector(".segmented__option");
 await page.waitForTimeout(300);
 const mobileTable = await page.locator("main .datatable__table").count();
-const mobileCards = await page.locator("main .panel--pad .code-badge").count();
-if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо карточек");
-if (mobileCards === 0) note("список объектов, 360", "карточки объектов не отрисованы");
-console.log(`  карточек объектов на 360 px: ${mobileCards}`);
+const mobileRows = await page.locator("main .objectrow").count();
+if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо ведомости");
+if (mobileRows === 0) note("список объектов, 360", "строки объектов не отрисованы");
+// Д-19: поиск существует и в узкой раскладке.
+if ((await page.locator("main .datatable__search input").count()) === 0) {
+  note("список объектов, 360", "поиска нет в узкой раскладке");
+}
+console.log(`  строк объектов на 360 px: ${mobileRows}`);
 await overflow("объекты, 360");
 await step("объекты на телефоне", "10b-obekty-360.png");
 await step("мобильный, 360 px", "10-mobile-360.png");
@@ -487,6 +511,18 @@ await step("мобильный, 360 px", "10-mobile-360.png");
 await page.setViewportSize({ width: 768, height: 1000 });
 await page.waitForTimeout(300);
 await overflow("после импорта, 768");
+
+/*
+ * Планшет — рабочее устройство прораба. Таблица из семи колонок на 768 px
+ * не складывалась, а сжималась: адрес рвался на три строки, высота строки
+ * росла вдвое. Список объектов обязан быть ведомостью (реестр Д-04).
+ */
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForTimeout(400);
+if ((await page.locator("main .datatable__table").count()) > 0) {
+  note("список объектов, 768", "на планшете показана таблица вместо ведомости");
+}
+await step("объекты на планшете", "11b-obekty-768.png");
 await step("планшет, 768 px", "11-tablet-768.png");
 
 // Иконки. Экраны ссылаются на символы через <use href="#i-…">: если набора

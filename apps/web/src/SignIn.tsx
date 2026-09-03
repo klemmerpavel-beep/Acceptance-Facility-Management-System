@@ -60,26 +60,33 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
         <form className="signin__form stack" onSubmit={request}>
           <h1 className="t-h1 signin__title">Вход или регистрация</h1>
           <label className="field">
-            <span className="field__label field__label--cap">Введите номер телефона</span>
+            <span className="field__label field__label--cap">Номер телефона, код страны +7</span>
+            {/* Список стран из одного пункта — орган управления без выбора:
+                он занимает место, ловит фокус и ничего не решает. Код страны
+                показан приставкой поля (Д-26). */}
             <div className="signin__phone">
-              <span className="selectwrap">
-                <select className="input" aria-label="Страна" defaultValue="Россия">
-                  <option>Россия</option>
-                </select>
-                <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
-              </span>
+              <span className="signin__prefix">+7</span>
               <input
                 className="input input--tel"
                 type="tel"
                 autoComplete="tel"
                 required
+                aria-describedby={error === null ? undefined : "signin-error"}
+                aria-invalid={error === null ? undefined : true}
                 value={phone}
                 onChange={(event) => { setPhone(event.target.value); setError(null); }}
-                placeholder="+7 (___) ___-__-__"
+                onBlur={() => {
+                  // Проверка после потери фокуса, а не только на отправке:
+                  // иначе о неверном формате узнают на последнем шаге.
+                  if (phone.trim() === "") return;
+                  const parsed = parsePhone(phone);
+                  if (!parsed.ok) setError(parsed.message);
+                }}
+                placeholder="900 000-00-00"
               />
             </div>
           </label>
-          {error !== null && <p className="field__error" role="alert">{error}</p>}
+          {error !== null && <p className="field__error" id="signin-error" role="alert">{error}</p>}
           <div className="signin__actions">
             <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
               Продолжить
@@ -97,12 +104,14 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
               autoComplete="one-time-code"
               pattern="\d{6}"
               required
+              aria-describedby={error === null ? undefined : "code-error"}
+              aria-invalid={error === null ? undefined : true}
               value={code}
               onChange={(event) => { setCode(event.target.value.replace(/\D/gu, "").slice(0, 6)); setError(null); }}
               placeholder="000000"
             />
           </label>
-          {error !== null && <p className="field__error" role="alert">{error}</p>}
+          {error !== null && <p className="field__error" id="code-error" role="alert">{error}</p>}
           {step.code !== undefined && (
             // На стенде отправщик сообщений не подключён, поэтому код
             // показывается здесь. Перед пилотом меняется отправщик, экран нет.

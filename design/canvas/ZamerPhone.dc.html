@@ -11,16 +11,16 @@
   <style>
     :root{
       --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
-      --ink:#0E1A28; --ink-2:#46586B; --ink-3:#5E6E81; --ink-inv:#FFFFFF;
+      --ink:#0E1A28; --ink-2:#46586B; --ink-3:#5A6979; --ink-control:#3C4C5E; --ink-inv:#FFFFFF;
       --line:#DCE2E9; --line-strong:#B7C2CE;
       --accent:#17457A; --accent-hover:#10365F; --accent-soft:#E4EBF4; --accent-ink:#FFFFFF;
       --on-accent-fill:rgba(255,255,255,.16); --on-accent-track:rgba(255,255,255,.24);
       --signal:#9C5E17; --signal-soft:#FBEEDC;
       --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
-      --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --danger:#A5150D; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
       --band:#12202E;--band-ink:#E9EDF1;--band-active:#E9EDF1;--band-active-ink:#12202E;
       --on-band-fill:rgba(255,255,255,.16);--on-band-track:rgba(255,255,255,.24);
-      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#6FA3DC;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#8FBCE8;
       --shadow-1:0 1px 2px rgba(14,26,40,.06); --shadow-2:0 4px 16px rgba(14,26,40,.10);
       --font-display:"PT Sans Narrow","Roboto Condensed","Arial Narrow",var(--font-ui);
       --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -45,7 +45,7 @@
       font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
     .panel{border-block:1px solid var(--line)}
     .panel--sheet{background:var(--surface);border:1px solid var(--line);border-radius:4px}
-    .pill{display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:999px;
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:3px;
       font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
     .pill--ok{background:var(--ok-soft);color:var(--ok)}
     .pill--warn{background:var(--warn-soft);color:var(--warn)}
@@ -60,8 +60,8 @@
     .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
     .btn--text{background:transparent;color:var(--accent);padding:0 8px}
     .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:3px}
-    .segmented__option{height:32px;padding:0 12px;border:0;background:transparent;border-radius:2px;
-      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option{min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:2px;
+      font-family:inherit;font-size:13px;color:var(--ink-control);cursor:pointer;white-space:nowrap}
     .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
       font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
     .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
@@ -71,8 +71,8 @@
     .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
       border-radius:3px;color:var(--band-ink);text-decoration:none;font-size:13px;font-weight:500}
     .appbar__link[aria-current="page"]{background:var(--band-active);color:var(--band-active-ink)}
-    .cover{background:var(--band);color:var(--band-ink);padding:12px 24px 24px}
-    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.72}
+    .cover{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3)}
     .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
     .stamp{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
       background:var(--surface);border-block:1px solid var(--ink);margin-bottom:24px}
@@ -218,7 +218,7 @@
 
       <svg viewBox="0 0 320 200" style="width:100%;height:auto;display:block" aria-label="План помещения">
         <path d="M14 14 H214 V44 H306 V158 H244 V186 H14 Z" fill="none" stroke="#E8EDF2" stroke-width="2"/>
-        <path d="M14 78 V122" stroke="#6FA3DC" stroke-width="6"/>
+        <path d="M14 78 V122" stroke="#8FBCE8" stroke-width="6"/>
         <path d="M244 158 V186" stroke="#9C5E17" stroke-width="6"/>
         <text x="96" y="112" fill="#E8EDF2" font-family="IBM Plex Mono, monospace" font-size="13">18,40 м²</text>
       </svg>

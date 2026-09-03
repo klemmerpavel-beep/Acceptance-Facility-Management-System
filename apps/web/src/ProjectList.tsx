@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
@@ -29,9 +30,17 @@ function deadlineCell(deadline: string | null, today: string): React.JSX.Element
  * по её показному виду, итог сметы — по копейкам, а не по строке с
  * разрядами. Отсутствующее значение сортировкой уходит вниз.
  */
-function projectColumns(today: string, onOpen: (project: ProjectSummary) => void):
-  readonly Column<ProjectSummary>[] {
-  return [
+function projectColumns(
+  today: string,
+  onOpen: (project: ProjectSummary) => void,
+  shown: readonly ProjectSummary[],
+): readonly Column<ProjectSummary>[] {
+  /* Колонка, пустая во всей выборке, места не занимает: «Прораб» стоял
+     прочерком в шести строках из восьми, «Итог сметы» — «сметы нет» в семи
+     из восьми, и вдвоём они держали 15 % ширины (реестр Д-15). */
+  const anyForeman = shown.some((project) => project.foreman !== null);
+  const anyEstimate = shown.some((project) => project.estimateTotal !== null);
+  const columns: Column<ProjectSummary>[] = [
     {
       key: "code",
       label: "Код",
@@ -69,19 +78,25 @@ function projectColumns(today: string, onOpen: (project: ProjectSummary) => void
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
       ),
     },
-    {
-      key: "foreman",
-      label: "Прораб",
-      value: (project) => project.foreman?.name ?? null,
-      render: (project) => project.foreman?.name ?? "—",
-    },
+
     {
       key: "deadline",
       label: "Срок",
       value: (project) => project.deadline,
       render: (project) => deadlineCell(project.deadline, today),
     },
-    {
+  ];
+
+  if (anyForeman) {
+    columns.push({
+      key: "foreman",
+      label: "Прораб",
+      value: (project) => project.foreman?.name ?? null,
+      render: (project) => project.foreman?.name ?? "—",
+    });
+  }
+  if (anyEstimate) {
+    columns.push({
       key: "total",
       label: "Итог сметы",
       value: (project) => (project.estimateTotal === null ? null : BigInt(project.estimateTotal)),
@@ -95,8 +110,9 @@ function projectColumns(today: string, onOpen: (project: ProjectSummary) => void
           </>
         ),
       numeric: true,
-    },
-  ];
+    });
+  }
+  return columns;
 }
 
 /**
@@ -114,33 +130,35 @@ function ProjectCardRow({
   today: string;
   onOpen: (project: ProjectSummary) => void;
 }): React.JSX.Element {
+  /* Строка ведомости, а не карточка. Восемь белых коробок с рамкой на сером
+     полотне — та самая раскладка, от которой продукт отказался на десктопе
+     (реестр Д-27). Ссылкой служит вся строка: у заголовка цель была 294×21
+     при норме 48 (реестр Д-33). */
   return (
-    <div className="panel panel--sheet panel--pad stack stack--tight">
-      <div className="row row--between">
+    <a
+      className="objectrow"
+      href={`#${project.code}`}
+      onClick={(event) => { event.preventDefault(); onOpen(project); }}
+    >
+      <span className="objectrow__head">
         <span className="code-badge">{project.code}</span>
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-      </div>
-      <a
-        className="t-h3"
-        href={`#${project.code}`}
-        onClick={(event) => { event.preventDefault(); onOpen(project); }}
-      >
-        {project.address}
-      </a>
-      {/* Отсутствующее не называется в каждой карточке: восемь строк
-          «прораб не назначен» и «смета не загружена» подряд — это шум,
-          из-за которого не видно карточек, где прораб и смета есть. */}
-      <p className="t-sm t-secondary">
+      </span>
+      <span className="objectrow__address t-h3">{project.address}</span>
+      {/* Отсутствующее не называется в каждой строке: восемь подряд
+          «прораб не назначен» — это шум, из-за которого не видно строк,
+          где прораб есть. */}
+      <span className="t-sm t-secondary">
         {project.client.name}
         {project.foreman !== null && ` · ${project.foreman.name}`}
-      </p>
-      <p className="row row--between">
+      </span>
+      <span className="objectrow__foot">
         <span className="t-sm">{deadlineCell(project.deadline, today)}</span>
         {project.estimateTotal !== null && (
           <span className="num">{money(project.estimateTotal)}</span>
         )}
-      </p>
-    </div>
+      </span>
+    </a>
   );
 }
 
@@ -162,6 +180,7 @@ export function ProjectList({
   // Подписка объявляется до раннего возврата: порядок вызова хуков не
   // должен зависеть от того, пуст список или нет.
   const mobile = useMediaQuery(MOBILE);
+  const [query, setQuery] = useState("");
 
   if (projects.length === 0) {
     return (
@@ -177,6 +196,13 @@ export function ProjectList({
   }
 
   const shown = filter === null ? projects : projects.filter((p) => p.status === filter);
+  const needle = query.trim().toLowerCase();
+  const found = needle === ""
+    ? shown
+    : shown.filter((project) =>
+        [project.code, project.address, project.client.name, project.client.code]
+          .some((field) => field.toLowerCase().includes(needle)),
+      );
   const present = STATUS_ORDER.filter((status) => projects.some((p) => p.status === status));
 
   return (
@@ -212,14 +238,33 @@ export function ProjectList({
         </div>
       ) : mobile ? (
         <div className="stack">
-          {shown.map((project) => (
-            <ProjectCardRow key={project.id} project={project} today={today} onOpen={onOpen} />
-          ))}
+          {/* Д-19: поиск жил только в табличном представлении, и на телефоне
+              объект приходилось искать прокруткой. */}
+          <label className="datatable__search">
+            <svg className="icon" aria-hidden="true"><use href="#i-search" /></svg>
+            <span className="visually-hidden">Поиск по коду, адресу и заказчику</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Поиск по коду, адресу и заказчику"
+            />
+          </label>
+          {found.length === 0 ? (
+            <div className="empty">
+              <p className="empty__title">Ничего не найдено</p>
+              <p className="empty__text">Измените запрос.</p>
+            </div>
+          ) : (
+            found.map((project) => (
+              <ProjectCardRow key={project.id} project={project} today={today} onOpen={onOpen} />
+            ))
+          )}
         </div>
       ) : (
         <DataTable
           rows={shown}
-          columns={projectColumns(today, onOpen)}
+          columns={projectColumns(today, onOpen, shown)}
           rowKey={(project) => project.id}
           // Ни заголовка, ни счётчика: раздел назван обложкой, число
           // показанных строк — подвалом таблицы, число по статусам —

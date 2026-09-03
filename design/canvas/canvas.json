@@ -8,7 +8,7 @@
     { "file": "VhodKod.dc.html",        "title": "Вход · шаг 2, код",            "page": "page-1", "x": 1280, "y": 0,    "w": 1200, "h": 720 },
     { "file": "Spisok.dc.html",         "title": "Список объектов",              "page": "page-1", "x": 2560, "y": 0,    "w": 1440, "h": 680 },
     { "file": "KartochkaObekta.dc.html","title": "Карточка объекта · Обзор",     "page": "page-1", "x": 0,    "y": 880,  "w": 1440, "h": 1180 },
-    { "file": "ZamerPhone.dc.html",     "title": "Замер на телефоне",            "page": "page-1", "x": 1520, "y": 880,  "w": 390,  "h": 1060 },
+    { "file": "ZamerPhone.dc.html",     "title": "Замер на телефоне",            "page": "page-1", "x": 1520, "y": 880,  "w": 390,  "h": 1090 },
     { "file": "Main.dc.html",           "title": "Замер · обмерный план",        "page": "page-1", "x": 0,    "y": 2140, "w": 1440, "h": 980 },
     { "file": "SmetaEditor.dc.html",    "title": "Смета · редактор",             "page": "page-1", "x": 0,    "y": 3200, "w": 1440, "h": 1000 },
     { "file": "Nastroyki.dc.html",      "title": "Настройки организации",        "page": "page-1", "x": 1520, "y": 3200, "w": 1440, "h": 700 },
