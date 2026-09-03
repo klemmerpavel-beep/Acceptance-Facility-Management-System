@@ -59,7 +59,7 @@ export interface PublicEstimateItem {
 /** Позиция, видимая руководителю. */
 export interface InternalEstimateItem extends PublicEstimateItem {
   unitWage: Kopecks;
-  wageTotal: Kopecks;
+  wageTotal: number;
   profit: Kopecks;
   profitShare: BasisPoints;
 }
