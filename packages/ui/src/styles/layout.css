@@ -21,8 +21,6 @@
 .row { display: flex; align-items: center; gap: var(--row-gap, var(--space-3)); }
 .row--between { justify-content: space-between; }
 .row--wrap    { flex-wrap: wrap; }
-.row--top     { align-items: flex-start; }
-.row--loose   { --row-gap: var(--space-5); }
 
 /* Ряд карточек сводки. Число колонок определяет ширина, а не медиазапрос:
    карточек в ряду бывает три или четыре — фонд оплаты труда приходит

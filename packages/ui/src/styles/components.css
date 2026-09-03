@@ -160,7 +160,7 @@
 
 .figure { display: flex; flex-direction: column; gap: var(--space-1); }
 .figure + .figure { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.figure__label { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.figure__label { font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .figure__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
 .figure__value--h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); }
 .figure__note { font-size: var(--fs-sm); color: var(--ink-3); }
@@ -169,10 +169,16 @@
 .figure--framed { padding: var(--space-4); border: 2px solid var(--accent); border-radius: var(--radius-md); }
 .figure--framed .figure__value { color: var(--accent); }
 
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.panel--pad   { padding: var(--space-4); }
+/* Панель — не коробка, а раздел документа: волосяные линии сверху и снизу,
+   без боковых границ и без скругления. Заливку листа получают только
+   таблицы, которым нужен фон под липким заголовком. */
+.panel { border-block: 1px solid var(--line); }
+.panel--sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.panel--pad   { padding: var(--space-4) 0; }
+.panel--sheet.panel--pad { padding: var(--space-4); }
 .panel--flush { overflow: hidden; }
-.panel__head  { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.panel__head  { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.panel--sheet .panel__head { padding-inline: var(--space-4); }
 
 .tile { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
 .tile--accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
@@ -188,7 +194,7 @@
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
 .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
-.metric__label { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.metric__label { font-family: var(--font-display); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
 /* --- Ряд сводных величин ---------------------------------------------------
    Четыре величины подряд — это ряд чисел, а не четыре карточки. Рамка,
@@ -268,7 +274,7 @@ button.counterstrip__item:hover { color: var(--accent); }
 .feed--byday .feed__item { grid-template-columns: 56px minmax(0, 1fr); }
 .feed__item:last-child { border-bottom: 0; }
 .feed__day { padding: var(--space-4) 0 var(--space-2);
-  font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3);
   border-block-end: 1px solid var(--line-strong); }
 .feed__day:first-child { padding-block-start: 0; }
@@ -380,18 +386,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Кнопка быстрых действий. На телефоне остаётся только знак: подпись
    «Действие» вытесняет из шапки имя организации и выход. */
-.appbar__action { border-color: var(--on-band-track); color: var(--band-ink); }
+/* Орган управления на чернильной полосе. Вторичная кнопка по умолчанию
+   набрана цветом текста полотна и на полосе пропадает целиком. */
+.appbar .btn--secondary { color: var(--band-ink); border-color: var(--on-band-track); }
+.appbar .btn--secondary:hover:not([disabled]) { background: var(--on-band-fill); }
 @media (max-width: 767px) {
-  /* На телефоне в шапке четыре элемента управления и 360 px ширины:
-     подпись кнопки действий уступает место, отступы сжимаются. */
+  /* На телефоне в шапке остаются марка, переключатель темы и выход:
+     разделы уходят в нижнюю таб-панель, отступы сжимаются. */
   .appbar { gap: var(--space-2); padding-inline: var(--space-3); }
-  .appbar__action { padding-inline: var(--space-2); }
-  .appbar__action > :not(svg) {
-    position: absolute;
-    inline-size: 1px; block-size: 1px;
-    margin: -1px; padding: 0; border: 0;
-    clip-path: inset(50%); overflow: hidden; white-space: nowrap;
-  }
 }
 
 /* --- Шапка-обложка --------------------------------------------------------
@@ -412,24 +414,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .tabs { display: flex; gap: var(--space-5); overflow-x: auto; border-bottom: 1px solid var(--line); }
 .tabs__item { flex: none; padding: var(--space-3) 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font-size: var(--fs-body); cursor: pointer; white-space: nowrap; }
 .tabs__item[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
-
-/* --- 5.3 Кольцевой индикатор готовности ----------------------------------
-   Диаметр 72 px, дуга 8 px. Считается по сумме принятых позиций
-   к итогу сметы, не по их количеству. */
-.ring { width: var(--ring-size); height: var(--ring-size); position: relative; flex: none; }
-.ring__track { stroke: var(--surface-2); }
-.ring__arc   { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset var(--dur-base) var(--ease); }
-.ring--on-accent .ring__track { stroke: var(--on-accent-track); }
-.ring--on-accent .ring__arc   { stroke: var(--accent-ink); }
-.ring--on-accent .ring__value { color: var(--accent-ink); }
-.ring__value {
-  position: absolute; inset: 0;
-  display: grid; place-items: center;
-  font-family: var(--font-mono);
-  font-size: var(--fs-h3);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
 
 /* --- 5.4 Таблица сметы ---------------------------------------------------
    Плотная таблица: строка 40 px, 13 px, суммы по правому краю.
@@ -477,13 +461,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 .estimate__row-name { padding-left: calc(var(--indent-level) * var(--level, 0)); }
 
-/* Итоги закреплены снизу. */
-.estimate tfoot td {
-  position: sticky; bottom: 0; z-index: 2;
-  background: var(--surface);
-  border-top: 2px solid var(--line-strong);
-  font-weight: 600;
-}
+/* Итоги закреплены снизу (норматив 5.4). Липкость объявлена на группе, а не
+   на ячейках: итогов три строки, и каждая, закреплённая по bottom: 0,
+   встала бы поверх соседней. */
+.estimate tfoot { position: sticky; bottom: 0; z-index: 2; }
+.estimate tfoot td { background: var(--surface); font-weight: 600; }
+.estimate tfoot tr:first-child td { border-top: 2px solid var(--line-strong); }
 
 /* Переключатель проекции — сегментированный контрол. */
 /* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
@@ -634,7 +617,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Подпись группы отделена волосяной линией, строки — без рамок.           */
 .deflist { display: flex; flex-direction: column; gap: var(--space-2); }
 .deflist__head { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);
-  font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .deflist__row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .deflist__term { font-size: var(--fs-sm); color: var(--ink-2); }
@@ -676,7 +659,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   justify-content: space-between; gap: var(--space-4); }
 .signin__actions > :only-child { margin-inline-start: auto; }
 /* Надзаголовок поля: капс, как подпись «ВВЕДИТЕ НОМЕР ТЕЛЕФОНА». */
-.field__label--cap { font-size: var(--fs-cap); line-height: var(--lh-cap);
+.field__label--cap { font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
   text-transform: uppercase; color: var(--ink-3); }
 
@@ -718,7 +701,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
   padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: inherit; font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
   text-transform: uppercase; color: var(--ink-3); }
 .datatable__table th[aria-sort] .datatable__sort { color: var(--accent); }
@@ -756,3 +739,75 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Статус объекта в сводке — строка со сменой, а не панель. Панель вокруг
    одной пилюли добавляет к экрану ещё одну рамку и ничего не сообщает. */
 .summary__status { padding-block: var(--space-2); border-block: 1px solid var(--line); }
+
+/* --- 5.17 Штамп объекта ----------------------------------------------------
+   Шапка карточки объекта строится как штамп чертежа: полоса разграфлённых
+   ячеек, подпись графы прописными узким гротеском, значение под ней.
+   Приём взят не из интерфейсов, а из предметной области: любой, кто держал
+   рабочий чертёж, читает такую полосу без объяснения, и ни одна CRM для
+   ремонта так не выглядит. Занимает то же место, что цветная обложка.    */
+.stamp {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  background: var(--surface);
+  border-block: 1px solid var(--ink);
+  /* Штамп стоит на месте обложки и отделяется от содержимого тем же
+     отступом, что и она: без него первая величина карточки липнет к
+     нижней линейке штампа. */
+  margin-block-end: var(--space-5);
+}
+/* Первая графа шире прочих: в ней адрес, а он длиннее всего. */
+.stamp__cell--wide { grid-column: span 2; }
+.stamp__cell {
+  display: flex; flex-direction: column; gap: 2px;
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 1px solid var(--line);
+}
+.stamp__cell:first-child { border-inline-start: 0; }
+.stamp__value { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stamp__value--code { font-family: var(--font-mono); font-weight: 600; letter-spacing: .02em; }
+.stamp__value--late { color: var(--danger); }
+/* Крошки над штампом лежат на полотне, а не на цветной полосе. */
+.stamp__crumbs { display: flex; align-items: center; gap: var(--space-2);
+  padding-block: var(--space-3); font-size: var(--fs-sm); color: var(--ink-3); }
+.stamp__crumbs a { color: inherit; }
+
+@media (max-width: 767px) {
+  .stamp { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stamp__cell { border-block-start: 1px solid var(--line); }
+  .stamp__cell:nth-child(odd) { border-inline-start: 0; }
+  .stamp__cell:nth-child(-n+2) { border-block-start: 0; }
+  .stamp__cell--wide { grid-column: span 2; }
+}
+
+/* --- 5.18 Шкала готовности -------------------------------------------------
+   Доля принятого показывается размеченной линейкой с делениями, а не
+   кольцом. Кольцо из одного значения — украшение: чтобы снять с него долю,
+   её всё равно печатают числом в середине. Линейка с делениями по четвертям
+   читается как измерение и принадлежит миру рулетки, а не инфографики.   */
+.scale { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 140px; }
+.scale__track { position: relative; block-size: 10px; border: 1px solid var(--line-strong); }
+.scale__fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--accent); }
+/* Деления по четвертям: доля читается по шкале, а не только по подписи. */
+.scale__tick { position: absolute; inset-block-start: -4px; inline-size: 1px; block-size: 4px; background: var(--line-strong); }
+.scale__legend { display: flex; justify-content: space-between; gap: var(--space-2);
+  font-family: var(--font-mono); font-size: var(--fs-cap); color: var(--ink-3); }
+.scale__value { font-weight: 600; color: var(--ink); }
+.scale--on-accent .scale__track { border-color: var(--on-accent-track); }
+.scale--on-accent .scale__fill { background: var(--accent-ink); }
+.scale--on-accent .scale__tick { background: var(--on-accent-track); }
+.scale--on-accent .scale__legend { color: var(--accent-ink); opacity: .78; }
+.scale--on-accent .scale__value { color: var(--accent-ink); opacity: 1; }
+
+/* --- 5.19 «Что дальше» -----------------------------------------------------
+   Список того, чего в продукте ещё нет. Строки разделены линией, стадия
+   стоит пилюлей справа от названия. Это единственное место, где продукт
+   обещает: навигация обещаний не даёт.                                    */
+.roadmap { display: flex; flex-direction: column; }
+.roadmap__item { padding-block: var(--space-4); border-block-end: 1px solid var(--line); }
+.roadmap__item:last-child { border-block-end: 0; }
+.roadmap__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); }
+.roadmap__where { font-family: var(--font-display); font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.roadmap__text { margin-block-start: var(--space-2); font-size: var(--fs-sm); color: var(--ink-2); }

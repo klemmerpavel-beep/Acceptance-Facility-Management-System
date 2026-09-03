@@ -59,7 +59,10 @@ export function DataTable<Row>({
   rows: readonly Row[];
   columns: readonly Column<Row>[];
   rowKey: (row: Row) => string;
-  title: string;
+  /** Заголовок подраздела. Не задаётся, когда список — единственное
+   *  содержимое страницы: обложка уже назвала его, и второй заголовок с тем
+   *  же словом читается как ошибка вёрстки. */
+  title?: string;
   action?: React.ReactNode;
   searchLabel: string;
   emptyTitle: string;
@@ -104,10 +107,12 @@ export function DataTable<Row>({
   return (
     <div className="datatable">
       <div className="datatable__head">
-        <div className="datatable__title">
-          <h2 className="t-h2">{title}</h2>
-          {action}
-        </div>
+        {(title !== undefined || action !== undefined) && (
+          <div className="datatable__title">
+            {title !== undefined && <h2 className="t-h2">{title}</h2>}
+            {action}
+          </div>
+        )}
         <div className="datatable__controls">
           <label className="datatable__size">
             <span className="field__label">Записей</span>

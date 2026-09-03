@@ -215,10 +215,29 @@ await step("список по образцу", "04b-spisok.png");
 // Карточка объекта. Открывается объект со сметой: у остальных карточка
 // показывает пустое состояние, и это правильное поведение, а не сбой.
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
-await page.waitForSelector(".cover__title .code-badge");
+await page.waitForSelector(".stamp");
 await page.waitForSelector(".metric__value");
 await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
+
+/*
+ * Штамп объекта — подпись продукта, и проверяется он по составу, а не по
+ * наличию: шесть граф с подписью и значением. Пустая графа означала бы, что
+ * карточка потеряла сведение, которое раньше несла цветная обложка.
+ */
+const stamp = await page.evaluate(() =>
+  [...document.querySelectorAll(".stamp .stamp__cell")].map((cell) => ({
+    label: cell.querySelector(".t-cap")?.textContent?.trim() ?? "",
+    value: cell.querySelector(".stamp__value")?.textContent?.trim() ?? "",
+  })),
+);
+const stampWanted = ["Объект", "Адрес", "Стадия", "Срок", "Прораб", "Смета"];
+if (stamp.map((cell) => cell.label).join("|") !== stampWanted.join("|")) {
+  note("штамп объекта", `графы «${stamp.map((cell) => cell.label).join(", ")}»`);
+}
+for (const cell of stamp) {
+  if (cell.value === "") note("штамп объекта", `графа «${cell.label}» пуста`);
+}
 
 const metrics = await page.locator(".metric").count();
 if (metrics === 0) note("обзор", "метрики графика производства работ не показаны");
@@ -306,82 +325,121 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector('h2:has-text("Заказчики")');
 const clients = await page.locator(".datatable__table tbody tr").count();
-const brigades = await page.locator(".tile").count();
+const brigades = await page.locator('section:has(h2:text-is("Бригады")) .deflist__row').count();
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
+if (brigades === 0) note("контрагенты", "бригады не показаны");
 if (clients === 0) note("контрагенты", "список заказчиков пуст");
 await step("контрагенты", "09b-kontragenty.png");
 await overflow("контрагенты, 1440");
 
 /**
- * Состав навигации по утверждённой карте: восемь разделов, из них пять в
- * шапке и три под «Ещё» — так же, как в панели референса. Проверяется, что
- * каждый раздел открывается и говорит о себе, а не молчит.
+ * Состав навигации. Правило: в шапке только то, что открывает рабочий
+ * экран. Четыре раздела — «Главная», «Объекты», «Контрагенты»,
+ * «Настройки»; ни «Ещё», ни меню быстрых действий, ни заглушек.
  */
-const pills = await page.locator(".appbar__nav .appbar__link").count();
-if (pills !== 6) note("навигация", `в шапке ${pills} пунктов вместо пяти разделов и «Ещё»`);
+const navLabels = (await page.locator(".appbar__nav .appbar__link").allTextContents())
+  .map((text) => text.trim());
+const navWanted = ["Главная", "Объекты", "Контрагенты", "Настройки"];
+if (navLabels.join("|") !== navWanted.join("|")) {
+  note("навигация", `в шапке «${navLabels.join(", ")}»`);
+}
+if ((await page.locator(".appbar__action").count()) !== 0) {
+  note("навигация", "в шапке осталась кнопка меню быстрых действий");
+}
 
-await page.click('.appbar__nav button:has-text("Ещё")');
-await page.waitForSelector('.sheet[role="dialog"]');
-const hidden = await page.locator('.sheet[role="dialog"] button.quickaction').count();
-if (hidden !== 3) note("навигация", `под «Ещё» ${hidden} разделов вместо трёх`);
-await step("остальные разделы", "16-eshchyo.png");
-await page.click('.sheet button:has-text("Настройки")');
+/*
+ * Из навигации верхнего уровня недостижимо ни одно пустое состояние. Это и
+ * есть правило «показываем только работающее», проверенное обходом: раздел,
+ * встречающий человека заглушкой, учит его, что тыкать бесполезно.
+ */
+for (const label of navWanted) {
+  await page.click(`.appbar__link:has-text("${label}")`);
+  await page.waitForTimeout(400);
+  if ((await page.locator("main .empty__title").count()) > 0) {
+    const title = await page.locator("main .empty__title").first().textContent();
+    note("навигация", `раздел «${label}» встречает пустым состоянием «${title?.trim() ?? ""}»`);
+  }
+}
 
 // Настройки организации: карточка и справочник единиц.
-await page.waitForSelector('.tabs__item:has-text("Реквизиты")');
-const settingsTabs = await page.locator(".tabs__item").count();
-if (settingsTabs !== 6) note("настройки", `вкладок ${settingsTabs} вместо шести`);
+await page.click('.appbar__link:has-text("Настройки")');
+await page.waitForSelector('.tabs__item:has-text("Организация")');
+const settingsTabs = (await page.locator(".tabs__item").allTextContents())
+  .map((text) => text.trim());
+if (settingsTabs.join("|") !== "Организация|Единицы измерения") {
+  note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
+}
 await page.waitForSelector('input[name="name"]');
 const orgName = await page.inputValue('input[name="name"]');
 if (orgName.trim() === "") note("настройки", "название организации пришло пустым");
 await step("настройки организации", "17-nastroyki.png");
 await overflow("настройки, 1440");
 
-await page.click('.tabs__item:has-text("Смета")');
+await page.click('.tabs__item:has-text("Единицы измерения")');
 await page.waitForSelector(".deflist__row");
 const units = await page.locator(".deflist__row").count();
 if (units !== 9) note("настройки", `в справочнике единиц ${units} строк вместо девяти`);
 
-// Отложенный раздел говорит о себе и называет стадию.
-await page.click('.appbar__link:has-text("Заявки")');
-await page.waitForSelector(".empty__title");
-const plannedStage = await page.locator(".empty .pill").textContent();
-if (plannedStage === null || plannedStage.trim() === "") {
-  note("отложенный раздел", "пустое состояние не называет стадию");
+/**
+ * «Что дальше» — единственное место, где продукт говорит о том, чего в нём
+ * нет. Экран открывается ссылкой из подвала настроек, в навигации его нет,
+ * и каждая строка обязана называть стадию: список без стадий — это те же
+ * заглушки, собранные в кучу.
+ */
+await page.click('a:has-text("«Что дальше»")');
+await page.waitForSelector(".roadmap__item");
+const roadmap = await page.locator(".roadmap__item").count();
+const stages = await page.locator(".roadmap__item .pill").count();
+console.log(`  строк в «Что дальше»: ${roadmap}`);
+if (roadmap < 8) note("что дальше", `строк ${roadmap} — список неполон`);
+if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
+const roadmapTitle = await page.locator(".cover h1").textContent();
+if (roadmapTitle?.trim() !== "Что дальше") {
+  note("что дальше", `обложка называет экран «${roadmapTitle ?? "—"}»`);
 }
-await step("отложенный раздел", "18-zayavki.png");
+await step("что дальше", "18-chto-dalshe.png");
+await overflow("что дальше, 1440");
 
-// Меню быстрых действий: семь ярлыков, пункт ведёт в раздел.
-await page.click(".appbar__action");
-await page.waitForSelector('.sheet[role="dialog"]');
-const actions = await page.locator('.sheet[role="dialog"] button.quickaction').count();
-if (actions !== 7) note("быстрые действия", `пунктов ${actions} вместо семи`);
-await step("быстрые действия", "19-deystviya.png");
-await page.click('.sheet button:has-text("Выставить счёт")');
-await page.waitForSelector(".empty__title");
-const landed = await page.locator(".cover__title h1").textContent();
-if (landed?.trim() !== "Бухгалтерия") {
-  note("быстрые действия", `пункт «Выставить счёт» привёл в раздел «${landed ?? "—"}»`);
-}
-
-// Вкладки карточки объекта: восемь рабочих и служебный импорт.
+// Вкладки карточки объекта: две рабочих и служебный импорт руководителю.
 await page.click('.appbar__link:has-text("Объекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
-const cardTabs = await page.locator(".tabs__item").allTextContents();
-const expectedTabs = ["Обзор", "Замер", "Смета", "Работа", "Отчёт", "Приёмка", "Чеки", "Документы", "Импорт"];
-if (cardTabs.map((text) => text.trim()).join("|") !== expectedTabs.join("|")) {
-  note("вкладки карточки", `состав «${cardTabs.map((t) => t.trim()).join(", ")}»`);
+const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
+if (cardTabs.join("|") !== "Обзор|Смета|Импорт") {
+  note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
-for (const tab of ["Замер", "Отчёт", "Чеки", "Документы"]) {
+for (const tab of cardTabs) {
   await page.click(`.tabs__item:has-text("${tab}")`);
-  await page.waitForSelector(".empty__title");
-  if ((await page.locator(".empty .pill").count()) === 0) {
-    note("вкладки карточки", `вкладка «${tab}» не называет стадию`);
+  await page.waitForTimeout(300);
+  if ((await page.locator("main .empty__title").count()) > 0) {
+    const title = await page.locator("main .empty__title").first().textContent();
+    note("вкладки карточки", `вкладка «${tab}» показывает пустое состояние «${title?.trim() ?? ""}»`);
   }
 }
+await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
+
+/*
+ * Прямые углы. Документ не скруглён: наибольший радиус в системе — 6 px,
+ * и блок с большим скруглением означает значение мимо токена. Проверяется
+ * на карточке объекта — там больше всего разных блоков.
+ */
+const roundest = await page.evaluate(() => {
+  let worst = { radius: 0, selector: "" };
+  for (const node of document.querySelectorAll("main *, .stamp, .cover, .appbar")) {
+    const radius = Number.parseFloat(getComputedStyle(node).borderTopLeftRadius);
+    if (Number.isFinite(radius) && radius > worst.radius && radius < 100) {
+      worst = { radius, selector: node.className.toString().slice(0, 40) || node.tagName };
+    }
+  }
+  return worst;
+});
+if (roundest.radius > 6) {
+  note("скругления", `${roundest.radius} px у «${roundest.selector}» при пороге 6 px`);
+}
+console.log(`  наибольшее скругление блока: ${roundest.radius} px`);
+
 await page.click('.appbar__link:has-text("Объекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 
@@ -400,7 +458,7 @@ if (tabbar === 0) note("мобильная навигация", "нижняя т
 await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 await page.waitForTimeout(300);
 const covered = await page.evaluate(() => {
-  const blocks = [...document.querySelectorAll("main .tile, main .panel, main .counter")];
+  const blocks = [...document.querySelectorAll("main .tile, main .panel, main .figure, main .deflist")];
   const last = blocks.at(-1);
   if (last === undefined) return null;
   const box = last.getBoundingClientRect();

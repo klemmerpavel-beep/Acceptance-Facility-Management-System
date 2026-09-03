@@ -177,7 +177,7 @@ export function Dashboard({
     );
   }
 
-  const remaining = BigInt(data.money.estimate) - BigInt(data.money.accepted);
+  const discrepancy = BigInt(data.estimate.discrepancy);
 
   return (
     <main className="container stack stack--loose">
@@ -187,22 +187,22 @@ export function Dashboard({
           label="Портфель"
           value={money(data.money.estimate)}
           caption="итог смет для клиентов"
-          second={{ value: money(data.money.supervision), caption: "сопровождение объектов" }}
+          second={{ value: money(data.money.supervision), caption: "в том числе сопровождение" }}
         />
+        {/* Подпись величины называет число под собой, а не второе рядом:
+            иначе крупная сумма читается как расхождение. Ведущее здесь —
+            работы, недосчёт импорта идёт второй величиной. */}
         <SummaryFigure
-          label="Приёмка"
-          value={money(data.money.accepted)}
-          caption="принято по актам"
-          second={{ value: money(remaining.toString()), caption: "остаётся принять" }}
-        />
-        <SummaryFigure
-          label="Расхождения смет"
+          label="Работы"
           value={money(data.money.works)}
-          caption="пересчёт по позициям"
+          caption="без надбавки за сопровождение"
           second={{
             value: money(data.estimate.discrepancy),
-            caption: `недосчёт в файлах · объектов: ${data.estimate.projectsWithDiscrepancy}`,
-            tone: "danger",
+            caption:
+              discrepancy === 0n
+                ? "пересчёт сошёлся с итогом файлов"
+                : `недосчёт в файлах · объектов: ${data.estimate.projectsWithDiscrepancy}`,
+            ...(discrepancy === 0n ? {} : { tone: "danger" as const }),
           }}
         />
         {/* Фонд оплаты труда приходит только руководителю: у прораба этого
@@ -281,23 +281,29 @@ export function Dashboard({
               <Counter value={data.projects.overdue} label="Просрочены" tone="danger" />
             )}
             {data.projects.dueSoon > 0 && (
-              <Counter value={data.projects.dueSoon} label="Срок в две недели" />
+              <Counter value={data.projects.dueSoon} label="Срок ближе двух недель" />
             )}
           </div>
         </div>
 
+        {/* Принятых позиций и актов здесь нет: до стадии D эти величины
+            структурно нулевые, а ноль, который не может стать другим
+            числом, — украшение. Строка о приёмке живёт в «Что дальше». */}
         <div className="stack">
           <div className="section-head">
-            <h2 className="t-h2">Сметы и приёмка</h2>
+            <h2 className="t-h2">Сметы</h2>
             <span className="t-sm t-muted">
-              смет загружено: {data.projects.withEstimate} из {data.projects.total}
+              загружено: {data.projects.withEstimate} из {data.projects.total}{" "}
+              {plural(data.projects.total, "объекта", "объектов", "объектов")}
             </span>
           </div>
           <div className="counterstrip">
-            <Counter value={data.estimate.positions} label="Позиций в сметах" />
-            <Counter value={data.estimate.findings} label="Находок в отчётах" tone="danger" />
-            <Counter value={data.acceptance.accepted} label="Принято позиций" />
-            <Counter value={data.acceptance.acts} label="Актов" />
+            <Counter value={data.estimate.positions} label="Позиций" />
+            <Counter
+              value={data.estimate.findings}
+              label="Находок в отчётах импорта"
+              {...(data.estimate.findings > 0 ? { tone: "danger" as const } : {})}
+            />
           </div>
         </div>
       </section>

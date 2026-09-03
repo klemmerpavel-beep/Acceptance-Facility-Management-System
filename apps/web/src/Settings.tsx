@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import type { Organization, Role, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
 import { fetchOrganization, fetchUnits, saveOrganization } from "./api.js";
-import { Planned } from "./Planned.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -13,13 +12,14 @@ import { Planned } from "./Planned.js";
  * прорабу. Разграничение держит сервер, экран лишь не показывает форму
  * тому, кому она не поможет.
  */
+/**
+ * Вкладки настроек. Здесь то, что работает: карточка организации и
+ * справочник единиц. Реквизиты, права, уведомления и интеграции названы
+ * в «Что дальше», а не показаны вкладками с заглушками.
+ */
 const TABS = [
-  { key: "overview", label: "Обзор" },
-  { key: "requisites", label: "Реквизиты" },
-  { key: "access", label: "Права доступа" },
-  { key: "notifications", label: "Уведомления" },
-  { key: "estimate", label: "Смета" },
-  { key: "integrations", label: "Интеграции" },
+  { key: "overview", label: "Организация" },
+  { key: "estimate", label: "Единицы измерения" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"];
@@ -36,7 +36,7 @@ const TIME_ZONES = [
 const shownPhone = (stored: string | null): string =>
   stored !== null && isPhoneNumber(stored) ? formatPhone(stored) : (stored ?? "");
 
-export function Settings({ role }: { role: Role }): React.JSX.Element {
+export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => void }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>("overview");
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [units, setUnits] = useState<Unit[] | null>(null);
@@ -170,46 +170,15 @@ export function Settings({ role }: { role: Role }): React.JSX.Element {
         </section>
       )}
 
-      {tab === "requisites" && (
-        <Planned
-          title="Реквизиты исполнителя"
-          stage="ждёт заказчика"
-          text={
-            "Реквизиты подставляются в акт и счёт. Бланк с реквизитами исполнителя заказчиком " +
-            "пока не передан, и придумывать их нельзя: они попадут в документ, который увидит клиент."
-          }
-        />
-      )}
-      {tab === "access" && (
-        <Planned
-          title="Права доступа"
-          stage="стадия D"
-          text={
-            "Роли и их права заданы в коде: руководитель, прораб, снабжение. Экран управления " +
-            "появится, когда в системе будет больше одного прораба на организацию."
-          }
-        />
-      )}
-      {tab === "notifications" && (
-        <Planned
-          title="Уведомления"
-          stage="стадия D"
-          text={
-            "Сообщение о приёмке, о поступившем чеке и о наступающем сроке. Отправщик сообщений " +
-            "подключается перед пилотом — тем же, которым уходит код подтверждения."
-          }
-        />
-      )}
-      {tab === "integrations" && (
-        <Planned
-          title="Интеграции"
-          stage="отложенный контур"
-          text={
-            "Почтовый шлюз чеков работает и настраивается в карточке объекта. Прочие интеграции " +
-            "в объём первой версии не входят: список исключённого — раздел 6.2 файла 01_PROJECT.md."
-          }
-        />
-      )}
+      <p className="t-sm t-muted">
+        Чего в системе пока нет и когда появится —{" "}
+        <a
+          href="#roadmap"
+          onClick={(event) => { event.preventDefault(); onRoadmap(); }}
+        >
+          «Что дальше»
+        </a>.
+      </p>
     </main>
   );
 }

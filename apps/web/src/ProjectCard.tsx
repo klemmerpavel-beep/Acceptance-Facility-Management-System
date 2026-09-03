@@ -7,7 +7,6 @@ import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
-import { Planned } from "./Planned.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -15,21 +14,31 @@ import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 const money = (value: string): string => formatKopecks(BigInt(value));
 
 /** Кольцо готовности. Считается по сумме принятых позиций к итогу сметы. */
-function ReadinessRing({ share }: { share: number }): React.JSX.Element {
-  const circumference = 2 * Math.PI * 32;
+/**
+ * Шкала готовности: размеченная линейка с делениями по четвертям.
+ *
+ * Не кольцо. Кольцевая диаграмма из одного значения ничего не показывает
+ * сверх напечатанной внутри неё доли, зато выглядит как инфографика.
+ * Линейка с делениями читается как измерение — тем же движением, каким
+ * читают рулетку, и это язык предметной области продукта.
+ */
+function ReadinessScale({ share }: { share: number }): React.JSX.Element {
   return (
-    <div className="ring ring--on-accent">
-      <svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
-        <circle className="ring__track" cx="36" cy="36" r="32" fill="none" strokeWidth="8" />
-        <circle
-          className="ring__arc"
-          cx="36" cy="36" r="32" fill="none" strokeWidth="8"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - share / 100)}
-          transform="rotate(-90 36 36)"
-        />
-      </svg>
-      <span className="ring__value">{share} %</span>
+    <div className="scale scale--on-accent">
+      <div
+        className="scale__track"
+        role="img"
+        aria-label={`Принято ${share} процентов итога сметы`}
+      >
+        <span className="scale__fill" style={{ inlineSize: `${share}%` }} />
+        {[25, 50, 75].map((tick) => (
+          <span key={tick} className="scale__tick" style={{ insetInlineStart: `${tick}%` }} />
+        ))}
+      </div>
+      <p className="scale__legend">
+        <span>принято</span>
+        <span className="scale__value">{share} %</span>
+      </p>
     </div>
   );
 }
@@ -41,15 +50,15 @@ function ReadinessRing({ share }: { share: number }): React.JSX.Element {
  * тоже оттуда: «Работа», а не «График», «Чеки», а не «Расходы»,
  * «Документы», а не «Акты» — в акте документы не исчерпываются.
  */
+/**
+ * Вкладки карточки. Здесь то, что работает: обзор, смета и служебный
+ * импорт руководителю. Остальные вкладки целевого состава — замер, работа,
+ * отчёт, приёмка, чеки, документы — перечислены в «Что дальше»: шесть
+ * заглушек подряд не сообщают ничего, кроме того, что тыкать бесполезно.
+ */
 const TABS = [
   { key: "overview", label: "Обзор" },
-  { key: "measure", label: "Замер" },
   { key: "estimate", label: "Смета" },
-  { key: "work", label: "Работа" },
-  { key: "report", label: "Отчёт" },
-  { key: "acceptance", label: "Приёмка" },
-  { key: "checks", label: "Чеки" },
-  { key: "documents", label: "Документы" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -120,16 +129,42 @@ export function ProjectCard({
 
   return (
     <>
-      <div className="cover">
-        <div className="container">
-          <p className="cover__crumbs">
-            <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>Объекты</a>
-            <svg className="icon icon--sm" aria-hidden="true"><use href="#i-crumb" /></svg>
-            <span>{project.address}</span>
-          </p>
-          <div className="cover__title">
-            <span className="code-badge code-badge--lg">{project.code}</span>
-            <h1 className="t-h1">{project.address}</h1>
+      {/* Штамп объекта. Те же сведения, что несла цветная обложка, но
+          набранные как штамп рабочего чертежа: графа, подпись, значение. */}
+      <div className="container">
+        <p className="stamp__crumbs">
+          <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>Объекты</a>
+          <svg className="icon icon--sm" aria-hidden="true"><use href="#i-crumb" /></svg>
+          <span>{project.code}</span>
+        </p>
+        <div className="stamp">
+          <div className="stamp__cell">
+            <span className="t-cap">Объект</span>
+            <span className="stamp__value stamp__value--code">{project.code}</span>
+          </div>
+          <div className="stamp__cell stamp__cell--wide">
+            <span className="t-cap">Адрес</span>
+            <span className="stamp__value" title={project.address}>{project.address}</span>
+          </div>
+          <div className="stamp__cell">
+            <span className="t-cap">Стадия</span>
+            <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
+          </div>
+          <div className="stamp__cell">
+            <span className="t-cap">Срок</span>
+            <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
+              {deadline === null ? "не задан" : deadline.date}
+            </span>
+          </div>
+          <div className="stamp__cell">
+            <span className="t-cap">Прораб</span>
+            <span className="stamp__value">{project.foreman?.name ?? "не назначен"}</span>
+          </div>
+          <div className="stamp__cell">
+            <span className="t-cap">Смета</span>
+            <span className="stamp__value stamp__value--code">
+              {project.estimateVersion === null ? "нет" : `ред. ${project.estimateVersion}`}
+            </span>
           </div>
         </div>
       </div>
@@ -149,22 +184,18 @@ export function ProjectCard({
               </span>
             </div>
 
-            <div className="row row--between summary__status">
-              <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-              {user.role === "OWNER" && (
+            {/* Стадию называет штамп; здесь она стоит только как текущее
+                значение при органе управления. У прораба органа нет —
+                нет и строки. Почтовый адрес для чеков снят: приёма писем
+                на сервере ещё нет, а адрес на экране обещает работу. */}
+            {user.role === "OWNER" && (
+              <div className="row row--between summary__status">
+                <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
                 <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
                   Изменить статус
                 </button>
-              )}
-            </div>
-
-            <div className="tile stack stack--tight">
-              <span className="figure__label">Чеки на материалы</span>
-              <p className="mail-gateway">
-                checks+<span className="code-badge">{project.code.replace("-", "")}</span>@dolgiy.studio
-              </p>
-              <p className="t-sm t-muted">Код объекта ищется и в теме письма. Письмо без кода не теряется.</p>
-            </div>
+              </div>
+            )}
 
             <div className="tile tile--accent row row--between">
               <div className="figure">
@@ -177,31 +208,23 @@ export function ProjectCard({
                 <span className="figure__note">
                   {deadline === null
                     ? "дедлайн не задан"
-                    : `${plural(deadline.days, "день", "дня", "дней")} · дедлайн ${deadline.date}`}
+                    : plural(deadline.days, "день", "дня", "дней")}
                 </span>
               </div>
-              {project.readiness > 0 && <ReadinessRing share={project.readiness / 100} />}
+              {project.readiness > 0 && <ReadinessScale share={project.readiness / 100} />}
             </div>
 
             <dl className="deflist">
               <p className="deflist__head">Информация</p>
               <div className="deflist__row">
                 <dt className="deflist__term">Заказчик</dt>
-                <dd className="deflist__value">[{project.client.code}] {project.client.name}</dd>
+                <dd className="deflist__value">{project.client.name}</dd>
               </div>
               <div className="deflist__row">
                 <dt className="deflist__term">Реквизиты заказчика</dt>
                 <dd className="deflist__value">
                   {project.client.requisites ?? (project.client.isCompany ? "Юридическое лицо" : "Физическое лицо")}
                 </dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Адрес</dt>
-                <dd className="deflist__value">{project.address}</dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Прораб</dt>
-                <dd className="deflist__value">{project.foreman?.name ?? "не назначен"}</dd>
               </div>
               <div className="deflist__row">
                 <dt className="deflist__term">Начало работ</dt>
@@ -214,16 +237,14 @@ export function ProjectCard({
                 <dd className="deflist__value">{project.keysCount} компл.</dd>
               </div>
               <div className="deflist__row">
-                <dt className="deflist__term">Сопровождение</dt>
-                <dd className="deflist__value">{formatPercent(BigInt(project.supervisionShare))}</dd>
+                <dt className="deflist__term">Позиций в смете</dt>
+                <dd className="deflist__value">
+                  {project.estimateVersion === null ? "сметы нет" : project.positions}
+                </dd>
               </div>
               <div className="deflist__row">
-                <dt className="deflist__term">Смета</dt>
-                <dd className="deflist__value">
-                  {project.estimateVersion === null
-                    ? "не загружена"
-                    : `редакция ${project.estimateVersion} · ${project.positions} поз.`}
-                </dd>
+                <dt className="deflist__term">Сопровождение</dt>
+                <dd className="deflist__value">{formatPercent(BigInt(project.supervisionShare))}</dd>
               </div>
             </dl>
           </aside>
@@ -315,67 +336,6 @@ export function ProjectCard({
               </>
             )}
 
-            {tab === "acceptance" && (
-              <Planned
-                title="Приёмок пока нет"
-                stage="этап Э3"
-                text={
-                  "Здесь прораб отмечает принятые позиции раздела и тем же действием начисляет " +
-                  "сдельную оплату по ставке позиции. Экран строится на этапе приёмки; до него " +
-                  "показывать список позиций как «принятые» было бы враньём."
-                }
-              />
-            )}
-            {tab === "measure" && (
-              <Planned
-                title="Замера пока нет"
-                stage="стадия C.1"
-                text={
-                  "Интерактивный обмерный план: помещения, площади, периметры, окна и двери. " +
-                  "Площади отсюда попадают в смету количествами позиций, а не переписываются руками."
-                }
-              />
-            )}
-            {tab === "work" && (
-              <Planned
-                title="График не составлен"
-                stage="стадия C.3"
-                text={
-                  "Разделы сметы группируются в этапы работ с датами и мастером. Валидатор дат " +
-                  "отклоняет несуществующие и вывернутые сроки: в исходном файле заказчика их восемь."
-                }
-              />
-            )}
-            {tab === "report" && (
-              <Planned
-                title="Отчётов пока нет"
-                stage="стадия C.4"
-                text={
-                  "Фотоотчёт по объекту и по этапу. Снимки приёмки попадают сюда сами: " +
-                  "прораб фотографирует один раз, а не отдельно для отчёта и отдельно для акта."
-                }
-              />
-            )}
-            {tab === "checks" && (
-              <Planned
-                title="Чеков пока нет"
-                stage="этап Э4"
-                text={
-                  "Чеки на материалы приходят письмом на адрес объекта и попадают сюда черновиками " +
-                  "до подтверждения руководителем. Почтовый шлюз указан в левой колонке."
-                }
-              />
-            )}
-            {tab === "documents" && (
-              <Planned
-                title="Документов пока нет"
-                stage="этап Э4"
-                text={
-                  "Акт собирается только из принятых позиций и выгружается в двух видах: " +
-                  "клиентском и внутреннем. В клиентском внутренних величин нет по составу документа."
-                }
-              />
-            )}
             {tab === "import" && <ImportEstimate code={project.code} units={units} onImported={load} />}
           </div>
         </div>
@@ -497,15 +457,7 @@ function Overview({
         )}
       </section>
 
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">Транши</h2>
-        </div>
-        <div className="empty">
-          <p className="empty__title">Траншей нет</p>
-          <p className="empty__text">Транш открывается на сумму аванса и уменьшается по мере приёмки.</p>
-        </div>
-      </section>
+
 
       <section className="stack">
         <div className="section-head">

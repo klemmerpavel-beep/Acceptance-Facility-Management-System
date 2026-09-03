@@ -97,16 +97,18 @@ export function Directory(): React.JSX.Element {
             <p className="empty__text">Начисление адресуется бригаде, поэтому без бригад приёмка невозможна.</p>
           </div>
         ) : (
-          <div className="cards">
+          // Ведомость, а не плитки: у бригады два поля, и коробка вокруг
+          // двух слов добавляет к списку только рамки.
+          <dl className="deflist">
             {workers.map((worker) => (
-              <div className="tile stack stack--tight" key={worker.id}>
-                <span className="t-body">{worker.name}</span>
-                <span className="t-sm t-muted">
+              <div className="deflist__row" key={worker.id}>
+                <dt className="deflist__term">{worker.name}</dt>
+                <dd className="deflist__value">
                   {worker.kind === "BRIGADE" ? "бригада" : "мастер"}
-                </span>
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         )}
       </section>
     </main>

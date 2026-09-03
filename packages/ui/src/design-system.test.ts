@@ -30,11 +30,17 @@ const OTHER_SHEETS = ["base.css", "layout.css", "components.css"].map((name) => 
  */
 function consumerSources(): string[] {
   const sources: string[] = [];
+  /**
+   * Страницы витрины и слепка несут копию слоя стилей внутри <style>. Если её
+   * не снять, проверка мёртвых правил становится тавтологией: каждый класс
+   * «используется» собственным же правилом. В потребители идёт только разметка.
+   */
+  const markupOnly = (html: string): string => html.replace(/<style[\s\S]*?<\/style>/g, "");
   const design = join(repoRoot, "design");
   if (existsSync(design)) {
     for (const file of readdirSync(design)) {
       if (file.endsWith(".html") && !file.startsWith("showcase.artifact")) {
-        sources.push(readFileSync(join(design, file), "utf8"));
+        sources.push(markupOnly(readFileSync(join(design, file), "utf8")));
       }
     }
   }
@@ -43,12 +49,14 @@ function consumerSources(): string[] {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (/\.(tsx|ts|html)$/.test(entry.name)) sources.push(readFileSync(path, "utf8"));
+      else if (/\.(tsx|ts|html)$/.test(entry.name)) {
+        sources.push(markupOnly(readFileSync(path, "utf8")));
+      }
     }
   };
   walk(join(repoRoot, "apps", "web", "src"));
   const indexHtml = join(repoRoot, "apps", "web", "index.html");
-  if (existsSync(indexHtml)) sources.push(readFileSync(indexHtml, "utf8"));
+  if (existsSync(indexHtml)) sources.push(markupOnly(readFileSync(indexHtml, "utf8")));
   return sources;
 }
 

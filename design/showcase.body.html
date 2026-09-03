@@ -37,14 +37,15 @@
   </div>
 </header>
 
-<div class="cover">
-  <div class="container">
-    <p class="cover__crumbs"><a href="#">Объекты</a><svg class="icon icon--sm"><use href="#i-crumb"/></svg><span>Московский проспект 116</span></p>
-    <div class="cover__title">
-      <span class="code-badge code-badge--lg">R-99</span>
-      <h1 class="t-h1">Московский проспект 116</h1>
-      <span class="pill pill--ok">В работе</span>
-    </div>
+<div class="container">
+  <p class="stamp__crumbs"><a href="#">Объекты</a><svg class="icon icon--sm"><use href="#i-crumb"/></svg><span>R-99</span></p>
+  <div class="stamp">
+    <div class="stamp__cell"><span class="t-cap">Объект</span><span class="stamp__value stamp__value--code">R-99</span></div>
+    <div class="stamp__cell stamp__cell--wide"><span class="t-cap">Адрес</span><span class="stamp__value">Московский проспект 116</span></div>
+    <div class="stamp__cell"><span class="t-cap">Стадия</span><span class="stamp__value">В работе</span></div>
+    <div class="stamp__cell"><span class="t-cap">Срок</span><span class="stamp__value stamp__value--code stamp__value--late">15.08.2026</span></div>
+    <div class="stamp__cell"><span class="t-cap">Прораб</span><span class="stamp__value">Фархат Юсупов</span></div>
+    <div class="stamp__cell"><span class="t-cap">Смета</span><span class="stamp__value stamp__value--code">ред. 2</span></div>
   </div>
 </div>
 
@@ -97,20 +98,21 @@
           <span class="figure__value">30</span>
           <span class="figure__note">дней · дедлайн 15.08.2026</span>
         </div>
-        <div class="ring ring--on-accent">
-          <svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
-            <circle class="ring__track" cx="36" cy="36" r="32" fill="none" stroke-width="8"/>
-            <circle class="ring__arc" cx="36" cy="36" r="32" fill="none" stroke-width="8"
-                    stroke-dasharray="201.06" stroke-dashoffset="106.56" transform="rotate(-90 36 36)"/>
-          </svg>
-          <span class="ring__value">47 %</span>
+        <div class="scale scale--on-accent">
+          <div class="scale__track" role="img" aria-label="Принято 47 процентов итога сметы">
+            <span class="scale__fill" style="inline-size:47%"></span>
+            <span class="scale__tick" style="inset-inline-start:25%"></span>
+            <span class="scale__tick" style="inset-inline-start:50%"></span>
+            <span class="scale__tick" style="inset-inline-start:75%"></span>
+          </div>
+          <p class="scale__legend"><span>принято</span><span class="scale__value">47 %</span></p>
         </div>
       </div>
 
       <dl class="deflist">
         <p class="deflist__head">Информация</p>
-        <div class="deflist__row"><dt class="deflist__term">Клиент</dt><dd class="deflist__value">[300] И. Иванов</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Рашид</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Клиент</dt><dd class="deflist__value">И. Иванов</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Фархат Юсупов</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Адрес</dt><dd class="deflist__value">Московский пр. 116</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Ключи</dt><dd class="deflist__value">2 комплекта</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Смета</dt><dd class="deflist__value">редакция 2 от 25.08.2026</dd></div>
@@ -298,12 +300,12 @@
     </div>
     <div class="stack stack--tight">
       <div class="gantt__row"><span class="t-sm">Подготовительные работы</span><div class="gantt__track"><div class="gantt__bar" data-from="0" data-to="8"></div></div><span class="t-sm t-secondary">—</span><span class="num">100 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Евгений</span><span class="num">62 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Электрики Евгения</span><span class="num">62 %</span></div>
       <p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p>
-      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Фархат</span><span class="num">59 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Бригада Фархата</span><span class="num">59 %</span></div>
       <div class="gantt__row"><span class="t-sm">Вентиляция</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="38" data-to="48"></div></div><span class="t-sm t-secondary">Алексей</span><span class="num">0 %</span></div>
       <p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p>
-      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Рашид</span><span class="num">12 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Бригада Рашида</span><span class="num">12 %</span></div>
     </div>
   </section>
 
@@ -424,7 +426,7 @@
     <div class="panel panel--pad">
       <div class="feed">
         <div class="feed__item"><span class="feed__time">02.09.26, 19:15</span><span><span class="feed__title">R-99 · Импорт сметы: редакция 1, позиций 132</span><span class="feed__detail"> smeta-obezlichennaya.xlsx</span></span></div>
-        <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Руководитель студии</span></span></div>
+        <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Роман Дементьев</span></span></div>
       </div>
     </div>
     <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>

@@ -56,7 +56,10 @@ function projectColumns(today: string, onOpen: (project: ProjectSummary) => void
     {
       key: "client",
       label: "Заказчик",
-      value: (project) => `[${project.client.code}] ${project.client.name}`,
+      // Ищется и по коду, показывается именем: код заказчика — служебная
+      // величина справочника, в списке объектов её читать не нужно.
+      value: (project) => `${project.client.name} ${project.client.code}`,
+      render: (project) => project.client.name,
     },
     {
       key: "status",
@@ -112,7 +115,7 @@ function ProjectCardRow({
   onOpen: (project: ProjectSummary) => void;
 }): React.JSX.Element {
   return (
-    <div className="panel panel--pad stack stack--tight">
+    <div className="panel panel--sheet panel--pad stack stack--tight">
       <div className="row row--between">
         <span className="code-badge">{project.code}</span>
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
@@ -128,7 +131,7 @@ function ProjectCardRow({
           «прораб не назначен» и «смета не загружена» подряд — это шум,
           из-за которого не видно карточек, где прораб и смета есть. */}
       <p className="t-sm t-secondary">
-        [{project.client.code}] {project.client.name}
+        {project.client.name}
         {project.foreman !== null && ` · ${project.foreman.name}`}
       </p>
       <p className="row row--between">
@@ -218,12 +221,9 @@ export function ProjectList({
           rows={shown}
           columns={projectColumns(today, onOpen)}
           rowKey={(project) => project.id}
-          title="Объекты"
-          action={
-            <span className="t-sm t-muted">
-              {shown.length} {plural(shown.length, "объект", "объекта", "объектов")} в выборке
-            </span>
-          }
+          // Ни заголовка, ни счётчика: раздел назван обложкой, число
+          // показанных строк — подвалом таблицы, число по статусам —
+          // переключателем выше. Четвёртый счётчик тех же объектов лишний.
           searchLabel="Поиск по коду, адресу и заказчику"
           emptyTitle="Объектов нет"
           emptyText="Заведите первый объект, чтобы импортировать смету."

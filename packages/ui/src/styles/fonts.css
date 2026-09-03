@@ -1,4 +1,9 @@
 /* Подключение гарнитур. display=swap обязателен: интерфейс читается
    запасным стеком, пока грузится основной. Запасные стеки объявлены
-   в токенах --font-ui и --font-mono. */
-@import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+   в токенах --font-display, --font-ui и --font-mono.
+
+   Три роли, три гарнитуры. PT Sans Narrow — узкий гротеск ParaType с
+   родной кириллицей: рисунок печатных бланков и указателей, он держит
+   заголовки и графы штампа. Golos Text ведёт текст. IBM Plex Mono —
+   числа с табличными цифрами и различимым нулём. */
+@import url("https://fonts.googleapis.com/css2?family=PT+Sans+Narrow:wght@400;700&family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
