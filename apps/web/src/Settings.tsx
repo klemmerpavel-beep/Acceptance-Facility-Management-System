@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Organization, Role, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
 import { fetchOrganization, fetchUnits, saveOrganization } from "./api.js";
+import { tabArrowHandler } from "./tabs.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -53,17 +54,12 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
     void fetchUnits().then(setUnits).catch((cause: Error) => setError(cause.message));
   }, [tab, units]);
 
-  const onTabKey = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (step === 0) return;
-    event.preventDefault();
-    const index = TABS.findIndex((item) => item.key === tab);
-    const next = TABS[(index + step + TABS.length) % TABS.length];
-    if (next === undefined) return;
-    setTab(next.key);
-    setSaved(false);
-    document.getElementById(`settings-tab-${next.key}`)?.focus();
-  };
+  const onTabKey = tabArrowHandler(
+    TABS.map((item) => item.key),
+    tab,
+    (next) => { setTab(next); setSaved(false); },
+    (key) => `settings-tab-${key}`,
+  );
 
   const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();

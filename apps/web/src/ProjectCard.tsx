@@ -9,6 +9,7 @@ import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { StatusSheet } from "./StatusSheet.js";
+import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
@@ -127,16 +128,12 @@ export function ProjectCard({
     ? [...TABS, { key: "import" as const, label: "Импорт" }]
     : [...TABS];
 
-  const onTabKey = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (step === 0) return;
-    event.preventDefault();
-    const index = tabList.findIndex((item) => item.key === tab);
-    const next = tabList[(index + step + tabList.length) % tabList.length];
-    if (next === undefined) return;
-    setTab(next.key);
-    document.getElementById(`tab-${next.key}`)?.focus();
-  };
+  const onTabKey = tabArrowHandler(
+    tabList.map((item) => item.key),
+    tab,
+    setTab,
+    (key) => `tab-${key}`,
+  );
 
   const deadline =
     project.deadline === null
@@ -341,7 +338,7 @@ export function ProjectCard({
                     {imports[0]!.report.findings.map((finding, index) => (
                       <p className="row row--between" key={`${finding.kind}-${index}`}>
                         <span className="t-sm">{finding.title}</span>
-                        <span className={finding.amount === null ? "num t-muted" : "num num--danger"}>
+                        <span className={finding.amount === null ? "t-sm t-muted" : "num num--danger"}>
                           {finding.amount === null ? `строк: ${finding.rows.length}` : money(finding.amount)}
                         </span>
                       </p>

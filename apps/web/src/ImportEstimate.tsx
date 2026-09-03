@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ImportReport } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { plural } from "./status.js";
+import { useModalDialog } from "./modal.js";
 import { importEstimate, previewEstimate } from "./api.js";
 
 /**
@@ -117,7 +118,7 @@ export function ImportEstimate({
                   {/* Справа стоит величина находки. Перечень строк — не
                       денежная величина и в эту колонку не помещается:
                       четырнадцать номеров дают 569 px при окне 360. */}
-                  <span className={finding.amount === null ? "num t-muted" : "num num--danger"}>
+                  <span className={finding.amount === null ? "t-sm t-muted" : "num num--danger"}>
                     {finding.amount === null ? `строк: ${finding.rows.length}` : money(finding.amount)}
                   </span>
                 </p>
@@ -228,27 +229,7 @@ function ConfirmImport({
   onCancel: () => void;
   onConfirm: () => void;
 }): React.JSX.Element {
-  const first = useRef<HTMLButtonElement>(null);
-  const dialog = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    first.current?.focus();
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") { onCancel(); return; }
-      if (event.key !== "Tab" || dialog.current === null) return;
-      // Ловушка фокуса: Tab внутри диалога не уводит на элементы под ним.
-      const stops = dialog.current.querySelectorAll<HTMLElement>("button, [href], input, select, textarea");
-      const list = [...stops].filter((node) => !node.hasAttribute("disabled"));
-      const edge = event.shiftKey ? list[0] : list.at(-1);
-      if (document.activeElement === edge) {
-        event.preventDefault();
-        (event.shiftKey ? list.at(-1) : list[0])?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("keydown", onKey); opener?.focus(); };
-  }, [onCancel]);
+  const { dialog, first } = useModalDialog(onCancel);
 
   return (
     <>
