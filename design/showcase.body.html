@@ -11,6 +11,9 @@
     <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
     <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
+    <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4"/><path d="M6 12l4 4 4-4"/></symbol>
+    <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4"/></symbol>
     <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
     <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
@@ -314,6 +317,72 @@
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Леруа Мерлен · грунтовка, профиль</p><p class="t-sm t-muted">из письма checks+R99@ · 28.08.2026</p></div><span class="row"><span class="num">12 480,00 ₽</span><span class="pill pill--warn">Черновик</span></span></div>
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Петрович · гипсокартон, 12 листов</p><p class="t-sm t-muted">подтверждено руководителем · 27.08.2026</p></div><span class="row"><span class="num">18 900,00 ₽</span><span class="pill pill--ok">Учтено</span></span></div>
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Письмо без кода объекта</p><p class="t-sm t-muted">тема: «чек» · 26.08.2026</p></div><span class="row"><span class="num">3 200,00 ₽</span><span class="pill">Не распознано</span></span></div>
+    </div>
+  </section>
+
+
+  <!-- ── СПИСОК ПО ЕДИНОМУ ОБРАЗЦУ ─────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Список по единому образцу</h2>
+      <p class="t-sm t-muted">раздел 5.14: сортировка по каждой колонке, поиск, счётчик показанного</p>
+    </div>
+    <div class="datatable">
+      <div class="datatable__head">
+        <div class="datatable__title">
+          <h3 class="t-h2">Объекты</h3>
+          <span class="t-sm t-muted">8 объектов в выборке</span>
+        </div>
+        <div class="datatable__controls">
+          <label class="datatable__size">
+            <span class="field__label">Записей</span>
+            <span class="selectwrap"><select class="input"><option>10</option></select><svg class="icon selectwrap__chevron"><use href="#i-chevron"/></svg></span>
+          </label>
+          <label class="datatable__search">
+            <svg class="icon"><use href="#i-search"/></svg>
+            <input type="search" placeholder="Поиск по коду, адресу и заказчику">
+          </label>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="datatable__table">
+          <thead>
+            <tr>
+              <th><button class="datatable__sort" type="button">Код<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th><button class="datatable__sort" type="button">Адрес<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th><button class="datatable__sort" type="button">Статус<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th aria-sort="ascending"><button class="datatable__sort" type="button">Срок<svg class="icon icon--sm"><use href="#i-sort-asc"/></svg></button></th>
+              <th class="datatable__num"><button class="datatable__sort" type="button">Итог сметы<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">R-99</span></td>
+              <td><a href="#spisok">Московский проспект 116</a></td>
+              <td><span class="pill pill--ok">В работе</span></td>
+              <td class="num--danger">15.08.2026 · просрочен на 19 дней</td>
+              <td class="datatable__num">4 250 234,35 ₽</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">R-72</span></td>
+              <td><a href="#spisok">Никитинская 42, кв. 7</a></td>
+              <td><span class="pill pill--ok">В работе</span></td>
+              <td>12.09.2026 · 9 дней</td>
+              <td class="datatable__num t-muted">сметы нет</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">R-38</span></td>
+              <td><a href="#spisok">Владимира Невского 15, кв. 61</a></td>
+              <td><span class="pill">Новый</span></td>
+              <td>04.09.2026 · 1 день</td>
+              <td class="datatable__num t-muted">сметы нет</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="datatable__foot">
+        <p class="t-sm t-muted">Показано с 1 по 3 из 8 записей</p>
+      </div>
     </div>
   </section>
 
