@@ -54,6 +54,8 @@ const snapshot = {
   "events-owner": await owner("/projects/R-99/events"),
   "events-foreman": await foreman("/projects/R-99/events"),
   units: await owner("/projects/R-99/estimate/units"),
+  organization: await owner("/organization"),
+  unitDirectory: await owner("/units"),
   "estimate-owner": estimateOwner,
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
   imports,

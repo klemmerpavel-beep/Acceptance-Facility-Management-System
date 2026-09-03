@@ -4,7 +4,7 @@ import type { Role } from "@priyomka/contracts";
 import "@priyomka/ui/styles.css";
 import { App } from "./App.js";
 import { Sprite } from "./Sprite.js";
-import { demoSignIn, setDemoRole } from "./api.demo.js";
+import { setDemoRole } from "./api.demo.js";
 
 /**
  * Оболочка демонстрации. Экраны продукта не изменены: оболочка добавляет
@@ -21,21 +21,8 @@ function DemoShell(): React.JSX.Element {
     setGeneration((value) => value + 1);
   };
 
-  /**
-   * Ссылка входа в продукте ведёт на сервер, который ставит куку и
-   * возвращает в приложение. В демонстрации сервера нет, поэтому переход
-   * перехватывается и заменяется входом по слепку.
-   */
-  const interceptSignIn = (event: React.MouseEvent<HTMLDivElement>): void => {
-    const anchor = (event.target as HTMLElement).closest("a");
-    if (anchor === null || !anchor.getAttribute("href")?.includes("/auth/consume")) return;
-    event.preventDefault();
-    demoSignIn();
-    setGeneration((value) => value + 1);
-  };
-
   return (
-    <div onClickCapture={interceptSignIn}>
+    <div>
       <div className="demo-bar">
         <div className="container row row--between row--wrap">
           <p className="t-sm">

@@ -4,8 +4,12 @@ import { fetchCanonicalUnits, fetchCurrentUser, fetchProjects, logout } from "./
 import { SignIn } from "./SignIn.js";
 import { Dashboard } from "./Dashboard.js";
 import { Directory } from "./Directory.js";
+import { Planned } from "./Planned.js";
 import { ProjectList } from "./ProjectList.js";
 import { ProjectCard } from "./ProjectCard.js";
+import { QuickActions } from "./QuickActions.js";
+import { HEADER, SECTIONS, TABBAR, restOf, type Section } from "./sections.js";
+import { Settings } from "./Settings.js";
 import { ThemeSwitch } from "./ThemeSwitch.js";
 
 type State =
@@ -13,15 +17,40 @@ type State =
   | { kind: "anonymous" }
   | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
 
-/** Разделы верхнего уровня. Порядок повторяет порядок работы: сводка,
- *  объекты, контрагенты. Раздел выбирается и в шапке, и в нижней панели. */
-const SECTIONS = [
-  { key: "home", label: "Главная", icon: "#i-object" },
-  { key: "projects", label: "Объекты", icon: "#i-estimate" },
-  { key: "clients", label: "Контрагенты", icon: "#i-acceptance" },
-] as const;
-
-type Section = (typeof SECTIONS)[number]["key"];
+/**
+ * Пустые состояния отложенных разделов. Текст называет стадию и то, что
+ * раздел будет делать: раздел, о котором нечего сказать, не заводят.
+ */
+const PLANNED: Partial<Record<Section, { title: string; stage: string; text: string }>> = {
+  requests: {
+    title: "Заявок пока нет",
+    stage: "отложенный контур",
+    text:
+      "Воронка заявок: первичный контакт, знакомство, принимают решение, согласование договора. " +
+      "Заявка превращается в заказчика и объект одним действием. Макет утверждён на дизайн-канве.",
+  },
+  staff: {
+    title: "Персонала пока нет",
+    stage: "стадия D",
+    text:
+      "Свод начислений по бригадам. Начисление появляется при приёмке позиции, поэтому раздел " +
+      "наполняется вместе с экраном приёмки, а не раньше.",
+  },
+  accounting: {
+    title: "Бухгалтерии пока нет",
+    stage: "отложенный контур",
+    text:
+      "Счета и платежи по объектам. Транши и остаток по ним ведутся на вкладке «Приёмка» " +
+      "карточки объекта. Учёт налогов и зарплат в объём не входит — раздел 6.2 файла 01_PROJECT.md.",
+  },
+  documents: {
+    title: "Документов пока нет",
+    stage: "отложенный контур",
+    text:
+      "Шаблоны договоров и актов с переменными и конструктор документа. Акты по принятым " +
+      "позициям формируются на вкладке «Документы» карточки объекта.",
+  },
+};
 
 export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -30,6 +59,9 @@ export function App(): React.JSX.Element {
   const [section, setSection] = useState<Section>("home");
   const [opened, setOpened] = useState<ProjectSummary | null>(null);
   const [filter, setFilter] = useState<ProjectStatus | null>(null);
+  const [quick, setQuick] = useState(false);
+  /** «Ещё» на телефоне: разделы, не поместившиеся в нижнюю панель. */
+  const [more, setMore] = useState<"header" | "tabbar" | null>(null);
 
   /** Сегодняшний день считается один раз на сеанс и передаётся вниз:
    *  два экрана не должны разойтись на границе суток. */
@@ -62,7 +94,7 @@ export function App(): React.JSX.Element {
     );
   }
 
-  if (state.kind === "anonymous") return <SignIn />;
+  if (state.kind === "anonymous") return <SignIn onSignedIn={load} />;
 
   const go = (next: Section): void => {
     setOpened(null);
@@ -94,7 +126,7 @@ export function App(): React.JSX.Element {
     <header className="appbar">
       <span className="appbar__brand">Приёмка</span>
       <nav className="appbar__nav">
-        {SECTIONS.map((item) => (
+        {SECTIONS.filter((item) => HEADER.includes(item.key)).map((item) => (
           <a
             key={item.key}
             className="appbar__link"
@@ -105,7 +137,26 @@ export function App(): React.JSX.Element {
             {item.label}
           </a>
         ))}
+        <button
+          type="button"
+          className="appbar__link"
+          aria-current={
+            opened === null && restOf(HEADER).some((item) => item.key === section) ? "page" : undefined
+          }
+          onClick={() => setMore("header")}
+        >
+          Ещё
+          <svg className="icon icon--sm" aria-hidden="true"><use href="#i-chevron" /></svg>
+        </button>
       </nav>
+      <button
+        type="button"
+        className="btn btn--secondary appbar__action"
+        onClick={() => setQuick(true)}
+      >
+        <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+        <span>Действие</span>
+      </button>
       <span className="appbar__user">{state.user.name}</span>
       <ThemeSwitch />
       <button type="button" className="btn btn--secondary" onClick={() => void logout().then(load)}>
@@ -114,9 +165,11 @@ export function App(): React.JSX.Element {
     </header>
   );
 
+  const rest = more === null ? [] : restOf(more === "header" ? HEADER : TABBAR);
+
   const tabbar = (
     <nav className="tabbar" aria-label="Разделы">
-      {SECTIONS.map((item) => (
+      {SECTIONS.filter((item) => TABBAR.includes(item.key)).map((item) => (
         <a
           key={item.key}
           className="tabbar__item"
@@ -128,7 +181,54 @@ export function App(): React.JSX.Element {
           {item.label}
         </a>
       ))}
+      <button
+        type="button"
+        className="tabbar__item"
+        aria-current={
+          opened === null && restOf(TABBAR).some((item) => item.key === section) ? "page" : undefined
+        }
+        onClick={() => setMore("tabbar")}
+      >
+        <svg className="icon" aria-hidden="true"><use href="#i-more" /></svg>
+        Ещё
+      </button>
     </nav>
+  );
+
+  const sheets = (
+    <>
+      {quick && (
+        <QuickActions
+          onChoose={(next) => { setQuick(false); go(next); }}
+          onClose={() => setQuick(false)}
+        />
+      )}
+      {more !== null && (
+        <>
+          <button type="button" className="scrim" aria-label="Закрыть" onClick={() => setMore(null)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Остальные разделы">
+            <p className="t-h3">Разделы</p>
+            <div className="stack stack--tight">
+              {rest.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="btn btn--secondary btn--block btn--touch quickaction"
+                  aria-pressed={section === item.key}
+                  onClick={() => { setMore(null); go(item.key); }}
+                >
+                  <svg className="icon" aria-hidden="true"><use href={item.icon} /></svg>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn--text btn--block" onClick={() => setMore(null)}>
+              Закрыть
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 
   if (opened !== null) {
@@ -144,6 +244,7 @@ export function App(): React.JSX.Element {
           onChanged={replaceProject}
         />
         {tabbar}
+        {sheets}
       </>
     );
   }
@@ -191,7 +292,22 @@ export function App(): React.JSX.Element {
           <Directory />
         </>
       )}
+      {section === "settings" && (
+        <>
+          {cover("Настройки", "устройство системы")}
+          <Settings role={state.user.role} />
+        </>
+      )}
+      {PLANNED[section] !== undefined && (
+        <>
+          {cover(SECTIONS.find((item) => item.key === section)?.label ?? "", "раздел в работе")}
+          <main className="container">
+            <Planned {...PLANNED[section]} />
+          </main>
+        </>
+      )}
       {tabbar}
+      {sheets}
     </>
   );
 }

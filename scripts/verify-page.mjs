@@ -88,15 +88,28 @@ const unlabeled = await page.evaluate(() =>
 );
 if (unlabeled > 0) note("поле без подписи", `${unlabeled} шт.`);
 
-await page.fill('input[type="email"]', "owner@dolgiy.studio");
+// Отказ формы называет причину, а не «проверьте данные».
+await page.fill('input[type="tel"]', "+1 202 555-01-99");
 await page.click('button[type="submit"]');
-await page.waitForSelector('a.btn:has-text("Открыть ссылку входа")');
-await step("ссылка выдана", "02-ssylka.png");
+await page.waitForSelector('[role="alert"]');
+const foreignMessage = (await page.locator('[role="alert"]').textContent())?.trim() ?? "";
+if (!foreignMessage.includes("+7")) {
+  note("вход", `отказ на чужой код страны не называет причину: «${foreignMessage}»`);
+}
 
-// Переход по ссылке входа: сервер ставит куку и возвращает JSON.
-const href = await page.getAttribute('a.btn:has-text("Открыть ссылку входа")', "href");
-await page.goto(`${BASE}${href}`);
-await page.goto(BASE, { waitUntil: "networkidle" });
+await page.fill('input[type="tel"]', "8 900 000-00-00");
+await page.click('button[type="submit"]');
+await page.waitForSelector('input[inputmode="numeric"]');
+await step("код подтверждения", "02-kod.png");
+await overflow("код, 1440");
+
+// На стенде код показан на экране: отправщик сообщений не подключён.
+const shown = await page.locator(".field__hint .num").textContent();
+if (shown === null || !/^\d{6}$/u.test(shown.trim())) {
+  note("вход", `код на стенде показан как «${shown ?? "—"}»`);
+}
+await page.fill('input[inputmode="numeric"]', shown?.trim() ?? "");
+await page.click('button[type="submit"]');
 
 // Первый экран — сводка по портфелю.
 await page.waitForSelector(".weekstrip");
@@ -125,28 +138,62 @@ if (!focusVisible) note("фокус", "первый элемент в поряд
 
 // Переход в список объектов через шапку.
 await page.click('.appbar__link:has-text("Объекты")');
-await page.waitForSelector("table.estimate tbody tr");
+await page.waitForSelector(".datatable__table tbody tr");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
 
-const rows = await page.locator("table.estimate tbody tr").count();
+const rows = await page.locator(".datatable__table tbody tr").count();
 console.log(`  объектов в списке: ${rows}`);
 
 // Фильтр по статусу: выбор сужает таблицу и снимается обратно.
 const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
 await page.click('.segmented__option:has-text("В работе")');
 await page.waitForTimeout(200);
-const filtered = await page.locator("table.estimate tbody tr").count();
+const filtered = await page.locator(".datatable__table tbody tr").count();
 if (filtered >= rows) note("фильтр по статусу", `после выбора «${inProgress}» строк не убавилось`);
 await page.click('.segmented__option:has-text("Все")');
 await page.waitForTimeout(200);
-if ((await page.locator("table.estimate tbody tr").count()) !== rows) {
+if ((await page.locator(".datatable__table tbody tr").count()) !== rows) {
   note("фильтр по статусу", "снятие фильтра не вернуло полный список");
 }
 
+/**
+ * Список по единому образцу: сортировка по каждой колонке, поиск,
+ * счётчик показанного. Проверяется поведением, а не наличием разметки.
+ */
+const headers = await page.locator(".datatable__table th").count();
+const sorters = await page.locator(".datatable__sort").count();
+if (sorters !== headers) note("список", `сортировка есть у ${sorters} колонок из ${headers}`);
+
+const firstBefore = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+await page.click('.datatable__sort:has-text("Адрес")');
+await page.waitForTimeout(150);
+const firstAsc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+await page.click('.datatable__sort:has-text("Адрес")');
+await page.waitForTimeout(150);
+const firstDesc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+if (firstAsc === firstDesc) note("сортировка", "смена направления не изменила первую строку");
+if (firstAsc === firstBefore && firstDesc === firstBefore) {
+  note("сортировка", "порядок строк не изменился ни в одном направлении");
+}
+if ((await page.locator('.datatable__table th[aria-sort]').count()) !== 1) {
+  note("сортировка", "направление не объявлено атрибутом aria-sort ровно на одной колонке");
+}
+await page.click('.datatable__sort:has-text("Адрес")');
+
+await page.fill(".datatable__search input", "московский");
+await page.waitForTimeout(200);
+const found = await page.locator(".datatable__table tbody tr").count();
+if (found === 0 || found >= rows) note("поиск", `по запросу найдено ${found} строк из ${rows}`);
+const counter = await page.locator(".datatable__foot p").textContent();
+if (counter === null || !counter.includes("Показано")) note("счётчик", `подпись «${counter ?? "—"}»`);
+await page.fill(".datatable__search input", "");
+await page.waitForTimeout(200);
+await step("список по образцу", "04b-spisok.png");
+
 // Карточка объекта. Открывается объект со сметой: у остальных карточка
 // показывает пустое состояние, и это правильное поведение, а не сбой.
-await page.click('table.estimate tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".cover__title .code-badge");
 await page.waitForSelector(".metric__value");
 await step("карточка объекта, обзор", "05-kartochka.png");
@@ -210,12 +257,85 @@ await step("импорт выполнен", "09-import.png");
 // Контрагенты: заказчики и бригады.
 await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector('h2:has-text("Заказчики")');
-const clients = await page.locator("table.estimate tbody tr").count();
+const clients = await page.locator(".datatable__table tbody tr").count();
 const brigades = await page.locator(".tile").count();
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
 if (clients === 0) note("контрагенты", "список заказчиков пуст");
 await step("контрагенты", "09b-kontragenty.png");
 await overflow("контрагенты, 1440");
+
+/**
+ * Состав навигации по утверждённой карте: восемь разделов, из них пять в
+ * шапке и три под «Ещё» — так же, как в панели референса. Проверяется, что
+ * каждый раздел открывается и говорит о себе, а не молчит.
+ */
+const pills = await page.locator(".appbar__nav .appbar__link").count();
+if (pills !== 6) note("навигация", `в шапке ${pills} пунктов вместо пяти разделов и «Ещё»`);
+
+await page.click('.appbar__nav button:has-text("Ещё")');
+await page.waitForSelector('.sheet[role="dialog"]');
+const hidden = await page.locator('.sheet[role="dialog"] button.quickaction').count();
+if (hidden !== 3) note("навигация", `под «Ещё» ${hidden} разделов вместо трёх`);
+await step("остальные разделы", "16-eshchyo.png");
+await page.click('.sheet button:has-text("Настройки")');
+
+// Настройки организации: карточка и справочник единиц.
+await page.waitForSelector('.tabs__item:has-text("Реквизиты")');
+const settingsTabs = await page.locator(".tabs__item").count();
+if (settingsTabs !== 6) note("настройки", `вкладок ${settingsTabs} вместо шести`);
+await page.waitForSelector('input[name="name"]');
+const orgName = await page.inputValue('input[name="name"]');
+if (orgName.trim() === "") note("настройки", "название организации пришло пустым");
+await step("настройки организации", "17-nastroyki.png");
+await overflow("настройки, 1440");
+
+await page.click('.tabs__item:has-text("Смета")');
+await page.waitForSelector(".deflist__row");
+const units = await page.locator(".deflist__row").count();
+if (units !== 9) note("настройки", `в справочнике единиц ${units} строк вместо девяти`);
+
+// Отложенный раздел говорит о себе и называет стадию.
+await page.click('.appbar__link:has-text("Заявки")');
+await page.waitForSelector(".empty__title");
+const plannedStage = await page.locator(".empty .pill").textContent();
+if (plannedStage === null || plannedStage.trim() === "") {
+  note("отложенный раздел", "пустое состояние не называет стадию");
+}
+await step("отложенный раздел", "18-zayavki.png");
+
+// Меню быстрых действий: семь ярлыков, пункт ведёт в раздел.
+await page.click(".appbar__action");
+await page.waitForSelector('.sheet[role="dialog"]');
+const actions = await page.locator('.sheet[role="dialog"] button.quickaction').count();
+if (actions !== 7) note("быстрые действия", `пунктов ${actions} вместо семи`);
+await step("быстрые действия", "19-deystviya.png");
+await page.click('.sheet button:has-text("Выставить счёт")');
+await page.waitForSelector(".empty__title");
+const landed = await page.locator(".cover__title h1").textContent();
+if (landed?.trim() !== "Бухгалтерия") {
+  note("быстрые действия", `пункт «Выставить счёт» привёл в раздел «${landed ?? "—"}»`);
+}
+
+// Вкладки карточки объекта: восемь рабочих и служебный импорт.
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".tabs__item");
+const cardTabs = await page.locator(".tabs__item").allTextContents();
+const expectedTabs = ["Обзор", "Замер", "Смета", "Работа", "Отчёт", "Приёмка", "Чеки", "Документы", "Импорт"];
+if (cardTabs.map((text) => text.trim()).join("|") !== expectedTabs.join("|")) {
+  note("вкладки карточки", `состав «${cardTabs.map((t) => t.trim()).join(", ")}»`);
+}
+for (const tab of ["Замер", "Отчёт", "Чеки", "Документы"]) {
+  await page.click(`.tabs__item:has-text("${tab}")`);
+  await page.waitForSelector(".empty__title");
+  if ((await page.locator(".empty .pill").count()) === 0) {
+    note("вкладки карточки", `вкладка «${tab}» не называет стадию`);
+  }
+}
+await step("вкладки карточки", "20-vkladki.png");
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
 
 // Мобильная ширина. Нижняя таб-панель существует только здесь.
 await page.setViewportSize({ width: 360, height: 800 });
@@ -249,7 +369,7 @@ if (covered !== null) note("мобильная навигация", `таб-па
 await page.click('.tabbar__item:has-text("Объекты")');
 await page.waitForSelector(".segmented__option");
 await page.waitForTimeout(300);
-const mobileTable = await page.locator("main table.estimate").count();
+const mobileTable = await page.locator("main .datatable__table").count();
 const mobileCards = await page.locator("main .panel--pad .code-badge").count();
 if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо карточек");
 if (mobileCards === 0) note("список объектов, 360", "карточки объектов не отрисованы");

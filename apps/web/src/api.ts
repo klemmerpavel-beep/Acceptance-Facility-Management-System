@@ -1,10 +1,11 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
-  importPreviewResponseSchema, importRecordSchema, importResultSchema, projectSummarySchema,
-  workerRowSchema,
+  importPreviewResponseSchema, importRecordSchema, importResultSchema, organizationSchema,
+  projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   type ClientRow, type Dashboard, type EstimateView, type ImportRecord, type ImportReport,
-  type ImportResult, type ProjectEvent, type WorkerRow,
+  type ImportResult, type Organization, type ProjectEvent, type SmsCodeIssued, type Unit,
+  type UpdateOrganization, type WorkerRow,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -29,16 +30,31 @@ export const fetchCurrentUser = (): Promise<CurrentUser> =>
 export const fetchProjects = (): Promise<ProjectSummary[]> =>
   request("/projects", z.array(projectSummarySchema));
 
-// exactOptionalPropertyTypes: отсутствующий токен и токен со значением
-// undefined — разные вещи, и тип это отражает.
-export const requestMagicLink = (
-  email: string,
-): Promise<{ sent: true; token?: string | undefined }> =>
-  request(
-    "/auth/magic-link",
-    z.object({ sent: z.literal(true), token: z.string().optional() }),
-    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) },
-  );
+const json = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/**
+ * Запрос кода подтверждения. Ответ одинаков для существующего и
+ * несуществующего номера; на стенде в нём приходит сам код.
+ */
+export const requestSmsCode = (phone: string): Promise<SmsCodeIssued> =>
+  request("/auth/phone/request", smsCodeIssuedSchema, json({ phone }));
+
+/** Обмен кода на сессию. Кука ставится сервером. */
+export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true }> =>
+  request("/auth/phone/confirm", z.object({ ok: z.literal(true) }), json({ phone, code }));
+
+export const fetchOrganization = (): Promise<Organization> =>
+  request("/organization", organizationSchema);
+
+export const saveOrganization = (patch: UpdateOrganization): Promise<Organization> =>
+  request("/organization", organizationSchema, { ...json(patch), method: "PATCH" });
+
+/** Справочник единиц измерения организации с написаниями импорта. */
+export const fetchUnits = (): Promise<Unit[]> => request("/units", z.array(unitSchema));
 
 export const logout = (): Promise<{ ok: true }> =>
   request("/auth/logout", z.object({ ok: z.literal(true) }), { method: "POST" });

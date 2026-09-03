@@ -1,5 +1,6 @@
 import type { ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
+import { DataTable, type Column } from "./DataTable.js";
 import { MOBILE, useMediaQuery } from "./media.js";
 import { STATUS_LABEL, STATUS_ORDER, STATUS_PILL, formatDate, plural } from "./status.js";
 
@@ -21,6 +22,78 @@ function deadlineCell(deadline: string | null, today: string): React.JSX.Element
       </span>
     </span>
   );
+}
+
+/**
+ * Колонки объекта. Сортируется каждая (норматив 5.14): срок — по дате, а не
+ * по её показному виду, итог сметы — по копейкам, а не по строке с
+ * разрядами. Отсутствующее значение сортировкой уходит вниз.
+ */
+function projectColumns(today: string, onOpen: (project: ProjectSummary) => void):
+  readonly Column<ProjectSummary>[] {
+  return [
+    {
+      key: "code",
+      label: "Код",
+      value: (project) => project.code,
+      render: (project) => <span className="code-badge">{project.code}</span>,
+    },
+    {
+      key: "address",
+      label: "Адрес",
+      value: (project) => project.address,
+      render: (project) => (
+        // Ссылка, а не строка с обработчиком: объект открывается и
+        // клавиатурой, и в новой вкладке средствами браузера.
+        <a
+          href={`#${project.code}`}
+          onClick={(event) => { event.preventDefault(); onOpen(project); }}
+        >
+          {project.address}
+        </a>
+      ),
+    },
+    {
+      key: "client",
+      label: "Заказчик",
+      value: (project) => `[${project.client.code}] ${project.client.name}`,
+    },
+    {
+      key: "status",
+      label: "Статус",
+      value: (project) => STATUS_LABEL[project.status],
+      render: (project) => (
+        <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
+      ),
+    },
+    {
+      key: "foreman",
+      label: "Прораб",
+      value: (project) => project.foreman?.name ?? null,
+      render: (project) => project.foreman?.name ?? "—",
+    },
+    {
+      key: "deadline",
+      label: "Срок",
+      value: (project) => project.deadline,
+      render: (project) => deadlineCell(project.deadline, today),
+    },
+    {
+      key: "total",
+      label: "Итог сметы",
+      value: (project) => (project.estimateTotal === null ? null : BigInt(project.estimateTotal)),
+      render: (project) =>
+        project.estimateTotal === null ? (
+          <span className="t-muted">сметы нет</span>
+        ) : (
+          <>
+            {money(project.estimateTotal)}
+            <span className="t-sm t-muted"> · {project.positions} поз.</span>
+          </>
+        ),
+      numeric: true,
+    },
+  ];
 }
 
 /**
@@ -139,61 +212,20 @@ export function ProjectList({
           ))}
         </div>
       ) : (
-        <div className="panel panel--flush">
-          <div className="table-scroll">
-            <table className="estimate">
-              <thead>
-                <tr>
-                  <th>Код</th>
-                  <th>Адрес</th>
-                  <th>Заказчик</th>
-                  <th>Статус</th>
-                  <th>Прораб</th>
-                  <th>Срок</th>
-                  <th className="estimate__num">Итог сметы</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <span className="code-badge">{project.code}</span>
-                    </td>
-                    <td>
-                      {/* Ссылка, а не строка с обработчиком: объект открывается
-                          и клавиатурой, и в новой вкладке средствами браузера. */}
-                      <a
-                        href={`#${project.code}`}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          onOpen(project);
-                        }}
-                      >
-                        {project.address}
-                      </a>
-                    </td>
-                    <td className="t-sm">[{project.client.code}] {project.client.name}</td>
-                    <td>
-                      <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-                    </td>
-                    <td>{project.foreman?.name ?? "—"}</td>
-                    <td>{deadlineCell(project.deadline, today)}</td>
-                    <td className="estimate__num">
-                      {project.estimateTotal === null ? (
-                        <span className="t-muted">сметы нет</span>
-                      ) : (
-                        <>
-                          {money(project.estimateTotal)}
-                          <span className="t-sm t-muted"> · {project.positions} поз.</span>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          rows={shown}
+          columns={projectColumns(today, onOpen)}
+          rowKey={(project) => project.id}
+          title="Объекты"
+          action={
+            <span className="t-sm t-muted">
+              {shown.length} {plural(shown.length, "объект", "объекта", "объектов")} в выборке
+            </span>
+          }
+          searchLabel="Поиск по коду, адресу и заказчику"
+          emptyTitle="Объектов нет"
+          emptyText="Заведите первый объект, чтобы импортировать смету."
+        />
       )}
     </div>
   );

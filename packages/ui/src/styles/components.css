@@ -114,6 +114,16 @@
 .input--touch { height: var(--control-h-touch); font-size: var(--fs-h3); }
 /* Денежные и количественные поля — моноширинные с табличными цифрами. */
 .input--num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+/* Номер телефона набирается слева направо, как обычный текст: выравнивание
+   по правому краю нужно суммам в колонке, а не полю ввода номера. */
+.input--tel { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Выпадающий список с нашим шевроном вместо системной стрелки: она разная
+   в каждой операционной системе и ломает ряд полей одинаковой высоты. */
+.selectwrap { position: relative; display: inline-flex; align-items: center; }
+.selectwrap .input { inline-size: 100%; padding-inline-end: var(--space-6); appearance: none; }
+.selectwrap__chevron { position: absolute; inset-inline-end: var(--space-2);
+  color: var(--ink-3); pointer-events: none; }
 
 /* --- Поверхности по роли ---------------------------------------------------
    Граница, заливка, радиус и тень означают «отдельный объект». Если их
@@ -231,7 +241,13 @@
 }
 .appbar__brand { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
 .appbar__title { margin-inline: auto; font-size: var(--fs-sm); }
-.appbar__nav { display: flex; gap: var(--space-1); margin-inline: auto; }
+/* Пилюли прокручиваются вбок, а не выталкивают страницу: между 768 и
+   1024 px пять подписей и блок пользователя в строку не помещаются.
+   То же решение, что у фильтра статусов на 360 px. */
+.appbar__nav { display: flex; gap: var(--space-1); margin-inline: auto;
+  min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
+.appbar__nav::-webkit-scrollbar { display: none; }
+.appbar__link { flex: none; }
 .appbar__link {
   display: inline-flex;
   align-items: center;
@@ -244,10 +260,15 @@
   font-weight: 500;
 }
 .appbar__link[aria-current="page"] { background: var(--surface); color: var(--accent); }
+/* Пункт «Ещё» — кнопка среди ссылок: сбрасываются её значения по умолчанию. */
+button.appbar__link { gap: var(--space-1); border: 0; background: none;
+  font-family: inherit; cursor: pointer; }
 /* Имя работающего в шапке. На узком экране уступает место переключателю
    темы и выходу: кто вошёл — видно на первом же экране. */
-.appbar__user { display: none; font-size: var(--fs-sm); opacity: .82; }
-@media (min-width: 768px) { .appbar__user { display: inline; } }
+.appbar__user { display: none; font-size: var(--fs-sm); opacity: .82; white-space: nowrap; }
+/* Имя появляется с 1024 px: до этой ширины его место занимают восемь
+   разделов, кнопка действий и переключатель темы. */
+@media (min-width: 1024px) { .appbar__user { display: inline; } }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
@@ -290,6 +311,13 @@
   justify-content: center;
   gap: 2px;
   min-height: var(--tap-min);
+  /* Пункт «Ещё» — кнопка, остальные ссылки: у кнопки свои значения по
+     умолчанию, и без сброса она выпадает из ряда. */
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
   color: var(--ink-3);
   text-decoration: none;
   font-size: var(--fs-cap);
@@ -301,6 +329,22 @@
    при равной специфичности исход решал бы порядок импорта, а не намерение. */
 @media (min-width: 768px) { .tabbar { display: none; } }
 @media (max-width: 767px) { .appbar__nav { display: none; } }
+
+/* Кнопка быстрых действий. На телефоне остаётся только знак: подпись
+   «Действие» вытесняет из шапки имя организации и выход. */
+.appbar__action { border-color: var(--on-accent-track); color: var(--accent-ink); }
+@media (max-width: 767px) {
+  /* На телефоне в шапке четыре элемента управления и 360 px ширины:
+     подпись кнопки действий уступает место, отступы сжимаются. */
+  .appbar { gap: var(--space-2); padding-inline: var(--space-3); }
+  .appbar__action { padding-inline: var(--space-2); }
+  .appbar__action > :not(svg) {
+    position: absolute;
+    inline-size: 1px; block-size: 1px;
+    margin: -1px; padding: 0; border: 0;
+    clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+  }
+}
 
 /* --- Шапка-обложка --------------------------------------------------------
    Цветная подложка того же акцента под шапкой несёт хлебные крошки и
@@ -555,3 +599,102 @@
 /* Полоса демонстрационной сборки. В продукте её нет: она сообщает, что
    сервер и база не участвуют, а данные сняты с работающего стенда. */
 .demo-bar { padding-block: var(--space-2); background: var(--signal-soft); border-bottom: 1px solid var(--signal); color: var(--ink); }
+
+/* --- 5.15 Экран входа ------------------------------------------------------
+   Блок формы стоит по центру полосы, логотип — у левого верхнего края.
+   Поясняющей прозы на экране нет: она принадлежит примечанию канвы, а не
+   первому экрану, где человеку нужно ввести номер и получить код.        */
+.signin { min-block-size: 100vh; display: flex; flex-direction: column; }
+.signin__brand { display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-5) var(--space-6); color: var(--accent); }
+.signin__form { inline-size: 100%; max-inline-size: 420px; margin: auto;
+  padding: 0 var(--space-4) calc(var(--space-7) * 2); }
+.signin__title { color: var(--accent); }
+/* Страна и номер — одно поле из двух частей, как в панели референса. */
+.signin__phone { display: flex; }
+.signin__phone > :first-child { inline-size: 132px; border-start-end-radius: 0;
+  border-end-end-radius: 0; border-inline-end: 0; }
+.signin__phone > :last-child { flex: 1 1 auto; border-start-start-radius: 0;
+  border-end-start-radius: 0; }
+.signin__code { block-size: var(--tap-min); font-family: var(--font-mono);
+  font-size: var(--fs-h1); letter-spacing: .32em; text-align: center; }
+.signin__actions { display: flex; align-items: center;
+  justify-content: space-between; gap: var(--space-4); }
+.signin__actions > :only-child { margin-inline-start: auto; }
+/* Надзаголовок поля: капс, как подпись «ВВЕДИТЕ НОМЕР ТЕЛЕФОНА». */
+.field__label--cap { font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
+  text-transform: uppercase; color: var(--ink-3); }
+
+/* --- 5.14 Список по единому образцу ---------------------------------------
+   Один образец на все табличные разделы. Сортировка объявляется атрибутом
+   aria-sort на ячейке заголовка, а не на кнопке внутри неё: читалка
+   объявляет порядок для колонки, а не для органа управления.            */
+/* overflow: hidden держит таблицу внутри панели: без него колонка с
+   адресом растягивает столбец флексбокса шире экрана, и прокручивается
+   вся страница вместо одной таблицы. */
+.datatable { display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.datatable .table-scroll { min-inline-size: 0; }
+.datatable__head { display: flex; align-items: center; flex-wrap: wrap;
+  justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4); border-bottom: 1px solid var(--line); }
+.datatable__title { display: flex; align-items: baseline; flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4); min-inline-size: 0; }
+.datatable__controls { display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-3); min-inline-size: 0; }
+.datatable__size { display: flex; align-items: center; gap: var(--space-2); }
+.datatable__size .selectwrap { inline-size: 96px; }
+.datatable__search { display: flex; align-items: center; gap: var(--space-2);
+  block-size: var(--control-h); padding-inline: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  color: var(--ink-3); min-inline-size: 240px; }
+.datatable__search input { flex: 1 1 auto; border: 0; background: none;
+  font-family: inherit; font-size: var(--fs-body); color: var(--ink); }
+.datatable__search input:focus { outline: none; }
+.datatable__search:focus-within { border-color: var(--accent); }
+.datatable__table { inline-size: 100%; border-collapse: collapse; }
+.datatable__table th { padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line-strong); text-align: start; white-space: nowrap; }
+.datatable__table td { padding: var(--space-3); border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm); vertical-align: middle; }
+/* Чередование: на семи колонках глаз теряет строку между кодом и итогом. */
+.datatable__table tbody tr:nth-child(even) { background: var(--surface-2); }
+.datatable__num { text-align: end; font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
+  text-transform: uppercase; color: var(--ink-3); }
+.datatable__table th[aria-sort] .datatable__sort { color: var(--accent); }
+.datatable__foot { display: flex; align-items: center; flex-wrap: wrap;
+  justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+.datatable__pager { display: flex; align-items: center; gap: var(--space-3); }
+
+@media (max-width: 767px) {
+  .datatable__head { flex-direction: column; align-items: stretch; }
+  .datatable__controls { justify-content: space-between; }
+  .datatable__search { min-inline-size: 0; flex: 1 1 auto; }
+}
+
+/* --- 5.16 Настройки организации -------------------------------------------
+   Круг логотипа слева, поля сеткой два на два, обязательность звёздочкой,
+   кнопка сохранения снизу слева — раскладка панели референса.           */
+.settings__panel { max-inline-size: 840px; }
+.settings__identity { display: grid; grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-5); align-items: start; }
+.settings__logo { inline-size: 96px; block-size: 96px; border-radius: 999px;
+  display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.settings__form { min-inline-size: 0; }
+.settings__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5); }
+.settings__required { color: var(--danger); text-decoration: none; }
+
+@media (max-width: 767px) {
+  .settings__identity { grid-template-columns: 1fr; }
+  .settings__grid { grid-template-columns: 1fr; }
+}
+
+/* Пункт меню быстрых действий: иконка слева, подпись по началу строки. */
+.quickaction { justify-content: flex-start; }

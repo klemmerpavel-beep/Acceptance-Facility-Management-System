@@ -2,8 +2,35 @@ import { useEffect, useState } from "react";
 import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { fetchClients, fetchWorkers } from "./api.js";
+import { DataTable, type Column } from "./DataTable.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
+
+/** Колонки заказчика. Сортируется каждая — норматив 5.14. */
+const CLIENT_COLUMNS: readonly Column<ClientRow>[] = [
+  {
+    key: "code",
+    label: "Код",
+    value: (client) => client.code,
+    render: (client) => <span className="code-badge">{client.code}</span>,
+  },
+  { key: "name", label: "Заказчик", value: (client) => client.name },
+  {
+    key: "requisites",
+    label: "Реквизиты",
+    value: (client) => client.requisites ?? (client.isCompany ? "Юридическое лицо" : "Физическое лицо"),
+  },
+  { key: "projects", label: "Объектов", value: (client) => client.projects, numeric: true },
+  {
+    key: "total",
+    label: "Итог смет",
+    // Сортировка по деньгам идёт по копейкам, а не по строке: «9 ₽»
+    // не должно оказываться выше «1 000 ₽».
+    value: (client) => BigInt(client.estimateTotal),
+    render: (client) => (client.estimateTotal === "0" ? "—" : money(client.estimateTotal)),
+    numeric: true,
+  },
+];
 
 /**
  * Контрагенты: заказчики объектов и расчётные единицы сдельной оплаты.
@@ -48,49 +75,16 @@ export function Directory(): React.JSX.Element {
 
   return (
     <main className="container stack stack--loose">
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">Заказчики</h2>
-          <span className="t-sm t-muted">видны заказчики доступных объектов</span>
-        </div>
-        {clients.length === 0 ? (
-          <div className="empty">
-            <p className="empty__title">Заказчиков нет</p>
-            <p className="empty__text">Заказчик появляется вместе с первым объектом.</p>
-          </div>
-        ) : (
-          <div className="panel panel--flush">
-            <div className="table-scroll">
-              <table className="estimate">
-                <thead>
-                  <tr>
-                    <th>Код</th>
-                    <th>Заказчик</th>
-                    <th>Реквизиты</th>
-                    <th className="estimate__num">Объектов</th>
-                    <th className="estimate__num">Итог смет</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {clients.map((client) => (
-                    <tr key={client.id}>
-                      <td><span className="code-badge">{client.code}</span></td>
-                      <td>{client.name}</td>
-                      <td>
-                        {client.requisites ?? (client.isCompany ? "Юридическое лицо" : "Физическое лицо")}
-                      </td>
-                      <td className="estimate__num">{client.projects}</td>
-                      <td className="estimate__num">
-                        {client.estimateTotal === "0" ? "—" : money(client.estimateTotal)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </section>
+      <DataTable
+        rows={clients}
+        columns={CLIENT_COLUMNS}
+        rowKey={(client) => client.id}
+        title="Заказчики"
+        action={<span className="t-sm t-muted">видны заказчики доступных объектов</span>}
+        searchLabel="Поиск по коду, имени и реквизитам"
+        emptyTitle="Заказчиков нет"
+        emptyText="Заказчик появляется вместе с первым объектом."
+      />
 
       <section className="stack">
         <div className="section-head">

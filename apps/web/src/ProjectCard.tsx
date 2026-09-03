@@ -6,6 +6,7 @@ import { daysBetween, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
+import { Planned } from "./Planned.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, formatDateTime, plural } from "./status.js";
@@ -33,23 +34,21 @@ function ReadinessRing({ share }: { share: number }): React.JSX.Element {
 }
 
 /** Пустое состояние вкладки, которой ещё нет. Этап называется прямо. */
-function Planned({ title, text, stage }: { title: string; text: string; stage: string }): React.JSX.Element {
-  return (
-    <div className="empty">
-      <p className="empty__title">{title}</p>
-      <p className="empty__text prose">{text}</p>
-      <span className="pill">{stage}</span>
-    </div>
-  );
-}
-
+/**
+ * Вкладки карточки. Состав и порядок — по карте `docs/07_IA.md`, раздел 4:
+ * они повторяют путь работы на объекте, от замера до документов. Названия
+ * тоже оттуда: «Работа», а не «График», «Чеки», а не «Расходы»,
+ * «Документы», а не «Акты» — в акте документы не исчерпываются.
+ */
 const TABS = [
   { key: "overview", label: "Обзор" },
+  { key: "measure", label: "Замер" },
   { key: "estimate", label: "Смета" },
+  { key: "work", label: "Работа" },
+  { key: "report", label: "Отчёт" },
   { key: "acceptance", label: "Приёмка" },
-  { key: "expenses", label: "Расходы" },
-  { key: "acts", label: "Акты" },
-  { key: "schedule", label: "График" },
+  { key: "checks", label: "Чеки" },
+  { key: "documents", label: "Документы" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -326,9 +325,39 @@ export function ProjectCard({
                 }
               />
             )}
-            {tab === "expenses" && (
+            {tab === "measure" && (
               <Planned
-                title="Расходов пока нет"
+                title="Замера пока нет"
+                stage="стадия C.1"
+                text={
+                  "Интерактивный обмерный план: помещения, площади, периметры, окна и двери. " +
+                  "Площади отсюда попадают в смету количествами позиций, а не переписываются руками."
+                }
+              />
+            )}
+            {tab === "work" && (
+              <Planned
+                title="График не составлен"
+                stage="стадия C.3"
+                text={
+                  "Разделы сметы группируются в этапы работ с датами и мастером. Валидатор дат " +
+                  "отклоняет несуществующие и вывернутые сроки: в исходном файле заказчика их восемь."
+                }
+              />
+            )}
+            {tab === "report" && (
+              <Planned
+                title="Отчётов пока нет"
+                stage="стадия C.4"
+                text={
+                  "Фотоотчёт по объекту и по этапу. Снимки приёмки попадают сюда сами: " +
+                  "прораб фотографирует один раз, а не отдельно для отчёта и отдельно для акта."
+                }
+              />
+            )}
+            {tab === "checks" && (
+              <Planned
+                title="Чеков пока нет"
                 stage="этап Э4"
                 text={
                   "Чеки на материалы приходят письмом на адрес объекта и попадают сюда черновиками " +
@@ -336,9 +365,9 @@ export function ProjectCard({
                 }
               />
             )}
-            {tab === "acts" && (
+            {tab === "documents" && (
               <Planned
-                title="Актов пока нет"
+                title="Документов пока нет"
                 stage="этап Э4"
                 text={
                   "Акт собирается только из принятых позиций и выгружается в двух видах: " +
@@ -346,17 +375,6 @@ export function ProjectCard({
                 }
               />
             )}
-            {tab === "schedule" && (
-              <Planned
-                title="График не составлен"
-                stage="этап Э5"
-                text={
-                  "Разделы сметы группируются в этапы работ с датами и мастером. Валидатор дат " +
-                  "отклоняет несуществующие и вывернутые сроки: в исходном файле заказчика их восемь."
-                }
-              />
-            )}
-
             {tab === "import" && <ImportEstimate code={project.code} units={units} onImported={load} />}
           </div>
         </div>

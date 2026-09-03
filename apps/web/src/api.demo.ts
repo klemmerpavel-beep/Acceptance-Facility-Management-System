@@ -11,7 +11,7 @@
  */
 import type {
   ClientRow, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport, ImportResult,
-  ProjectEvent, ProjectStatus, ProjectSummary, Role, WorkerRow,
+  Organization, ProjectEvent, ProjectStatus, ProjectSummary, Role, SmsCodeIssued, Unit, WorkerRow,
 } from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
@@ -28,6 +28,8 @@ type Snapshot = {
   "events-owner": ProjectEvent[];
   "events-foreman": ProjectEvent[];
   units: string[];
+  organization: Organization;
+  unitDirectory: Unit[];
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
   imports: ImportRecord[];
@@ -119,9 +121,33 @@ export async function fetchCanonicalUnits(): Promise<string[]> {
   return data.units;
 }
 
-export async function requestMagicLink(): Promise<{ sent: true; token?: string | undefined }> {
+export async function requestSmsCode(phone: string): Promise<SmsCodeIssued> {
   await pause();
-  return { sent: true, token: "demo" };
+  // Слепок снят с работающего стенда, сервера здесь нет: код фиксированный
+  // и показывается на экране, как на стенде.
+  return { sent: true, phone, code: "418302", retryAfterSeconds: 60 };
+}
+
+export async function confirmSmsCode(): Promise<{ ok: true }> {
+  await pause();
+  demoSignIn();
+  return { ok: true };
+}
+
+export async function fetchOrganization(): Promise<Organization> {
+  await pause(40);
+  return data.organization;
+}
+
+/** Правка в демонстрации не сохраняется: сервера нет, и врать об этом нельзя. */
+export async function saveOrganization(): Promise<Organization> {
+  await pause();
+  throw new Error("Демонстрация показывает слепок данных: правка не сохраняется.");
+}
+
+export async function fetchUnits(): Promise<Unit[]> {
+  await pause(40);
+  return data.unitDirectory;
 }
 
 export async function logout(): Promise<{ ok: true }> {
