@@ -18,7 +18,7 @@
       --signal:#9C5E17; --signal-soft:#FBEEDC;
       --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
       --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
-      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#93A3B5; --line-inv:#25313F;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#6FA3DC;
       --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
       --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
     }
@@ -31,6 +31,7 @@
     .t-h1{font-size:24px;line-height:1.2;font-weight:600}
     .t-h2{font-size:19px;line-height:1.25;font-weight:600}
     .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-body{font-size:15px;line-height:1.55}
     .t-sm{font-size:13px;line-height:1.45}
     .t-cap{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
       text-transform:uppercase;color:var(--ink-3)}
@@ -104,26 +105,26 @@
         <svg width="36" height="36" viewBox="0 0 20 20" fill="none" stroke="#17457A" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M5.5 10.5 8.5 13.5 14.5 7"/></svg>
       </div>
       <label class="field">
-        <span class="field__label t-cap">Название <span style="color:var(--danger)">*</span></span>
+        <span class="t-cap">Название <span style="color:var(--danger)">*</span></span>
         <input class="input" value="DOLGIY STUDIO">
       </label>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px">
       <label class="field">
-        <span class="field__label t-cap">Часовой пояс <span style="color:var(--danger)">*</span></span>
+        <span class="t-cap">Часовой пояс <span style="color:var(--danger)">*</span></span>
         <select class="input"><option>(UTC+03:00) Москва</option></select>
       </label>
       <label class="field">
-        <span class="field__label t-cap">Валюта <span style="color:var(--danger)">*</span></span>
+        <span class="t-cap">Валюта <span style="color:var(--danger)">*</span></span>
         <input class="input" value="₽" disabled style="background:var(--surface-2);color:var(--ink-3)">
       </label>
       <label class="field">
-        <span class="field__label t-cap">Телефон</span>
+        <span class="t-cap">Телефон</span>
         <input class="input" style="font-family:var(--font-mono)" placeholder="+7 (___) ___-__-__">
       </label>
       <label class="field">
-        <span class="field__label t-cap">Почта</span>
+        <span class="t-cap">Почта</span>
         <input class="input" value="studio@dolgiy.studio">
       </label>
     </div>
@@ -133,7 +134,7 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <span class="t-cap">Почтовый шлюз чеков</span>
       <p style="font-family:var(--font-mono);font-size:15px">checks+<span class="code-badge">R99</span>@dolgiy.studio</p>
-      <p class="t-sm t-muted" style="max-width:64ch">Код объекта ищется и в теме письма. Письмо без кода попадает во вкладку «Не распознано» и не теряется.</p>
+      <p class="t-sm t-muted" style="max-width:64ch">Код объекта ищется и в теме письма. Письмо без кода не теряется: оно попадает в общий разбор.</p>
     </div>
 
     <div style="display:flex;justify-content:flex-start">
@@ -141,7 +142,7 @@
     </div>
   </section>
 
-  <p class="t-sm t-muted" style="max-width:76ch">Вкладка «Смета» ведёт справочник единиц измерения — он уже наполнен девятью каноническими формами. Права доступа, уведомления и интеграции появятся своими стадиями.</p>
+  <p class="t-sm t-muted" style="max-width:76ch">Вкладка «Смета» ведёт справочник единиц измерения — он уже наполнен девятью каноническими формами. Права доступа, уведомления и интеграции показаны вкладками — их наполнение идёт следующими стадиями.</p>
 </main>
 </x-dc>
 </body>

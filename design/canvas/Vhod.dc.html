@@ -18,7 +18,7 @@
       --signal:#9C5E17; --signal-soft:#FBEEDC;
       --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
       --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
-      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#93A3B5; --line-inv:#25313F;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#6FA3DC;
       --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
       --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
     }
@@ -31,6 +31,7 @@
     .t-h1{font-size:24px;line-height:1.2;font-weight:600}
     .t-h2{font-size:19px;line-height:1.25;font-weight:600}
     .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-body{font-size:15px;line-height:1.55}
     .t-sm{font-size:13px;line-height:1.45}
     .t-cap{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
       text-transform:uppercase;color:var(--ink-3)}
@@ -98,7 +99,7 @@
       <p class="t-cap">Шаг 1</p>
       <h1 class="t-h1" style="color:var(--accent)">Вход или регистрация</h1>
       <div class="field">
-        <span class="field__label t-cap">Введите номер телефона</span>
+        <span class="t-cap">Введите номер телефона</span>
         <div style="display:flex">
           <select class="input" style="width:132px;border-radius:6px 0 0 6px;border-right:0">
             <option>Россия</option>
@@ -116,7 +117,7 @@
       <p class="t-cap">Шаг 2</p>
       <h1 class="t-h1" style="color:var(--accent)">Код подтверждения</h1>
       <div class="field">
-        <span class="field__label t-cap">Отправлен на +7 (900) 000-00-00</span>
+        <span class="t-cap">Отправлен на +7 (900) 000-00-00</span>
         <input class="input" style="width:220px;font-family:var(--font-mono);font-size:24px;letter-spacing:.32em;height:48px;text-align:center" value="418 302">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
@@ -132,8 +133,8 @@
   <hr style="border:0;border-top:1px solid var(--line);margin:0;max-width:1040px">
 
   <div style="max-width:1040px;display:flex;gap:48px">
-    <p class="t-sm t-muted" style="max-width:52ch">Прораб входит иначе — по персональной ссылке, без номера и кода. Барьер входа для полевого пользователя снят целиком: иначе доля отмеченных позиций измеряет порог освоения, а не продукт.</p>
-    <p class="t-sm t-muted" style="max-width:36ch">Ссылка руководителя на почту сохраняется запасным путём.</p>
+    <p class="t-sm t-muted" style="max-width:52ch">Прораб входит иначе — по персональной ссылке, без номера и кода. Прорабу не нужен ни номер, ни код: он открывает ссылку и сразу видит разделы объекта.</p>
+    <p class="t-sm t-muted" style="max-width:36ch">У руководителя остаётся и вход по ссылке на почту.</p>
   </div>
 </div>
 </x-dc>
