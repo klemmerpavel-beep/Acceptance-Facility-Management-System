@@ -249,14 +249,19 @@ export function App(): React.JSX.Element {
     );
   }
 
-  const cover = (title: string, note: string, count?: number): React.JSX.Element => (
+  /**
+   * Обложка раздела: название организации крошкой, заголовок и счётчик.
+   * Поясняющей подписи под заголовком нет: «сводка по портфелю на сегодня»
+   * под словом «Главная» ничего не добавляет к тому, что человек и так
+   * видит на экране.
+   */
+  const cover = (title: string, count?: number): React.JSX.Element => (
     <div className="cover">
       <div className="container">
         <p className="cover__crumbs">{state.user.organization.name}</p>
         <div className="cover__title">
           <h1 className="t-h1">{title}</h1>
           {count !== undefined && <span className="pill">{count}</span>}
-          <span className="t-sm">{note}</span>
         </div>
       </div>
     </div>
@@ -267,13 +272,13 @@ export function App(): React.JSX.Element {
       {header}
       {section === "home" && (
         <>
-          {cover("Главная", "сводка по портфелю на сегодня")}
-          <Dashboard user={state.user} onOpenProjects={openProjects} />
+          {cover("Главная")}
+          <Dashboard onOpenProjects={openProjects} />
         </>
       )}
       {section === "projects" && (
         <>
-          {cover("Объекты", "портфель студии", state.projects.length)}
+          {cover("Объекты", state.projects.length)}
           <main className="container stack stack--loose">
             <ProjectList
               projects={state.projects}
@@ -288,19 +293,19 @@ export function App(): React.JSX.Element {
       )}
       {section === "clients" && (
         <>
-          {cover("Контрагенты", "заказчики и бригады")}
+          {cover("Контрагенты")}
           <Directory />
         </>
       )}
       {section === "settings" && (
         <>
-          {cover("Настройки", "устройство системы")}
+          {cover("Настройки")}
           <Settings role={state.user.role} />
         </>
       )}
       {PLANNED[section] !== undefined && (
         <>
-          {cover(SECTIONS.find((item) => item.key === section)?.label ?? "", "раздел в работе")}
+          {cover(SECTIONS.find((item) => item.key === section)?.label ?? "")}
           <main className="container">
             <Planned {...PLANNED[section]} />
           </main>

@@ -6,10 +6,11 @@ import { daysBetween, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
+import { EventFeed } from "./Dashboard.js";
 import { Planned } from "./Planned.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { StatusSheet } from "./StatusSheet.js";
-import { STATUS_LABEL, STATUS_PILL, formatDate, formatDateTime, plural } from "./status.js";
+import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
@@ -136,7 +137,7 @@ export function ProjectCard({
       <main className="container">
         <div className="project-layout">
           <aside className="stack">
-            <div className="figure figure--framed">
+            <div className="figure">
               <span className="figure__label">Итог сметы для клиента</span>
               <span className="figure__value">
                 {project.estimateTotal === null ? "—" : money(project.estimateTotal)}
@@ -148,7 +149,7 @@ export function ProjectCard({
               </span>
             </div>
 
-            <div className="panel panel--pad row row--between">
+            <div className="row row--between summary__status">
               <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
               {user.role === "OWNER" && (
                 <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
@@ -179,7 +180,7 @@ export function ProjectCard({
                     : `${plural(deadline.days, "день", "дня", "дней")} · дедлайн ${deadline.date}`}
                 </span>
               </div>
-              <ReadinessRing share={project.readiness / 100} />
+              {project.readiness > 0 && <ReadinessRing share={project.readiness / 100} />}
             </div>
 
             <dl className="deflist">
@@ -436,15 +437,21 @@ function Overview({
         ) : (
           <div className="row row--wrap">
             {passed !== null && (
-              <span className="metric">
-                <span className="metric__value">{passed.working} / {passed.calendar}</span>
-                <span className="metric__label">Прошло · рабочих / календарных</span>
-              </span>
+              <>
+                <span className="metric">
+                  <span className="metric__value">{passed.working}</span>
+                  <span className="metric__label">Рабочих дней прошло</span>
+                </span>
+                <span className="metric">
+                  <span className="metric__value">{passed.calendar}</span>
+                  <span className="metric__label">Календарных прошло</span>
+                </span>
+              </>
             )}
             {contract !== null && (
               <span className="metric">
-                <span className="metric__value">{contract.working} / {contract.calendar}</span>
-                <span className="metric__label">По договору · рабочих / календарных</span>
+                <span className="metric__value">{contract.calendar}</span>
+                <span className="metric__label">Календарных по договору</span>
               </span>
             )}
             {estimate !== null && (
@@ -493,15 +500,10 @@ function Overview({
       <section className="stack">
         <div className="section-head">
           <h2 className="t-h2">Транши</h2>
-          <span className="pill">этап Э4</span>
         </div>
         <div className="empty">
-          <p className="empty__title">Траншей пока нет</p>
-          <p className="empty__text prose">
-            Транш открывается на сумму аванса и уменьшается по мере приёмки. Остаток считается по
-            клиентской сумме с надбавкой сопровождения, перевыработка показывается сигнальным
-            цветом, а не ошибкой.
-          </p>
+          <p className="empty__title">Траншей нет</p>
+          <p className="empty__text">Транш открывается на сумму аванса и уменьшается по мере приёмки.</p>
         </div>
       </section>
 
@@ -515,18 +517,7 @@ function Overview({
             <p className="empty__text">Импорт сметы и смена статуса попадают сюда.</p>
           </div>
         ) : (
-          <div className="feed">
-            {events.map((event, index) => (
-              <div className="feed__item" key={`${event.at}-${index}`}>
-                <span className="feed__time">{formatDateTime(event.at)}</span>
-                <span>
-                  <span className="feed__title">{event.title}</span>
-                  {event.detail !== null && <span className="feed__detail"> {event.detail}</span>}
-                  {event.actor !== null && <span className="feed__detail"> · {event.actor}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
+          <EventFeed events={events} showCode={false} />
         )}
       </section>
     </div>

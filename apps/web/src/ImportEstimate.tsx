@@ -64,18 +64,24 @@ export function ImportEstimate({
         <p className="t-sm t-muted">разбор без записи, затем запись новой редакции</p>
       </div>
 
-      <label className="field">
+      <div className="field">
         <span className="field__label">Книга Excel со сметой</span>
-        <input
-          className="input"
-          type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={(event) => {
-            const chosen = event.target.files?.[0];
-            if (chosen) onPreview(chosen);
-          }}
-        />
-      </label>
+        <label className="filefield">
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(event) => {
+              const chosen = event.target.files?.[0];
+              if (chosen) onPreview(chosen);
+            }}
+          />
+          <span className="filefield__button">
+            <svg className="icon" aria-hidden="true"><use href="#i-expense" /></svg>
+            Выбрать файл
+          </span>
+          <span className="filefield__name">{file?.name ?? "файл не выбран"}</span>
+        </label>
+      </div>
 
       {error !== null && <p className="field__error">{error}</p>}
       {busy && <span className="skeleton skeleton--row" />}
@@ -135,8 +141,10 @@ export function ImportEstimate({
                   <span className="t-sm">
                     «{decision.raw.trim() || "пусто"}» — {decision.positions} позиц.
                   </span>
+                  <span className="selectwrap">
                   <select
                     className="input"
+                    aria-label={`Единица для написания «${decision.raw.trim() || "пусто"}»`}
                     value={overrides[decision.raw] ?? ""}
                     onChange={(event) =>
                       setOverrides((current) => ({ ...current, [decision.raw]: event.target.value }))
@@ -146,6 +154,8 @@ export function ImportEstimate({
                       <option key={unit} value={unit}>{unit}</option>
                     ))}
                   </select>
+                  <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
+                  </span>
                 </p>
               ))}
             </div>

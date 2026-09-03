@@ -34,6 +34,16 @@ export const STATUS_ORDER: readonly ProjectStatus[] = [
 export const formatDate = (iso: string): string =>
   new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+/** Только время. Дата в сгруппированной по дням ленте стоит заголовком группы. */
+export const formatTime = (iso: string): string =>
+  new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
+/** Дата с днём недели: заголовок группы в ленте событий. */
+export const formatDay = (iso: string): string =>
+  new Date(iso).toLocaleDateString("ru-RU", {
+    day: "2-digit", month: "long", weekday: "short",
+  });
+
 export const formatDateTime = (iso: string): string =>
   new Date(iso).toLocaleString("ru-RU", {
     day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",

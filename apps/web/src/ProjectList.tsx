@@ -124,16 +124,18 @@ function ProjectCardRow({
       >
         {project.address}
       </a>
+      {/* Отсутствующее не называется в каждой карточке: восемь строк
+          «прораб не назначен» и «смета не загружена» подряд — это шум,
+          из-за которого не видно карточек, где прораб и смета есть. */}
       <p className="t-sm t-secondary">
         [{project.client.code}] {project.client.name}
-        {project.foreman === null ? " · прораб не назначен" : ` · ${project.foreman.name}`}
+        {project.foreman !== null && ` · ${project.foreman.name}`}
       </p>
-      <p className="t-sm">{deadlineCell(project.deadline, today)}</p>
       <p className="row row--between">
-        <span className="t-sm t-muted">
-          {project.estimateTotal === null ? "смета не загружена" : `позиций ${project.positions}`}
-        </span>
-        {project.estimateTotal !== null && <span className="num">{money(project.estimateTotal)}</span>}
+        <span className="t-sm">{deadlineCell(project.deadline, today)}</span>
+        {project.estimateTotal !== null && (
+          <span className="num">{money(project.estimateTotal)}</span>
+        )}
       </p>
     </div>
   );

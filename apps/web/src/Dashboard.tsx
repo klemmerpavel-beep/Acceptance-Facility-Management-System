@@ -1,32 +1,44 @@
 import { useEffect, useState } from "react";
-import type { CurrentUser, Dashboard as DashboardData, ProjectStatus } from "@priyomka/contracts";
+import type { Dashboard as DashboardData, ProjectEvent, ProjectStatus } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { fetchDashboard } from "./api.js";
-import { STATUS_LABEL, formatDateTime, plural } from "./status.js";
+import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
 const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
-/** Карточка ряда сводки: заголовок и две величины с подписями. */
-function SummaryCard({
+/**
+ * Величина ряда сводки: подпись, число, вторая величина под ним.
+ *
+ * Не карточка. Четыре одинаковые рамки на первом экране уравнивают величины
+ * в весе, и главную приходится искать. Здесь числа лежат на полотне,
+ * разделяются волосяной линией, а ведущая величина крупнее прочих.
+ */
+function SummaryFigure({
   label,
-  rows,
+  value,
+  caption,
+  second,
+  lead,
 }: {
   label: string;
-  rows: { value: string; caption: string; tone?: "danger" | "ok" }[];
+  value: string;
+  caption: string;
+  second: { value: string; caption: string; tone?: "danger" };
+  lead?: boolean;
 }): React.JSX.Element {
   return (
-    <div className="panel panel--pad stack stack--tight">
+    <div className={lead === true ? "figure figrow__lead" : "figure"}>
       <span className="figure__label">{label}</span>
-      {rows.map((row) => (
-        <div key={row.caption}>
-          <p className={row.tone === "danger" ? "num num--start num--danger" : "num num--start"}>
-            {row.value}
-          </p>
-          <p className="t-sm t-muted">{row.caption}</p>
-        </div>
-      ))}
+      <span className="figure__value">{value}</span>
+      <span className="figure__note">{caption}</span>
+      <span className="figrow__second">
+        <span className={second.tone === "danger" ? "num num--start num--danger" : "num num--start"}>
+          {second.value}
+        </span>
+        <span className="figure__note">{second.caption}</span>
+      </span>
     </div>
   );
 }
@@ -36,7 +48,10 @@ function SummaryCard({
  * класс не находится поиском по разметке, и механическая проверка мёртвых
  * правил дизайн-системы становится слепой.
  */
-const COUNTER_CLASS = { plain: "counter", danger: "counter counter--danger" } as const;
+const COUNTER_CLASS = {
+  plain: "counterstrip__count",
+  danger: "counterstrip__count counterstrip__count--danger",
+} as const;
 
 const EVENT_CLASS = {
   neutral: "daycard__event",
@@ -56,26 +71,80 @@ function Counter({
   tone?: "danger";
   onClick?: () => void;
 }): React.JSX.Element {
-  const className = tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger;
   const body = (
     <>
-      <span className="counter__value">{value}</span>
-      <span className="counter__label">{label}</span>
+      <span>{label}</span>
+      <span className={tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger}>{value}</span>
     </>
   );
-  if (onClick === undefined) return <div className={className}>{body}</div>;
+  if (onClick === undefined) return <div className="counterstrip__item">{body}</div>;
   return (
-    <button type="button" className={className} onClick={onClick}>
+    <button type="button" className="counterstrip__item" onClick={onClick}>
       {body}
     </button>
   );
 }
 
+/**
+ * Лента событий: последние восемь, сгруппированные по дню.
+ *
+ * Без ограничения лента вырастает длиннее всей остальной страницы и
+ * состоит из почти одинаковых строк — смена статуса и импорт повторяются
+ * десятками. Читают в ней последнее, а не всё; остальное показывает
+ * журнал объекта.
+ */
+const FEED_LIMIT = 8;
+
+export function EventFeed({
+  events,
+  showCode = true,
+}: {
+  events: ProjectEvent[];
+  /** В журнале самого объекта код в каждой строке — повтор заголовка страницы. */
+  showCode?: boolean;
+}): React.JSX.Element {
+  const shown = events.slice(0, FEED_LIMIT);
+  const rest = events.length - shown.length;
+  const days: { day: string; rows: ProjectEvent[] }[] = [];
+  for (const event of shown) {
+    const day = event.at.slice(0, 10);
+    const last = days.at(-1);
+    if (last !== undefined && last.day === day) last.rows.push(event);
+    else days.push({ day, rows: [event] });
+  }
+
+  return (
+    <div className="feed feed--byday">
+      {days.map((group) => (
+        <div key={group.day}>
+          <p className="feed__day">{formatDay(group.day)}</p>
+          {group.rows.map((event, index) => (
+            <div className="feed__item" key={`${event.at}-${index}`}>
+              <span className="feed__time">{formatTime(event.at)}</span>
+              <span>
+                <span className="feed__title">
+                  {showCode && event.projectCode !== null ? `${event.projectCode} · ` : ""}
+                  {event.title}
+                </span>
+                {event.detail !== null && <span className="feed__detail"> {event.detail}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+      {rest > 0 && (
+        <p className="feed__item t-sm t-muted">
+          <span className="feed__time" />
+          <span>Ещё {rest} {plural(rest, "событие", "события", "событий")} — в журнале объекта</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Dashboard({
-  user,
   onOpenProjects,
 }: {
-  user: CurrentUser;
   onOpenProjects: (status: ProjectStatus | null) => void;
 }): React.JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -112,44 +181,41 @@ export function Dashboard({
 
   return (
     <main className="container stack stack--loose">
-      <section className="cards">
-        <SummaryCard
+      <section className="figrow">
+        <SummaryFigure
+          lead
           label="Портфель"
-          rows={[
-            { value: money(data.money.estimate), caption: "итог смет для клиентов" },
-            { value: money(data.money.supervision), caption: "сопровождение объектов" },
-          ]}
+          value={money(data.money.estimate)}
+          caption="итог смет для клиентов"
+          second={{ value: money(data.money.supervision), caption: "сопровождение объектов" }}
         />
-        <SummaryCard
+        <SummaryFigure
           label="Приёмка"
-          rows={[
-            { value: money(data.money.accepted), caption: "принято по актам" },
-            { value: money(remaining.toString()), caption: "остаётся принять" },
-          ]}
+          value={money(data.money.accepted)}
+          caption="принято по актам"
+          second={{ value: money(remaining.toString()), caption: "остаётся принять" }}
         />
-        <SummaryCard
+        <SummaryFigure
           label="Расхождения смет"
-          rows={[
-            { value: money(data.money.works), caption: "пересчёт по позициям" },
-            {
-              value: money(data.estimate.discrepancy),
-              caption: `недосчёт в файлах · объектов: ${data.estimate.projectsWithDiscrepancy}`,
-              tone: "danger",
-            },
-          ]}
+          value={money(data.money.works)}
+          caption="пересчёт по позициям"
+          second={{
+            value: money(data.estimate.discrepancy),
+            caption: `недосчёт в файлах · объектов: ${data.estimate.projectsWithDiscrepancy}`,
+            tone: "danger",
+          }}
         />
         {/* Фонд оплаты труда приходит только руководителю: у прораба этого
-            поля нет в ответе сервера, и карточка не рисуется вовсе. */}
+            поля нет в ответе сервера, и величина не рисуется вовсе. */}
         {data.money.wage !== undefined && (
-          <SummaryCard
+          <SummaryFigure
             label="Фонд оплаты труда"
-            rows={[
-              { value: money(data.money.wage), caption: "по действующим сметам" },
-              {
-                value: money((BigInt(data.money.works) - BigInt(data.money.wage)).toString()),
-                caption: "валовая разница к работам",
-              },
-            ]}
+            value={money(data.money.wage)}
+            caption="по действующим сметам"
+            second={{
+              value: money((BigInt(data.money.works) - BigInt(data.money.wage)).toString()),
+              caption: "валовая разница к работам",
+            }}
           />
         )}
       </section>
@@ -157,31 +223,41 @@ export function Dashboard({
       <section className="stack">
         <div className="section-head">
           <h2 className="t-h2">Неделя</h2>
-          <span className="t-sm t-muted">сроки объектов и импорты смет</span>
         </div>
         <div className="weekstrip">
           {data.week.map((day) => {
             const date = new Date(day.date);
             const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
             return (
-              <div className={day.isToday ? "daycard daycard--today" : "daycard"} key={day.date}>
+              <div
+                className={
+                  day.isToday
+                    ? "daycard daycard--today"
+                    : day.events.length === 0
+                      ? "daycard daycard--empty"
+                      : "daycard"
+                }
+                key={day.date}
+              >
                 <p className="daycard__head">
                   <span className="daycard__date">{day.date.slice(8)}</span>
                   <span className="daycard__weekday">{weekday}</span>
                 </p>
-                {day.events.length === 0 ? (
-                  <span className="daycard__empty">событий нет</span>
-                ) : (
-                  day.events.map((event, index) => (
-                    <span className={EVENT_CLASS[event.tone]} key={`${event.kind}-${index}`}>
-                      {event.title}
-                    </span>
-                  ))
-                )}
+                {day.events.map((event, index) => (
+                  <span className={EVENT_CLASS[event.tone]} key={`${event.kind}-${index}`}>
+                    {event.title}
+                  </span>
+                ))}
               </div>
             );
           })}
         </div>
+        {/* Пустота названа один раз строкой под полосой, а не пять раз
+            повторённой фразой в пустых днях: повтор одной и той же подписи
+            читается как шум и мешает увидеть день, где событие есть. */}
+        {data.week.every((day) => day.events.length === 0) && (
+          <p className="t-sm t-muted">На этой неделе событий нет.</p>
+        )}
       </section>
 
       <section className="split">
@@ -192,7 +268,7 @@ export function Dashboard({
               Все объекты
             </button>
           </div>
-          <div className="cards">
+          <div className="counterstrip">
             {data.statuses.map((row) => (
               <Counter
                 key={row.status}
@@ -217,7 +293,7 @@ export function Dashboard({
               смет загружено: {data.projects.withEstimate} из {data.projects.total}
             </span>
           </div>
-          <div className="cards">
+          <div className="counterstrip">
             <Counter value={data.estimate.positions} label="Позиций в сметах" />
             <Counter value={data.estimate.findings} label="Находок в отчётах" tone="danger" />
             <Counter value={data.acceptance.accepted} label="Принято позиций" />
@@ -257,7 +333,6 @@ export function Dashboard({
         <div className="stack">
           <div className="section-head">
             <h2 className="t-h2">Последние события</h2>
-            <span className="t-sm t-muted">{user.organization.name}</span>
           </div>
           {data.feed.length === 0 ? (
             <div className="empty">
@@ -265,20 +340,7 @@ export function Dashboard({
               <p className="empty__text">Импорт сметы и смена статуса объекта попадают сюда.</p>
             </div>
           ) : (
-            <div className="feed">
-              {data.feed.map((event, index) => (
-                <div className="feed__item" key={`${event.at}-${index}`}>
-                  <span className="feed__time">{formatDateTime(event.at)}</span>
-                  <span>
-                    <span className="feed__title">
-                      {event.projectCode === null ? "" : `${event.projectCode} · `}
-                      {event.title}
-                    </span>
-                    {event.detail !== null && <span className="feed__detail"> {event.detail}</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <EventFeed events={data.feed} />
           )}
         </div>
       </section>

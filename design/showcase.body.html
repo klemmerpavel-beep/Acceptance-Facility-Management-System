@@ -393,31 +393,33 @@
       <h2 class="t-h2">Сводка портфеля</h2>
       <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
     </div>
-    <div class="cards">
-      <div class="panel panel--pad stack stack--tight">
+    <div class="figrow">
+      <div class="figure figrow__lead">
         <span class="figure__label">Портфель</span>
-        <div><p class="num num--start">4 250 234,35 ₽</p><p class="t-sm t-muted">итог смет для клиентов</p></div>
-        <div><p class="num num--start">455 382,25 ₽</p><p class="t-sm t-muted">сопровождение объектов</p></div>
+        <span class="figure__value">4 250 234,35 ₽</span>
+        <span class="figure__note">итог смет для клиентов</span>
+        <span class="figrow__second"><span class="num num--start">455 382,25 ₽</span><span class="figure__note">сопровождение объектов</span></span>
       </div>
-      <div class="panel panel--pad stack stack--tight">
+      <div class="figure">
         <span class="figure__label">Расхождения смет</span>
-        <div><p class="num num--start">3 794 852,10 ₽</p><p class="t-sm t-muted">пересчёт по позициям</p></div>
-        <div><p class="num num--start num--danger">438 800,00 ₽</p><p class="t-sm t-muted">недосчёт в файлах · объектов: 1</p></div>
+        <span class="figure__value">3 794 852,10 ₽</span>
+        <span class="figure__note">пересчёт по позициям</span>
+        <span class="figrow__second"><span class="num num--start num--danger">438 800,00 ₽</span><span class="figure__note">недосчёт в файлах · объектов: 1</span></span>
       </div>
     </div>
     <div class="weekstrip">
-      <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p><span class="daycard__empty">событий нет</span></div>
-      <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
       <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
-      <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
       <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--warn">Дедлайн R-38</span></div>
       <div class="daycard"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--danger">Просрочен R-99</span></div>
-      <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p><span class="daycard__empty">событий нет</span></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
     </div>
-    <div class="cards">
-      <button type="button" class="counter"><span class="counter__value">4</span><span class="counter__label">В работе</span></button>
-      <button type="button" class="counter"><span class="counter__value">132</span><span class="counter__label">Позиций в сметах</span></button>
-      <div class="counter counter--danger"><span class="counter__value">1</span><span class="counter__label">Просрочены</span></div>
+    <div class="counterstrip">
+      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span></button>
+      <button type="button" class="counterstrip__item"><span>Позиций в сметах</span><span class="counterstrip__count">132</span></button>
+      <div class="counterstrip__item"><span>Просрочены</span><span class="counterstrip__count counterstrip__count--danger">1</span></div>
     </div>
     <div class="panel panel--pad">
       <div class="feed">
