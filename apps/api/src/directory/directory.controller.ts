@@ -1,8 +1,14 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
-import type { ClientRow, WorkerRow } from "@priyomka/contracts";
+import { Body, Controller, Get, Patch, UseGuards } from "@nestjs/common";
+import {
+  updateOrganizationSchema,
+  type ClientRow,
+  type Organization,
+  type Unit,
+  type WorkerRow,
+} from "@priyomka/contracts";
 import { DirectoryService } from "./directory.service";
 import { SessionGuard } from "../auth/session.guard";
-import { RolesGuard } from "../common/roles.guard";
+import { Roles, RolesGuard } from "../common/roles.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
 
 @Controller()
@@ -13,6 +19,23 @@ export class DirectoryController {
   @Get("clients")
   clients(@CurrentUser() user: RequestUser): Promise<ClientRow[]> {
     return this.directory.clients(user);
+  }
+
+  @Get("organization")
+  organization(@CurrentUser() user: RequestUser): Promise<Organization> {
+    return this.directory.organization(user);
+  }
+
+  /** Правка карточки организации — только руководителю. */
+  @Patch("organization")
+  @Roles("OWNER")
+  updateOrganization(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<Organization> {
+    return this.directory.updateOrganization(user, updateOrganizationSchema.parse(body));
+  }
+
+  @Get("units")
+  units(@CurrentUser() user: RequestUser): Promise<Unit[]> {
+    return this.directory.units(user);
   }
 
   @Get("workers")

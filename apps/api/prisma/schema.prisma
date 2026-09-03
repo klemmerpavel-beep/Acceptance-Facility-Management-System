@@ -47,11 +47,23 @@ enum AuthPurpose {
   MAGIC_LINK
   /// Персональная ссылка прораба: он не вводит ничего вообще.
   FOREMAN_LINK
+  /// Код подтверждения из шести цифр, живёт пять минут.
+  SMS_CODE
 }
 
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
+  /// Часовой пояс организации в виде IANA: сроки объектов считаются в нём,
+  /// а не в поясе браузера того, кто открыл страницу.
+  timeZone  String   @default("Europe/Moscow")
+  /// Валюта учёта. Одна на организацию: смета, начисления и акты в разных
+  /// валютах не складываются.
+  currency  String   @default("RUB")
+  phone     String?
+  email     String?
+  /// Ключ логотипа в объектном хранилище. Сам файл в базе не лежит.
+  logoKey   String?
   createdAt DateTime @default(now())
 
   users    User[]
@@ -274,6 +286,9 @@ model AuthToken {
   purpose   AuthPurpose
   expiresAt DateTime
   usedAt    DateTime?
+  /// Число неудачных попыток обмена. Код из шести цифр перебирается за
+  /// миллион запросов, поэтому попытки ограничены, а не только время жизни.
+  attempts  Int         @default(0)
   createdAt DateTime    @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

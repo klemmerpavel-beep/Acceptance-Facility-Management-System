@@ -10,16 +10,31 @@ import { PrismaClient, Role, ProjectStatus, WorkerKind } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const карточкаОрганизации = {
+  name: "DOLGIY STUDIO",
+  timeZone: "Europe/Moscow",
+  phone: "+79000000001",
+  email: "studio@dolgiy.studio",
+};
+
 const org = await prisma.organization.upsert({
   where: { id: "00000000-0000-4000-8000-000000000001" },
-  update: {},
-  create: { id: "00000000-0000-4000-8000-000000000001", name: "DOLGIY STUDIO" },
+  update: карточкаОрганизации,
+  create: { id: "00000000-0000-4000-8000-000000000001", ...карточкаОрганизации },
 });
 
+/**
+ * Номер для входа на стенде. Он вымышленный, как и всё прочее наполнение:
+ * настоящих номеров в репозитории нет. Прорабу номер не заводится — он
+ * входит персональной ссылкой, без номера и кода (решение № 1 объёма).
+ */
 const owner = await prisma.user.upsert({
   where: { orgId_email: { orgId: org.id, email: "owner@dolgiy.studio" } },
-  update: { name: "Руководитель студии" },
-  create: { orgId: org.id, role: Role.OWNER, name: "Руководитель студии", email: "owner@dolgiy.studio" },
+  update: { name: "Руководитель студии", phone: "+79000000000" },
+  create: {
+    orgId: org.id, role: Role.OWNER, name: "Руководитель студии",
+    email: "owner@dolgiy.studio", phone: "+79000000000",
+  },
 });
 
 const foreman = await prisma.user.upsert({

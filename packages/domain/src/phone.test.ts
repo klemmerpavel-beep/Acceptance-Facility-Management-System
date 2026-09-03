@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatPhone, isPhoneNumber, maskPhone, parsePhone, type PhoneNumber } from "./phone.js";
+import {
+  formatPhone, isMobileNumber, isPhoneNumber, maskPhone, parseContactPhone, parsePhone,
+  type PhoneNumber,
+} from "./phone.js";
 
 const ok = (input: string): string => {
   const parsed = parsePhone(input);
@@ -75,14 +78,36 @@ describe("разбор номера телефона", () => {
   });
 });
 
+describe("контактный номер организации", () => {
+  it("городской код принимается: номер печатается на счёте, а не входит в систему", () => {
+    const parsed = parseContactPhone("+7 (473) 000-00-00");
+    expect(parsed.ok && parsed.value).toBe("+74730000000");
+  });
+
+  it("остальные правила те же, что и на входе", () => {
+    for (const input of ["+1 202 555-01-99", "+7 900 000", "телефон", ""]) {
+      expect(parseContactPhone(input).ok).toBe(false);
+    }
+  });
+
+  it("вход по городскому номеру всё равно невозможен", () => {
+    expect(parsePhone("+7 473 000-00-00").ok).toBe(false);
+  });
+});
+
 describe("показ номера", () => {
   const номер = "+79000000000" as PhoneNumber;
 
   it("признаёт нормализованный номер и отвергает прочее", () => {
     expect(isPhoneNumber("+79000000000")).toBe(true);
+    expect(isPhoneNumber("+74730000000")).toBe(true);
     expect(isPhoneNumber("89000000000")).toBe(false);
-    expect(isPhoneNumber("+74730000000")).toBe(false);
     expect(isPhoneNumber("+7900000000")).toBe(false);
+  });
+
+  it("мобильный номер отличается от городского", () => {
+    expect(isMobileNumber("+79000000000")).toBe(true);
+    expect(isMobileNumber("+74730000000")).toBe(false);
   });
 
   it("разбивает номер на группы и не рвёт его переносом", () => {

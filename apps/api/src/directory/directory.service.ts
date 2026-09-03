@@ -1,10 +1,15 @@
-import { Injectable } from "@nestjs/common";
-import type { ClientRow, WorkerRow } from "@priyomka/contracts";
+import { BadRequestException, Injectable } from "@nestjs/common";
+import type { ClientRow, Organization, Unit, UpdateOrganization, WorkerRow } from "@priyomka/contracts";
+import { parseContactPhone } from "@priyomka/domain";
+import { unitAliases } from "@priyomka/importer";
 import { basisPoints, clientTotals, kopecks, sum, type Kopecks } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { estimateFacts } from "../common/estimate-facts";
+
+/** Единица, ещё не встречавшаяся в сметах организации, своей строки не имеет. */
+const EMPTY_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * Справочники организации: заказчики и расчётные единицы сдельной оплаты.
@@ -46,6 +51,76 @@ export class DirectoryService {
         estimateTotal: sum(totals).toString(),
       };
     });
+  }
+
+  /** Карточка организации. Читают все роли: часовой пояс нужен и прорабу. */
+  async organization(user: RequestUser): Promise<Organization> {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: user.orgId },
+    });
+    return {
+      id: organization.id,
+      name: organization.name,
+      timeZone: organization.timeZone,
+      currency: "RUB",
+      phone: organization.phone,
+      email: organization.email,
+      logoKey: organization.logoKey,
+    };
+  }
+
+  /**
+   * Правка карточки. Пустая строка в необязательном поле означает «стереть»
+   * и приводится к null: иначе в базе останется пустая строка, которую
+   * интерфейс покажет как заполненное поле.
+   */
+  async updateOrganization(user: RequestUser, patch: UpdateOrganization): Promise<Organization> {
+    const blank = (value: string | null | undefined): string | null | undefined =>
+      value === undefined ? undefined : value === null || value.trim() === "" ? null : value.trim();
+
+    // Контактный номер приводится к тому же хранимому виду, что и номер
+    // входа, но городской код здесь допустим: телефон студии печатается
+    // на счёте, а входить по нему никто не будет.
+    const phone = blank(patch.phone);
+    let storedPhone: string | null | undefined = phone;
+    if (typeof phone === "string") {
+      const parsed = parseContactPhone(phone);
+      if (!parsed.ok) throw new BadRequestException({ message: parsed.message });
+      storedPhone = parsed.value;
+    }
+
+    await this.prisma.organization.update({
+      where: { id: user.orgId },
+      data: {
+        ...(patch.name === undefined ? {} : { name: patch.name.trim() }),
+        ...(patch.timeZone === undefined ? {} : { timeZone: patch.timeZone }),
+        ...(storedPhone === undefined ? {} : { phone: storedPhone }),
+        ...(blank(patch.email) === undefined ? {} : { email: blank(patch.email) }),
+      },
+    });
+    return this.organization(user);
+  }
+
+  /**
+   * Справочник единиц измерения с написаниями, которые импорт приводит сам.
+   * Показывается на вкладке «Смета» в настройках: сметчик должен видеть,
+   * что справочник умеет, до того как получит отчёт о расхождениях.
+   */
+  async units(user: RequestUser): Promise<Unit[]> {
+    const stored = await this.prisma.unit.findMany({
+      where: { orgId: user.orgId },
+      select: { id: true, code: true },
+    });
+    const aliases = unitAliases();
+    const byCode = new Map(stored.map((unit) => [unit.code, unit.id]));
+
+    return [...aliases].map(([code, spellings]) => ({
+      // Единица, ещё не встречавшаяся в сметах, в таблице отсутствует:
+      // справочник от этого не перестаёт её знать.
+      id: byCode.get(code) ?? EMPTY_ID,
+      name: code,
+      aliases: [...spellings],
+    }));
   }
 
   async workers(user: RequestUser): Promise<WorkerRow[]> {

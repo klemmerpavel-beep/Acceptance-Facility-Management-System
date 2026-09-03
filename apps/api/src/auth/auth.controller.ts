@@ -1,6 +1,13 @@
 import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { consumeTokenSchema, requestMagicLinkSchema, type CurrentUser as CurrentUserDto } from "@priyomka/contracts";
+import {
+  confirmSmsCodeSchema,
+  consumeTokenSchema,
+  requestMagicLinkSchema,
+  requestSmsCodeSchema,
+  type CurrentUser as CurrentUserDto,
+  type SmsCodeIssued,
+} from "@priyomka/contracts";
 import { AuthService } from "./auth.service";
 import { SESSION_COOKIE, SessionGuard } from "./session.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
@@ -23,6 +30,37 @@ export class AuthController {
       return { sent: true, token: issued.token };
     }
     return { sent: true };
+  }
+
+  /**
+   * Запрос кода подтверждения на номер телефона. Ответ одинаков для
+   * существующего и несуществующего номера. На стенде код приходит в теле
+   * и показывается на экране: отправщик сообщений подключается перед
+   * пилотом заменой одного вызова, экран при этом не меняется.
+   */
+  @Post("phone/request")
+  async requestSmsCode(@Body() body: unknown): Promise<SmsCodeIssued> {
+    const { phone } = requestSmsCodeSchema.parse(body);
+    const issued = await this.auth.issueSmsCode(phone);
+    return { sent: true, ...issued };
+  }
+
+  /** Обмен кода на сессию. Кука ставится так же, как при входе по ссылке. */
+  @Post("phone/confirm")
+  async confirmSmsCode(
+    @Body() body: unknown,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ ok: true }> {
+    const { phone, code } = confirmSmsCodeSchema.parse(body);
+    const { sessionToken, expiresAt } = await this.auth.confirmSmsCode(phone, code);
+    reply.setCookie(SESSION_COOKIE, sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env["NODE_ENV"] === "production",
+      path: "/",
+      expires: expiresAt,
+    });
+    return { ok: true };
   }
 
   @Post("foreman-link")

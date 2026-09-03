@@ -43,6 +43,22 @@ const AMBIGUOUS: ReadonlyMap<string, CanonicalUnit> = new Map([
   ["уп", "шт"],
 ]);
 
+/**
+ * Написания, сведённые к каждой канонической форме. Нужен экрану настроек:
+ * справочник обязан показывать, что именно он умеет приводить, иначе
+ * сметчик узнаёт об этом только по отчёту о расхождениях.
+ *
+ * Неоднозначные написания в список не входят: они не приводятся сами, а
+ * выносятся на подтверждение оператору.
+ */
+export function unitAliases(): ReadonlyMap<CanonicalUnit, readonly string[]> {
+  const grouped = new Map<CanonicalUnit, string[]>(CANONICAL_UNITS.map((unit) => [unit, []]));
+  for (const [spelling, unit] of UNAMBIGUOUS) {
+    grouped.get(unit)?.push(spelling);
+  }
+  return grouped;
+}
+
 export type UnitResolution =
   | { readonly kind: "resolved"; readonly unit: CanonicalUnit }
   | { readonly kind: "needs-decision"; readonly raw: string; readonly suggestion: CanonicalUnit }

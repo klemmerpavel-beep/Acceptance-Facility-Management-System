@@ -39,6 +39,75 @@ export const consumeTokenSchema = z.object({
   token: z.string().min(32, "Ссылка входа повреждена"),
 });
 
+/**
+ * Вход по номеру телефона. Схема проверяет только форму: правила номера
+ * живут в `parsePhone` доменного слоя и применяются на сервере — иначе
+ * они разойдутся между клиентом и API уже на второй правке.
+ */
+export const requestSmsCodeSchema = z.object({
+  phone: z.string().min(1, "Введите номер телефона").max(32, "Слишком длинный номер"),
+});
+export type RequestSmsCode = z.infer<typeof requestSmsCodeSchema>;
+
+export const confirmSmsCodeSchema = z.object({
+  phone: z.string().min(1, "Введите номер телефона").max(32, "Слишком длинный номер"),
+  code: z.string().regex(/^\d{6}$/, "Код состоит из шести цифр"),
+});
+export type ConfirmSmsCode = z.infer<typeof confirmSmsCodeSchema>;
+
+/**
+ * Ответ на запрос кода одинаков для существующего и несуществующего номера:
+ * иначе форма входа становится проверялкой того, кто есть в системе.
+ * На стенде код возвращается в теле и показывается на экране; в
+ * промышленной среде поле не приходит, а код уходит сообщением.
+ */
+export const smsCodeIssuedSchema = z.object({
+  sent: z.literal(true),
+  /** Номер в показном виде: `+7 (900) 000-00-00`. */
+  phone: z.string(),
+  code: z.string().optional(),
+  /** Через сколько секунд можно запросить код заново. */
+  retryAfterSeconds: z.number().int().positive(),
+});
+export type SmsCodeIssued = z.infer<typeof smsCodeIssuedSchema>;
+
+/** Часовой пояс в виде IANA: «Europe/Moscow». */
+export const timeZoneSchema = z
+  .string()
+  .regex(/^[A-Za-z]+\/[A-Za-z_+-]+$/, "Часовой пояс задаётся в виде Europe/Moscow");
+
+export const organizationSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  timeZone: timeZoneSchema,
+  /** Валюта учёта одна на организацию: суммы в разных валютах не складываются. */
+  currency: z.literal("RUB"),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+  logoKey: z.string().nullable(),
+});
+export type Organization = z.infer<typeof organizationSchema>;
+
+/** Правка организации: пустая строка в необязательном поле означает «стереть». */
+export const updateOrganizationSchema = z.object({
+  name: z.string().min(1, "Название обязательно").max(200).optional(),
+  timeZone: timeZoneSchema.optional(),
+  phone: z.string().max(32).nullable().optional(),
+  // Пустая строка означает «стереть»: форма присылает очищенное поле,
+  // а не отсутствие ключа, и это не повод отказывать в правке.
+  email: z.union([z.literal(""), z.string().email("Нужен адрес почты")]).nullable().optional(),
+});
+export type UpdateOrganization = z.infer<typeof updateOrganizationSchema>;
+
+/** Справочник единиц измерения организации. Ведётся на вкладке «Смета». */
+export const unitSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  /** Сколько написаний исходных файлов сведено к этой форме. */
+  aliases: z.array(z.string()),
+});
+export type Unit = z.infer<typeof unitSchema>;
+
 export const currentUserSchema = z.object({
   id: z.string().uuid(),
   role: roleSchema,

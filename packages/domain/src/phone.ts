@@ -55,13 +55,32 @@ const reject = (reason: PhoneRejection): PhoneParse =>
   ({ ok: false, reason, message: MESSAGES[reason] });
 
 /**
- * Приводит введённый номер к виду `+79000000000`.
+ * Приводит введённый номер к виду `+79000000000`, требуя мобильный код.
  *
  * Принимается: с кодом страны и без, с восьмёркой вместо плюс семи, с
  * любыми разделителями. Плюс допустим только первым знаком: «7+9…» —
  * опечатка, а не номер.
+ *
+ * Применяется на входе: код подтверждения идёт сообщением, а на городской
+ * номер сообщение не придёт.
  */
 export function parsePhone(input: string): PhoneParse {
+  return parse(input, { mobileOnly: true });
+}
+
+/**
+ * То же приведение без требования мобильного кода.
+ *
+ * Контактный телефон организации печатается на счёте и договоре и вполне
+ * может быть городским: требовать девятку значило бы запретить студии
+ * указать свой номер. Вход по такому номеру всё равно невозможен —
+ * там применяется `parsePhone`.
+ */
+export function parseContactPhone(input: string): PhoneParse {
+  return parse(input, { mobileOnly: false });
+}
+
+function parse(input: string, options: { mobileOnly: boolean }): PhoneParse {
   const trimmed = input.trim();
   if (trimmed.length === 0) return reject("empty");
 
@@ -92,12 +111,17 @@ export function parsePhone(input: string): PhoneParse {
     return reject("wrong-length");
   }
 
-  if (!national.startsWith(MOBILE_PREFIX)) return reject("not-mobile");
+  if (options.mobileOnly && !national.startsWith(MOBILE_PREFIX)) return reject("not-mobile");
   return { ok: true, value: `+7${national}` as PhoneNumber };
 }
 
-/** Уже нормализованный номер: `+7` и десять цифр, первая из них девятка. */
+/** Уже нормализованный номер: `+7` и десять цифр. */
 export function isPhoneNumber(value: string): value is PhoneNumber {
+  return /^\+7\d{10}$/.test(value);
+}
+
+/** Нормализованный номер, на который дойдёт сообщение с кодом. */
+export function isMobileNumber(value: string): value is PhoneNumber {
   return /^\+79\d{9}$/.test(value);
 }
 
