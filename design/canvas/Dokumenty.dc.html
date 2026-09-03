@@ -1,0 +1,257 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+      --ink:#0E1A28; --ink-2:#46586B; --ink-3:#5E6E81; --ink-inv:#FFFFFF;
+      --line:#DCE2E9; --line-strong:#B7C2CE;
+      --accent:#17457A; --accent-hover:#10365F; --accent-soft:#E4EBF4; --accent-ink:#FFFFFF;
+      --on-accent-fill:rgba(255,255,255,.16); --on-accent-track:rgba(255,255,255,.24);
+      --signal:#9C5E17; --signal-soft:#FBEEDC;
+      --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
+      --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#93A3B5; --line-inv:#25313F;
+      --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+      font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+    h1,h2,h3,p,dl,dd,dt,figure{margin:0}
+    a{color:var(--accent);text-underline-offset:2px}
+    a:hover{color:var(--accent-hover)}
+    .t-h1{font-size:24px;line-height:1.2;font-weight:600}
+    .t-h2{font-size:19px;line-height:1.25;font-weight:600}
+    .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-sm{font-size:13px;line-height:1.45}
+    .t-cap{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .t-muted{color:var(--ink-3)}
+    .t-secondary{color:var(--ink-2)}
+    .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
+      font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:999px;
+      font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}
+    .pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;
+      background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
+      font-size:13px;font-weight:600;letter-spacing:.02em}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
+      padding:0 16px;border:1px solid transparent;border-radius:10px;font-size:15px;
+      font-weight:500;font-family:inherit;cursor:pointer}
+    .btn--primary{background:var(--accent);color:var(--accent-ink)}
+    .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+    .btn--text{background:transparent;color:var(--accent);padding:0 8px}
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:6px}
+    .segmented__option{height:32px;padding:0 12px;border:0;background:transparent;border-radius:4px;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+      font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
+    .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
+      background:var(--accent);color:var(--accent-ink)}
+    .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
+    .appbar__nav{display:flex;gap:4px;margin-inline:auto}
+    .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
+      border-radius:999px;color:var(--accent-ink);text-decoration:none;font-size:13px;font-weight:500}
+    .appbar__link[aria-current="page"]{background:var(--surface);color:var(--accent)}
+    .cover{background:var(--accent);color:var(--accent-ink);padding:12px 24px 24px}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.72}
+    .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+    .tabs__item{padding:12px 0;border:0;border-bottom:2px solid transparent;background:none;
+      color:var(--ink-2);font-family:inherit;font-size:15px;cursor:pointer;white-space:nowrap}
+    .tabs__item[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field__label{font-size:13px;color:var(--ink-2)}
+    .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
+      border-radius:6px;color:var(--ink);font-family:inherit;font-size:15px}
+    .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .deflist__term{font-size:13px;color:var(--ink-2)}
+    .deflist__value{font-size:13px;text-align:right}
+    .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+      stroke-linecap:square;stroke-linejoin:miter}
+  </style>
+</helmet>
+<main style="padding:24px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start">
+
+  <section class="panel" style="padding:20px;display:flex;flex-direction:column;gap:16px">
+
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <button aria-label="Переместить блок" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+      </button>
+      <div style="flex:1 1 auto;border:1px solid var(--line);border-radius:10px;padding:12px 16px;text-align:center">
+        <p class="t-h3" style="line-height:2">ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ №
+          <span class="code-badge" style="font-size:11px;letter-spacing:.08em">док.: ПОРЯДКОВЫЙ НОМЕР</span>
+          К ДОГОВОРУ ПОДРЯДА №
+          <span class="code-badge" style="font-size:11px;letter-spacing:.08em">док.: НОМЕР ДОГОВОРА</span>
+          ОТ
+          <span class="code-badge" style="font-size:11px;letter-spacing:.08em">док.: ДАТА ДОГОВОРА</span>
+        </p>
+      </div>
+      <button aria-label="Удалить блок" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg>
+      </button>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <button aria-label="Переместить блок" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+      </button>
+      <div style="flex:1 1 auto;border:1px solid var(--line);border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;gap:16px">
+        <span class="code-badge" style="font-size:11px;letter-spacing:.08em">исп.: НАСЕЛЁННЫЙ ПУНКТ</span>
+        <span class="code-badge" style="font-size:11px;letter-spacing:.08em">док.: ДАТА СОЗДАНИЯ</span>
+      </div>
+      <button aria-label="Удалить блок" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg>
+      </button>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <button aria-label="Переместить блок" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+      </button>
+      <div style="flex:1 1 auto;border:1px solid var(--line);border-radius:10px;padding:12px 16px;line-height:2">
+        <span class="code-badge" style="font-size:11px;letter-spacing:.08em">исп.: НАИМЕНОВАНИЕ</span>,
+        <span class="code-badge" style="font-size:11px;letter-spacing:.08em">исп.: РЕКВИЗИТЫ</span>,
+        далее именуемое «<strong>Исполнитель</strong>», с одной стороны, и
+        <span class="code-badge" style="font-size:11px;letter-spacing:.08em">к-агент: НАИМЕНОВАНИЕ</span>,
+        далее именуемый «<strong>Клиент</strong>», с другой стороны, заключили настоящее Дополнительное соглашение о нижеследующем:
+      </div>
+      <button aria-label="Удалить блок" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger);margin-top:8px">
+        <svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg>
+      </button>
+    </div>
+
+    <div style="border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="code-badge">1</span>
+        <span class="t-h3">Предмет Дополнительного соглашения</span>
+      </div>
+      <div style="padding-left:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <span class="code-badge">1.1</span>
+          <p class="t-sm" style="flex:1 1 auto">Стороны пришли к соглашению о внесении изменений в график производства работ (Приложение № 2 к Договору подряда), изложив его в обновлённой редакции.</p>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <span class="code-badge">1.2</span>
+          <p class="t-sm" style="flex:1 1 auto">Остальные положения Договора подряда, не упомянутые в настоящем Дополнительном соглашении, остаются неизменными.</p>
+        </div>
+        <button class="btn btn--text" style="align-self:flex-start;padding:0">
+          <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          Пункт
+        </button>
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:12px">
+      <input type="checkbox" style="inline-size:24px;block-size:24px;accent-color:var(--accent)">
+      <span class="t-body">Реквизиты сторон</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:12px">
+      <input type="checkbox" style="inline-size:24px;block-size:24px;accent-color:var(--accent)">
+      <span class="t-body">Колонтитул</span>
+    </label>
+
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn btn--primary">Сохранить изменения</button>
+    </div>
+  </section>
+
+  <aside style="display:flex;flex-direction:column;gap:12px">
+
+    <div class="panel" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px">
+        <svg class="icon" aria-hidden="true"><path d="M5 4h10M10 4v12M7 16h6"/></svg>
+        <span class="t-h3">Стилизация</span>
+      </span>
+      <span class="segmented">
+        <button class="segmented__option" style="font-weight:700">Ж</button>
+        <button class="segmented__option" style="font-style:italic">К</button>
+      </span>
+    </div>
+
+    <div class="panel" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px">
+        <svg class="icon" aria-hidden="true"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg>
+        <span class="t-h3">Блоки</span>
+      </span>
+      <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
+    </div>
+
+    <div class="panel" style="overflow:hidden">
+      <div style="padding:12px 16px;background:var(--surface-2);display:flex;align-items:center;justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px">
+          <svg class="icon" aria-hidden="true"><path d="M7 4 4 10l3 6M13 4l3 6-3 6"/></svg>
+          <span class="t-h3">Переменные</span>
+        </span>
+        <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="m5 12 5-5 5 5"/></svg>
+      </div>
+
+      <div style="padding:16px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <p class="t-h3" style="margin-bottom:8px">Организация</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Наименование</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Телефон</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Почта</span>
+          </div>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:0">
+        <div>
+          <p class="t-h3" style="margin-bottom:8px">Исполнитель</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Наименование</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Реквизиты</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Банковские реквизиты</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Населённый пункт</span>
+          </div>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:0">
+        <div>
+          <p class="t-h3" style="margin-bottom:8px">Контрагент</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Наименование</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Реквизиты</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Телефон</span>
+          </div>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:0">
+        <div>
+          <p class="t-h3" style="margin-bottom:8px">Документ</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Порядковый номер</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Дата создания</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Номер договора</span>
+          </div>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:0">
+        <div>
+          <p class="t-h3" style="margin-bottom:8px">Объект</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Код</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Адрес</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Площадь</span>
+            <span class="code-badge" style="font-size:11px;letter-spacing:.08em">Итог сметы</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="t-sm t-muted">Макет отложенного контура. Переменная подставляется при генерации файла и в шаблоне остаётся видимой меткой.</p>
+  </aside>
+</main>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+      --ink:#0E1A28; --ink-2:#46586B; --ink-3:#5E6E81; --ink-inv:#FFFFFF;
+      --line:#DCE2E9; --line-strong:#B7C2CE;
+      --accent:#17457A; --accent-hover:#10365F; --accent-soft:#E4EBF4; --accent-ink:#FFFFFF;
+      --on-accent-fill:rgba(255,255,255,.16); --on-accent-track:rgba(255,255,255,.24);
+      --signal:#9C5E17; --signal-soft:#FBEEDC;
+      --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
+      --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#93A3B5; --line-inv:#25313F;
+      --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+      font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+    h1,h2,h3,p,dl,dd,dt,figure{margin:0}
+    a{color:var(--accent);text-underline-offset:2px}
+    a:hover{color:var(--accent-hover)}
+    .t-h1{font-size:24px;line-height:1.2;font-weight:600}
+    .t-h2{font-size:19px;line-height:1.25;font-weight:600}
+    .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-sm{font-size:13px;line-height:1.45}
+    .t-cap{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .t-muted{color:var(--ink-3)}
+    .t-secondary{color:var(--ink-2)}
+    .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
+      font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:999px;
+      font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}
+    .pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;
+      background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
+      font-size:13px;font-weight:600;letter-spacing:.02em}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
+      padding:0 16px;border:1px solid transparent;border-radius:10px;font-size:15px;
+      font-weight:500;font-family:inherit;cursor:pointer}
+    .btn--primary{background:var(--accent);color:var(--accent-ink)}
+    .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+    .btn--text{background:transparent;color:var(--accent);padding:0 8px}
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:6px}
+    .segmented__option{height:32px;padding:0 12px;border:0;background:transparent;border-radius:4px;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+      font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
+    .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
+      background:var(--accent);color:var(--accent-ink)}
+    .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
+    .appbar__nav{display:flex;gap:4px;margin-inline:auto}
+    .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
+      border-radius:999px;color:var(--accent-ink);text-decoration:none;font-size:13px;font-weight:500}
+    .appbar__link[aria-current="page"]{background:var(--surface);color:var(--accent)}
+    .cover{background:var(--accent);color:var(--accent-ink);padding:12px 24px 24px}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.72}
+    .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+    .tabs__item{padding:12px 0;border:0;border-bottom:2px solid transparent;background:none;
+      color:var(--ink-2);font-family:inherit;font-size:15px;cursor:pointer;white-space:nowrap}
+    .tabs__item[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field__label{font-size:13px;color:var(--ink-2)}
+    .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
+      border-radius:6px;color:var(--ink);font-family:inherit;font-size:15px}
+    .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .deflist__term{font-size:13px;color:var(--ink-2)}
+    .deflist__value{font-size:13px;text-align:right}
+    .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+      stroke-linecap:square;stroke-linejoin:miter}
+  </style>
+</helmet>
+<div style="min-height:100%;padding:32px 48px;display:flex;flex-direction:column;gap:48px">
+
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--accent)">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M5.5 10.5 8.5 13.5 14.5 7"/></svg>
+    </span>
+    <span class="t-h3">Приёмка</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:48px;max-width:1040px">
+
+    <section style="display:flex;flex-direction:column;gap:24px">
+      <p class="t-cap">Шаг 1</p>
+      <h1 class="t-h1" style="color:var(--accent)">Вход или регистрация</h1>
+      <div class="field">
+        <span class="field__label t-cap">Введите номер телефона</span>
+        <div style="display:flex">
+          <select class="input" style="width:132px;border-radius:6px 0 0 6px;border-right:0">
+            <option>Россия</option>
+          </select>
+          <input class="input" style="flex:1 1 auto;border-radius:0 6px 6px 0;font-family:var(--font-mono)" placeholder="+7 (___) ___-__-__">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn btn--primary">Продолжить</button>
+      </div>
+      <p class="t-sm t-muted" style="max-width:44ch">Пароля нет. Ответ одинаков для существующего и несуществующего номера — форма не сообщает, кто есть в системе.</p>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:24px">
+      <p class="t-cap">Шаг 2</p>
+      <h1 class="t-h1" style="color:var(--accent)">Код подтверждения</h1>
+      <div class="field">
+        <span class="field__label t-cap">Отправлен на +7 (900) 000-00-00</span>
+        <input class="input" style="width:220px;font-family:var(--font-mono);font-size:24px;letter-spacing:.32em;height:48px;text-align:center" value="418 302">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <button class="btn btn--text" style="padding:0">Отправить снова через 47 с</button>
+        <button class="btn btn--primary">Войти</button>
+      </div>
+      <div style="padding:12px 16px;border:1px solid var(--signal);background:var(--signal-soft);border-radius:10px">
+        <p class="t-sm"><strong>На стенде код показан здесь.</strong> Отправка сообщением включится после договора с оператором: заменяется отправщик, экран не меняется.</p>
+      </div>
+    </section>
+  </div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:0;max-width:1040px">
+
+  <div style="max-width:1040px;display:flex;gap:48px">
+    <p class="t-sm t-muted" style="max-width:52ch">Прораб входит иначе — по персональной ссылке, без номера и кода. Барьер входа для полевого пользователя снят целиком: иначе доля отмеченных позиций измеряет порог освоения, а не продукт.</p>
+    <p class="t-sm t-muted" style="max-width:36ch">Ссылка руководителя на почту сохраняется запасным путём.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

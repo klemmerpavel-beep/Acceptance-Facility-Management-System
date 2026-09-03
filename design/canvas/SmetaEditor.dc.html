@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+      --ink:#0E1A28; --ink-2:#46586B; --ink-3:#5E6E81; --ink-inv:#FFFFFF;
+      --line:#DCE2E9; --line-strong:#B7C2CE;
+      --accent:#17457A; --accent-hover:#10365F; --accent-soft:#E4EBF4; --accent-ink:#FFFFFF;
+      --on-accent-fill:rgba(255,255,255,.16); --on-accent-track:rgba(255,255,255,.24);
+      --signal:#9C5E17; --signal-soft:#FBEEDC;
+      --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
+      --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#93A3B5; --line-inv:#25313F;
+      --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+      font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+    h1,h2,h3,p,dl,dd,dt,figure{margin:0}
+    a{color:var(--accent);text-underline-offset:2px}
+    a:hover{color:var(--accent-hover)}
+    .t-h1{font-size:24px;line-height:1.2;font-weight:600}
+    .t-h2{font-size:19px;line-height:1.25;font-weight:600}
+    .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-sm{font-size:13px;line-height:1.45}
+    .t-cap{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .t-muted{color:var(--ink-3)}
+    .t-secondary{color:var(--ink-2)}
+    .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
+      font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:999px;
+      font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}
+    .pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;
+      background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
+      font-size:13px;font-weight:600;letter-spacing:.02em}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
+      padding:0 16px;border:1px solid transparent;border-radius:10px;font-size:15px;
+      font-weight:500;font-family:inherit;cursor:pointer}
+    .btn--primary{background:var(--accent);color:var(--accent-ink)}
+    .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+    .btn--text{background:transparent;color:var(--accent);padding:0 8px}
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:6px}
+    .segmented__option{height:32px;padding:0 12px;border:0;background:transparent;border-radius:4px;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+      font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
+    .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
+      background:var(--accent);color:var(--accent-ink)}
+    .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
+    .appbar__nav{display:flex;gap:4px;margin-inline:auto}
+    .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
+      border-radius:999px;color:var(--accent-ink);text-decoration:none;font-size:13px;font-weight:500}
+    .appbar__link[aria-current="page"]{background:var(--surface);color:var(--accent)}
+    .cover{background:var(--accent);color:var(--accent-ink);padding:12px 24px 24px}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.72}
+    .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+    .tabs__item{padding:12px 0;border:0;border-bottom:2px solid transparent;background:none;
+      color:var(--ink-2);font-family:inherit;font-size:15px;cursor:pointer;white-space:nowrap}
+    .tabs__item[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field__label{font-size:13px;color:var(--ink-2)}
+    .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
+      border-radius:6px;color:var(--ink);font-family:inherit;font-size:15px}
+    .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .deflist__term{font-size:13px;color:var(--ink-2)}
+    .deflist__value{font-size:13px;text-align:right}
+    .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+      stroke-linecap:square;stroke-linejoin:miter}
+  </style>
+</helmet>
+<main style="padding:24px;display:flex;flex-direction:column;gap:16px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <h2 class="t-h1">Смета</h2>
+      <span class="t-sm t-muted">редакция 3 · черновик</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="pill pill--warn">Правки пишутся в журнал</span>
+      <button class="btn btn--secondary">Готово</button>
+    </div>
+  </div>
+
+  <section style="border:1px solid var(--accent);border-radius:14px;padding:12px;background:var(--surface)">
+
+    <div style="display:flex;align-items:center;gap:12px;padding:0 4px 12px">
+      <button aria-label="Переместить этап" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)">
+        <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+      </button>
+      <span class="t-cap">Этап</span>
+      <select class="input" style="flex:1 1 auto;max-width:520px">
+        <option>Штукатурные работы</option>
+      </select>
+      <button class="btn btn--secondary" style="margin-left:auto">Свернуть этап</button>
+    </div>
+
+    <div style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:12px;display:flex;flex-direction:column;gap:12px">
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button aria-label="Переместить помещение" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)">
+          <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+        </button>
+        <span class="t-cap">Помещение</span>
+        <select class="input" style="flex:1 1 auto;max-width:460px">
+          <option>Коридор</option>
+        </select>
+        <span class="t-sm t-muted" style="margin-left:auto">из замера · 12,40 м²</span>
+        <button class="btn btn--secondary">Свернуть помещение</button>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px;display:flex;flex-direction:column;gap:12px">
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <button aria-label="Переместить категорию" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)">
+            <svg class="icon" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg>
+          </button>
+          <span class="t-cap">Категория</span>
+          <select class="input" style="flex:1 1 auto;max-width:420px">
+            <option>Стены</option>
+          </select>
+          <button class="btn btn--primary" style="margin-left:auto">
+            <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+            Шаблон
+          </button>
+          <button class="btn btn--secondary">Свернуть категорию</button>
+        </div>
+
+        <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:13px">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th class="t-cap" style="text-align:left;padding:0 12px 8px">Наименование</th>
+              <th class="t-cap" style="text-align:left;padding:0 12px 8px;width:120px">Ед. изм.</th>
+              <th class="t-cap" style="text-align:right;padding:0 12px 8px;width:120px">Цена</th>
+              <th class="t-cap" style="text-align:right;padding:0 12px 8px;width:120px">Кол-во</th>
+              <th class="t-cap" style="text-align:right;padding:0 12px 8px;width:150px">Стоимость</th>
+              <th style="width:48px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 0"><button aria-label="Переместить строку" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg></button></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px" value="Грунтование стен"></td>
+              <td style="padding:4px 8px"><select class="input" style="width:100%;height:36px"><option>м²</option></select></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="37,00"></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="37,600"></td>
+              <td class="num" style="padding:4px 12px">1 391,20 ₽</td>
+              <td style="padding:4px 0"><button aria-label="Удалить строку" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg></button></td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0"><button aria-label="Переместить строку" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg></button></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px" value="Установка маяков"></td>
+              <td style="padding:4px 8px"><select class="input" style="width:100%;height:36px"><option>м²</option></select></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="125,00"></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="37,600"></td>
+              <td class="num" style="padding:4px 12px">4 700,00 ₽</td>
+              <td style="padding:4px 0"><button aria-label="Удалить строку" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg></button></td>
+            </tr>
+            <tr style="background:var(--accent-soft)">
+              <td style="padding:4px 0"><button aria-label="Переместить строку" style="border:0;background:none;padding:4px;cursor:grabbing;color:var(--accent)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg></button></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;border-color:var(--accent)" value="Штукатурка стен по маякам (до 50 мм)"></td>
+              <td style="padding:4px 8px"><select class="input" style="width:100%;height:36px"><option>м²</option></select></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="512,00"></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="37,600"></td>
+              <td class="num" style="padding:4px 12px">19 251,20 ₽</td>
+              <td style="padding:4px 0"><button aria-label="Удалить строку" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg></button></td>
+            </tr>
+            <tr>
+              <td colspan="7" style="padding:0"><div style="height:2px;background:var(--accent);border-radius:999px;margin:2px 36px"></div></td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0"><button aria-label="Переместить строку" style="border:0;background:none;padding:4px;cursor:grab;color:var(--ink-3)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M7 5h.01M7 10h.01M7 15h.01M13 5h.01M13 10h.01M13 15h.01"/></svg></button></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px" value="Демонтаж маяков"></td>
+              <td style="padding:4px 8px"><select class="input" style="width:100%;height:36px"><option>м²</option></select></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="56,00"></td>
+              <td style="padding:4px 8px"><input class="input" style="width:100%;height:36px;text-align:right;font-family:var(--font-mono)" value="37,600"></td>
+              <td class="num" style="padding:4px 12px">2 105,60 ₽</td>
+              <td style="padding:4px 0"><button aria-label="Удалить строку" style="border:0;background:none;padding:4px;cursor:pointer;color:var(--danger)"><svg class="icon icon--sm" style="width:16px;height:16px" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M7 6l1 10h4l1-10"/></svg></button></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5" class="t-sm t-secondary" style="padding:12px;border-top:2px solid var(--line-strong)">Итого по категории «Стены»</td>
+              <td class="num" style="padding:12px;border-top:2px solid var(--line-strong);font-weight:600">27 448,00 ₽</td>
+              <td style="border-top:2px solid var(--line-strong)"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <button class="btn btn--secondary" style="align-self:flex-start">
+          <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          Позиция
+        </button>
+      </div>
+
+      <button class="btn btn--secondary" style="align-self:flex-start">
+        <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+        Категория
+      </button>
+    </div>
+
+    <div style="padding-top:12px">
+      <button class="btn btn--text">
+        <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+        Помещение
+      </button>
+    </div>
+  </section>
+
+  <button class="btn btn--secondary" style="align-self:flex-start">
+    <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+    Этап
+  </button>
+
+  <p class="t-sm t-muted" style="max-width:76ch">Количество и наименование правятся на месте с записью в журнал. Правка цены или ставки оплаты труда порождает новую редакцию сметы: принятые позиции остаются привязаны к своей.</p>
+</main>
+</x-dc>
+</body>
+</html>
