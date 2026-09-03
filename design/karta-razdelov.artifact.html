@@ -1,0 +1,499 @@
+<title>Карта разделов Приёмки</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F4F6F8;
+    --surface: #FFFFFF;
+    --surface-2: #EDF0F4;
+    --ink: #0E1A28;
+    --ink-2: #46586B;
+    --ink-3: #5E6E81;
+    --line: #DCE2E9;
+    --line-strong: #B7C2CE;
+    --accent: #17457A;
+    --accent-soft: #E4EBF4;
+    --accent-ink: #FFFFFF;
+    --ok: #2C7753;
+    --ok-soft: #E1F0E8;
+    --warn: #8E670C;
+    --warn-soft: #FAF0D7;
+    --danger: #B3261E;
+    --danger-soft: #FBE4E2;
+    --signal: #9C5E17;
+    --signal-soft: #FBEEDC;
+    --neutral-soft: #E9EDF1;
+    --font-ui: "Golos Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1219;
+      --surface: #141B24;
+      --surface-2: #1C2530;
+      --ink: #E8EDF2;
+      --ink-2: #A8B6C4;
+      --ink-3: #7E8C9E;
+      --line: #28323E;
+      --line-strong: #3C4854;
+      --accent: #6FA3DC;
+      --accent-soft: #1B2A3C;
+      --accent-ink: #0D1219;
+      --ok: #63B08A;
+      --ok-soft: #172A22;
+      --warn: #D9B24E;
+      --warn-soft: #2B2517;
+      --danger: #E0817A;
+      --danger-soft: #2E1B19;
+      --signal: #E0A155;
+      --signal-soft: #2E2314;
+      --neutral-soft: #1E2731;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0D1219;
+    --surface: #141B24;
+    --surface-2: #1C2530;
+    --ink: #E8EDF2;
+    --ink-2: #A8B6C4;
+    --ink-3: #7E8C9E;
+    --line: #28323E;
+    --line-strong: #3C4854;
+    --accent: #6FA3DC;
+    --accent-soft: #1B2A3C;
+    --accent-ink: #0D1219;
+    --ok: #63B08A;
+    --ok-soft: #172A22;
+    --warn: #D9B24E;
+    --warn-soft: #2B2517;
+    --danger: #E0817A;
+    --danger-soft: #2E1B19;
+    --signal: #E0A155;
+    --signal-soft: #2E2314;
+    --neutral-soft: #1E2731;
+  }
+
+  :root[data-theme="light"] { color-scheme: light; }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1040px;
+    margin-inline: auto;
+    padding: 48px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+
+  h1, h2, h3, p, dl, dd, dt, figure, table { margin: 0; }
+
+  .lead { display: flex; flex-direction: column; gap: 16px; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 { font-size: 32px; line-height: 1.15; font-weight: 600; text-wrap: balance; letter-spacing: -.01em; }
+  .lead p { max-width: 68ch; color: var(--ink-2); }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+  h2 {
+    font-size: 24px;
+    line-height: 1.2;
+    font-weight: 600;
+    text-wrap: balance;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  h2 .count {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-3);
+    margin-left: 8px;
+  }
+  section > p { max-width: 68ch; color: var(--ink-2); }
+
+  /* — правила: не нумерованный список, это набор ограничений, а не порядок — */
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .rule { background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .rule__title { font-weight: 600; }
+  .rule__text { font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+
+  /* — таблицы — */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 640px; }
+  caption { text-align: left; font-size: 13px; color: var(--ink-3); padding-bottom: 8px; }
+  th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 12px 8px;
+    white-space: nowrap;
+  }
+  td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+  tbody tr:hover td { background: var(--surface-2); }
+  td.name { font-weight: 500; white-space: nowrap; }
+  td.q { color: var(--ink-2); }
+  .go { font-family: var(--font-mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+
+  /* — рельс навигации — */
+  .rail { display: flex; flex-direction: column; gap: 24px; }
+  .rail__group { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .node {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .node--plain { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
+  .branches { display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--line-strong); padding-left: 20px; }
+  .branch { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; position: relative; }
+  .branch::before {
+    content: "";
+    position: absolute;
+    left: -20px;
+    top: 11px;
+    width: 12px;
+    height: 2px;
+    background: var(--line-strong);
+  }
+  .branch__how {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+    min-width: 168px;
+  }
+  .branch__to { font-weight: 500; }
+  .branch__note { font-size: 13px; color: var(--ink-2); }
+
+  /* — конвейер данных — */
+  .flow { display: flex; flex-direction: column; gap: 16px; }
+  .flow__line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .step {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    min-width: 150px;
+  }
+  .step--core { border: 2px solid var(--accent); background: var(--accent-soft); }
+  .step__name { font-weight: 600; }
+  .step__what { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+  .arrow { flex: none; color: var(--line-strong); }
+  .fan { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .consequence {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .consequence b { color: inherit; }
+  .consequence span { font-size: 13px; color: var(--ink-2); }
+  .aside {
+    border-left: 2px solid var(--signal);
+    background: var(--signal-soft);
+    padding: 12px 16px;
+    border-radius: 0 10px 10px 0;
+    font-size: 13px;
+    color: var(--ink);
+    max-width: 68ch;
+  }
+
+  /* — состояния разделов — */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--neutral-soft);
+    color: var(--ink-2);
+  }
+  .pill--ok { background: var(--ok-soft); color: var(--ok); }
+  .pill--warn { background: var(--warn-soft); color: var(--warn); }
+  .pill--off { background: var(--danger-soft); color: var(--danger); }
+
+  .taps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .tap { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .tap__who { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .tap__task { font-weight: 500; }
+  .tap__path { font-size: 13px; color: var(--ink-2); }
+  .tap__count { font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 20px; font-size: 13px; color: var(--ink-3); max-width: 68ch; }
+
+  @media (max-width: 720px) {
+    .page { padding: 32px 16px 64px; gap: 40px; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 19px; }
+    .rail__group { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .branch__how { min-width: 0; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="lead">
+    <p class="eyebrow">Приёмка · карта разделов · редакция 1.0</p>
+    <h1>Что с чем связано и что на каждой странице главное</h1>
+    <p>Состав разделов повторяет референс — задача стадии в том, чтобы устройство совпало. Отличия вводятся после, отдельным решением. Документ нормативен: экрана, которого здесь нет, не строим; перехода, которого здесь нет, не рисуем.</p>
+  </header>
+
+  <section>
+    <h2>Шесть ограничений<span class="count">действуют на каждом экране</span></h2>
+    <p>Референс перегружает первый экран: три денежные карточки, недельная лента, девять счётчиков и лента видео — четыре разнородных блока до первой прокрутки. Повторяя устройство, мы принимаем ограничения, которые не дают этому повториться.</p>
+    <div class="rules">
+      <div class="rule">
+        <span class="rule__title">Один вопрос на экран</span>
+        <span class="rule__text">У каждой страницы ниже назван вопрос, на который она отвечает. Блок, не работающий на этот вопрос, переносится или удаляется.</span>
+      </div>
+      <div class="rule">
+        <span class="rule__title">Один первичный призыв</span>
+        <span class="rule__text">Ровно одна кнопка первичного вида. Остальные действия — вторичные или текстовые.</span>
+      </div>
+      <div class="rule">
+        <span class="rule__title">Три касания до действия</span>
+        <span class="rule__text">От шапки до любого рабочего действия — не больше трёх переходов. У прораба порог жёстче и измеряется секундомером.</span>
+      </div>
+      <div class="rule">
+        <span class="rule__title">Счётчик ведёт в список</span>
+        <span class="rule__text">Число, по которому нельзя перейти, заставляет искать руками то, что система уже посчитала.</span>
+      </div>
+      <div class="rule">
+        <span class="rule__title">Пустое состояние называет работу</span>
+        <span class="rule__text">Не «нет данных», а что здесь появится и на какой стадии.</span>
+      </div>
+      <div class="rule">
+        <span class="rule__title">Нет величины — ноль с подписью</span>
+        <span class="rule__text">Правдоподобное число вместо честного нуля разрушает доверие к остальным числам на экране.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Разделы верхнего уровня<span class="count">восемь пунктов шапки</span></h2>
+    <p>Слово «Объекты» вместо «Проекты» референса — терминология заказчика, закреплённая нормативом. Раскладка при этом совпадает полностью.</p>
+    <div class="scroll">
+      <table>
+        <caption>Меню быстрых действий в шапке — ярлыки к этим же экранам, а не отдельные страницы.</caption>
+        <thead>
+          <tr><th>Раздел</th><th>Вопрос экрана</th><th>Ключевое действие</th><th>Ведёт в</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Главная</td><td class="q">Что требует внимания сегодня</td><td>Нажать счётчик или строку срока</td><td class="go">объекты, карточка, заявки</td></tr>
+          <tr><td class="name">Заявки</td><td class="q">Кто в воронке и что застряло</td><td>Перевести заявку в следующую колонку</td><td class="go">карточка заявки</td></tr>
+          <tr><td class="name">Объекты</td><td class="q">Где что происходит</td><td>Открыть объект</td><td class="go">карточка объекта</td></tr>
+          <tr><td class="name">Контрагенты</td><td class="q">С кем работаем</td><td>Открыть заказчика</td><td class="go">его объекты</td></tr>
+          <tr><td class="name">Персонал</td><td class="q">Кто работает и сколько начислено</td><td>Открыть бригаду</td><td class="go">свод начислений</td></tr>
+          <tr><td class="name">Бухгалтерия</td><td class="q">Что оплачено, а что нет</td><td>Отметить платёж</td><td class="go">счёт, акт, объект</td></tr>
+          <tr><td class="name">Документы</td><td class="q">Какие бумаги выпущены</td><td>Выпустить документ</td><td class="go">конструктор шаблона</td></tr>
+          <tr><td class="name">Настройки</td><td class="q">Как устроена система</td><td>Сохранить изменения</td><td class="go">справочники</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Карточка объекта<span class="count">восемь вкладок и несменяемая сводка</span></h2>
+    <p>Устроена как в референсе: слева сводка, справа рабочие вкладки. Сводка видна на всех вкладках — за деньгами приходят чаще, чем за чем-либо ещё, и прятать их за переключением нельзя. В левой колонке: итог сметы для клиента, статус со сменой, почтовый шлюз чеков, срок с кольцом готовности, сведения об объекте.</p>
+    <div class="scroll">
+      <table>
+        <caption>Служебная вкладка «Импорт» видна только руководителю: она наполняет смету из книги Excel и показывает отчёт о расхождениях.</caption>
+        <thead>
+          <tr><th>Вкладка</th><th>Вопрос</th><th>Ключевое действие</th><th>Получает</th><th>Отдаёт</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Обзор</td><td class="q">В каком состоянии объект</td><td>Сменить статус</td><td class="q">итоги вкладок</td><td class="go">событие в журнал</td></tr>
+          <tr><td class="name">Замер</td><td class="q">Сколько чего в помещениях</td><td>Внести помещение</td><td class="q">—</td><td class="go">площади в смету</td></tr>
+          <tr><td class="name">Смета</td><td class="q">Из чего складывается цена</td><td>Править позицию</td><td class="q">площади из замера</td><td class="go">разделы в график, позиции в приёмку</td></tr>
+          <tr><td class="name">Работа</td><td class="q">Что и когда делается</td><td>Двигать этап</td><td class="q">разделы сметы</td><td class="go">сроки и бригаду в приёмку</td></tr>
+          <tr><td class="name">Отчёт</td><td class="q">Что сделано на объекте</td><td>Загрузить фотоотчёт</td><td class="q">—</td><td class="go">приложение к акту</td></tr>
+          <tr><td class="name">Приёмка</td><td class="q">Что принято и сколько начислено</td><td>Принять пакет позиций</td><td class="q">позиции, бригада от этапа</td><td class="go">начисление, транш, акт, прогресс</td></tr>
+          <tr><td class="name">Чеки</td><td class="q">Сколько ушло на материалы</td><td>Подтвердить черновик расхода</td><td class="q">письмо с кодом объекта</td><td class="go">расход объекта</td></tr>
+          <tr><td class="name">Документы</td><td class="q">Какие бумаги по объекту</td><td>Сформировать акт</td><td class="q">принятые позиции</td><td class="go">счёт на оплату</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Навигация<span class="count">куда человек переходит</span></h2>
+    <p>Возврат всегда однозначен: хлебные крошки в обложке ведут на уровень выше, раздел в шапке — на верхний уровень. Модальных тупиков нет.</p>
+    <div class="rail">
+
+      <div class="rail__group">
+        <span class="node">Главная</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">счётчик статуса</span><span class="branch__to">Объекты</span><span class="branch__note">фильтр уже наложен</span></div>
+          <div class="branch"><span class="branch__how">строка ближайшего срока</span><span class="branch__to">Карточка объекта</span><span class="branch__note">просрочка первой</span></div>
+          <div class="branch"><span class="branch__how">счётчик воронки</span><span class="branch__to">Заявки</span><span class="branch__note">нужная колонка</span></div>
+          <div class="branch"><span class="branch__how">событие ленты</span><span class="branch__to">Карточка объекта</span><span class="branch__note">на вкладку события</span></div>
+        </div>
+      </div>
+
+      <div class="rail__group">
+        <span class="node">Заявки</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">карточка заявки</span><span class="branch__to">Конвертация</span><span class="branch__note">заказчик и объект заводятся вместе</span></div>
+        </div>
+      </div>
+
+      <div class="rail__group">
+        <span class="node">Объекты</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">строка списка</span><span class="branch__to">Карточка объекта</span><span class="branch__note">и далее восемь вкладок</span></div>
+        </div>
+      </div>
+
+      <div class="rail__group">
+        <span class="node node--plain">Контрагенты</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">строка заказчика</span><span class="branch__to">Его объекты</span><span class="branch__note">итог смет по заказчику</span></div>
+        </div>
+      </div>
+
+      <div class="rail__group">
+        <span class="node node--plain">Персонал</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">строка бригады</span><span class="branch__to">Свод начислений</span><span class="branch__note">за транш, за неделю, всего</span></div>
+        </div>
+      </div>
+
+      <div class="rail__group">
+        <span class="node node--plain">Бухгалтерия</span>
+        <div class="branches">
+          <div class="branch"><span class="branch__how">назначение платежа</span><span class="branch__to">Счёт и акт</span><span class="branch__note">и оттуда в объект</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Поток данных<span class="count">что во что превращается</span></h2>
+    <p>Это второй вид связи, и путать его с навигацией нельзя: здесь человек ничего не переносит руками.</p>
+
+    <div class="flow">
+      <div class="flow__line">
+        <span class="step"><span class="step__name">Замер</span><span class="step__what">площади, периметры</span></span>
+        <svg class="arrow" width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 8h20M16 3l5 5-5 5"/></svg>
+        <span class="step"><span class="step__name">Смета</span><span class="step__what">132 позиции, 22 раздела</span></span>
+        <svg class="arrow" width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 8h20M16 3l5 5-5 5"/></svg>
+        <span class="step"><span class="step__name">Работа</span><span class="step__what">этапы и сроки</span></span>
+        <svg class="arrow" width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 8h20M16 3l5 5-5 5"/></svg>
+        <span class="step step--core"><span class="step__name">Приёмка</span><span class="step__what">одно действие прораба</span></span>
+      </div>
+
+      <div class="fan">
+        <span class="consequence"><b>Начисление бригаде</b><span>по ставке позиции, со снимком ставки</span></span>
+        <span class="consequence"><b>Остаток транша</b><span>уменьшается по клиентской сумме</span></span>
+        <span class="consequence"><b>Строка акта</b><span>акт собирается только из принятого</span></span>
+        <span class="consequence"><b>Прогресс</b><span>объекта и этапа графика</span></span>
+      </div>
+
+      <p class="aside">Четыре следствия одновременно, от одного действия — это ядро продукта и единственное место, где так происходит. В референсе прогресс считается из закрытых актов, то есть постфактум и вручную.</p>
+
+      <div class="flow__line">
+        <span class="step"><span class="step__name">Почтовый шлюз</span><span class="step__what">checks+R99@</span></span>
+        <svg class="arrow" width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 8h20M16 3l5 5-5 5"/></svg>
+        <span class="step"><span class="step__name">Чеки</span><span class="step__what">черновик расхода</span></span>
+        <svg class="arrow" width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 8h20M16 3l5 5-5 5"/></svg>
+        <span class="step"><span class="step__name">Расходы объекта</span><span class="step__what">после подтверждения</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Три касания<span class="count">проверка правила на главных сценариях</span></h2>
+    <div class="taps">
+      <div class="tap">
+        <span class="tap__who">Руководитель</span>
+        <span class="tap__task">Увидеть просроченный объект</span>
+        <span class="tap__path">Главная → счётчик «Просрочены» → строка объекта</span>
+        <span class="tap__count">3</span>
+      </div>
+      <div class="tap">
+        <span class="tap__who">Руководитель</span>
+        <span class="tap__task">Понять, сколько принято</span>
+        <span class="tap__path">Главная → строка объекта → вкладка «Приёмка»</span>
+        <span class="tap__count">3</span>
+      </div>
+      <div class="tap">
+        <span class="tap__who">Прораб</span>
+        <span class="tap__task">Отметить выполненное</span>
+        <span class="tap__path">Ссылка → раздел объекта → отметка позиций</span>
+        <span class="tap__count">3</span>
+      </div>
+      <div class="tap">
+        <span class="tap__who">Снабженец</span>
+        <span class="tap__task">Провести чек</span>
+        <span class="tap__path">Письмо с кодом объекта в теме</span>
+        <span class="tap__count">0</span>
+      </div>
+    </div>
+    <p>Сценарий снабженца не требует интерфейса вовсе. Это заимствованный у референса приём с нулевым порогом, и он остаётся лучшим решением в системе.</p>
+  </section>
+
+  <section>
+    <h2>Что у референса есть, а у нас пока нет<span class="count">состояние на 03.09.2026</span></h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Раздел референса</th><th>Наше состояние</th><th>Почему так</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Заявки воронкой</td><td><span class="pill pill--warn">Макет утверждён</span></td><td class="q">данные и экраны — следующая стадия</td></tr>
+          <tr><td class="name">Платежи и счета</td><td><span class="pill pill--warn">Макет утверждён</span></td><td class="q">данные и экраны — следующая стадия</td></tr>
+          <tr><td class="name">Конструктор документов</td><td><span class="pill pill--warn">Макет утверждён</span></td><td class="q">данные и экраны — следующая стадия</td></tr>
+          <tr><td class="name">Персонал и права доступа</td><td><span class="pill">Вкладка настроек</span></td><td class="q">наполнение — следующая стадия</td></tr>
+          <tr><td class="name">Зарплаты по графику</td><td><span class="pill pill--off">Не берём</span></td><td class="q">финансовый контур учётный, деньги не двигаются</td></tr>
+          <tr><td class="name">Видеонаблюдение, прямой эфир</td><td><span class="pill pill--off">Не берём</span></td><td class="q">требует камер на объектах, в кастдеве не заявлено</td></tr>
+          <tr><td class="name">Онлайн-касса, ЭЦП, банки</td><td><span class="pill pill--off">Не берём</span></td><td class="q">то же основание</td></tr>
+          <tr><td class="name">Обмерный план</td><td><span class="pill pill--ok">В работе</span></td><td class="q">исключался как не связанный с ядром, возвращён решением заказчика</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Новый экран сначала появляется в этой карте строкой с вопросом и ключевым действием, потом на дизайн-канве, потом в коде. Обратный порядок означает, что экран строится без ответа на вопрос, зачем он. Нормативный источник — <span style="font-family: var(--font-mono);">docs/07_IA.md</span> в репозитории.
+  </footer>
+
+</div>
