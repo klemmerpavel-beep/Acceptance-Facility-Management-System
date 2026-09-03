@@ -1,0 +1,220 @@
+# Сборка «Приёмки». Пункт плана 0.18.
+#
+# Проверок в проекте четыре — тесты, разграничение полей поверх HTTP, обход
+# страницы браузером и обход артбордов канвы. До этой сборки все четыре
+# запускались руками, а хук `.githooks/pre-commit` каждый включал у себя
+# отдельной командой и обходил одним словом `--no-verify`. Правило, которое
+# никто не обязан выполнить, не выполняется.
+#
+# Работы две, потому что цена у них разная. «Быстрая» отвечает за минуту-две
+# и ловит то, что видно без базы: линт, типы, тесты, сборку. «Стенд»
+# поднимает PostgreSQL, накатывает миграции на пустую базу, наполняет её и
+# гоняет браузер — это и есть требование Э0.18 «миграции применяются с нуля
+# на чистой базе».
+
+name: Проверки
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Новый push в ту же ветку отменяет предыдущий прогон: смысла проверять
+# устаревший коммит нет, а работа «Стенд» занимает минуты.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Обе работы читают версию отсюда, чтобы она не разошлась между ними.
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------
+  fast:
+    name: Быстрая
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Порядок обязателен: setup-node с кешем pnpm требует, чтобы pnpm уже
+      # был установлен, иначе шаг падает на поиске хранилища.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # До проверки типов: без сгенерированного клиента `@prisma/client` не
+      # типизирован, и `pnpm typecheck` падает на сервере десятками ошибок,
+      # не имеющих отношения к коду.
+      - name: Клиент Prisma
+        run: pnpm --filter @priyomka/api exec prisma generate
+
+      - name: Линт
+        run: pnpm lint
+
+      - name: Типы
+        run: pnpm typecheck
+
+      # База не нужна: ни один из 107 тестов не обращается к Prisma.
+      - name: Тесты
+        run: pnpm test
+
+      - name: Сборка
+        run: pnpm build
+
+  # ---------------------------------------------------------------------
+  stand:
+    name: Стенд
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Образ Playwright вместо установки браузера пакетом: версия образа
+    # совпадает с версией `playwright-core` в devDependencies, и Chromium
+    # находится в реестре `/ms-playwright` без указания пути. Новых
+    # зависимостей в package.json от этого не появляется.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: priyomka
+          POSTGRES_PASSWORD: priyomka
+          POSTGRES_DB: priyomka
+        options: >-
+          --health-cmd "pg_isready -U priyomka -d priyomka"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # Внутри контейнера служба видна по имени, а не по 127.0.0.1.
+      DATABASE_URL: postgresql://priyomka:priyomka@postgres:5432/priyomka
+      API: http://127.0.0.1:3000
+      BASE: http://127.0.0.1:5173
+      API_ORIGIN: http://127.0.0.1:3000
+      # NODE_ENV намеренно не задаётся. При значении `production` сервер не
+      # возвращает код подтверждения в теле ответа (auth.service.ts:141), и
+      # обход страницы падает на входе без объяснимой причины.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Раньше всего остального: версия образа обязана совпасть с версией
+      # playwright-core из pnpm-lock.yaml (сейчас 1.62.1). При расхождении
+      # браузер в реестре /ms-playwright имеет другую ревизию, и запуск
+      # падает — но падает он через десять минут, внутри обхода страницы,
+      # после сборки и наполнения базы. Здесь то же падение занимает пять
+      # секунд и объясняет причину словами самого playwright-core.
+      - name: Браузер разрешается
+        run: >-
+          node -e "import('playwright-core').then(async (m) => {
+          const b = await m.chromium.launch({ args: ['--no-sandbox'] });
+          console.log('Браузер реестра:', b.version()); await b.close(); })"
+
+      - name: Клиент Prisma
+        run: pnpm --filter @priyomka/api exec prisma generate
+
+      # Требование Э0.18 буквально: база пуста, четыре миграции применяются
+      # подряд. Если миграция написана «вбок» — с правкой уже применённой, —
+      # шаг падает здесь, а не на стенде заказчика.
+      - name: Миграции с нуля
+        run: pnpm --filter @priyomka/api exec prisma migrate deploy
+
+      # Вторая половина того же требования: после накатывания схема базы
+      # обязана совпасть с schema.prisma. Расхождение означает правку схемы
+      # без миграции — самый частый способ сломать выкладку.
+      - name: Схема совпадает с миграциями
+        working-directory: apps/api
+        run: >-
+          pnpm exec prisma migrate diff
+          --from-schema-datasource prisma/schema.prisma
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      # Организация, два пользователя, четыре заказчика, восемь объектов,
+      # четыре бригады. Все имена вымышлены (см. шапку seed.mjs).
+      - name: Наполнение
+        run: node apps/api/prisma/seed.mjs
+
+      - name: Сборка
+        run: pnpm build
+
+      - name: Запуск API
+        run: |
+          pnpm --filter @priyomka/api start > /tmp/api.log 2>&1 &
+          # /auth/me без сессии отвечает 401 — это и есть признак живого
+          # сервера. Проверяется наличие кода ответа, а не его успешность.
+          for i in $(seq 1 60); do
+            if [ -n "$(curl -s -o /dev/null -w '%{http_code}' "$API/auth/me" | grep -v '^000$')" ]; then
+              echo "API отвечает."; exit 0
+            fi
+            sleep 1
+          done
+          echo "API не поднялся за 60 с:"; cat /tmp/api.log; exit 1
+
+      # Смета попадает в базу тем же путём, что у пользователя: разбор книги,
+      # сопоставление написаний единиц, импорт через API. 132 позиции.
+      - name: Смета на стенде
+        run: node scripts/seed-estimate.mjs
+
+      # Порядок 7 → 8 обязателен: verify-page меняет данные (выполняет импорт
+      # и дважды переключает статус объекта), а verify-api должен видеть
+      # смету в том виде, в каком её создал импорт.
+      - name: Разграничение по полям
+        run: node scripts/verify-api.mjs
+
+      # Нужен именно dev-сервер: прокси `/api` объявлен в vite.config.ts и в
+      # `vite preview` не работает, а кука сессии httpOnly и кросс-доменно
+      # браузером не отдаётся.
+      - name: Запуск клиента
+        run: |
+          pnpm --filter @priyomka/web exec vite > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null "$BASE/"; then echo "Клиент отвечает."; exit 0; fi
+            sleep 1
+          done
+          echo "Клиент не поднялся за 60 с:"; cat /tmp/web.log; exit 1
+
+      - name: Обход страницы
+        env:
+          SHOTS: /tmp/shots
+        run: node scripts/verify-page.mjs
+
+      - name: Обход артбордов канвы
+        env:
+          SHOTS: /tmp/canvas
+        run: node scripts/verify-canvas.mjs
+
+      # Снимок — единственный способ понять, что именно разъехалось: текст
+      # отказа называет правило, но не показывает экран.
+      - name: Снимки при падении
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snimki
+          path: |
+            /tmp/shots
+            /tmp/canvas
+            /tmp/api.log
+            /tmp/web.log
+          if-no-files-found: ignore
+          retention-days: 7
