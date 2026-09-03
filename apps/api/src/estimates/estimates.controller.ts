@@ -92,7 +92,7 @@ async function readUpload(request: FastifyRequest): Promise<UploadedEstimate> {
 
   for await (const part of parts) {
     if (part.type === "file") {
-      fileName = part.filename ?? fileName;
+      fileName = part.filename;
       buffer = await part.toBuffer();
       if (buffer.byteLength > MAX_FILE_BYTES) {
         throw new BadRequestException({

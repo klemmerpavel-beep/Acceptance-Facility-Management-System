@@ -97,7 +97,7 @@ ${fontLinks}
   } catch (error) {
     // Хранилище недоступно: остаётся системная тема.
   }
-<\/script>
+</script>
 <style>
 ${css}
 </style>

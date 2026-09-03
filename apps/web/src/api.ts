@@ -28,6 +28,16 @@ export class OfflineError extends Error {
   }
 }
 
+/**
+ * Текст отказа для экрана.
+ *
+ * Обещание отклоняется чем угодно, а не только Error: типизировать параметр
+ * `catch` как Error — обещание компилятору, которое ничем не обеспечено.
+ * Здесь оно проверяется один раз, а экраны получают строку.
+ */
+export const errorMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : "Неизвестная ошибка. Повторите действие.";
+
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
   let response: Response;
   try {

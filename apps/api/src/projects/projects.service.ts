@@ -144,10 +144,19 @@ export class ProjectsService {
   }
 }
 
-const label = (status: string | null): string =>
-  status === null ? "—" : (STATUS_LABEL[status as ProjectSummary["status"]] ?? status);
+/**
+ * Подпись статуса для журнала. Строка из журнала — не обязательно
+ * действующий статус: старая запись могла быть сделана до переименования.
+ * Утверждение типа это скрывало, и запасное значение никогда не срабатывало.
+ */
+const label = (status: string | null): string => {
+  if (status === null) return "—";
+  return Object.hasOwn(STATUS_LABEL, status)
+    ? STATUS_LABEL[status as ProjectSummary["status"]]
+    : status;
+};
 
-type ProjectRow = {
+interface ProjectRow {
   id: string;
   code: string;
   address: string;
@@ -158,7 +167,7 @@ type ProjectRow = {
   supervisionShare: number;
   client: { code: string; name: string; isCompany: boolean; requisites: string | null };
   foreman: { id: string; name: string } | null;
-};
+}
 
 const asDate = (value: Date | null): string | null =>
   value === null ? null : value.toISOString().slice(0, 10);

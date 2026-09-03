@@ -189,7 +189,7 @@ describe("контраст: 7:1 для основного текста и орг
    *  03.09.2026, реестр Д-04 — Д-09, Д-31, Д-32. */
   const AA = 4.5;
   const AAA = 7;
-  const PAIRS: ReadonlyArray<readonly [string, string, string, number]> = [
+  const PAIRS: readonly (readonly [string, string, string, number])[] = [
     ["--ink", "--bg", "основной текст на полотне", AAA],
     ["--ink", "--surface", "основной текст на карточке", AAA],
     ["--ink", "--surface-2", "основной текст на вторичной плашке", AAA],
@@ -215,7 +215,7 @@ describe("контраст: 7:1 для основного текста и орг
     ["--ink-3", "--neutral-soft", "подпись на нейтральной плашке", AA],
   ];
 
-  const themes: ReadonlyArray<readonly [string, Map<string, string>]> = [
+  const themes: readonly (readonly [string, Map<string, string>])[] = [
     ["светлая", light],
     ["тёмная", dark],
   ];

@@ -26,7 +26,7 @@ export class AuthController {
   async requestMagicLink(@Body() body: unknown): Promise<{ sent: true; token?: string }> {
     const { email } = requestMagicLinkSchema.parse(body);
     const issued = await this.auth.issueLink(email);
-    if (issued && process.env["NODE_ENV"] !== "production") {
+    if (issued && process.env.NODE_ENV !== "production") {
       return { sent: true, token: issued.token };
     }
     return { sent: true };
@@ -56,7 +56,7 @@ export class AuthController {
     reply.setCookie(SESSION_COOKIE, sessionToken, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env["NODE_ENV"] === "production",
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       expires: expiresAt,
     });
@@ -83,11 +83,11 @@ export class AuthController {
     reply.setCookie(SESSION_COOKIE, sessionToken, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env["NODE_ENV"] === "production",
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       expires: expiresAt,
     });
-    await reply.redirect(process.env["WEB_ORIGIN"] ?? "/", 302);
+    await reply.redirect(process.env.WEB_ORIGIN ?? "/", 302);
   }
 
   @Get("me")
@@ -109,7 +109,7 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ ok: true }> {
-    const token = request.cookies?.[SESSION_COOKIE];
+    const token = request.cookies[SESSION_COOKIE];
     if (token) await this.auth.revokeSession(token);
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
     return { ok: true };

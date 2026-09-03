@@ -85,6 +85,9 @@ function parse(input: string, options: { mobileOnly: boolean }): PhoneParse {
   if (trimmed.length === 0) return reject("empty");
 
   let digits = "";
+  // Номер состоит из цифр и разделителей: разбор по кодовым точкам здесь
+  // равносилен разбору по символам.
+  // eslint-disable-next-line @typescript-eslint/no-misused-spread
   for (const [index, character] of [...trimmed].entries()) {
     if (character >= "0" && character <= "9") { digits += character; continue; }
     if (character === "+") {

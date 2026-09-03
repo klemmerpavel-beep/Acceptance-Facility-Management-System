@@ -96,7 +96,7 @@ export function DataTable<Row>({
   const toggle = (key: string): void => {
     setPage(0);
     setSort((previous) =>
-      previous === null || previous.key !== key
+      previous?.key !== key
         ? { key, descending: false }
         : previous.descending
           ? null

@@ -47,6 +47,11 @@ export function toEstimateViewDto(
   const delta =
     meta.declaredWorksTotal === null ? null : (view.totals.works - meta.declaredWorksTotal).toString();
 
+  /* Внутренние итоги приходят только роли OWNER: у прораба их нет в
+     доменном виде, и в ответе их не должно быть вовсе, а не как null. */
+  const wage = money(view.totals.wage);
+  const profit = money(view.totals.profit);
+
   return {
     version: meta.version,
     importedAt: meta.importedAt === null ? null : meta.importedAt.toISOString(),
@@ -66,8 +71,8 @@ export function toEstimateViewDto(
       supervisionShare: Number(view.totals.supervisionShare),
       supervision: view.totals.supervision.toString(),
       estimate: view.totals.estimate.toString(),
-      ...(money(view.totals.wage) === undefined ? {} : { wage: money(view.totals.wage) as string }),
-      ...(money(view.totals.profit) === undefined ? {} : { profit: money(view.totals.profit) as string }),
+      ...(wage === undefined ? {} : { wage }),
+      ...(profit === undefined ? {} : { profit }),
     },
     declaredWorksTotal: money(meta.declaredWorksTotal) ?? null,
     worksTotalDelta: delta,

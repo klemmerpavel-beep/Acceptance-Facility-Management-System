@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Dashboard as DashboardData, ProjectEvent, ProjectStatus } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { fetchDashboard } from "./api.js";
+import { fetchDashboard, errorMessage } from "./api.js";
 import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
@@ -109,7 +109,7 @@ export function EventFeed({
   for (const event of shown) {
     const day = event.at.slice(0, 10);
     const last = days.at(-1);
-    if (last !== undefined && last.day === day) last.rows.push(event);
+    if (last?.day === day) last.rows.push(event);
     else days.push({ day, rows: [event] });
   }
 
@@ -153,7 +153,7 @@ export function Dashboard({
   useEffect(() => {
     void fetchDashboard()
       .then((result) => { setData(result); setError(null); })
-      .catch((cause: Error) => setError(cause.message));
+      .catch((cause: unknown) => setError(errorMessage(cause)));
   }, []);
 
   if (error !== null) {

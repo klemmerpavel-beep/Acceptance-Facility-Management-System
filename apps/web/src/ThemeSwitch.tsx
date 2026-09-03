@@ -6,7 +6,7 @@ import { applyThemeMode, readThemeMode, type ThemeMode } from "./theme.js";
  * от светлого к тёмному. Подпись у каждого состояния своя, потому что
  * различие передано не только цветом (§7 дизайн-системы).
  */
-const MODES: ReadonlyArray<{ mode: ThemeMode; label: string; icon: string }> = [
+const MODES: readonly { mode: ThemeMode; label: string; icon: string }[] = [
   { mode: "system", label: "Как в системе", icon: "#i-theme-system" },
   { mode: "light", label: "Светлая тема", icon: "#i-theme-light" },
   { mode: "dark", label: "Тёмная тема", icon: "#i-theme-dark" },

@@ -15,7 +15,7 @@ import type {
 } from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
-type Snapshot = {
+interface Snapshot {
   "me-owner": CurrentUser;
   "me-foreman": CurrentUser;
   "projects-owner": ProjectSummary[];
@@ -35,7 +35,7 @@ type Snapshot = {
   imports: ImportRecord[];
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
-};
+}
 
 const data = snapshot as unknown as Snapshot;
 

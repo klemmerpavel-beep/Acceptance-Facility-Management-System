@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { fetchClients, fetchWorkers } from "./api.js";
+import { fetchClients, fetchWorkers, errorMessage } from "./api.js";
 import { DataTable, type Column } from "./DataTable.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
@@ -50,7 +50,7 @@ export function Directory(): React.JSX.Element {
         setWorkers(workerRows);
         setError(null);
       })
-      .catch((cause: Error) => setError(cause.message));
+      .catch((cause: unknown) => setError(errorMessage(cause)));
   }, []);
 
   if (error !== null) {

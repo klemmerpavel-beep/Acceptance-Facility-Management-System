@@ -78,7 +78,7 @@ export function sum(values: readonly Kopecks[]): Kopecks {
 
 export const add = (a: Kopecks, b: Kopecks): Kopecks => (a + b) as Kopecks;
 export const subtract = (a: Kopecks, b: Kopecks): Kopecks => (a - b) as Kopecks;
-export const negate = (a: Kopecks): Kopecks => -a as Kopecks;
+export const negate = (a: Kopecks): Kopecks => -(a as bigint) as Kopecks;
 
 /**
  * Стоимость позиции: количество × цена единицы.
@@ -109,12 +109,12 @@ export function withSurcharge(amount: Kopecks, share: BasisPoints): Kopecks {
 /** Доля одной величины в другой, в сотых долях процента. Ноль на нулевой базе. */
 export function shareOf(part: Kopecks, whole: Kopecks): BasisPoints {
   if (whole === 0n) return 0n as BasisPoints;
-  return divideRoundHalfUp(part * PERCENT, whole < 0n ? -whole : whole) as BasisPoints;
+  return divideRoundHalfUp(part * PERCENT, whole < 0n ? -(whole as bigint) : whole) as BasisPoints;
 }
 
 /** Разбор рублёвой записи «3 758 778,35» или «3758778.35» в копейки. */
 export function parseRubles(input: string): Kopecks {
-  const normalized = input.replace(/\s| /g, "").replace(",", ".");
+  const normalized = input.replace(/\s|\u00a0/g, "").replace(",", ".");
   const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(normalized);
   if (!match) throw new TypeError(`Не рублёвая сумма: ${input}`);
   const [, sign, whole, fraction = ""] = match;
@@ -124,7 +124,7 @@ export function parseRubles(input: string): Kopecks {
 
 /** Разбор количества «406,91» в тысячные доли единицы. */
 export function parseQuantity(input: string): Milliunits {
-  const normalized = input.replace(/\s| /g, "").replace(",", ".");
+  const normalized = input.replace(/\s|\u00a0/g, "").replace(",", ".");
   const match = /^(-?)(\d+)(?:\.(\d{1,3}))?$/.exec(normalized);
   if (!match) throw new TypeError(`Не количество: ${input}`);
   const [, sign, whole, fraction = ""] = match;

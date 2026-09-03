@@ -138,7 +138,7 @@ export class AuthService {
     // На стенде код возвращается в теле и показывается на экране. В
     // промышленной среде поле не приходит: код уходит сообщением.
     const issued = { phone: shown, retryAfterSeconds: SMS_RESEND_MS / 1000 };
-    return process.env["NODE_ENV"] === "production" ? issued : { ...issued, code };
+    return process.env.NODE_ENV === "production" ? issued : { ...issued, code };
   }
 
   /** Обменивает код на сессию. Считает попытки: код короткий. */

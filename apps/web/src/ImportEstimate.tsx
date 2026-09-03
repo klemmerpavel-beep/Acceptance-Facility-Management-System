@@ -3,7 +3,7 @@ import type { ImportReport } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { plural } from "./status.js";
 import { useModalDialog } from "./modal.js";
-import { importEstimate, previewEstimate } from "./api.js";
+import { importEstimate, previewEstimate, errorMessage } from "./api.js";
 
 /**
  * Импорт сметы. Два шага намеренно: сначала разбор без записи с отчётом о
@@ -31,7 +31,7 @@ export function ImportEstimate({
   const run = (action: () => Promise<void>): void => {
     setBusy(true);
     setError(null);
-    void action().catch((cause: Error) => setError(cause.message)).finally(() => setBusy(false));
+    void action().catch((cause: unknown) => setError(errorMessage(cause))).finally(() => setBusy(false));
   };
 
   const onPreview = (chosen: File): void => {
@@ -42,7 +42,7 @@ export function ImportEstimate({
       setReport(result.report);
       setOverrides(
         Object.fromEntries(
-          result.report.unitDecisions.map((decision) => [decision.raw, decision.suggestion || units[0] || "шт"]),
+          result.report.unitDecisions.map((decision) => [decision.raw, decision.suggestion !== "" ? decision.suggestion : (units[0] ?? "шт")]),
         ),
       );
     });

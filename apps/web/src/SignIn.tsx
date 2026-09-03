@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { parsePhone } from "@priyomka/domain";
-import { confirmSmsCode, requestSmsCode } from "./api.js";
+import { confirmSmsCode, requestSmsCode, errorMessage } from "./api.js";
 
 /**
  * Вход по номеру телефона в два шага.
@@ -20,7 +20,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const request = (event: React.FormEvent): void => {
+  const request: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     const parsed = parsePhone(phone);
     if (!parsed.ok) { setError(parsed.message); return; }
@@ -32,11 +32,11 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
         setStep({ shown: issued.phone, ...(issued.code !== undefined && { code: issued.code }) });
         setCode("");
       })
-      .catch((cause: Error) => setError(cause.message))
+      .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
 
-  const confirm = (event: React.FormEvent): void => {
+  const confirm: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
@@ -45,7 +45,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
       // Перезагрузка страницы здесь была бы лишней: она стирает
       // состояние и в демонстрационной сборке возвращает на тот же экран.
       .then(onSignedIn)
-      .catch((cause: Error) => setError(cause.message))
+      .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
 

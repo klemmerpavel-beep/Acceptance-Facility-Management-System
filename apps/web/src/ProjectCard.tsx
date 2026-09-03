@@ -4,7 +4,7 @@ import type {
 } from "@priyomka/contracts";
 import { daysBetween, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
-import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus } from "./api.js";
+import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus, errorMessage } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
@@ -97,9 +97,9 @@ export function ProjectCard({
         setImports(await fetchImports(project.code));
         setError(null);
       })
-      .catch((cause: Error) => {
+      .catch((cause: unknown) => {
         setEstimate(null);
-        setError(cause.message);
+        setError(errorMessage(cause));
       })
       .finally(() => setLoading(false));
   };
@@ -114,7 +114,7 @@ export function ProjectCard({
         setStatusOpen(false);
         load();
       })
-      .catch((cause: Error) => setError(cause.message))
+      .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setStatusBusy(false));
   };
 
@@ -134,6 +134,11 @@ export function ProjectCard({
     setTab,
     (key) => `tab-${key}`,
   );
+
+  /* Последний импорт. Обращение по индексу с утверждением «здесь точно есть»
+     заменено проверкой: индекс на пустом списке даёт undefined, и это не
+     исключение из правила, а обычный случай — импорта могло не быть. */
+  const latestImport = imports[0];
 
   const deadline =
     project.deadline === null
@@ -329,13 +334,13 @@ export function ProjectCard({
                     ))}
                   </div>
                 )}
-                {imports.length > 0 && (
+                {latestImport !== undefined && (
                   <div className="panel panel--pad stack stack--tight">
                     <p className="figure__label">
-                      Отчёт о расхождениях · импорт от {formatDate(imports[0]!.importedAt)}
+                      Отчёт о расхождениях · импорт от {formatDate(latestImport.importedAt)}
                     </p>
                     <hr className="rule" />
-                    {imports[0]!.report.findings.map((finding, index) => (
+                    {latestImport.report.findings.map((finding, index) => (
                       <p className="row row--between" key={`${finding.kind}-${index}`}>
                         <span className="t-sm">{finding.title}</span>
                         <span className={finding.amount === null ? "t-sm t-muted" : "num num--danger"}>

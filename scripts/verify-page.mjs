@@ -7,11 +7,15 @@
  * на трёх ширинах, отсутствие видимого фокуса, подписи у полей.
  */
 import { chromium } from "playwright-core";
+import { launchOptions, browserSource } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173";
 const SHOTS = process.env.SHOTS ?? "/tmp/shots";
-const FIXTURE = "/home/user/acceptance-facility-management-system/packages/importer/fixtures/smeta-obezlichennaya.xlsx";
+// Путь считается от самого скрипта — той же идиомой, что в seed-estimate.mjs
+// и capture-demo.mjs. Абсолютный путь годился ровно для одной машины.
+const FIXTURE = process.env["FIXTURE"]
+  ?? new URL("../packages/importer/fixtures/smeta-obezlichennaya.xlsx", import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
 const problems = [];
@@ -33,10 +37,7 @@ const expected = (url, text = "") =>
   || text.includes("401 (Unauthorized)") || text.includes("ERR_CONNECTION_RESET")
   || text.includes("404 (Not Found)");
 
-const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  args: ["--no-sandbox"],
-});
+const browser = await chromium.launch(launchOptions());
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
 const page = await context.newPage();
 
@@ -74,6 +75,7 @@ const step = async (name, file) => {
   console.log(`  снято: ${name} → ${file}`);
 };
 
+console.log(`Браузер: ${browserSource()}`);
 console.log("Сценарий:");
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.waitForSelector("form");

@@ -24,8 +24,9 @@ const groupDigits = (digits: string): string =>
  * @param withCurrency добавить символ рубля через неразрывный пробел
  */
 export function formatKopecks(value: Kopecks | bigint, withCurrency = true): string {
-  const negative = value < 0n;
-  const absolute = negative ? -value : value;
+  const raw: bigint = value;
+  const negative = raw < 0n;
+  const absolute = negative ? -raw : raw;
   const rubles = absolute / 100n;
   const cents = absolute % 100n;
   const body = `${groupDigits(rubles.toString())},${cents.toString().padStart(2, "0")}`;
@@ -38,8 +39,9 @@ export function formatKopecks(value: Kopecks | bigint, withCurrency = true): str
  * а на экране приёмки каждая лишняя цифра — это время прораба.
  */
 export function formatQty(value: Milliunits | bigint): string {
-  const negative = value < 0n;
-  const absolute = negative ? -value : value;
+  const raw: bigint = value;
+  const negative = raw < 0n;
+  const absolute = negative ? -raw : raw;
   const whole = absolute / 1000n;
   const fraction = (absolute % 1000n).toString().padStart(3, "0").replace(/0+$/, "");
   const body = fraction.length > 0

@@ -11,7 +11,8 @@
  * позиционированного предка.
  */
 import { chromium } from "playwright-core";
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { launchOptions, browserSource } from "./browser.mjs";
+import { readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,10 +45,8 @@ function toPage(source) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">${helmet ? helmet[1] : ""}</head><body>${body}</body></html>`;
 }
 
-const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  args: ["--no-sandbox"],
-});
+const browser = await chromium.launch(launchOptions());
+console.log(`Браузер: ${browserSource()}`);
 
 for (const board of layout.artboards) {
   const source = readFileSync(join(canvasDir, board.file), "utf8");

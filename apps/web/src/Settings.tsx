@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Organization, Role, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
-import { fetchOrganization, fetchUnits, saveOrganization } from "./api.js";
+import { fetchOrganization, fetchUnits, saveOrganization, errorMessage } from "./api.js";
 import { tabArrowHandler } from "./tabs.js";
 
 /**
@@ -33,6 +33,18 @@ const TIME_ZONES = [
   "Asia/Vladivostok", "Asia/Magadan", "Asia/Kamchatka",
 ] as const;
 
+/**
+ * Значение текстового поля формы.
+ *
+ * `FormData.get` отдаёт строку или файл, и `String(файл)` даёт «[object
+ * File]» молча: поле, к которому однажды приложат загрузку, уедет в базу
+ * мусором. Здесь нестрока превращается в пустую строку.
+ */
+const text = (form: FormData, field: string): string => {
+  const value = form.get(field);
+  return typeof value === "string" ? value : "";
+};
+
 /** Хранимый номер показывается разбитым на группы, а не строкой цифр. */
 const shownPhone = (stored: string | null): string =>
   stored !== null && isPhoneNumber(stored) ? formatPhone(stored) : (stored ?? "");
@@ -46,12 +58,12 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void fetchOrganization().then(setOrganization).catch((cause: Error) => setError(cause.message));
+    void fetchOrganization().then(setOrganization).catch((cause: unknown) => setError(errorMessage(cause)));
   }, []);
 
   useEffect(() => {
     if (tab !== "estimate" || units !== null) return;
-    void fetchUnits().then(setUnits).catch((cause: Error) => setError(cause.message));
+    void fetchUnits().then(setUnits).catch((cause: unknown) => setError(errorMessage(cause)));
   }, [tab, units]);
 
   const onTabKey = tabArrowHandler(
@@ -61,20 +73,20 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
     (key) => `settings-tab-${key}`,
   );
 
-  const submit = (event: React.FormEvent<HTMLFormElement>): void => {
+  const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
     setSaved(false);
     void saveOrganization({
-      name: String(form.get("name") ?? ""),
-      timeZone: String(form.get("timeZone") ?? ""),
-      phone: String(form.get("phone") ?? ""),
-      email: String(form.get("email") ?? ""),
+      name: text(form, "name"),
+      timeZone: text(form, "timeZone"),
+      phone: text(form, "phone"),
+      email: text(form, "email"),
     })
       .then((updated) => { setOrganization(updated); setSaved(true); })
-      .catch((cause: Error) => setError(cause.message))
+      .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
 
