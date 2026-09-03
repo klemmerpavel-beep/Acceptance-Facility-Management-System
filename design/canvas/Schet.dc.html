@@ -150,83 +150,112 @@
     .table th[aria-sort] .table__sort{color:var(--accent)}
   </style>
 </helmet>
-<main style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<div style="width:794px;min-height:1123px;padding:56px 48px;background:var(--surface);color:var(--ink);display:flex;flex-direction:column;gap:20px">
 
-  <div class="panel" style="overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px;border-bottom:1px solid var(--line)">
-      <h2 class="t-h2">Объекты</h2>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="segmented">
-          <button class="segmented__option" aria-pressed="true">5 записей</button>
-          <button class="segmented__option">30 записей</button>
-        </div>
-        <label style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1px solid var(--line);border-radius:6px;min-width:280px">
-          <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></svg>
-          <input style="border:0;outline:none;flex:1 1 auto;font-family:inherit;font-size:15px;background:none" placeholder="Поиск по адресу и коду">
-        </label>
-      </div>
-    </div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <tbody>
+      <tr>
+        <td rowspan="2" style="border:1px solid var(--ink);padding:6px 8px;width:58%">Банк получателя<br><strong>НАИМЕНОВАНИЕ БАНКА</strong></td>
+        <td style="border:1px solid var(--ink);padding:6px 8px;width:12%">БИК</td>
+        <td class="num" style="border:1px solid var(--ink);padding:6px 8px;text-align:left;font-size:11px">000000000</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--ink);padding:6px 8px">Сч. №</td>
+        <td class="num" style="border:1px solid var(--ink);padding:6px 8px;text-align:left;font-size:11px">00000000000000000000</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--ink);padding:6px 8px">ИНН <span class="num" style="font-size:11px">0000000000</span> &nbsp; КПП <span class="num" style="font-size:11px">000000000</span></td>
+        <td rowspan="2" style="border:1px solid var(--ink);padding:6px 8px">Сч. №</td>
+        <td rowspan="2" class="num" style="border:1px solid var(--ink);padding:6px 8px;text-align:left;font-size:11px">00000000000000000000</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--ink);padding:6px 8px">Получатель<br><strong>DOLGIY STUDIO</strong></td>
+      </tr>
+    </tbody>
+  </table>
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th><button class="table__sort">Код<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Адрес<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Заказчик<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Статус<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th aria-sort="ascending"><button class="table__sort">Срок<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 8 5 5l3 3"/></svg></button></th>
-          <th style="text-align:right"><button class="table__sort">Итог сметы<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="code-badge">R-99</span></td>
-          <td><a href="#">Московский проспект 116</a></td>
-          <td>[300] Клиент 300</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td style="color:var(--danger)">15.08.2026 · просрочен на 18 дней</td>
-          <td class="num">4 250 234,35 ₽</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-72</span></td>
-          <td><a href="#">Никитинская 42, кв. 7</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>12.09.2026 · 10 дней</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-64</span></td>
-          <td><a href="#">Бульвар Победы 23б, кв. 204</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>20.12.2026 · 109 дней</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-38</span></td>
-          <td><a href="#">Владимира Невского 15, кв. 61</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill">Новый</span></td>
-          <td>04.09.2026 · 2 дня</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-27</span></td>
-          <td><a href="#">Ленинский проспект 174п</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--warn">Ждёт ответа</span></td>
-          <td>15.10.2026 · 43 дня</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p class="t-sm t-muted" style="padding:12px 16px;text-align:right">Показано с 1 по 5 из 8 записей</p>
+  <div>
+    <h1 class="t-h1" style="font-size:19px">Счёт на оплату № 12 от 25 августа 2026 г.</h1>
+    <hr style="border:0;border-top:2px solid var(--ink);margin:8px 0 0">
   </div>
 
-  <p class="t-sm t-muted" style="max-width:76ch">Один образец списка на все разделы: заголовок, число записей, поиск, сортировка по колонке, счётчик показанного. Строка ведёт в карточку ссылкой — объект открывается и клавиатурой.</p>
-</main>
+  <dl style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 12px;font-size:13px;margin:0">
+    <dt class="t-secondary">Исполнитель</dt>
+    <dd>DOLGIY STUDIO, ИНН <span class="num" style="font-size:13px">0000000000</span>, г. Воронеж</dd>
+    <dt class="t-secondary">Плательщик</dt>
+    <dd>Клиент 300, физическое лицо</dd>
+    <dt class="t-secondary">Основание</dt>
+    <dd>Договор подряда № 99 от 02.03.2026, объект <span class="code-badge">R-99</span> Московский проспект 116</dd>
+  </dl>
+
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <colgroup>
+      <col style="width:36px"><col><col style="width:56px"><col style="width:56px">
+      <col style="width:110px"><col style="width:120px">
+    </colgroup>
+    <thead>
+      <tr>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:center">№</th>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:left">Наименование работ</th>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:center">Ед.</th>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:center">Кол-во</th>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:right">Цена, ₽</th>
+        <th style="border:1px solid var(--ink);padding:6px 8px;font-size:11px;text-align:right">Сумма, ₽</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td class="num" style="text-align:center">1</td>
+          <td>Штукатурные работы по акту выполненных работ № 12</td>
+          <td style="text-align:center">усл.</td>
+          <td class="num" style="text-align:center">1</td>
+          <td class="num">240 000,00</td>
+          <td class="num">240 000,00</td>
+        </tr>
+        <tr>
+          <td class="num" style="text-align:center">2</td>
+          <td>Малярные работы по акту выполненных работ № 12</td>
+          <td style="text-align:center">усл.</td>
+          <td class="num" style="text-align:center">1</td>
+          <td class="num">170 000,00</td>
+          <td class="num">170 000,00</td>
+        </tr>
+        <tr>
+          <td class="num" style="text-align:center">3</td>
+          <td>Плиточные работы по акту выполненных работ № 12</td>
+          <td style="text-align:center">усл.</td>
+          <td class="num" style="text-align:center">1</td>
+          <td class="num">90 000,00</td>
+          <td class="num">90 000,00</td>
+        </tr>
+    </tbody>
+  </table>
+
+  <dl style="align-self:flex-end;display:grid;grid-template-columns:auto 140px;gap:6px 16px;font-size:13px;margin:0;text-align:right">
+    <dt class="t-secondary">Итого по работам</dt><dd class="num" style="font-size:13px">500 000,00 ₽</dd>
+    <dt class="t-secondary">Сопровождение объекта, 12 %</dt><dd class="num" style="font-size:13px">60 000,00 ₽</dd>
+    <dt class="t-secondary">Без налога (НДС)</dt><dd class="num" style="font-size:13px">—</dd>
+    <dt class="t-h3">Всего к оплате</dt><dd class="num" style="font-size:19px;font-weight:600">560 000,00 ₽</dd>
+  </dl>
+
+  <p class="t-sm">Всего наименований 3, на сумму 560 000,00 ₽.<br>
+    <strong>Пятьсот шестьдесят тысяч рублей 00 копеек.</strong></p>
+
+  <hr style="border:0;border-top:1px solid var(--ink);margin:0">
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px;font-size:13px;margin-top:24px">
+    <div>
+      <p style="border-bottom:1px solid var(--ink);height:32px"></p>
+      <p class="t-sm t-muted" style="margin-top:4px">Руководитель</p>
+    </div>
+    <div>
+      <p style="border-bottom:1px solid var(--ink);height:32px"></p>
+      <p class="t-sm t-muted" style="margin-top:4px">Ответственный за приёмку</p>
+    </div>
+  </div>
+
+  <p class="t-sm t-muted" style="margin-top:auto">Печатная форма. Реквизиты исполнителя и банка подставляются из настроек организации; в макете стоят заготовки — бланк заказчиком пока не передан. Сумма собирается из принятых позиций акта № 12 и надбавки «сопровождение объекта».</p>
+</div>
 </x-dc>
 </body>
 </html>

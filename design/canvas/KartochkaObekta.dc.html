@@ -150,82 +150,136 @@
     .table th[aria-sort] .table__sort{color:var(--accent)}
   </style>
 </helmet>
-<main style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<header class="appbar">
+  <span class="appbar__brand">Приёмка</span>
+  <nav class="appbar__nav">
+    <a class="appbar__link" href="#">Главная</a>
+    <a class="appbar__link" href="#">Заявки</a>
+    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
+    <a class="appbar__link" href="#">Контрагенты</a>
+    <a class="appbar__link" href="#">Персонал</a>
+    <a class="appbar__link" href="#">Бухгалтерия</a>
+    <a class="appbar__link" href="#">Документы</a>
+    <a class="appbar__link" href="#">Настройки</a>
+  </nav>
+  <span style="font-size:13px;opacity:.82">Руководитель студии</span>
+  <button class="btn btn--secondary" style="border-color:var(--on-accent-track);color:var(--accent-ink)">Выйти</button>
+</header>
 
-  <div class="panel" style="overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px;border-bottom:1px solid var(--line)">
-      <h2 class="t-h2">Объекты</h2>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="segmented">
-          <button class="segmented__option" aria-pressed="true">5 записей</button>
-          <button class="segmented__option">30 записей</button>
-        </div>
-        <label style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1px solid var(--line);border-radius:6px;min-width:280px">
-          <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></svg>
-          <input style="border:0;outline:none;flex:1 1 auto;font-family:inherit;font-size:15px;background:none" placeholder="Поиск по адресу и коду">
-        </label>
+<div class="cover">
+  <p class="cover__crumbs"><span>Объекты</span><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg><span>Московский проспект 116</span></p>
+  <div class="cover__title">
+    <span class="code-badge" style="height:32px;padding:0 12px;font-size:19px;background:var(--on-accent-fill);color:var(--accent-ink)">R-99</span>
+    <h1 class="t-h1">Московский проспект 116</h1>
+  </div>
+</div>
+
+<main style="padding:24px;display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start">
+
+  <aside style="display:flex;flex-direction:column;gap:16px">
+
+    <div class="figure">
+      <span class="figure__label">Итог сметы для клиента</span>
+      <span class="figure__value">4 250 234,35 ₽</span>
+      <span class="figure__note">работы 3 794 852,10 ₽ и сопровождение объекта 12 %</span>
+    </div>
+
+    <div class="tile" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span style="display:flex;align-items:center;gap:8px">
+        <svg class="icon" style="color:var(--ok)" aria-hidden="true"><path d="M7 5l8 5-8 5z"/></svg>
+        <span class="t-h3">В работе</span>
+      </span>
+      <button class="btn btn--text" style="padding:0">Сменить статус</button>
+    </div>
+
+    <div class="tile" style="display:flex;flex-direction:column;gap:8px">
+      <span class="figure__label">Чеки на материалы</span>
+      <p class="mail-gateway">checks+<span class="code-badge" style="height:20px;padding:0 4px">R99</span>@dolgiy.studio</p>
+      <p class="figure__note">Код объекта ищется и в теме письма. Письмо без кода не теряется: оно попадает в общий разбор.</p>
+    </div>
+
+    <div class="tile tile--accent" style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+      <div class="figure">
+        <span class="figure__label">Срок</span>
+        <span class="figure__value figure__value--h2">18 дней просрочки</span>
+        <span class="figure__note">срок по договору 15.08.2026</span>
+      </div>
+      <span class="ring ring--on-accent">
+        <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
+          <circle class="ring__track" cx="36" cy="36" r="32" fill="none" stroke-width="8"/>
+          <circle class="ring__arc" cx="36" cy="36" r="32" fill="none" stroke-width="8"
+                  stroke-dasharray="94.5 106.56" transform="rotate(-90 36 36)"/>
+        </svg>
+        <span class="ring__value">47 %</span>
+      </span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <p class="figure__label">Сведения</p>
+      <dl style="display:flex;flex-direction:column;gap:8px">
+        <div class="deflist__row"><dt class="deflist__term">Заказчик</dt><dd class="deflist__value"><a href="#">[300] Клиент 300</a></dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Реквизиты</dt><dd class="deflist__value">физическое лицо</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Адрес</dt><dd class="deflist__value"><a href="#">Московский проспект 116</a></dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Площадь</dt><dd class="deflist__value">80,53 м²</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Фархат</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Начало работ</dt><dd class="deflist__value">02.03.2026</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Исполнитель</dt><dd class="deflist__value">DOLGIY STUDIO</dd></div>
+      </dl>
+    </div>
+  </aside>
+
+  <section style="display:flex;flex-direction:column;gap:24px;min-width:0">
+  <div class="tabs" style="margin-bottom:24px">
+    <button class="tabs__item" aria-selected="true">Обзор</button>
+    <button class="tabs__item">Замер</button>
+    <button class="tabs__item">Смета</button>
+    <button class="tabs__item">Работа</button>
+    <button class="tabs__item">Отчёт</button>
+    <button class="tabs__item">Приёмка</button>
+    <button class="tabs__item">Чеки</button>
+    <button class="tabs__item">Документы</button>
+    <button class="tabs__item">Импорт</button>
+  </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="section-head">
+        <h2 class="t-h2">График производства работ</h2>
+        <button class="btn btn--text" style="padding:0">Открыть график</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <span class="metric"><span class="metric__value">120</span><span class="metric__label">Рабочих дней</span></span>
+        <span class="metric"><span class="metric__value">166</span><span class="metric__label">Календарных дней</span></span>
+        <span class="metric"><span class="metric__value">180</span><span class="metric__label">По договору</span></span>
+        <span class="metric"><span class="metric__value">11</span><span class="metric__label">Этапов</span></span>
+      </div>
+      <p class="t-sm t-muted">Прогресс считается из приёмки, а не из закрытых актов: отметка прораба меняет полосу этапа в тот же момент.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="section-head">
+        <h2 class="t-h2">Приёмка</h2>
+        <button class="btn btn--text" style="padding:0">Открыть приёмку</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <span class="metric"><span class="metric__value">62</span><span class="metric__label">Принято позиций</span></span>
+        <span class="metric"><span class="metric__value">132</span><span class="metric__label">Всего позиций</span></span>
+        <span class="metric"><span class="metric__value">1 783 580,49 ₽</span><span class="metric__label">Выполнено на сумму</span></span>
       </div>
     </div>
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th><button class="table__sort">Код<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Адрес<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Заказчик<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Статус<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th aria-sort="ascending"><button class="table__sort">Срок<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 8 5 5l3 3"/></svg></button></th>
-          <th style="text-align:right"><button class="table__sort">Итог сметы<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="code-badge">R-99</span></td>
-          <td><a href="#">Московский проспект 116</a></td>
-          <td>[300] Клиент 300</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td style="color:var(--danger)">15.08.2026 · просрочен на 18 дней</td>
-          <td class="num">4 250 234,35 ₽</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-72</span></td>
-          <td><a href="#">Никитинская 42, кв. 7</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>12.09.2026 · 10 дней</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-64</span></td>
-          <td><a href="#">Бульвар Победы 23б, кв. 204</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>20.12.2026 · 109 дней</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-38</span></td>
-          <td><a href="#">Владимира Невского 15, кв. 61</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill">Новый</span></td>
-          <td>04.09.2026 · 2 дня</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-        <tr>
-          <td><span class="code-badge">R-27</span></td>
-          <td><a href="#">Ленинский проспект 174п</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--warn">Ждёт ответа</span></td>
-          <td>15.10.2026 · 43 дня</td>
-          <td class="num t-muted">сметы нет</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p class="t-sm t-muted" style="padding:12px 16px;text-align:right">Показано с 1 по 5 из 8 записей</p>
-  </div>
-
-  <p class="t-sm t-muted" style="max-width:76ch">Один образец списка на все разделы: заголовок, число записей, поиск, сортировка по колонке, счётчик показанного. Строка ведёт в карточку ссылкой — объект открывается и клавиатурой.</p>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="section-head">
+        <h2 class="t-h2">Платежи</h2>
+        <button class="btn btn--secondary">Выставить счёт</button>
+      </div>
+      <div class="panel">
+        <div class="empty">
+          <p class="empty__title">Платежей нет</p>
+          <p class="empty__text">Счета и платежи включаются отдельной стадией. Транши и остаток по ним ведутся на вкладке «Приёмка».</p>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 </x-dc>
 </body>

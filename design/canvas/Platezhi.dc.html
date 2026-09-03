@@ -153,16 +153,25 @@
 <main style="padding:24px;display:flex;flex-direction:column;gap:16px">
 
   <div class="panel" style="overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px;border-bottom:1px solid var(--line)">
-      <h2 class="t-h2">Объекты</h2>
+    <div class="panel__head" style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;align-items:center;gap:16px">
+        <h2 class="t-h2">Платежи</h2>
+        <button class="btn btn--primary">
+          <svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          Отметить платёж
+        </button>
+      </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="segmented">
-          <button class="segmented__option" aria-pressed="true">5 записей</button>
-          <button class="segmented__option">30 записей</button>
+        <div class="selectwrap" style="width:150px">
+          <select class="input" aria-label="Записей на странице">
+            <option>6 записей</option>
+            <option>30 записей</option>
+          </select>
+          <svg class="icon selectwrap__chevron" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
         </div>
         <label style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1px solid var(--line);border-radius:6px;min-width:280px">
           <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></svg>
-          <input style="border:0;outline:none;flex:1 1 auto;font-family:inherit;font-size:15px;background:none" placeholder="Поиск по адресу и коду">
+          <input style="border:0;outline:none;flex:1 1 auto;font-family:inherit;font-size:15px;background:none" placeholder="Поиск по объекту и назначению">
         </label>
       </div>
     </div>
@@ -170,62 +179,76 @@
     <table class="table">
       <thead>
         <tr>
-          <th><button class="table__sort">Код<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Адрес<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Заказчик<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th><button class="table__sort">Статус<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
-          <th aria-sort="ascending"><button class="table__sort">Срок<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 8 5 5l3 3"/></svg></button></th>
-          <th style="text-align:right"><button class="table__sort">Итог сметы<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
+          <th><button class="table__sort">№<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
+          <th aria-sort="descending"><button class="table__sort">Дата<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 6l3 3 3-3"/></svg></button></th>
+          <th><button class="table__sort">Объект<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
+          <th><button class="table__sort">Назначение<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
+          <th><button class="table__sort">Способ<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
+          <th style="text-align:right"><button class="table__sort">Сумма<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3"/></svg></button></th>
         </tr>
       </thead>
       <tbody>
         <tr>
+          <td class="num" style="text-align:left">№ 108</td>
+          <td class="num" style="text-align:left">28.08.2026</td>
           <td><span class="code-badge">R-99</span></td>
-          <td><a href="#">Московский проспект 116</a></td>
-          <td>[300] Клиент 300</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td style="color:var(--danger)">15.08.2026 · просрочен на 18 дней</td>
-          <td class="num">4 250 234,35 ₽</td>
+          <td>Транш 4 по акту № 12</td>
+          <td>Банк</td>
+          <td class="num">560 000,00 ₽</td>
         </tr>
         <tr>
+          <td class="num" style="text-align:left">№ 107</td>
+          <td class="num" style="text-align:left">20.08.2026</td>
           <td><span class="code-badge">R-72</span></td>
-          <td><a href="#">Никитинская 42, кв. 7</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>12.09.2026 · 10 дней</td>
-          <td class="num t-muted">сметы нет</td>
+          <td>Аванс на материалы</td>
+          <td>Наличные</td>
+          <td class="num">85 000,00 ₽</td>
         </tr>
         <tr>
+          <td class="num" style="text-align:left">№ 106</td>
+          <td class="num" style="text-align:left">14.08.2026</td>
+          <td><span class="code-badge">R-99</span></td>
+          <td>Транш 3 по акту № 9</td>
+          <td>Банк</td>
+          <td class="num">540 000,00 ₽</td>
+        </tr>
+        <tr>
+          <td class="num" style="text-align:left">№ 105</td>
+          <td class="num" style="text-align:left">02.08.2026</td>
           <td><span class="code-badge">R-64</span></td>
-          <td><a href="#">Бульвар Победы 23б, кв. 204</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--ok">В работе</span></td>
-          <td>20.12.2026 · 109 дней</td>
-          <td class="num t-muted">сметы нет</td>
+          <td>Аванс по договору</td>
+          <td>Банк</td>
+          <td class="num">300 000,00 ₽</td>
         </tr>
         <tr>
-          <td><span class="code-badge">R-38</span></td>
-          <td><a href="#">Владимира Невского 15, кв. 61</a></td>
-          <td>[118] Клиент 118</td>
-          <td><span class="pill">Новый</span></td>
-          <td>04.09.2026 · 2 дня</td>
-          <td class="num t-muted">сметы нет</td>
+          <td class="num" style="text-align:left">№ 104</td>
+          <td class="num" style="text-align:left">27.07.2026</td>
+          <td><span class="code-badge">R-99</span></td>
+          <td>Транш 2 по акту № 6</td>
+          <td>Банк</td>
+          <td class="num">480 000,00 ₽</td>
         </tr>
         <tr>
+          <td class="num" style="text-align:left">№ 103</td>
+          <td class="num" style="text-align:left">10.07.2026</td>
           <td><span class="code-badge">R-27</span></td>
-          <td><a href="#">Ленинский проспект 174п</a></td>
-          <td>[204] Заказчик 204</td>
-          <td><span class="pill pill--warn">Ждёт ответа</span></td>
-          <td>15.10.2026 · 43 дня</td>
-          <td class="num t-muted">сметы нет</td>
+          <td>Сторно переплаты</td>
+          <td>Банк</td>
+          <td class="num" style="color:var(--danger)">−12 400,00 ₽</td>
         </tr>
       </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" class="t-sm t-secondary" style="border-top:2px solid var(--line-strong)">Итого за период</td>
+          <td class="num" style="border-top:2px solid var(--line-strong);font-weight:600">1 952 600,00 ₽</td>
+        </tr>
+      </tfoot>
     </table>
 
-    <p class="t-sm t-muted" style="padding:12px 16px;text-align:right">Показано с 1 по 5 из 8 записей</p>
+    <p class="t-sm t-muted" style="padding:12px 16px;text-align:right">Показано с 1 по 6 из 18 записей</p>
   </div>
 
-  <p class="t-sm t-muted" style="max-width:76ch">Один образец списка на все разделы: заголовок, число записей, поиск, сортировка по колонке, счётчик показанного. Строка ведёт в карточку ссылкой — объект открывается и клавиатурой.</p>
+  <p class="t-sm t-muted" style="max-width:76ch">Отложенный контур. Отмена платежа — сторно отдельной строкой, а не правка прежней: история платежей не перезаписывается.</p>
 </main>
 </x-dc>
 </body>

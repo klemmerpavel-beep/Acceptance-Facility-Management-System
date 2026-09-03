@@ -19,6 +19,7 @@
       --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
       --danger:#B3261E; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
       --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#6FA3DC;
+      --shadow-1:0 1px 2px rgba(14,26,40,.06); --shadow-2:0 4px 16px rgba(14,26,40,.10);
       --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
       --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
     }
@@ -82,6 +83,71 @@
     .deflist__value{font-size:13px;text-align:right}
     .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
       stroke-linecap:square;stroke-linejoin:miter}
+    .rule{border:0;border-top:1px solid var(--line);margin:0}
+    .rule--inv{border-top-color:var(--line-inv)}
+    .spec{display:flex;flex-wrap:wrap;gap:6px 20px;margin:0}
+    .spec--col{flex-direction:column;gap:8px}
+    .spec__item{display:inline-flex;align-items:baseline;gap:6px;font-size:13px;line-height:1.45;color:var(--ink-2)}
+    .spec__value{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--accent);
+      font-variant-numeric:tabular-nums;white-space:nowrap}
+    .spec--inv .spec__item{color:var(--ink-on-inv-2)}
+    .spec--inv .spec__value{color:var(--accent-inv)}
+    .toggle{display:inline-flex;align-items:center;gap:10px;padding:0;border:0;background:none;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+    .toggle__track{position:relative;width:44px;height:24px;flex:none;border-radius:999px;
+      background:var(--line-strong)}
+    .toggle__knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+      background:var(--surface);box-shadow:var(--shadow-1)}
+    .toggle__name{font-weight:500;color:var(--ink)}
+    .toggle[aria-checked="true"] .toggle__track{background:var(--accent)}
+    .toggle[aria-checked="true"] .toggle__knob{left:22px}
+    .toggle--inv .toggle__track{background:var(--line-inv)}
+    .toggle--inv .toggle__name{color:var(--ink-on-inv)}
+    .toggle--inv[aria-checked="true"] .toggle__track{background:var(--accent-inv)}
+    .selectwrap{position:relative;display:inline-flex;align-items:center}
+    .selectwrap .input{width:100%;padding-right:32px;appearance:none;-webkit-appearance:none}
+    .selectwrap__chevron{position:absolute;right:8px;color:var(--ink-3);pointer-events:none}
+    .iconbtn{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--line-strong);
+      border-radius:6px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+    .iconbtn--inv{border-color:var(--line-inv);background:transparent;color:var(--ink-on-inv-2)}
+    .figure{display:flex;flex-direction:column;gap:4px}
+    .figure+.figure{padding-top:16px;border-top:1px solid var(--line)}
+    .figure__label{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .figure__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:32px;
+      line-height:1.15;font-weight:600}
+    .figure__value--h2{font-size:19px;line-height:1.25}
+    .figure__note{font-size:13px;color:var(--ink-3)}
+    .tile{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+    .tile--accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+    .tile--accent .figure__label,.tile--accent .figure__note{color:var(--accent-ink);opacity:.78}
+    .tile--accent .figure__value{color:var(--accent-ink)}
+    .section-head{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;
+      gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line-strong)}
+    .metric{display:inline-flex;flex-direction:column;gap:2px;padding:8px 12px;
+      border:1px solid var(--line-strong);border-radius:6px}
+    .metric__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}
+    .metric__label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+    .ring{position:relative;width:72px;height:72px;flex:none}
+    .ring__track{stroke:var(--surface-2)}
+    .ring__arc{stroke:var(--accent);stroke-linecap:round}
+    .ring__value{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-mono);
+      font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+    .ring--on-accent .ring__track{stroke:var(--on-accent-track)}
+    .ring--on-accent .ring__arc{stroke:var(--accent-ink)}
+    .ring--on-accent .ring__value{color:var(--accent-ink)}
+    .mail-gateway{display:inline-flex;align-items:center;flex-wrap:wrap;font-family:var(--font-mono);font-size:13px}
+    .empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:32px 16px}
+    .empty__title{font-size:16px;font-weight:600}
+    .empty__text{font-size:13px;color:var(--ink-3)}
+    .table{width:100%;border-collapse:collapse}
+    .table th{padding:8px 12px;border-bottom:1px solid var(--line-strong);font-size:11px;font-weight:500;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:left;white-space:nowrap}
+    .table td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+    .table tbody tr:nth-child(even){background:var(--surface-2)}
+    .table__sort{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;
+      font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+    .table th[aria-sort] .table__sort{color:var(--accent)}
   </style>
 </helmet>
 <div style="position:relative;min-height:844px;display:flex;flex-direction:column;background:var(--bg)">
@@ -102,11 +168,13 @@
     </div>
 
     <section class="panel" style="padding:16px;display:flex;flex-direction:column;gap:8px">
-      <p class="t-cap">Общее</p>
-      <div class="deflist__row"><span class="deflist__term">Помещений</span><span class="num" style="font-size:13px">7 шт</span></div>
-      <div class="deflist__row"><span class="deflist__term">Площадь</span><span class="num" style="font-size:13px">80,53 м²</span></div>
-      <div class="deflist__row"><span class="deflist__term">Площадь стен</span><span class="num" style="font-size:13px">262,95 м²</span></div>
-      <div class="deflist__row"><span class="deflist__term">Объём</span><span class="num" style="font-size:13px">217,43 м³</span></div>
+      <p class="t-cap" style="display:flex;align-items:center;gap:6px"><svg class="icon" style="width:16px;height:16px" aria-hidden="true"><path d="M3 13 13 3l4 4L7 17z"/><path d="M6 10l2 2M9 7l2 2"/></svg>Общее</p>
+      <p class="spec spec--col">
+        <span class="spec__item">Помещений: <span class="spec__value">7 шт</span></span>
+        <span class="spec__item">Площадь: <span class="spec__value">80,53 м²</span></span>
+        <span class="spec__item">Площадь стен: <span class="spec__value">262,95 м²</span></span>
+        <span class="spec__item">Объём: <span class="spec__value">217,43 м³</span></span>
+      </p>
       <button class="btn btn--secondary" style="margin-top:8px;height:48px">
         <svg class="icon" aria-hidden="true"><path d="M5 3h7l3 3v11H5z"/><path d="M8 10h4M8 13h4"/></svg>
         Скачать
@@ -127,10 +195,10 @@
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <span class="t-h3">Вид</span>
-        <div class="segmented" style="background:var(--on-accent-fill)">
-          <button class="segmented__option" aria-pressed="true" style="background:var(--surface);color:var(--accent);font-weight:500">Обычный</button>
-          <button class="segmented__option" style="color:var(--ink-on-inv-2)">Подробный</button>
-        </div>
+        <button class="toggle toggle--inv" role="switch" aria-checked="false">
+          <span class="toggle__track"><span class="toggle__knob"></span></span>
+          <span class="toggle__name">Подробный</span>
+        </button>
       </div>
 
       <h3 class="t-h2">Спальня</h3>
@@ -143,23 +211,29 @@
       </svg>
 
       <div>
-        <p class="t-cap" style="color:var(--ink-on-inv-2);margin-bottom:8px">Основное</p>
-        <dl style="display:flex;flex-direction:column;gap:8px">
-          <div class="deflist__row"><dt class="deflist__term" style="color:var(--ink-on-inv-2)">Площадь</dt><dd class="num" style="font-size:13px;color:var(--ink-on-inv)">18,40 м²</dd></div>
-          <div class="deflist__row"><dt class="deflist__term" style="color:var(--ink-on-inv-2)">Площадь стен</dt><dd class="num" style="font-size:13px;color:var(--ink-on-inv)">47,52 м²</dd></div>
-          <div class="deflist__row"><dt class="deflist__term" style="color:var(--ink-on-inv-2)">Высота</dt><dd class="num" style="font-size:13px;color:var(--ink-on-inv)">2,70 м</dd></div>
-          <div class="deflist__row"><dt class="deflist__term" style="color:var(--ink-on-inv-2)">Объём</dt><dd class="num" style="font-size:13px;color:var(--ink-on-inv)">49,68 м³</dd></div>
-        </dl>
+        <p class="t-cap" style="display:flex;align-items:center;gap:6px;color:var(--ink-on-inv-2);margin-bottom:10px"><svg class="icon" style="width:16px;height:16px" aria-hidden="true"><path d="M3 7h14v6H3z"/><path d="M7 7v3M11 7v3M15 7v3"/></svg>Основное</p>
+        <p class="spec spec--col spec--inv">
+          <span class="spec__item">Площадь: <span class="spec__value">18,40 м²</span></span>
+          <span class="spec__item">Площадь стен: <span class="spec__value">47,52 м²</span></span>
+          <span class="spec__item">Высота: <span class="spec__value">2,70 м</span></span>
+          <span class="spec__item">Объём: <span class="spec__value">49,68 м³</span></span>
+        </p>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
         <div>
-          <p class="t-cap" style="color:var(--ink-on-inv-2);margin-bottom:8px">Окна</p>
-          <p class="num" style="font-size:13px;color:var(--ink-on-inv);text-align:left">1 шт · 2,10 м²</p>
+          <p class="t-cap" style="display:flex;align-items:center;gap:6px;color:var(--ink-on-inv-2);margin-bottom:10px"><svg class="icon" style="width:16px;height:16px" aria-hidden="true"><path d="M4 3h12v14H4z"/><path d="M10 3v14M4 10h12"/></svg>Окна</p>
+          <p class="spec spec--col spec--inv">
+            <span class="spec__item">Количество: <span class="spec__value">1 шт</span></span>
+            <span class="spec__item">Площадь: <span class="spec__value">2,10 м²</span></span>
+          </p>
         </div>
         <div>
-          <p class="t-cap" style="color:var(--ink-on-inv-2);margin-bottom:8px">Двери</p>
-          <p class="num" style="font-size:13px;color:var(--ink-on-inv);text-align:left">1 шт · 1,68 м²</p>
+          <p class="t-cap" style="display:flex;align-items:center;gap:6px;color:var(--ink-on-inv-2);margin-bottom:10px"><svg class="icon" style="width:16px;height:16px" aria-hidden="true"><path d="M5 3h10v14H5z"/><path d="M12 10h1.5"/></svg>Двери</p>
+          <p class="spec spec--col spec--inv">
+            <span class="spec__item">Количество: <span class="spec__value">1 шт</span></span>
+            <span class="spec__item">Площадь: <span class="spec__value">1,68 м²</span></span>
+          </p>
         </div>
       </div>
     </section>
@@ -167,16 +241,19 @@
 
   <nav style="position:absolute;left:0;right:0;bottom:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;height:56px;background:var(--surface);border-top:1px solid var(--line)">
     <a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink-3);text-decoration:none;font-size:11px">
-      <svg class="icon" aria-hidden="true"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></svg>Главная
+      <svg class="icon" aria-hidden="true"><path d="M3 9 10 3l7 6v8H3z"/><path d="M8 17v-5h4v5"/></svg>Главная
     </a>
-    <a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--accent);text-decoration:none;font-size:11px">
+    <a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink-3);text-decoration:none;font-size:11px">
+      <svg class="icon" aria-hidden="true"><path d="M4 3h9l3 3v11H4z"/><path d="M7 8h6M7 11h6M7 14h3"/></svg>Заявки
+    </a>
+    <a href="#" aria-current="page" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--accent);text-decoration:none;font-size:11px">
       <svg class="icon" aria-hidden="true"><path d="M3 5h9M3 10h9M3 15h9"/><path d="M15 5h2M15 10h2M15 15h2"/></svg>Объекты
     </a>
     <a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink-3);text-decoration:none;font-size:11px">
-      <svg class="icon" aria-hidden="true"><path d="M3 3h14v14H3z"/><path d="M6.5 10.5 9 13l4.5-4.5"/></svg>Приёмка
+      <svg class="icon" aria-hidden="true"><path d="M10 4a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/><path d="M4 17c0-3 2.7-5 6-5s6 2 6 5"/></svg>Контрагенты
     </a>
     <a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink-3);text-decoration:none;font-size:11px">
-      <svg class="icon" aria-hidden="true"><path d="M5 3h10v14l-2.5-1.5L10 17l-2.5-1.5L5 17z"/><path d="M8 7h4M8 10h4"/></svg>Чеки
+      <svg class="icon" aria-hidden="true"><path d="M4 10h.01M10 10h.01M16 10h.01"/></svg>Ещё
     </a>
   </nav>
 </div>
