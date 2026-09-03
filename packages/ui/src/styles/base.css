@@ -31,15 +31,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 a { color: var(--accent); text-underline-offset: 2px; }
 
-/* --- типографические роли ------------------------------------------------ */
-.t-h1      { font-size: var(--fs-h1);      line-height: var(--lh-h1);      font-weight: var(--fw-h1); }
-.t-h2      { font-size: var(--fs-h2);      line-height: var(--lh-h2);      font-weight: var(--fw-h2); }
+/* --- типографические роли ------------------------------------------------
+   Заголовки и надзаголовки набираются узким гротеском, текст — Golos,
+   числа — моноширинным. Три роли, три гарнитуры: так набирают бланк, а не
+   страницу. Узкий гротеск не уходит в абзацы: там он нечитаем.          */
+.t-h1      { font-family: var(--font-display); font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: 700; letter-spacing: .01em; }
+.t-h2      { font-family: var(--font-display); font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: 700; letter-spacing: .01em; }
 .t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }
 .t-body    { font-size: var(--fs-body);    line-height: var(--lh-body);    font-weight: var(--fw-body); }
 .t-sm      { font-size: var(--fs-sm);      line-height: var(--lh-sm);      font-weight: var(--fw-sm); }
 
-/* Надзаголовок карточки: 11px, разрядка, капитель */
+/* Надзаголовок блока: узкий гротеск, 11 px, разрядка, прописные. Тот же
+   набор, что у подписей граф в штампе и заголовков колонок таблицы. */
 .t-cap {
+  font-family: var(--font-display);
   font-size: var(--fs-cap);
   line-height: var(--lh-cap);
   font-weight: var(--fw-cap);

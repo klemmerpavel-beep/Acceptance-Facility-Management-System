@@ -7,7 +7,7 @@
  * допускаются только с fonts.googleapis.com, и правило @import внутри
  * встроенного блока там не срабатывает.
  */
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
@@ -18,6 +18,36 @@ const cssFile = files.find((name) => name.endsWith(".css"));
 const jsFile = files.find((name) => name.endsWith(".js"));
 if (cssFile === undefined || jsFile === undefined) {
   throw new Error("В сборке нет ожидаемых файлов стилей и кода. Выполните build:demo.");
+}
+
+/**
+ * Устаревшая сборка — молчаливый дефект. `pnpm -r build` собирает обычную
+ * версию клиента и каталога `dist-demo` не трогает: этот скрипт брал
+ * вчерашний код, писал файл с прежним содержимым и рапортовал об успехе.
+ * Дальше в публикацию уходила страница, не отвечающая ни исходникам, ни
+ * слепку. Проверяется по времени изменения.
+ */
+const newest = (directory) => {
+  let latest = 0;
+  const walk = (path) => {
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      const child = join(path, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else latest = Math.max(latest, statSync(child).mtimeMs);
+    }
+  };
+  walk(directory);
+  return latest;
+};
+const built = statSync(join(assets, jsFile)).mtimeMs;
+for (const source of ["apps/web/src", "packages/ui/src"]) {
+  const changed = newest(join(root, source));
+  if (changed > built) {
+    throw new Error(
+      `Сборка старше исходников (${source} изменён позже). Выполните ` +
+      "`pnpm --filter @priyomka/web run build:demo` и повторите.",
+    );
+  }
 }
 
 let css = readFileSync(join(assets, cssFile), "utf8");
@@ -67,7 +97,7 @@ ${fontLinks}
   } catch (error) {
     // Хранилище недоступно: остаётся системная тема.
   }
-<\/script>
+</script>
 <style>
 ${css}
 </style>

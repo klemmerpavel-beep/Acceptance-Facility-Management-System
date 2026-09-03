@@ -1,70 +1,137 @@
 import { useState } from "react";
-import { requestMagicLink } from "./api.js";
+import { parsePhone } from "@priyomka/domain";
+import { confirmSmsCode, requestSmsCode, errorMessage } from "./api.js";
 
 /**
- * Вход по ссылке. Пароля нет, кода из СМС нет: заказчик не смог завершить
- * регистрацию в продукте-конкуренте, и барьер входа снят целиком.
+ * Вход по номеру телефона в два шага.
+ *
+ * Пароля нет: заказчик не смог завершить регистрацию в продукте-конкуренте,
+ * и барьер входа снят до одного номера и одного кода. Прораб не входит и
+ * так — у него персональная ссылка, без номера и кода.
+ *
+ * Правила номера берутся из доменного слоя, а не переписываются здесь:
+ * иначе клиент и сервер разойдутся на второй правке. Проверка на клиенте
+ * нужна только затем, чтобы не гонять заведомо неверный номер на сервер.
  */
-export function SignIn(): React.JSX.Element {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState<{ token?: string } | null>(null);
+export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.Element {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<{ shown: string; code?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = (event: React.FormEvent): void => {
+  const request: React.SubmitEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    const parsed = parsePhone(phone);
+    if (!parsed.ok) { setError(parsed.message); return; }
+
+    setBusy(true);
+    setError(null);
+    void requestSmsCode(phone)
+      .then((issued) => {
+        setStep({ shown: issued.phone, ...(issued.code !== undefined && { code: issued.code }) });
+        setCode("");
+      })
+      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .finally(() => setBusy(false));
+  };
+
+  const confirm: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    void requestMagicLink(email)
-      .then((result) => setSent({ ...(result.token !== undefined && { token: result.token }) }))
-      .catch((cause: Error) => setError(cause.message))
+    void confirmSmsCode(phone, code)
+      // Сессия ставится кукой; приложение перечитывает её само.
+      // Перезагрузка страницы здесь была бы лишней: она стирает
+      // состояние и в демонстрационной сборке возвращает на тот же экран.
+      .then(onSignedIn)
+      .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
 
   return (
-    <main className="container stack stack--loose">
-      <div className="cover">
-        <div className="container">
-          <div className="cover__title">
-            <h1 className="t-h1">Приёмка</h1>
-          </div>
-        </div>
+    <main className="signin">
+      <div className="signin__brand">
+        <svg className="icon" aria-hidden="true"><use href="#i-acceptance" /></svg>
+        <span className="t-h3">Приёмка</span>
       </div>
 
-      {sent === null ? (
-        <form className="panel panel--pad stack" onSubmit={submit} style={{ maxWidth: "var(--modal-w)" }}>
-          <p className="t-h3">Вход</p>
+      {step === null ? (
+        <form className="signin__form stack" onSubmit={request}>
+          <h1 className="t-h1 signin__title">Вход или регистрация</h1>
           <label className="field">
-            <span className="field__label">Почта</span>
-            <input
-              className="input"
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="owner@dolgiy.studio"
-            />
+            <span className="field__label field__label--cap">Номер телефона, код страны +7</span>
+            {/* Список стран из одного пункта — орган управления без выбора:
+                он занимает место, ловит фокус и ничего не решает. Код страны
+                показан приставкой поля (Д-26). */}
+            <div className="signin__phone">
+              <span className="signin__prefix">+7</span>
+              <input
+                className="input input--tel"
+                type="tel"
+                autoComplete="tel"
+                required
+                aria-describedby={error === null ? undefined : "signin-error"}
+                aria-invalid={error === null ? undefined : true}
+                value={phone}
+                onChange={(event) => { setPhone(event.target.value); setError(null); }}
+                onBlur={() => {
+                  // Проверка после потери фокуса, а не только на отправке:
+                  // иначе о неверном формате узнают на последнем шаге.
+                  if (phone.trim() === "") return;
+                  const parsed = parsePhone(phone);
+                  if (!parsed.ok) setError(parsed.message);
+                }}
+                placeholder="900 000-00-00"
+              />
+            </div>
           </label>
-          {error !== null && <p className="field__error">{error}</p>}
-          <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
-            Прислать ссылку
-          </button>
+          {error !== null && <p className="field__error" id="signin-error" role="alert">{error}</p>}
+          <div className="signin__actions">
+            <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
+              Продолжить
+            </button>
+          </div>
         </form>
       ) : (
-        <div className="panel panel--pad stack" style={{ maxWidth: "var(--modal-w)" }}>
-          <p className="t-h3">Ссылка отправлена</p>
-          <p className="t-sm t-muted">
-            Откройте письмо и перейдите по ссылке. Ответ одинаков для существующего и
-            несуществующего адреса — форма входа не проверяет, кто есть в системе.
-          </p>
-          {sent.token !== undefined && (
-            // Вне промышленной среды ссылка показывается прямо здесь:
-            // почтовый отправитель на стенде не настроен.
-            <a className="btn btn--primary" href={`/api/auth/consume?token=${sent.token}`}>
-              Открыть ссылку входа
-            </a>
+        <form className="signin__form stack" onSubmit={confirm}>
+          <h1 className="t-h1 signin__title">Код подтверждения</h1>
+          <label className="field">
+            <span className="field__label field__label--cap">Отправлен на {step.shown}</span>
+            <input
+              className="input signin__code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\d{6}"
+              required
+              aria-describedby={error === null ? undefined : "code-error"}
+              aria-invalid={error === null ? undefined : true}
+              value={code}
+              onChange={(event) => { setCode(event.target.value.replace(/\D/gu, "").slice(0, 6)); setError(null); }}
+              placeholder="000000"
+            />
+          </label>
+          {error !== null && <p className="field__error" id="code-error" role="alert">{error}</p>}
+          {step.code !== undefined && (
+            // На стенде отправщик сообщений не подключён, поэтому код
+            // показывается здесь. Перед пилотом меняется отправщик, экран нет.
+            <p className="field__hint">
+              Код на стенде: <span className="num">{step.code}</span>
+            </p>
           )}
-        </div>
+          <div className="signin__actions">
+            <button
+              className="btn btn--text"
+              type="button"
+              onClick={() => { setStep(null); setError(null); }}
+            >
+              Изменить номер
+            </button>
+            <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
+              Войти
+            </button>
+          </div>
+        </form>
       )}
     </main>
   );

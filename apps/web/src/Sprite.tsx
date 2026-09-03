@@ -25,6 +25,23 @@ export function Sprite(): React.JSX.Element {
         <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" /></symbol>
         <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z" /><path d="M4 13V4h9" /></symbol>
 
+        {/* Разделы шапки. Рисунок тот же чертёжный: прямые и прямые углы. */}
+        <symbol id="i-home" viewBox="0 0 20 20"><path d="M3 9 10 3l7 6v8H3z" /><path d="M8 17v-5h4v5" /></symbol>
+        <symbol id="i-request" viewBox="0 0 20 20"><path d="M4 3h9l3 3v11H4z" /><path d="M7 8h6M7 11h6M7 14h3" /></symbol>
+        <symbol id="i-people" viewBox="0 0 20 20"><path d="M4 4h4v3H4z" /><path d="M2 13v-2h8v2" /><path d="M12 7h4v3h-4z" /><path d="M10 16v-2h8v2" /></symbol>
+        <symbol id="i-badge" viewBox="0 0 20 20"><path d="M4 5h12v11H4z" /><path d="M8 8h4v3H8z" /><path d="M7 14h6" /></symbol>
+        <symbol id="i-money" viewBox="0 0 20 20"><path d="M3 6h14v8H3z" /><path d="M8 10h4" /></symbol>
+        <symbol id="i-document" viewBox="0 0 20 20"><path d="M5 3h7l3 3v11H5z" /><path d="M12 3v3h3" /><path d="M8 11h5M8 14h5" /></symbol>
+        <symbol id="i-settings" viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12" /><path d="M8 4v4M13 8v4M6 12v4" /></symbol>
+        <symbol id="i-more" viewBox="0 0 20 20"><path d="M4 10h.01M10 10h.01M16 10h.01" /></symbol>
+
+        {/* Действия и списки. */}
+        <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></symbol>
+        <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z" /><path d="M13.5 13.5 17 17" /></symbol>
+        <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4" /><path d="M6 12l4 4 4-4" /></symbol>
+        <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4" /></symbol>
+        <symbol id="i-sort-desc" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4" /></symbol>
+
         {/* Тема: доля закраски квадрата — половина, пусто, целиком. */}
         <symbol id="i-theme-system" viewBox="0 0 20 20">
           <path d="M3 3h14v14H3z" />

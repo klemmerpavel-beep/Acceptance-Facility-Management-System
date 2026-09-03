@@ -1,8 +1,11 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
-  currentUserSchema, estimateViewSchema, importPreviewResponseSchema, importRecordSchema,
-  importResultSchema, projectSummarySchema,
-  type EstimateView, type ImportRecord, type ImportReport, type ImportResult,
+  clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
+  importPreviewResponseSchema, importRecordSchema, importResultSchema, organizationSchema,
+  projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
+  type ClientRow, type Dashboard, type EstimateView, type ImportRecord, type ImportReport,
+  type ImportResult, type Organization, type ProjectEvent, type SmsCodeIssued, type Unit,
+  type UpdateOrganization, type WorkerRow,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -12,13 +15,47 @@ import { z } from "zod";
  */
 const BASE = "/api";
 
+/**
+ * Отказ сети и неожиданный ответ сервера — разные события, и человеку нужно
+ * знать, какое случилось: в первом случае данные не ушли и попытку надо
+ * повторить, во втором повторять бессмысленно. Текст браузера «Failed to
+ * fetch» не говорит ни того, ни другого и вдобавок на английском (Д-02).
+ */
+export class OfflineError extends Error {
+  constructor() {
+    super("Нет связи с сервером. Данные не отправлены — повторите, когда появится сеть.");
+    this.name = "OfflineError";
+  }
+}
+
+/**
+ * Текст отказа для экрана.
+ *
+ * Обещание отклоняется чем угодно, а не только Error: типизировать параметр
+ * `catch` как Error — обещание компилятору, которое ничем не обеспечено.
+ * Здесь оно проверяется один раз, а экраны получают строку.
+ */
+export const errorMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : "Неизвестная ошибка. Повторите действие.";
+
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { credentials: "include", ...init });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, { credentials: "include", ...init });
+  } catch {
+    throw new OfflineError();
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string };
     throw new Error(body.message ?? `Запрос ${path} завершился кодом ${response.status}`);
   }
-  return schema.parse(await response.json());
+  const payload: unknown = await response.json();
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    // Текст ZodError адресован разработчику; пользователю он ничего не даёт.
+    throw new Error("Сервер вернул неожиданный ответ. Обновите страницу; если повторится — сообщите в поддержку.");
+  }
+  return parsed.data;
 }
 
 export const fetchCurrentUser = (): Promise<CurrentUser> =>
@@ -27,16 +64,31 @@ export const fetchCurrentUser = (): Promise<CurrentUser> =>
 export const fetchProjects = (): Promise<ProjectSummary[]> =>
   request("/projects", z.array(projectSummarySchema));
 
-// exactOptionalPropertyTypes: отсутствующий токен и токен со значением
-// undefined — разные вещи, и тип это отражает.
-export const requestMagicLink = (
-  email: string,
-): Promise<{ sent: true; token?: string | undefined }> =>
-  request(
-    "/auth/magic-link",
-    z.object({ sent: z.literal(true), token: z.string().optional() }),
-    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) },
-  );
+const json = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/**
+ * Запрос кода подтверждения. Ответ одинаков для существующего и
+ * несуществующего номера; на стенде в нём приходит сам код.
+ */
+export const requestSmsCode = (phone: string): Promise<SmsCodeIssued> =>
+  request("/auth/phone/request", smsCodeIssuedSchema, json({ phone }));
+
+/** Обмен кода на сессию. Кука ставится сервером. */
+export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true }> =>
+  request("/auth/phone/confirm", z.object({ ok: z.literal(true) }), json({ phone, code }));
+
+export const fetchOrganization = (): Promise<Organization> =>
+  request("/organization", organizationSchema);
+
+export const saveOrganization = (patch: UpdateOrganization): Promise<Organization> =>
+  request("/organization", organizationSchema, { ...json(patch), method: "PATCH" });
+
+/** Справочник единиц измерения организации с написаниями импорта. */
+export const fetchUnits = (): Promise<Unit[]> => request("/units", z.array(unitSchema));
 
 export const logout = (): Promise<{ ok: true }> =>
   request("/auth/logout", z.object({ ok: z.literal(true) }), { method: "POST" });
@@ -78,3 +130,25 @@ export const fetchEstimate = (code: string): Promise<EstimateView> =>
 
 export const fetchImports = (code: string): Promise<ImportRecord[]> =>
   request(`/projects/${code}/estimate/imports`, z.array(importRecordSchema));
+
+export const fetchDashboard = (): Promise<Dashboard> => request("/summary", dashboardSchema);
+
+export const fetchClients = (): Promise<ClientRow[]> =>
+  request("/clients", z.array(clientRowSchema));
+
+export const fetchWorkers = (): Promise<WorkerRow[]> =>
+  request("/workers", z.array(workerRowSchema));
+
+export const fetchEvents = (code: string): Promise<ProjectEvent[]> =>
+  request(`/projects/${code}/events`, z.array(eventSchema));
+
+/** Смена статуса объекта. Ответ — обновлённая карточка, а не признак успеха. */
+export const setProjectStatus = (
+  code: string,
+  status: ProjectSummary["status"],
+): Promise<ProjectSummary> =>
+  request(`/projects/${code}/status`, projectSummarySchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status }),
+  });

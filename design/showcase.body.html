@@ -1,3 +1,25 @@
+<svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Контурная геометрия: прямые и прямые углы. Тот же чертёжный рисунок,
+         из которого выведен акцент — берлинская лазурь. -->
+    <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></symbol>
+    <symbol id="i-estimate" viewBox="0 0 20 20"><path d="M3 5h9M3 10h9M3 15h9"/><path d="M15 5h2M15 10h2M15 15h2"/></symbol>
+    <symbol id="i-acceptance" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M6.5 10.5 9 13l4.5-4.5"/></symbol>
+    <symbol id="i-expense" viewBox="0 0 20 20"><path d="M5 3h10v14l-2.5-1.5L10 17l-2.5-1.5L5 17z"/><path d="M8 7h4M8 10h4"/></symbol>
+    <symbol id="i-schedule" viewBox="0 0 20 20"><path d="M3 5h8M6 10h9M3 15h6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 20 20"><path d="M12 4 6 10l6 6"/></symbol>
+    <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
+    <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4"/><path d="M6 12l4 4 4-4"/></symbol>
+    <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4"/></symbol>
+    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
+    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
+    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
+  </defs>
+</svg>
 <header class="appbar">
   <span class="appbar__brand">Приёмка</span>
   <nav class="appbar__nav">
@@ -15,14 +37,15 @@
   </div>
 </header>
 
-<div class="cover">
-  <div class="container">
-    <p class="cover__crumbs"><a href="#">Объекты</a><svg class="icon icon--sm"><use href="#i-crumb"/></svg><span>Московский проспект 116</span></p>
-    <div class="cover__title">
-      <span class="code-badge code-badge--lg">R-99</span>
-      <h1 class="t-h1">Московский проспект 116</h1>
-      <span class="pill pill--ok">В работе</span>
-    </div>
+<div class="container">
+  <p class="stamp__crumbs"><a href="#">Объекты</a><svg class="icon icon--sm"><use href="#i-crumb"/></svg><span>R-99</span></p>
+  <div class="stamp">
+    <div class="stamp__cell"><span class="t-cap">Объект</span><span class="stamp__value stamp__value--code">R-99</span></div>
+    <div class="stamp__cell stamp__cell--wide"><span class="t-cap">Адрес</span><span class="stamp__value">Московский проспект 116</span></div>
+    <div class="stamp__cell"><span class="t-cap">Стадия</span><span class="stamp__value">В работе</span></div>
+    <div class="stamp__cell"><span class="t-cap">Срок</span><span class="stamp__value stamp__value--code stamp__value--late">15.08.2026</span></div>
+    <div class="stamp__cell"><span class="t-cap">Прораб</span><span class="stamp__value">Фархат Юсупов</span></div>
+    <div class="stamp__cell"><span class="t-cap">Смета</span><span class="stamp__value stamp__value--code">ред. 2</span></div>
   </div>
 </div>
 
@@ -75,20 +98,21 @@
           <span class="figure__value">30</span>
           <span class="figure__note">дней · дедлайн 15.08.2026</span>
         </div>
-        <div class="ring ring--on-accent">
-          <svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
-            <circle class="ring__track" cx="36" cy="36" r="32" fill="none" stroke-width="8"/>
-            <circle class="ring__arc" cx="36" cy="36" r="32" fill="none" stroke-width="8"
-                    stroke-dasharray="201.06" stroke-dashoffset="106.56" transform="rotate(-90 36 36)"/>
-          </svg>
-          <span class="ring__value">47 %</span>
+        <div class="scale scale--on-accent">
+          <div class="scale__track" role="img" aria-label="Принято 47 процентов итога сметы">
+            <span class="scale__fill" style="inline-size:47%"></span>
+            <span class="scale__tick" style="inset-inline-start:25%"></span>
+            <span class="scale__tick" style="inset-inline-start:50%"></span>
+            <span class="scale__tick" style="inset-inline-start:75%"></span>
+          </div>
+          <p class="scale__legend"><span>принято</span><span class="scale__value">47 %</span></p>
         </div>
       </div>
 
       <dl class="deflist">
         <p class="deflist__head">Информация</p>
-        <div class="deflist__row"><dt class="deflist__term">Клиент</dt><dd class="deflist__value">[300] И. Иванов</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Рашид</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Клиент</dt><dd class="deflist__value">И. Иванов</dd></div>
+        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Фархат Юсупов</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Адрес</dt><dd class="deflist__value">Московский пр. 116</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Ключи</dt><dd class="deflist__value">2 комплекта</dd></div>
         <div class="deflist__row"><dt class="deflist__term">Смета</dt><dd class="deflist__value">редакция 2 от 25.08.2026</dd></div>
@@ -276,12 +300,12 @@
     </div>
     <div class="stack stack--tight">
       <div class="gantt__row"><span class="t-sm">Подготовительные работы</span><div class="gantt__track"><div class="gantt__bar" data-from="0" data-to="8"></div></div><span class="t-sm t-secondary">—</span><span class="num">100 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Евгений</span><span class="num">62 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Электрики Евгения</span><span class="num">62 %</span></div>
       <p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p>
-      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Фархат</span><span class="num">59 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Бригада Фархата</span><span class="num">59 %</span></div>
       <div class="gantt__row"><span class="t-sm">Вентиляция</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="38" data-to="48"></div></div><span class="t-sm t-secondary">Алексей</span><span class="num">0 %</span></div>
       <p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p>
-      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Рашид</span><span class="num">12 %</span></div>
+      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Бригада Рашида</span><span class="num">12 %</span></div>
     </div>
   </section>
 
@@ -296,6 +320,116 @@
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Петрович · гипсокартон, 12 листов</p><p class="t-sm t-muted">подтверждено руководителем · 27.08.2026</p></div><span class="row"><span class="num">18 900,00 ₽</span><span class="pill pill--ok">Учтено</span></span></div>
       <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Письмо без кода объекта</p><p class="t-sm t-muted">тема: «чек» · 26.08.2026</p></div><span class="row"><span class="num">3 200,00 ₽</span><span class="pill">Не распознано</span></span></div>
     </div>
+  </section>
+
+
+  <!-- ── СПИСОК ПО ЕДИНОМУ ОБРАЗЦУ ─────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Список по единому образцу</h2>
+      <p class="t-sm t-muted">раздел 5.14: сортировка по каждой колонке, поиск, счётчик показанного</p>
+    </div>
+    <div class="datatable">
+      <div class="datatable__head">
+        <div class="datatable__title">
+          <h3 class="t-h2">Объекты</h3>
+          <span class="t-sm t-muted">8 объектов в выборке</span>
+        </div>
+        <div class="datatable__controls">
+          <label class="datatable__size">
+            <span class="field__label">Записей</span>
+            <span class="selectwrap"><select class="input"><option>10</option></select><svg class="icon selectwrap__chevron"><use href="#i-chevron"/></svg></span>
+          </label>
+          <label class="datatable__search">
+            <svg class="icon"><use href="#i-search"/></svg>
+            <input type="search" placeholder="Поиск по коду, адресу и заказчику">
+          </label>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="datatable__table">
+          <thead>
+            <tr>
+              <th><button class="datatable__sort" type="button">Код<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th><button class="datatable__sort" type="button">Адрес<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th><button class="datatable__sort" type="button">Статус<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+              <th aria-sort="ascending"><button class="datatable__sort" type="button">Срок<svg class="icon icon--sm"><use href="#i-sort-asc"/></svg></button></th>
+              <th class="datatable__num"><button class="datatable__sort" type="button">Итог сметы<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">R-99</span></td>
+              <td><a href="#spisok">Московский проспект 116</a></td>
+              <td><span class="pill pill--ok">В работе</span></td>
+              <td class="num--danger">15.08.2026 · просрочен на 19 дней</td>
+              <td class="datatable__num">4 250 234,35 ₽</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">R-72</span></td>
+              <td><a href="#spisok">Никитинская 42, кв. 7</a></td>
+              <td><span class="pill pill--ok">В работе</span></td>
+              <td>12.09.2026 · 9 дней</td>
+              <td class="datatable__num t-muted">сметы нет</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">R-38</span></td>
+              <td><a href="#spisok">Владимира Невского 15, кв. 61</a></td>
+              <td><span class="pill">Новый</span></td>
+              <td>04.09.2026 · 1 день</td>
+              <td class="datatable__num t-muted">сметы нет</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="datatable__foot">
+        <p class="t-sm t-muted">Показано с 1 по 3 из 8 записей</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ── СВОДКА ────────────────────────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Сводка портфеля</h2>
+      <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
+    </div>
+    <div class="figrow">
+      <div class="figure figrow__lead">
+        <span class="figure__label">Портфель</span>
+        <span class="figure__value">4 250 234,35 ₽</span>
+        <span class="figure__note">итог смет для клиентов</span>
+        <span class="figrow__second"><span class="num num--start">455 382,25 ₽</span><span class="figure__note">сопровождение объектов</span></span>
+      </div>
+      <div class="figure">
+        <span class="figure__label">Расхождения смет</span>
+        <span class="figure__value">3 794 852,10 ₽</span>
+        <span class="figure__note">пересчёт по позициям</span>
+        <span class="figrow__second"><span class="num num--start num--danger">438 800,00 ₽</span><span class="figure__note">недосчёт в файлах · объектов: 1</span></span>
+      </div>
+    </div>
+    <div class="weekstrip">
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
+      <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--warn">Дедлайн R-38</span></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--danger">Просрочен R-99</span></div>
+      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
+    </div>
+    <div class="counterstrip">
+      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span></button>
+      <button type="button" class="counterstrip__item"><span>Позиций в сметах</span><span class="counterstrip__count">132</span></button>
+      <div class="counterstrip__item"><span>Просрочены</span><span class="counterstrip__count counterstrip__count--danger">1</span></div>
+    </div>
+    <div class="panel panel--pad">
+      <div class="feed">
+        <div class="feed__item"><span class="feed__time">02.09.26, 19:15</span><span><span class="feed__title">R-99 · Импорт сметы: редакция 1, позиций 132</span><span class="feed__detail"> smeta-obezlichennaya.xlsx</span></span></div>
+        <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Роман Дементьев</span></span></div>
+      </div>
+    </div>
+    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>
   </section>
 
   <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->
@@ -461,3 +595,4 @@
     });
   });
 </script>
+

@@ -11,7 +11,7 @@
  *          по работам.
  *
  * Почему не число с плавающей точкой: в смете «Московский проспект 116»
- * 141 позиция, и уже на первой из них 406,91 × 120 в двоичной плавающей
+ * 132 позиции работ, и уже на первой из них 406,91 × 120 в двоичной плавающей
  * арифметике даёт 48 829,200000000004. Накопление таких хвостов по всей
  * смете противоречит целевому значению метрики «расхождение расчёта
  * оплаты труда с ручным — 0».
@@ -57,7 +57,7 @@ function asInteger(value: bigint | number | string): bigint {
  * Выбор обоснован ожиданием заказчика: 0,5 копейки округляется вверх и для
  * начисления, и для сторно, поэтому пара «начисление + сторно» даёт ноль,
  * а не копейку расхождения. Банковское округление к чётному этого свойства
- * не даёт и на выборке из 141 позиции заметно смещает итог.
+ * не даёт и на выборке из 132 позиций заметно смещает итог.
  */
 function divideRoundHalfUp(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n) throw new RangeError("Делитель должен быть положительным");
@@ -78,7 +78,7 @@ export function sum(values: readonly Kopecks[]): Kopecks {
 
 export const add = (a: Kopecks, b: Kopecks): Kopecks => (a + b) as Kopecks;
 export const subtract = (a: Kopecks, b: Kopecks): Kopecks => (a - b) as Kopecks;
-export const negate = (a: Kopecks): Kopecks => -a as Kopecks;
+export const negate = (a: Kopecks): Kopecks => -(a as bigint) as Kopecks;
 
 /**
  * Стоимость позиции: количество × цена единицы.
@@ -98,7 +98,7 @@ export function applyPercent(amount: Kopecks, share: BasisPoints): Kopecks {
  * Сумма с надбавкой, вычисленная **одним умножением**.
  *
  * Раздельное начисление надбавки на каждую позицию с округлением до копейки
- * даёт на 141 позиции накопленное расхождение в рублях. Поэтому надбавка
+ * даёт на 132 позициях накопленное расхождение в рублях. Поэтому надбавка
  * применяется к итогу за транш или за акт целиком, и округление происходит
  * ровно один раз.
  */
@@ -109,12 +109,12 @@ export function withSurcharge(amount: Kopecks, share: BasisPoints): Kopecks {
 /** Доля одной величины в другой, в сотых долях процента. Ноль на нулевой базе. */
 export function shareOf(part: Kopecks, whole: Kopecks): BasisPoints {
   if (whole === 0n) return 0n as BasisPoints;
-  return divideRoundHalfUp(part * PERCENT, whole < 0n ? -whole : whole) as BasisPoints;
+  return divideRoundHalfUp(part * PERCENT, whole < 0n ? -(whole as bigint) : whole) as BasisPoints;
 }
 
 /** Разбор рублёвой записи «3 758 778,35» или «3758778.35» в копейки. */
 export function parseRubles(input: string): Kopecks {
-  const normalized = input.replace(/\s| /g, "").replace(",", ".");
+  const normalized = input.replace(/\s|\u00a0/g, "").replace(",", ".");
   const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(normalized);
   if (!match) throw new TypeError(`Не рублёвая сумма: ${input}`);
   const [, sign, whole, fraction = ""] = match;
@@ -124,7 +124,7 @@ export function parseRubles(input: string): Kopecks {
 
 /** Разбор количества «406,91» в тысячные доли единицы. */
 export function parseQuantity(input: string): Milliunits {
-  const normalized = input.replace(/\s| /g, "").replace(",", ".");
+  const normalized = input.replace(/\s|\u00a0/g, "").replace(",", ".");
   const match = /^(-?)(\d+)(?:\.(\d{1,3}))?$/.exec(normalized);
   if (!match) throw new TypeError(`Не количество: ${input}`);
   const [, sign, whole, fraction = ""] = match;

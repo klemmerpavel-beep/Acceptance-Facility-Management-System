@@ -1,8 +1,12 @@
 import { useState } from "react";
 import type { EstimateSectionNode, EstimateView } from "@priyomka/contracts";
-import { formatKopecks, formatQty } from "@priyomka/ui";
+import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
+import { plural } from "./status.js";
 
 type Projection = "internal" | "client";
+
+/** Выше этого числа строк отрисовка таблицы целиком перестаёт быть уместной. */
+const ROW_LIMIT = 400;
 
 const money = (value: string | undefined): string =>
   value === undefined ? "—" : formatKopecks(BigInt(value));
@@ -16,6 +20,11 @@ const money = (value: string | undefined): string =>
  * при демонстрации экрана клиенту ошибка была заметна мгновенно. Сервер
  * прорабу этих величин не отдаёт вовсе, поэтому переключатель проекции
  * показывается только тому, у кого есть что скрывать.
+ *
+ * Колонки «Принято» здесь пока нет. Приёмка появится на стадии D, а до неё
+ * колонка печатает одну и ту же пилюлю «Ожидает» во всех 132 строках:
+ * место занято, сведений ноль. Колонка вернётся вместе с действием, которое
+ * её меняет.
  */
 export function EstimateTable({ estimate }: { estimate: EstimateView }): React.JSX.Element {
   const hasInternal = estimate.totals.wage !== undefined;
@@ -23,7 +32,10 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   const showInternal = hasInternal && projection === "internal";
-  const columns = showInternal ? 10 : 7;
+  const sections = estimate.sectionsTopLevel + estimate.sectionsNested;
+  /* Заголовок и подытог на раздел плюс позиции — столько строк уходит в DOM. */
+  const rendered = estimate.positions + sections * 2;
+  const columns = showInternal ? 9 : 6;
 
   const toggle = (id: string): void =>
     setCollapsed((current) => {
@@ -69,9 +81,6 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
           <td className="estimate__num">{formatQty(BigInt(item.qty))}</td>
           <td className="estimate__num">{money(item.unitPrice)}</td>
           <td className="estimate__num">{money(item.total)}</td>
-          <td>
-            <span className="pill">Ожидает</span>
-          </td>
           {showInternal && (
             <>
               <td className="estimate__num estimate__internal">{money(item.unitWage)}</td>
@@ -90,7 +99,6 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
             </span>
           </td>
           <td className="estimate__num">{money(node.subtotal)}</td>
-          <td />
           {showInternal && (
             <>
               <td className="estimate__num estimate__internal" />
@@ -105,11 +113,13 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
     });
 
   return (
-    <div className="panel panel--flush">
+    <div className="panel panel--sheet panel--flush">
       <div className="panel__head">
         <div className="row">
           <p className="t-h3">
-            {estimate.positions} позиц. · {estimate.sectionsTopLevel + estimate.sectionsNested} раздел.
+            {estimate.positions} {plural(estimate.positions, "позиция", "позиции", "позиций")}
+            {" · "}
+            {sections} {plural(sections, "раздел", "раздела", "разделов")}
           </p>
           {estimate.worksTotalDelta !== null && BigInt(estimate.worksTotalDelta) !== 0n && (
             <span className="pill pill--danger">
@@ -144,7 +154,7 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
           <thead>
             {showInternal && (
               <tr>
-                <th colSpan={7} />
+                <th colSpan={6} />
                 <th colSpan={3} className="estimate__internal estimate__internal-group">
                   Внутреннее
                 </th>
@@ -157,7 +167,6 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
               <th className="estimate__num">Кол.</th>
               <th className="estimate__num">Цена ед.</th>
               <th className="estimate__num">Сумма</th>
-              <th>Принято</th>
               {showInternal && (
                 <>
                   <th className="estimate__num estimate__internal">Ставка ЗП</th>
@@ -168,19 +177,52 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
             </tr>
           </thead>
           <tbody>{rows(estimate.sections)}</tbody>
+          {/* Ведомость закрывается своими итогами, как закрывается смета:
+              работы, надбавка за сопровождение, итог для заказчика. Внутренние
+              итоги стоят в своих колонках и уходят вместе с ними в клиентской
+              проекции. */}
           <tfoot>
             <tr>
-              <td colSpan={5}>Итого по работам</td>
-              <td className="estimate__num">{money(estimate.totals.works)}</td>
-              <td colSpan={showInternal ? 4 : 1} className="t-sm t-muted">
-                {estimate.declaredWorksTotal === null
-                  ? ""
-                  : `в файле заявлено ${money(estimate.declaredWorksTotal)}`}
+              <td colSpan={5}>
+                Итого по работам
+                {estimate.declaredWorksTotal !== null && (
+                  <span className="t-sm t-muted"> · в файле заявлено {money(estimate.declaredWorksTotal)}</span>
+                )}
               </td>
+              <td className="estimate__num">{money(estimate.totals.works)}</td>
+              {showInternal && (
+                <>
+                  <td className="estimate__num estimate__internal" />
+                  <td className="estimate__num estimate__internal">{money(estimate.totals.wage)}</td>
+                  <td className="estimate__num estimate__internal">{money(estimate.totals.profit)}</td>
+                </>
+              )}
+            </tr>
+            <tr>
+              <td colSpan={5}>
+                Сопровождение объекта {formatPercent(BigInt(estimate.totals.supervisionShare))}
+              </td>
+              <td className="estimate__num">{money(estimate.totals.supervision)}</td>
+              {showInternal && <td className="estimate__internal" colSpan={3} />}
+            </tr>
+            <tr>
+              <td colSpan={5}>Итого для заказчика</td>
+              <td className="estimate__num">{money(estimate.totals.estimate)}</td>
+              {showInternal && <td className="estimate__internal" colSpan={3} />}
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* Порог назван, чтобы переход на виртуализацию был решением, а не
+          авралом. Виртуализация тела с липкой шапкой, сворачиваемыми
+          разделами и подытогами — отдельная работа (реестр Д-25). */}
+      {rendered > ROW_LIMIT && (
+        <p className="field__hint">
+          В смете {rendered} строк — больше порога в {ROW_LIMIT}. Таблица отрисовывается целиком,
+          и на таком объёме это уже заметно.
+        </p>
+      )}
     </div>
   );
 }

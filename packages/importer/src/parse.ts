@@ -24,7 +24,7 @@ import { resolveUnitWith, type UnitOverrides, type UnitResolution } from "./unit
 export type ColumnRole = "name" | "unit" | "qty" | "unitPrice" | "unitWage" | "total" | "wageTotal" | "profit" | "profitShare";
 
 /** Подписи шапки действующего файла и их синонимы. */
-const HEADER_SYNONYMS: ReadonlyArray<readonly [ColumnRole, readonly string[]]> = [
+const HEADER_SYNONYMS: readonly (readonly [ColumnRole, readonly string[]])[] = [
   ["name", ["наименование работ", "наименование", "работы"]],
   ["unit", ["ед. изм.", "ед.изм.", "единица", "ед"]],
   ["qty", ["кол.", "кол-во", "количество"]],
@@ -79,13 +79,32 @@ export interface ParsedEstimate {
   readonly unrecognizedRows: readonly { readonly row: number; readonly text: string }[];
 }
 
+/**
+ * Примитив ячейки в строку. Всё, что не примитив, даёт пустую строку, а не
+ * «[object Object]»: у ячейки с ошибкой формулы и у гиперссылки при слепом
+ * String() получалась именно эта надпись, и она уезжала в название позиции.
+ */
+const primitive = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return "";
+};
+
 const text = (value: ExcelJS.CellValue): string => {
   if (value === null || value === undefined) return "";
-  if (typeof value === "object" && "result" in value) return String(value.result ?? "");
-  if (typeof value === "object" && "richText" in value) {
-    return value.richText.map((part) => part.text).join("");
+  if (typeof value === "object") {
+    if ("result" in value) return primitive(value.result).trim();
+    if ("richText" in value) return value.richText.map((part) => part.text).join("");
+    // Гиперссылка несёт видимый текст отдельным полем.
+    if ("text" in value) return primitive(value.text).trim();
+    // Ячейка с ошибкой формулы: показывать «#REF!» в названии позиции нечего.
+    return "";
   }
-  return String(value).trim();
+  return primitive(value).trim();
 };
 
 const numeric = (value: ExcelJS.CellValue): number | null => {
@@ -108,6 +127,9 @@ const toMilliunits = (value: ExcelJS.CellValue): Milliunits | null => {
 
 /** Доля прописных букв вне скобок. Разделяет уровни разделов. */
 export function uppercaseRatio(value: string): number {
+  // Названия позиций сметы — кириллица и латиница; составных эмодзи там нет,
+  // и разбор по кодовым точкам их не рассыплет.
+  // eslint-disable-next-line @typescript-eslint/no-misused-spread
   const letters = [...value.replace(/\(.*?\)/g, "")].filter((c) => /\p{L}/u.test(c));
   if (letters.length === 0) return 0;
   return letters.filter((c) => c === c.toUpperCase()).length / letters.length;

@@ -7,11 +7,15 @@
  * на трёх ширинах, отсутствие видимого фокуса, подписи у полей.
  */
 import { chromium } from "playwright-core";
+import { launchOptions, browserSource } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173";
 const SHOTS = process.env.SHOTS ?? "/tmp/shots";
-const FIXTURE = "/home/user/acceptance-facility-management-system/packages/importer/fixtures/smeta-obezlichennaya.xlsx";
+// Путь считается от самого скрипта — той же идиомой, что в seed-estimate.mjs
+// и capture-demo.mjs. Абсолютный путь годился ровно для одной машины.
+const FIXTURE = process.env["FIXTURE"]
+  ?? new URL("../packages/importer/fixtures/smeta-obezlichennaya.xlsx", import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
 const problems = [];
@@ -27,12 +31,13 @@ const note = (kind, detail) => problems.push(`${kind}: ${detail}`);
  */
 const expected = (url, text = "") =>
   url.endsWith("/auth/me") || url.includes("fonts.googleapis.com") || url.includes("fonts.gstatic.com")
-  || text.includes("401 (Unauthorized)") || text.includes("ERR_CONNECTION_RESET");
+  // Объект без сметы отвечает 404 на запрос сметы; карточка показывает
+  // честное пустое состояние. Это поведение продукта, а не сбой страницы.
+  || /\/projects\/[A-Z]-\d+\/estimate$/u.test(new URL(url, "http://x").pathname)
+  || text.includes("401 (Unauthorized)") || text.includes("ERR_CONNECTION_RESET")
+  || text.includes("404 (Not Found)");
 
-const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  args: ["--no-sandbox"],
-});
+const browser = await chromium.launch(launchOptions());
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
 const page = await context.newPage();
 
@@ -70,6 +75,7 @@ const step = async (name, file) => {
   console.log(`  снято: ${name} → ${file}`);
 };
 
+console.log(`Браузер: ${browserSource()}`);
 console.log("Сценарий:");
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.waitForSelector("form");
@@ -88,21 +94,60 @@ const unlabeled = await page.evaluate(() =>
 );
 if (unlabeled > 0) note("поле без подписи", `${unlabeled} шт.`);
 
-await page.fill('input[type="email"]', "owner@dolgiy.studio");
+// Отказ формы называет причину, а не «проверьте данные».
+await page.fill('input[type="tel"]', "+1 202 555-01-99");
 await page.click('button[type="submit"]');
-await page.waitForSelector('a.btn:has-text("Открыть ссылку входа")');
-await step("ссылка выдана", "02-ssylka.png");
+await page.waitForSelector('[role="alert"]');
+const foreignMessage = (await page.locator('[role="alert"]').textContent())?.trim() ?? "";
+if (!foreignMessage.includes("+7")) {
+  note("вход", `отказ на чужой код страны не называет причину: «${foreignMessage}»`);
+}
 
-// Переход по ссылке входа: сервер ставит куку и возвращает JSON.
-const href = await page.getAttribute('a.btn:has-text("Открыть ссылку входа")', "href");
-await page.goto(`${BASE}${href}`);
-await page.goto(BASE, { waitUntil: "networkidle" });
-await page.waitForSelector("table.estimate");
-await step("объекты", "03-obekty.png");
-await overflow("объекты, 1440");
+await page.fill('input[type="tel"]', "8 900 000-00-00");
+await page.click('button[type="submit"]');
+await page.waitForSelector('input[inputmode="numeric"]');
+await step("код подтверждения", "02-kod.png");
+await overflow("код, 1440");
 
-const rows = await page.locator("table.estimate tbody tr").count();
-console.log(`  объектов в списке: ${rows}`);
+// На стенде код показан на экране: отправщик сообщений не подключён.
+const shown = await page.locator(".field__hint .num").textContent();
+if (shown === null || !/^\d{6}$/u.test(shown.trim())) {
+  note("вход", `код на стенде показан как «${shown ?? "—"}»`);
+}
+await page.fill('input[inputmode="numeric"]', shown?.trim() ?? "");
+await page.click('button[type="submit"]');
+
+// Первый экран — сводка по портфелю.
+await page.waitForSelector(".weekstrip");
+await step("сводка", "03-svodka.png");
+await overflow("сводка, 1440");
+
+const cards = await page.locator(".figrow > .figure").count();
+const week = await page.locator(".daycard").count();
+const feed = await page.locator(".feed__item").count();
+console.log(`  величин сводки: ${cards}, дней в неделе: ${week}, строк в ленте: ${feed}`);
+if (week !== 7) note("неделя", `в полосе ${week} дней вместо семи`);
+if (cards < 3) note("сводка", `величин ${cards}: ряд денежных величин не собран`);
+if ((await page.locator(".daycard--today").count()) !== 1) {
+  note("неделя", "сегодняшний день не отмечен ровно один раз");
+}
+
+/**
+ * Лента ограничена и сгруппирована по дням. Без предела она вырастает
+ * длиннее всей страницы: смена статуса и импорт повторяются десятками.
+ */
+if (feed > 9) note("лента событий", `строк ${feed}: предел в восемь записей не работает`);
+if ((await page.locator(".feed__day").count()) === 0) {
+  note("лента событий", "нет группировки по дням");
+}
+
+/**
+ * Поверхности по роли. Рамка, заливка и радиус означают «отдельный
+ * объект»; если их получает каждый блок, иерархия исчезает. На первом
+ * экране рамок быть не должно больше, чем блоков, которые требуют действия.
+ */
+const framed = await page.locator("main .panel, main .tile").count();
+if (framed > 4) note("поверхности", `на сводке ${framed} блоков с рамкой: карточная каша`);
 
 // Видимое состояние фокуса.
 await page.keyboard.press("Tab");
@@ -114,13 +159,93 @@ const focusVisible = await page.evaluate(() => {
 });
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
+// Переход в список объектов через шапку.
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await step("объекты", "04-obekty.png");
+await overflow("объекты, 1440");
+
+const rows = await page.locator(".datatable__table tbody tr").count();
+console.log(`  объектов в списке: ${rows}`);
+
+// Фильтр по статусу: выбор сужает таблицу и снимается обратно.
+const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
+await page.click('.segmented__option:has-text("В работе")');
+await page.waitForTimeout(200);
+const filtered = await page.locator(".datatable__table tbody tr").count();
+if (filtered >= rows) note("фильтр по статусу", `после выбора «${inProgress}» строк не убавилось`);
+await page.click('.segmented__option:has-text("Все")');
+await page.waitForTimeout(200);
+if ((await page.locator(".datatable__table tbody tr").count()) !== rows) {
+  note("фильтр по статусу", "снятие фильтра не вернуло полный список");
+}
+
+/**
+ * Список по единому образцу: сортировка по каждой колонке, поиск,
+ * счётчик показанного. Проверяется поведением, а не наличием разметки.
+ */
+const headers = await page.locator(".datatable__table th").count();
+const sorters = await page.locator(".datatable__sort").count();
+if (sorters !== headers) note("список", `сортировка есть у ${sorters} колонок из ${headers}`);
+
+const firstBefore = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+await page.click('.datatable__sort:has-text("Адрес")');
+await page.waitForTimeout(150);
+const firstAsc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+await page.click('.datatable__sort:has-text("Адрес")');
+await page.waitForTimeout(150);
+const firstDesc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
+if (firstAsc === firstDesc) note("сортировка", "смена направления не изменила первую строку");
+if (firstAsc === firstBefore && firstDesc === firstBefore) {
+  note("сортировка", "порядок строк не изменился ни в одном направлении");
+}
+if ((await page.locator('.datatable__table th[aria-sort]').count()) !== 1) {
+  note("сортировка", "направление не объявлено атрибутом aria-sort ровно на одной колонке");
+}
+await page.click('.datatable__sort:has-text("Адрес")');
+
+await page.fill(".datatable__search input", "московский");
+await page.waitForTimeout(200);
+const found = await page.locator(".datatable__table tbody tr").count();
+if (found === 0 || found >= rows) note("поиск", `по запросу найдено ${found} строк из ${rows}`);
+const counter = await page.locator(".datatable__foot p").textContent();
+if (counter === null || !counter.includes("Показано")) note("счётчик", `подпись «${counter ?? "—"}»`);
+await page.fill(".datatable__search input", "");
+await page.waitForTimeout(200);
+await step("список по образцу", "04b-spisok.png");
+
 // Карточка объекта. Открывается объект со сметой: у остальных карточка
 // показывает пустое состояние, и это правильное поведение, а не сбой.
-await page.click('table.estimate tbody tr:has(.code-badge:text-is("R-99")) a');
-await page.waitForSelector(".cover__title .code-badge");
-await page.waitForSelector("table.estimate tbody tr");
-await step("карточка объекта", "04-kartochka.png");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".stamp");
+await page.waitForSelector(".metric__value");
+await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
+
+/*
+ * Штамп объекта — подпись продукта, и проверяется он по составу, а не по
+ * наличию: шесть граф с подписью и значением. Пустая графа означала бы, что
+ * карточка потеряла сведение, которое раньше несла цветная обложка.
+ */
+const stamp = await page.evaluate(() =>
+  [...document.querySelectorAll(".stamp .stamp__cell")].map((cell) => ({
+    label: cell.querySelector(".t-cap")?.textContent?.trim() ?? "",
+    value: cell.querySelector(".stamp__value")?.textContent?.trim() ?? "",
+  })),
+);
+const stampWanted = ["Объект", "Адрес", "Стадия", "Срок", "Прораб", "Смета"];
+if (stamp.map((cell) => cell.label).join("|") !== stampWanted.join("|")) {
+  note("штамп объекта", `графы «${stamp.map((cell) => cell.label).join(", ")}»`);
+}
+for (const cell of stamp) {
+  if (cell.value === "") note("штамп объекта", `графа «${cell.label}» пуста`);
+}
+
+const metrics = await page.locator(".metric").count();
+if (metrics === 0) note("обзор", "метрики графика производства работ не показаны");
+
+await page.click('.tabs__item:has-text("Смета")');
+await page.waitForSelector("table.estimate tbody tr");
 
 const sections = await page.locator("tr.estimate__section").count();
 const items = await page.locator("table.estimate tbody tr").count();
@@ -139,33 +264,268 @@ await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
 if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
-await step("клиентская проекция", "05-klientskaya.png");
+await step("клиентская проекция", "07-klientskaya.png");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
 await page.waitForSelector("text=Отчёт о расхождениях");
-await step("отчёт о расхождениях", "06-otchet.png");
+await step("отчёт о расхождениях", "08-otchet.png");
 await overflow("отчёт, 1440");
+
+/*
+ * Поле выбора файла оформлено: системная кнопка input[type=file] подписана
+ * языком браузера и посреди русского интерфейса читается как незаконченная
+ * вёрстка. Настоящий input остаётся в порядке обхода и получает фокус.
+ */
+if ((await page.locator(".filefield__button").count()) === 0) {
+  note("импорт", "поле выбора файла показывает системную кнопку браузера");
+}
+const fileFocus = await page.evaluate(() => {
+  const input = document.querySelector('.filefield input[type="file"]');
+  if (input === null) return false;
+  input.focus();
+  return document.activeElement === input;
+});
+if (!fileFocus) note("импорт", "скрытое поле файла недостижимо с клавиатуры");
+
+const bareSelects = await page.locator("select:not(.selectwrap select)").count();
+if (bareSelects > 0) note("списки", `${bareSelects} выпадающих списков с системной стрелкой`);
 
 const decisions = await page.locator("select").count();
 console.log(`  написаний единиц ждут решения: ${decisions}`);
 
-await page.click('button:has-text("Импортировать")');
+/*
+ * Запись сметы проходит через подтверждение: смета — основание расчётов
+ * с заказчиком и бригадой, и одного нажатия для её замены мало. Диалог
+ * обязан назвать, что именно изменится (реестр Д-01).
+ */
+await page.click('button:has-text("Создать редакцию сметы")');
+await page.waitForSelector('.sheet[role="dialog"]');
+const confirmText = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+for (const must of ["Позиций будет записано", "Недосчёт итога", "станет действующей"]) {
+  if (!confirmText.includes(must)) {
+    note("подтверждение импорта", `диалог не называет «${must}»`);
+  }
+}
+const confirmFocus = await page.evaluate(() =>
+  document.activeElement?.textContent?.trim() ?? "",
+);
+if (!confirmFocus.includes("Записать смету")) {
+  note("подтверждение импорта", `фокус при открытии на «${confirmFocus}»`);
+}
+await step("подтверждение записи сметы", "08b-podtverzhdenie.png");
+await page.click('.sheet button:has-text("Записать смету")');
 await page.waitForSelector("text=Импортировано", { timeout: 30_000 });
-await step("импорт выполнен", "07-import.png");
+await step("импорт выполнен", "09-import.png");
 
-// Мобильная ширина на том же состоянии.
+/*
+ * Смена статуса проверяется на объекте R-72, а не на показательном R-99:
+ * каждый прогон оставляет в журнале две записи, и лента объекта, который
+ * идёт в демонстрацию, заполнялась бы следами проверок вместо работы.
+ */
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-72")) a');
+await page.waitForSelector("aside .pill");
+const statusBefore = await page.locator("aside .pill").first().textContent();
+await page.click('button:has-text("Изменить статус")');
+await page.waitForSelector('.sheet[role="dialog"]');
+await step("смена статуса", "06-status.png");
+await page.click('.sheet button:has-text("Пауза")');
+await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+const statusAfter = await page.locator("aside .pill").first().textContent();
+if (statusAfter?.trim() !== "Пауза") note("смена статуса", `после выбора пилюля показывает «${statusAfter}»`);
+// Объект возвращается в прежний статус: проверка не оставляет следов.
+await page.click('button:has-text("Изменить статус")');
+await page.waitForSelector('.sheet[role="dialog"]');
+await page.click(`.sheet button:has-text("${statusBefore?.trim() ?? "В работе"}")`);
+await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+
+// Контрагенты: заказчики и бригады.
+await page.click('.appbar__link:has-text("Контрагенты")');
+await page.waitForSelector('h2:has-text("Заказчики")');
+const clients = await page.locator(".datatable__table tbody tr").count();
+const brigades = await page.locator('section:has(h2:text-is("Бригады")) .deflist__row').count();
+console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
+if (brigades === 0) note("контрагенты", "бригады не показаны");
+if (clients === 0) note("контрагенты", "список заказчиков пуст");
+await step("контрагенты", "09b-kontragenty.png");
+await overflow("контрагенты, 1440");
+
+/**
+ * Состав навигации. Правило: в шапке только то, что открывает рабочий
+ * экран. Четыре раздела — «Главная», «Объекты», «Контрагенты»,
+ * «Настройки»; ни «Ещё», ни меню быстрых действий, ни заглушек.
+ */
+const navLabels = (await page.locator(".appbar__nav .appbar__link").allTextContents())
+  .map((text) => text.trim());
+const navWanted = ["Главная", "Объекты", "Контрагенты", "Настройки"];
+if (navLabels.join("|") !== navWanted.join("|")) {
+  note("навигация", `в шапке «${navLabels.join(", ")}»`);
+}
+if ((await page.locator(".appbar__action").count()) !== 0) {
+  note("навигация", "в шапке осталась кнопка меню быстрых действий");
+}
+
+/*
+ * Из навигации верхнего уровня недостижимо ни одно пустое состояние. Это и
+ * есть правило «показываем только работающее», проверенное обходом: раздел,
+ * встречающий человека заглушкой, учит его, что тыкать бесполезно.
+ */
+for (const label of navWanted) {
+  await page.click(`.appbar__link:has-text("${label}")`);
+  await page.waitForTimeout(400);
+  if ((await page.locator("main .empty__title").count()) > 0) {
+    const title = await page.locator("main .empty__title").first().textContent();
+    note("навигация", `раздел «${label}» встречает пустым состоянием «${title?.trim() ?? ""}»`);
+  }
+}
+
+// Настройки организации: карточка и справочник единиц.
+await page.click('.appbar__link:has-text("Настройки")');
+await page.waitForSelector('.tabs__item:has-text("Организация")');
+const settingsTabs = (await page.locator(".tabs__item").allTextContents())
+  .map((text) => text.trim());
+if (settingsTabs.join("|") !== "Организация|Единицы измерения") {
+  note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
+}
+await page.waitForSelector('input[name="name"]');
+const orgName = await page.inputValue('input[name="name"]');
+if (orgName.trim() === "") note("настройки", "название организации пришло пустым");
+await step("настройки организации", "17-nastroyki.png");
+await overflow("настройки, 1440");
+
+await page.click('.tabs__item:has-text("Единицы измерения")');
+await page.waitForSelector(".deflist__row");
+const units = await page.locator(".deflist__row").count();
+if (units !== 9) note("настройки", `в справочнике единиц ${units} строк вместо девяти`);
+
+/**
+ * «Что дальше» — единственное место, где продукт говорит о том, чего в нём
+ * нет. Экран открывается ссылкой из подвала настроек, в навигации его нет,
+ * и каждая строка обязана называть стадию: список без стадий — это те же
+ * заглушки, собранные в кучу.
+ */
+await page.click('a:has-text("«Что дальше»")');
+await page.waitForSelector(".roadmap__item");
+const roadmap = await page.locator(".roadmap__item").count();
+const stages = await page.locator(".roadmap__item .pill").count();
+console.log(`  строк в «Что дальше»: ${roadmap}`);
+if (roadmap < 8) note("что дальше", `строк ${roadmap} — список неполон`);
+if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
+const roadmapTitle = await page.locator(".cover h1").textContent();
+if (roadmapTitle?.trim() !== "Что дальше") {
+  note("что дальше", `обложка называет экран «${roadmapTitle ?? "—"}»`);
+}
+await step("что дальше", "18-chto-dalshe.png");
+await overflow("что дальше, 1440");
+
+// Вкладки карточки объекта: две рабочих и служебный импорт руководителю.
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".tabs__item");
+const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
+if (cardTabs.join("|") !== "Обзор|Смета|Импорт") {
+  note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
+}
+for (const tab of cardTabs) {
+  await page.click(`.tabs__item:has-text("${tab}")`);
+  await page.waitForTimeout(300);
+  if ((await page.locator("main .empty__title").count()) > 0) {
+    const title = await page.locator("main .empty__title").first().textContent();
+    note("вкладки карточки", `вкладка «${tab}» показывает пустое состояние «${title?.trim() ?? ""}»`);
+  }
+}
+await page.click('.tabs__item:has-text("Обзор")');
+await step("вкладки карточки", "20-vkladki.png");
+
+/*
+ * Прямые углы. Документ не скруглён: наибольший радиус в системе — 6 px,
+ * и блок с большим скруглением означает значение мимо токена. Проверяется
+ * на карточке объекта — там больше всего разных блоков.
+ */
+const roundest = await page.evaluate(() => {
+  let worst = { radius: 0, selector: "" };
+  for (const node of document.querySelectorAll("main *, .stamp, .cover, .appbar")) {
+    const radius = Number.parseFloat(getComputedStyle(node).borderTopLeftRadius);
+    if (Number.isFinite(radius) && radius > worst.radius && radius < 100) {
+      worst = { radius, selector: node.className.toString().slice(0, 40) || node.tagName };
+    }
+  }
+  return worst;
+});
+if (roundest.radius > 6) {
+  note("скругления", `${roundest.radius} px у «${roundest.selector}» при пороге 6 px`);
+}
+console.log(`  наибольшее скругление блока: ${roundest.radius} px`);
+
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+
+// Мобильная ширина. Нижняя таб-панель существует только здесь.
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(400);
-await overflow("после импорта, 360");
-await step("мобильный, 360 px", "08-mobile-360.png");
+await overflow("контрагенты, 360");
+const tabbar = await page.locator(".tabbar__item").count();
+if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
+
+/**
+ * Панель прибита к низу экрана и перекрывает конец страницы, если под неё
+ * не отведено место. Проверяется поведением: в конце прокрутки последний
+ * блок содержимого не должен оказаться под панелью.
+ */
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+await page.waitForTimeout(300);
+const covered = await page.evaluate(() => {
+  const blocks = [...document.querySelectorAll("main .tile, main .panel, main .figure, main .deflist")];
+  const last = blocks.at(-1);
+  if (last === undefined) return null;
+  const box = last.getBoundingClientRect();
+  const point = document.elementFromPoint(box.x + box.width / 2, box.bottom - 4);
+  return point === null || point.closest(".tabbar") !== null ? last.textContent?.slice(0, 40) : null;
+});
+if (covered !== null) note("мобильная навигация", `таб-панель перекрывает содержимое: «${covered}»`);
+
+/**
+ * Список объектов на телефоне: карточки, а не таблица. Семь колонок на
+ * ширине 360 px уводят половину сведений за край экрана, а работает там
+ * прораб.
+ */
+await page.click('.tabbar__item:has-text("Объекты")');
+await page.waitForSelector(".segmented__option");
+await page.waitForTimeout(300);
+const mobileTable = await page.locator("main .datatable__table").count();
+const mobileRows = await page.locator("main .objectrow").count();
+if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо ведомости");
+if (mobileRows === 0) note("список объектов, 360", "строки объектов не отрисованы");
+// Д-19: поиск существует и в узкой раскладке.
+if ((await page.locator("main .datatable__search input").count()) === 0) {
+  note("список объектов, 360", "поиска нет в узкой раскладке");
+}
+console.log(`  строк объектов на 360 px: ${mobileRows}`);
+await overflow("объекты, 360");
+await step("объекты на телефоне", "10b-obekty-360.png");
+await step("мобильный, 360 px", "10-mobile-360.png");
 
 await page.setViewportSize({ width: 768, height: 1000 });
 await page.waitForTimeout(300);
 await overflow("после импорта, 768");
-await step("планшет, 768 px", "09-tablet-768.png");
+
+/*
+ * Планшет — рабочее устройство прораба. Таблица из семи колонок на 768 px
+ * не складывалась, а сжималась: адрес рвался на три строки, высота строки
+ * росла вдвое. Список объектов обязан быть ведомостью (реестр Д-04).
+ */
+await page.click('.appbar__link:has-text("Объекты")');
+await page.waitForTimeout(400);
+if ((await page.locator("main .datatable__table").count()) > 0) {
+  note("список объектов, 768", "на планшете показана таблица вместо ведомости");
+}
+await step("объекты на планшете", "11b-obekty-768.png");
+await step("планшет, 768 px", "11-tablet-768.png");
 
 // Иконки. Экраны ссылаются на символы через <use href="#i-…">: если набора
 // нет в документе, ссылка ведёт в пустоту и иконка не рисуется, причём молча.
@@ -180,7 +540,7 @@ if (brokenIcons.length > 0) note("иконка без символа", [...new S
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "10-dark.png");
+await step("тёмная тема", "12-dark.png");
 
 /**
  * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
@@ -207,7 +567,7 @@ if (forcedLight.background === systemDark.background) {
 if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")) {
   note("тема", `светлая не сообщена браузеру: color-scheme = ${forcedLight.scheme}`);
 }
-await step("светлая тема поверх системной тёмной", "11-svetlaya.png");
+await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
 
 await page.emulateMedia({ colorScheme: "light" });
 await page.click('.themeswitch__option[title="Тёмная тема"]');
@@ -217,7 +577,7 @@ if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной �
 if (forcedDark.background === forcedLight.background) {
   note("тема", `тёмная не перекрыла системную светлую: фон остался ${forcedDark.background}`);
 }
-await step("тёмная тема поверх системной светлой", "12-tyomnaya.png");
+await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
 await page.click('.themeswitch__option[title="Как в системе"]');
 await page.waitForTimeout(200);
@@ -242,7 +602,7 @@ const tap = await page.locator(".themeswitch__option").first().boundingBox();
 if (tap === null || tap.width < 44 || tap.height < 44) {
   note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
 }
-await step("переключатель темы, 360 px", "13-tema-360.png");
+await step("переключатель темы, 360 px", "15-tema-360.png");
 
 await browser.close();
 

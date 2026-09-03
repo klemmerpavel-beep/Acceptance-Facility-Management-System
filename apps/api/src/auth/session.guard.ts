@@ -11,7 +11,7 @@ export class SessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<FastifyRequest & { user?: RequestUser }>();
-    const token = request.cookies?.[SESSION_COOKIE];
+    const token = request.cookies[SESSION_COOKIE];
     if (!token) {
       throw new UnauthorizedException({ message: "Войдите по ссылке, отправленной на почту." });
     }

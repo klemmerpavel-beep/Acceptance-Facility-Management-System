@@ -13,6 +13,21 @@ import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { toImportReport } from "./report.mapper";
 
+
+/**
+ * Идентификатор единицы измерения. Карта заполняется до цикла записи по тем
+ * же написаниям, что пришли из разбора, поэтому промах означает расхождение
+ * разбора и сопоставления — отказ здесь лучше, чем запись со ссылкой на
+ * чужую единицу.
+ */
+function unitId(units: ReadonlyMap<string, string>, unit: string): string {
+  const found = units.get(unit);
+  if (found === undefined) {
+    throw new Error(`Единица «${unit}» не сопоставлена: разбор и сопоставление разошлись.`);
+  }
+  return found;
+}
+
 @Injectable()
 export class EstimatesService {
   constructor(
@@ -82,15 +97,14 @@ export class EstimatesService {
       let order = 0;
       for (const section of parsed.sections) {
         const parentKey = section.path.slice(0, -1).join("·");
+        const parentId = sectionIds.get(parentKey);
         const created = await tx.estimateSection.create({
           data: {
             estimateId: estimate.id,
             name: section.name,
             order: (order += 1),
             sourceRow: section.row,
-            ...(section.level === 2 && sectionIds.has(parentKey)
-              ? { parentId: sectionIds.get(parentKey) as string }
-              : {}),
+            ...(section.level === 2 && parentId !== undefined ? { parentId } : {}),
           },
         });
         sectionIds.set(section.path.join("·"), created.id);
@@ -104,7 +118,7 @@ export class EstimatesService {
           data: {
             estimateId: estimate.id,
             sectionId,
-            unitId: units.get(item.unit.unit) as string,
+            unitId: unitId(units, item.unit.unit),
             name: item.name,
             order: (itemOrder += 1),
             qty: item.qty ?? 0n,
@@ -121,7 +135,7 @@ export class EstimatesService {
         await tx.otherExpense.create({
           data: {
             estimateId: estimate.id,
-            unitId: units.get(expense.unit.unit) as string,
+            unitId: unitId(units, expense.unit.unit),
             name: expense.name,
             order: (expenseOrder += 1),
             unitPrice: expense.unitPrice ?? 0n,
@@ -141,7 +155,7 @@ export class EstimatesService {
           computedWorksTotal: report.computedWorksTotal,
           declaredWorksTotal: report.declaredWorksTotal,
           worksTotalDelta: report.worksTotalDelta,
-          report: dto as unknown as object,
+          report: dto,
         },
       });
 
@@ -257,6 +271,8 @@ export class EstimatesService {
 
     return estimate.imports.map((record) => ({
       id: record.id,
+      estimateId: estimate.id,
+      version: estimate.version,
       fileName: record.fileName,
       importedAt: record.importedAt.toISOString(),
       positions: record.positions,

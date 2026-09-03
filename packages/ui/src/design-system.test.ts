@@ -30,11 +30,17 @@ const OTHER_SHEETS = ["base.css", "layout.css", "components.css"].map((name) => 
  */
 function consumerSources(): string[] {
   const sources: string[] = [];
+  /**
+   * Страницы витрины и слепка несут копию слоя стилей внутри <style>. Если её
+   * не снять, проверка мёртвых правил становится тавтологией: каждый класс
+   * «используется» собственным же правилом. В потребители идёт только разметка.
+   */
+  const markupOnly = (html: string): string => html.replace(/<style[\s\S]*?<\/style>/g, "");
   const design = join(repoRoot, "design");
   if (existsSync(design)) {
     for (const file of readdirSync(design)) {
       if (file.endsWith(".html") && !file.startsWith("showcase.artifact")) {
-        sources.push(readFileSync(join(design, file), "utf8"));
+        sources.push(markupOnly(readFileSync(join(design, file), "utf8")));
       }
     }
   }
@@ -43,12 +49,14 @@ function consumerSources(): string[] {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (/\.(tsx|ts|html)$/.test(entry.name)) sources.push(readFileSync(path, "utf8"));
+      else if (/\.(tsx|ts|html)$/.test(entry.name)) {
+        sources.push(markupOnly(readFileSync(path, "utf8")));
+      }
     }
   };
   walk(join(repoRoot, "apps", "web", "src"));
   const indexHtml = join(repoRoot, "apps", "web", "index.html");
-  if (existsSync(indexHtml)) sources.push(readFileSync(indexHtml, "utf8"));
+  if (existsSync(indexHtml)) sources.push(markupOnly(readFileSync(indexHtml, "utf8")));
   return sources;
 }
 
@@ -143,7 +151,7 @@ describe("мёртвые правила", () => {
  * отвечали, включая подписи внутренних колонок сметы. Проверка считает
  * отношение яркостей по WCAG и не даёт правке палитры вернуть недобор.
  */
-describe("контраст текста к фону не ниже 4,5:1", () => {
+describe("контраст: 7:1 для основного текста и органов управления, 4,5:1 для подписей", () => {
   const solid = (css: string): Map<string, string> => {
     const found = new Map<string, string>();
     for (const [, name, value] of css.matchAll(/(--[a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})\s*;/g)) {
@@ -172,37 +180,49 @@ describe("контраст текста к фону не ниже 4,5:1", () => 
 
   /** Пары «текст на поверхности», которые действительно встречаются в
    *  компонентах. Список ведётся руками: механически из CSS его не вывести —
-   *  какой токен ляжет под какой, решает разметка. */
-  const PAIRS: ReadonlyArray<readonly [string, string, string]> = [
-    ["--ink", "--bg", "основной текст на полотне"],
-    ["--ink", "--surface", "основной текст на карточке"],
-    ["--ink", "--surface-2", "основной текст на вторичной плашке"],
-    ["--ink-2", "--surface", "вторичный текст на карточке"],
-    ["--ink-2", "--surface-2", "вторичный текст на вторичной плашке"],
-    ["--ink-2", "--neutral-soft", "нейтральная пилюля"],
-    ["--ink-3", "--surface", "подписи на карточке"],
-    ["--ink-3", "--surface-2", "подписи внутренних колонок сметы"],
-    ["--ink-3", "--bg", "подписи на полотне"],
-    ["--accent", "--surface", "ссылка и текстовая кнопка"],
-    ["--accent", "--surface-2", "выбранный переключатель темы в шапке"],
-    ["--accent", "--accent-soft", "код объекта на бейдже"],
-    ["--accent-ink", "--accent", "текст и иконки в шапке"],
-    ["--ok", "--ok-soft", "пилюля «Принято»"],
-    ["--warn", "--warn-soft", "пилюля «Черновик»"],
-    ["--signal", "--signal-soft", "пилюля перевыработки транша"],
-    ["--danger", "--danger-soft", "пилюля «Сторно»"],
-    ["--danger", "--surface", "сумма расхождения"],
-    ["--ink-inv", "--danger", "текст на опасной кнопке"],
+   *  какой токен ляжет под какой, решает разметка.
+   *
+   *  Порог у каждой пары свой. 7:1 — основной текст и органы управления:
+   *  продукт читают на объекте при прямом солнце, и норма 4,5:1 там не
+   *  работает. 4,5:1 — подписи до 15 px и пилюли состояний, которым
+   *  усиленный порог стоил бы различимости уровней. Решение заказчика от
+   *  03.09.2026, реестр Д-04 — Д-09, Д-31, Д-32. */
+  const AA = 4.5;
+  const AAA = 7;
+  const PAIRS: readonly (readonly [string, string, string, number])[] = [
+    ["--ink", "--bg", "основной текст на полотне", AAA],
+    ["--ink", "--surface", "основной текст на карточке", AAA],
+    ["--ink", "--surface-2", "основной текст на вторичной плашке", AAA],
+    ["--ink-2", "--surface", "вторичный текст и орган управления на листе", AAA],
+    ["--ink-2", "--surface-2", "заголовок колонки реестра", AAA],
+    ["--ink-2", "--neutral-soft", "нейтральная пилюля", AA],
+    ["--ink-3", "--surface", "подписи на карточке", AA],
+    ["--ink-3", "--surface-2", "подписи внутренних колонок сметы", AA],
+    ["--ink-3", "--bg", "подписи на полотне", AA],
+    ["--accent", "--surface", "ссылка и текстовая кнопка", AAA],
+    ["--accent", "--surface-2", "выбранный переключатель темы в шапке", AAA],
+    ["--accent", "--accent-soft", "код объекта на бейдже", AAA],
+    ["--accent-ink", "--accent", "текст на акцентной заливке", AAA],
+    ["--band-ink", "--band", "текст и иконки в шапке и обложке", AAA],
+    ["--band-active-ink", "--band-active", "выбранный раздел навигации", AAA],
+    ["--ok", "--ok-soft", "пилюля «Принято»", AA],
+    ["--warn", "--warn-soft", "пилюля «Черновик»", AA],
+    ["--signal", "--signal-soft", "пилюля перевыработки транша", AA],
+    ["--danger", "--danger-soft", "пилюля «Сторно»", AA],
+    ["--danger", "--surface", "сумма расхождения", AAA],
+    ["--ink-inv", "--danger", "текст на опасной кнопке", AAA],
+    ["--ink-2", "--bg", "вкладка и нижняя таб-панель", AAA],
+    ["--ink-3", "--neutral-soft", "подпись на нейтральной плашке", AA],
   ];
 
-  const themes: ReadonlyArray<readonly [string, Map<string, string>]> = [
+  const themes: readonly (readonly [string, Map<string, string>])[] = [
     ["светлая", light],
     ["тёмная", dark],
   ];
 
   it.each(themes)("%s тема: каждая пара проходит норму", (_name, theme) => {
     const failures: string[] = [];
-    for (const [foreground, background, label] of PAIRS) {
+    for (const [foreground, background, label, threshold] of PAIRS) {
       const fg = theme.get(foreground);
       const bg = theme.get(background);
       if (fg === undefined || bg === undefined) {
@@ -210,7 +230,9 @@ describe("контраст текста к фону не ниже 4,5:1", () => 
         continue;
       }
       const ratio = contrast(fg, bg);
-      if (ratio < 4.5) failures.push(`${label}: ${ratio.toFixed(2)} (${fg} на ${bg})`);
+      if (ratio + 0.005 < threshold) {
+        failures.push(`${label}: ${ratio.toFixed(2)} при пороге ${threshold} (${fg} на ${bg})`);
+      }
     }
     expect(failures).toEqual([]);
   });
