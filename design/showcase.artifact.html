@@ -368,7 +368,6 @@ a { color: var(--accent); text-underline-offset: 2px; }
 /* Ряд карточек сводки. Число колонок определяет ширина, а не медиазапрос:
    карточек в ряду бывает три или четыре — фонд оплаты труда приходит
    только руководителю, и вёрстка не должна знать про роли. */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: var(--space-4); }
 
 /* Две колонки равной ширины, складывающиеся на планшете. */
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
@@ -507,7 +506,6 @@ a { color: var(--accent); text-underline-offset: 2px; }
   letter-spacing: .02em;
   white-space: nowrap;
 }
-.code-badge--lg { height: 32px; padding: 0 var(--space-3); font-size: var(--fs-h2); }
 
 /* Адрес почтового шлюза читается как один адрес: части не расходятся
    пробелами, код выделен бейджем внутри строки. */
@@ -804,7 +802,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .cover { background: var(--band); color: var(--band-ink); padding-block: var(--space-3) var(--space-5); }
 .cover__crumbs { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); opacity: .72; }
 .cover__crumbs a { color: inherit; text-decoration: none; }
-.cover__title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
 .cover .code-badge { background: var(--on-band-fill); color: var(--band-ink); }
 /* Рабочее полотно не начинается вплотную к цветной полосе: без отступа
    первая величина сводки читается как часть обложки. */
@@ -1132,9 +1129,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .settings__identity { grid-template-columns: 1fr; }
   .settings__grid { grid-template-columns: 1fr; }
 }
-
-/* Пункт меню быстрых действий: иконка слева, подпись по началу строки. */
-.quickaction { justify-content: flex-start; }
 
 /* Статус объекта в сводке — строка со сменой, а не панель. Панель вокруг
    одной пилюли добавляет к экрану ещё одну рамку и ничего не сообщает. */

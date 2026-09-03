@@ -1,3 +1,19 @@
+<!-- DESIGN.md
+role: design-contract
+revision: 1.6
+tokens: packages/ui/src/styles/tokens.css
+layers: tokens.css, base.css, layout.css, components.css
+styling: чистый CSS с пользовательскими свойствами; ни Tailwind, ни CSS-in-JS, ни CSS-модулей
+component-library: отсутствует; packages/ui экспортирует только функции форматирования
+theme-states: :root | @media (prefers-color-scheme: dark) под :root:not([data-theme="light"]) | :root[data-theme="dark"]
+font-ui: Golos Text
+font-mono: IBM Plex Mono
+font-display: PT Sans Narrow
+radius-max: 6px
+contrast-min: 4.5:1 (WCAG 1.4.3)
+enforced-by: packages/ui/src/design-system.test.ts, scripts/verify-page.mjs, scripts/verify-canvas.mjs
+-->
+
 # Приёмка — дизайн-система
 
 Версия 1.6 от 03.09.2026 · нормативный документ для интерфейса
