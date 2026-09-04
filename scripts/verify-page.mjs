@@ -428,7 +428,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Смета|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -441,6 +441,113 @@ for (const tab of cardTabs) {
 }
 await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
+
+/*
+ * Обмерный план. Величины сверяются с утверждённым артбордом: экран
+ * показывает то же, что показал заказчику макет, или отличие видно здесь,
+ * а не на демонстрации.
+ */
+await page.click('.tabs__item:has-text("Замер")');
+await page.waitForSelector(".measure__item");
+const totals = await page.locator(".spec").first().innerText();
+const wanted = [
+  ["Помещений", "7"],
+  ["Площадь", "80,53\u00A0м²"],
+  ["Площадь стен", "262,95\u00A0м²"],
+  ["Периметр потолка", "97,39\u00A0м.п."],
+  ["Периметр пола", "86,07\u00A0м.п."],
+  ["Объём", "217,43\u00A0м³"],
+];
+for (const [label, value] of wanted) {
+  if (!totals.includes(value)) note("замер", `в итогах нет «${label} ${value}»`);
+}
+console.log(`  итогов обмера сверено: ${wanted.length}`);
+
+const roomNames = (await page.locator(".measure__item").allTextContents()).map((t) => t.trim());
+if (roomNames.length !== 7) note("замер", `помещений в списке ${roomNames.length} вместо семи`);
+
+await page.click('.measure__item:has-text("Спальня")');
+await page.waitForTimeout(200);
+const bedroom = await page.locator(".measure .spec--inv").first().innerText();
+for (const value of ["18,40\u00A0м²", "47,52\u00A0м²", "2,70\u00A0м", "49,68\u00A0м³"]) {
+  if (!bedroom.includes(value)) note("замер", `у спальни нет величины «${value}»`);
+}
+
+/* Тумблер подробного вида раскрывает периметры и откосы. */
+const beforeToggle = await page.locator(".measure").innerText();
+if (beforeToggle.includes("Периметр потолка")) note("замер", "периметры показаны до включения подробного вида");
+await page.click(".toggle");
+await page.waitForTimeout(200);
+const afterToggle = await page.locator(".measure").innerText();
+if (!afterToggle.includes("Периметр потолка")) note("замер", "подробный вид не раскрыл периметры");
+if (!afterToggle.includes("Откосы")) note("замер", "подробный вид не раскрыл откосы проёмов");
+await page.click(".toggle");
+await step("замер, обмерный план", "21-zamer.png");
+
+/* Внесение помещения и его удаление: итог обязан вернуться к исходному. */
+await page.click('button:has-text("Внести помещение")');
+await page.waitForSelector('.sheet input');
+const sheetInputs = page.locator(".sheet input");
+await sheetInputs.nth(0).fill("Проверка страницы");
+await sheetInputs.nth(1).fill("10");
+await sheetInputs.nth(2).fill("13");
+await sheetInputs.nth(3).fill("14");
+await sheetInputs.nth(4).fill("2,7");
+await step("замер, форма помещения", "22-zamer-forma.png");
+await page.click('.sheet button:has-text("Внести помещение")');
+await page.waitForTimeout(700);
+const grown = await page.locator(".spec").first().innerText();
+if (!grown.includes("90,53\u00A0м²")) note("замер", `после внесения площадь «${grown.replace(/\n/g, " ")}»`);
+
+await page.click('.measure__item:has-text("Проверка страницы")');
+await page.click('button:has-text("Править помещение")');
+await page.waitForSelector('.sheet button:has-text("Удалить помещение")');
+await page.click('.sheet button:has-text("Удалить помещение")');
+await page.waitForSelector(".btn--danger");
+const roomConfirm = await page.locator(".sheet").innerText();
+if (!roomConfirm.includes("10,00") || !roomConfirm.includes("27,00")) {
+  note("замер", "подтверждение удаления не называет, на сколько изменятся итоги");
+}
+await step("замер, подтверждение удаления", "23-zamer-udalenie.png");
+await page.click('.sheet .btn--danger');
+await page.waitForTimeout(700);
+const restoredTotals = await page.locator(".spec").first().innerText();
+if (!restoredTotals.includes("80,53\u00A0м²")) {
+  note("замер", `после удаления площадь «${restoredTotals.replace(/\n/g, " ")}» вместо 80,53 м²`);
+}
+
+/* Печатный вид: ведомость всех помещений, без навигации и плашек. */
+await page.emulateMedia({ media: "print" });
+await page.waitForTimeout(200);
+const printRows = await page.locator(".measure-print tbody tr").count();
+if (printRows !== 7) note("замер", `в печатной ведомости ${printRows} строк вместо семи`);
+if (await page.locator(".appbar").isVisible()) note("замер", "шапка попадает в печать");
+if (await page.locator(".measure").isVisible()) note("замер", "инвертированная плашка попадает в печать");
+await page.screenshot({ path: `${SHOTS}/24-zamer-pechat.png`, fullPage: true });
+console.log(`  снято: печатный вид обмера → 24-zamer-pechat.png`);
+await page.emulateMedia({ media: "screen" });
+
+/* Замер на телефоне: список помещений становится лентой, зоны касания 48 px. */
+await page.setViewportSize({ width: 360, height: 780 });
+await page.waitForTimeout(300);
+const narrowRooms = await page.locator(".measure__item").count();
+if (narrowRooms !== 7) note("замер", `на 360 px помещений в ленте ${narrowRooms} вместо семи`);
+for (const selector of [".measure__item", ".toggle"]) {
+  const box = await page.locator(selector).first().boundingBox();
+  if (box !== null && box.height < 48) {
+    note("замер", `зона касания «${selector}» на 360 px — ${Math.round(box.height)} px вместо 48`);
+  }
+}
+const strip = await page.locator(".measure__nav").boundingBox();
+const panel = await page.locator(".measure").boundingBox();
+if (strip !== null && panel !== null && strip.width > panel.width + 1) {
+  note("замер", "лента помещений шире плашки: раскладка на 360 px разъезжается");
+}
+await step("замер на телефоне", "25-zamer-360.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
+await page.click('.tabs__item:has-text("Обзор")');
 
 /*
  * Прямые углы. Документ не скруглён: наибольший радиус в системе — 6 px,

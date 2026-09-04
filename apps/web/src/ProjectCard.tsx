@@ -8,6 +8,7 @@ import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus, errorMessag
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
+import { Measure } from "./Measure.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -52,13 +53,18 @@ function ReadinessScale({ share }: { share: number }): React.JSX.Element {
  * «Документы», а не «Акты» — в акте документы не исчерпываются.
  */
 /**
- * Вкладки карточки. Здесь то, что работает: обзор, смета и служебный
- * импорт руководителю. Остальные вкладки целевого состава — замер, работа,
- * отчёт, приёмка, чеки, документы — перечислены в «Что дальше»: шесть
- * заглушек подряд не сообщают ничего, кроме того, что тыкать бесполезно.
+ * Вкладки карточки. Здесь то, что работает: обзор, замер, смета и
+ * служебный импорт руководителю. Остальные вкладки целевого состава —
+ * работа, отчёт, приёмка, чеки, документы — перечислены в «Что дальше»:
+ * пять заглушек подряд не сообщают ничего, кроме того, что тыкать
+ * бесполезно.
+ *
+ * Порядок вкладок повторяет конвейер объекта: замер даёт площади, площади
+ * идут в смету.
  */
 const TABS = [
   { key: "overview", label: "Обзор" },
+  { key: "measure", label: "Замер" },
   { key: "estimate", label: "Смета" },
 ] as const;
 
@@ -299,6 +305,10 @@ export function ProjectCard({
                 today={today}
               />
               )}
+            </div>
+
+            <div role="tabpanel" id="panel-measure" aria-labelledby="tab-measure" hidden={tab !== "measure"}>
+              {tab === "measure" && <Measure code={project.code} address={project.address} role={user.role} onEvents={load} />}
             </div>
 
             <div role="tabpanel" id="panel-estimate" aria-labelledby="tab-estimate" hidden={tab !== "estimate"}>

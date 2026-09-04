@@ -14,12 +14,19 @@ import { useEffect, useRef, type RefObject } from "react";
  *   — закрывает по Escape;
  *   — возвращает фокус элементу, который диалог открыл.
  */
-export function useModalDialog(onClose: () => void): {
+/**
+ * Первый орган управления — не обязательно кнопка: в листе смены статуса
+ * это кнопка, а в форме помещения — поле названия. Параметр типа избавляет
+ * от утверждения типа на месте вызова.
+ */
+export function useModalDialog<First extends HTMLElement = HTMLButtonElement>(
+  onClose: () => void,
+): {
   dialog: RefObject<HTMLDivElement | null>;
-  first: RefObject<HTMLButtonElement | null>;
+  first: RefObject<First | null>;
 } {
   const dialog = useRef<HTMLDivElement>(null);
-  const first = useRef<HTMLButtonElement>(null);
+  const first = useRef<First>(null);
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;

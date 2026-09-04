@@ -10,9 +10,11 @@
  * данными, которые сервер отдал каждой роли на самом деле.
  */
 import type {
-  ClientRow, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport, ImportResult,
-  Organization, ProjectEvent, ProjectStatus, ProjectSummary, Role, SmsCodeIssued, Unit, WorkerRow,
+  ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
+  ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
+  Role, SmsCodeIssued, Unit, UpdateMeasureRoom, WorkerRow,
 } from "@priyomka/contracts";
+import { measureTotals, milliunits, roomVolume, wallArea } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 interface Snapshot {
@@ -35,6 +37,7 @@ interface Snapshot {
   imports: ImportRecord[];
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
+  measure: MeasureView;
 }
 
 const data = snapshot as unknown as Snapshot;
@@ -48,6 +51,57 @@ let signedIn = true;
  * иначе кнопка выглядела бы сломанной.
  */
 const changedStatus = new Map<string, ProjectStatus>();
+
+/**
+ * Обмер демонстрации. Правки живут до перезагрузки, как и смена статуса.
+ * Производные величины считает тот же домен, что и сервер: показывать в
+ * демонстрации другое число, чем в продукте, — обман, а не упрощение.
+ */
+let measureRooms: MeasureRoom[] = [];
+let measurePlan: MeasureView["plan"] = null;
+
+const measured = (room: MeasureRoom): MeasureRoom => {
+  const values = {
+    floorArea: milliunits(room.floorArea),
+    floorPerimeter: milliunits(room.floorPerimeter),
+    ceilingPerimeter: milliunits(room.ceilingPerimeter),
+    height: milliunits(room.height),
+  };
+  return {
+    ...room,
+    wallArea: wallArea(values).toString(),
+    volume: roomVolume(values).toString(),
+  };
+};
+
+const measureView = (): MeasureView => {
+  const totals = measureTotals(measureRooms.map((room) => ({
+    floorArea: milliunits(room.floorArea),
+    floorPerimeter: milliunits(room.floorPerimeter),
+    ceilingPerimeter: milliunits(room.ceilingPerimeter),
+    height: milliunits(room.height),
+  })));
+  return {
+    rooms: measureRooms,
+    totals: {
+      rooms: totals.rooms,
+      floorArea: totals.floorArea.toString(),
+      wallArea: totals.wallArea.toString(),
+      floorPerimeter: totals.floorPerimeter.toString(),
+      ceilingPerimeter: totals.ceilingPerimeter.toString(),
+      volume: totals.volume.toString(),
+    },
+    plan: measurePlan,
+  };
+};
+
+/**
+ * Приведение отказа к тексту для экрана. Двойник обязан повторять весь
+ * набор экспортов `api.ts`: подмена идёт разрешением модуля, и недостающий
+ * экспорт роняет сборку демонстрации, а не отдельный экран.
+ */
+export const errorMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : "Неизвестная ошибка. Повторите действие.";
 
 export const demoRole = (): Role => role;
 export const setDemoRole = (next: Role): void => {
@@ -202,3 +256,83 @@ export async function fetchImports(code: string): Promise<ImportRecord[]> {
   await pause(120);
   return code === "R-99" ? data.imports : [];
 }
+
+/* --- обмерный план ------------------------------------------------------ */
+
+export async function fetchMeasure(code: string): Promise<MeasureView> {
+  await pause(220);
+  if (code !== "R-99") return { rooms: [], totals: measureView().totals, plan: null };
+  if (measureRooms.length === 0 && measurePlan === null) {
+    measureRooms = data.measure.rooms;
+    measurePlan = data.measure.plan;
+  }
+  return measureView();
+}
+
+/** Правка обмера в демонстрации: сервера нет, но кнопка обязана работать. */
+export async function createRoom(_code: string, room: CreateMeasureRoom): Promise<MeasureView> {
+  await pause(260);
+  if (measureRooms.some((existing) => existing.name === room.name)) {
+    throw new Error(`Помещение «${room.name}» на объекте уже есть.`);
+  }
+  measureRooms = [...measureRooms, measured({
+    id: `demo-${String(measureRooms.length + 1)}`,
+    name: room.name,
+    order: measureRooms.length + 1,
+    floorArea: room.floorArea,
+    floorPerimeter: room.floorPerimeter,
+    ceilingPerimeter: room.ceilingPerimeter,
+    height: room.height,
+    wallArea: "0",
+    volume: "0",
+    openings: room.openings ?? [],
+  })];
+  return measureView();
+}
+
+export async function updateRoom(
+  _code: string,
+  id: string,
+  room: UpdateMeasureRoom,
+): Promise<MeasureView> {
+  await pause(260);
+  // Спред объединил бы необязательные поля запроса с обязательными полями
+  // помещения и подставил undefined там, где правки не было.
+  const patch = Object.fromEntries(
+    Object.entries(room).filter(([, value]) => value !== undefined),
+  ) as Partial<MeasureRoom>;
+  measureRooms = measureRooms.map((existing) =>
+    existing.id === id ? measured({ ...existing, ...patch }) : existing,
+  );
+  return measureView();
+}
+
+export async function deleteRoom(_code: string, id: string): Promise<MeasureView> {
+  await pause(220);
+  measureRooms = measureRooms.filter((room) => room.id !== id);
+  return measureView();
+}
+
+export async function uploadPlan(_code: string, file: File): Promise<MeasureView> {
+  await pause(400);
+  measurePlan = {
+    fileName: file.name,
+    contentType: file.type,
+    byteSize: file.size,
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: data[role === "OWNER" ? "me-owner" : "me-foreman"].name,
+  };
+  return measureView();
+}
+
+export async function deletePlan(code: string): Promise<MeasureView> {
+  await pause(220);
+  if (code === "R-99") measurePlan = null;
+  return measureView();
+}
+
+/**
+ * Адрес изображения плана. В демонстрации сервера нет и отдавать нечего:
+ * возвращается пустая строка, а экран показывает состояние «плана нет».
+ */
+export const planUrl = (): string => "";

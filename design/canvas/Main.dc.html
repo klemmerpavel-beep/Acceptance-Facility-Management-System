@@ -202,10 +202,7 @@
 
   <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:16px">
     <h2 class="t-h1">Обмерный план</h2>
-    <div class="segmented">
-      <button class="segmented__option" aria-pressed="true">Начальный</button>
-      <button class="segmented__option">Перепланировки</button>
-    </div>
+    <button class="btn btn--secondary">Внести помещение</button>
   </div>
   <hr class="rule" style="margin-bottom:24px">
 
@@ -227,9 +224,16 @@
       <hr style="border:0;border-top:1px solid var(--line);margin:0">
       <button class="btn btn--secondary" style="align-self:flex-start">
         <svg class="icon" aria-hidden="true"><path d="M5 3h7l3 3v11H5z"/><path d="M8 10h4M8 13h4"/></svg>
-        Скачать
+        Печать обмера
       </button>
       <p class="t-sm t-muted" style="max-width:36ch">Печатный вид открывается в браузере: PDF сохраняется его средствами, без выгрузки на сервер.</p>
+      <hr style="border:0;border-top:1px solid var(--line);margin:0">
+      <p class="t-cap">План объекта</p>
+      <p class="t-sm t-muted" style="max-width:36ch">Снимок плана не загружен. Приложите фотографию или изображение — JPEG, PNG или WebP.</p>
+      <button class="btn btn--secondary" style="align-self:flex-start">
+        <svg class="icon" aria-hidden="true"><path d="M5 3h7l3 3v11H5z"/><path d="M8 10h4M8 13h4"/></svg>
+        Выбрать снимок
+      </button>
     </aside>
 
     <section style="background:var(--surface-inv);color:var(--ink-on-inv);border-radius:14px;padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:20px">
@@ -254,7 +258,7 @@
           </button>
         </div>
 
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start">
+        <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start">
 
           <div style="display:flex;flex-direction:column;gap:20px">
             <h3 class="t-h2">Спальня</h3>
@@ -290,18 +294,6 @@
               </div>
             </div>
           </div>
-
-          <figure style="margin:0">
-            <svg viewBox="0 0 320 260" style="width:100%;height:auto;display:block" aria-label="План помещения">
-              <path d="M18 18 H210 V52 H302 V208 H244 V242 H18 Z" fill="none" stroke="#E8EDF2" stroke-width="2" stroke-linejoin="miter"/>
-              <path d="M18 96 V150" stroke="#8FBCE8" stroke-width="6"/>
-              <path d="M244 208 V242" stroke="#9C5E17" stroke-width="6"/>
-              <text x="30" y="128" fill="#A8B6C4" font-family="IBM Plex Mono, monospace" font-size="11">окно</text>
-              <text x="176" y="232" fill="#A8B6C4" font-family="IBM Plex Mono, monospace" font-size="11">дверь</text>
-              <text x="100" y="140" fill="#E8EDF2" font-family="IBM Plex Mono, monospace" font-size="13">18,40 м²</text>
-            </svg>
-            <figcaption class="t-sm" style="color:var(--ink-on-inv-2);margin-top:8px">Контур снят на объекте, размеры в метрах</figcaption>
-          </figure>
 
         </div>
       </div>
