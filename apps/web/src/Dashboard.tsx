@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { Dashboard as DashboardData, ProjectEvent, ProjectStatus } from "@priyomka/contracts";
-import { formatKopecks } from "@priyomka/ui";
+import { formatKopecks, formatMeasure } from "@priyomka/ui";
 import { fetchDashboard, errorMessage } from "./api.js";
 import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
+const area = (value: string): string => formatMeasure(BigInt(value), "м²");
 
 const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
@@ -94,6 +95,58 @@ function Counter({
  * журнал объекта.
  */
 const FEED_LIMIT = 8;
+
+/**
+ * Ступень конвейера объекта.
+ *
+ * Показывает охват портфеля: сколько объектов прошло эту ступень из
+ * скольких. Ступень, которой в продукте ещё нет, показывает честный ноль и
+ * называет стадию, на которой появится, — правдоподобное число вместо нуля
+ * разрушило бы доверие к остальным числам экрана.
+ *
+ * Ступени не кликабельны намеренно. Правило 4 карты разделов требует, чтобы
+ * счётчик вёл в отфильтрованный список; фильтра по ступени конвейера в
+ * реестре пока нет, а счётчик, ведущий в тот же нефильтрованный список,
+ * нарушает правило сильнее, чем обычная величина.
+ */
+function Stage({
+  name,
+  done,
+  total,
+  detail,
+  stage,
+}: {
+  name: string;
+  done: number;
+  total: number;
+  detail: string;
+  stage?: string;
+}): React.JSX.Element {
+  const share = total === 0 ? 0 : Math.round((done / total) * 100);
+  return (
+    <div className="pipeline__step">
+      <div className="pipeline__head">
+        <span className="t-h3">{name}</span>
+        <span className="num pipeline__count">
+          {done}<span className="pipeline__of"> из {total}</span>
+        </span>
+      </div>
+      <div className="scale">
+        <div
+          className="scale__track"
+          role="img"
+          aria-label={`${name}: ${done} из ${total} объектов`}
+        >
+          <span className="scale__fill" style={{ inlineSize: `${String(share)}%` }} />
+        </div>
+      </div>
+      <p className="pipeline__detail">
+        {detail}
+        {stage !== undefined && <span className="pill">{stage}</span>}
+      </p>
+    </div>
+  );
+}
 
 export function EventFeed({
   events,
@@ -218,6 +271,56 @@ export function Dashboard({
             }}
           />
         )}
+      </section>
+
+      {/* Конвейер объекта. Первый экран отвечает на вопрос «что требует
+          внимания сегодня», и охват портфеля отвечает на него прямее
+          прочего: он показывает, где работа стоит. Порядок ступеней —
+          порядок конвейера, а не важности. */}
+      <section className="stack">
+        <div className="section-head">
+          <h2 className="t-h2">Конвейер объекта</h2>
+          <p className="t-sm t-muted">охват портфеля по ступеням</p>
+        </div>
+        <div className="pipeline">
+          <Stage
+            name="Замер"
+            done={data.measure.projects}
+            total={data.projects.total}
+            detail={
+              data.measure.rooms === 0
+                ? "обмер не внесён ни на одном объекте"
+                : `${String(data.measure.rooms)} ${plural(data.measure.rooms, "помещение", "помещения", "помещений")}, ${area(data.measure.floorArea)}`
+            }
+          />
+          <Stage
+            name="Смета"
+            done={data.projects.withEstimate}
+            total={data.projects.total}
+            detail={`${String(data.estimate.positions)} ${plural(data.estimate.positions, "позиция", "позиции", "позиций")} работ`}
+          />
+          <Stage
+            name="Работа"
+            done={0}
+            total={data.projects.total}
+            detail="график производства работ"
+            stage="стадия C.3"
+          />
+          <Stage
+            name="Приёмка"
+            done={0}
+            total={data.projects.total}
+            detail={`${String(data.acceptance.pending)} ${plural(data.acceptance.pending, "позиция ждёт", "позиции ждут", "позиций ждут")} приёмки`}
+            stage="стадия D"
+          />
+          <Stage
+            name="Документы"
+            done={data.acceptance.acts}
+            total={data.projects.total}
+            detail="акты по принятым позициям"
+            stage="стадия D"
+          />
+        </div>
       </section>
 
       <section className="stack">

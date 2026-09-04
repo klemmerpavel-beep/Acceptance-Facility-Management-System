@@ -244,7 +244,11 @@ button.counterstrip__item:hover { color: var(--accent); }
    Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
    Полоса прокручивается внутри себя, полотно страницы по горизонтали
    не двигается.                                                            */
-.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr); gap: var(--space-2); overflow-x: auto; }
+/* Карточки выравниваются по верху, а не растягиваются: день с событием
+   выше пустого, и неделя читается как «здесь два события», а не как пять
+   пустых коробок одинаковой высоты. */
+.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
+  gap: var(--space-2); overflow-x: auto; align-items: start; }
 .daycard {
   display: flex;
   flex-direction: column;
@@ -259,7 +263,8 @@ button.counterstrip__item:hover { color: var(--accent); }
 /* День без событий рамки не получает: семь одинаковых карточек, пять из
    которых повторяют одну и ту же фразу, — это шум, а не сведения. Подпись
    остаётся: пустота названа, а не оставлена без объяснения. */
-.daycard--empty { background: transparent; border-color: transparent; }
+.daycard--empty { background: transparent; border-color: transparent;
+  min-height: 0; padding-block: var(--space-2); }
 .daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
 .daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
@@ -957,3 +962,23 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .measure-print tfoot td { font-weight: var(--fw-h3); }
   @page { size: A4 landscape; margin: 12mm; }
 }
+
+/* --- конвейер объекта ------------------------------------------------------
+   Охват портфеля по ступеням на первом экране. Ступени идут в порядке
+   конвейера и делят ширину поровну: сравнение заполнения — единственное,
+   ради чего блок существует, и разная ширина сделала бы его невозможным.
+   -------------------------------------------------------------------------- */
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-5); }
+.pipeline__step { display: flex; flex-direction: column; gap: var(--space-2); }
+.pipeline__head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); }
+.pipeline__count { font-size: var(--fs-h2); font-weight: 600; text-align: end; }
+.pipeline__of { font-family: var(--font-ui); font-size: var(--fs-sm);
+  font-weight: var(--fw-sm); color: var(--ink-3); }
+.pipeline__detail { display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-2); font-size: var(--fs-sm); color: var(--ink-3); }
+/* Заполнение приходит из данных и меняется при загрузке сводки: движение
+   показывает величину, а не украшает экран. Правило prefers-reduced-motion
+   объявлено глобально в base.css и гасит переход целиком. */
+.pipeline .scale__fill { transition: inline-size var(--dur-base) var(--ease); }
