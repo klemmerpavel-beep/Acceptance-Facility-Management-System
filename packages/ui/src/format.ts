@@ -12,6 +12,7 @@
 /** Неразрывный пробел U+00A0 — разделитель разрядов. */
 const NBSP = " ";
 
+import { divideRoundHalfUp } from "@priyomka/domain";
 import type { BasisPoints, Kopecks, Milliunits } from "@priyomka/domain";
 
 const groupDigits = (digits: string): string =>
@@ -61,4 +62,28 @@ export function formatPercent(share: BasisPoints | bigint): string {
 /** Единица измерения рядом с количеством: «406,91 м²». */
 export function formatQtyWithUnit(value: Milliunits | bigint, unit: string): string {
   return `${formatQty(value)}${NBSP}${unit}`;
+}
+
+/**
+ * Величина обмера: два знака после запятой всегда — «18,40 м²», «2,70 м»,
+ * «17,60 м.п.».
+ *
+ * Отличается от `formatQtyWithUnit` тем, что незначащие нули не
+ * отбрасываются, и это не придирка. Обмерный план — ведомость чисел одного
+ * порядка, читаемая столбцом: «18,4» рядом с «18,40» заставляет проверять,
+ * одно ли это число. В смете верно обратное — там «2» читается быстрее,
+ * чем «2,00», и каждая лишняя цифра стоит времени прораба.
+ *
+ * Величины хранятся в тысячных долях, поэтому округление до сотых идёт по
+ * тому же правилу «половина вверх», что и деньги: 262 953 тысячных →
+ * «262,95 м²».
+ */
+export function formatMeasure(value: Milliunits | bigint, unit: string): string {
+  const raw: bigint = value;
+  const negative = raw < 0n;
+  const hundredths = divideRoundHalfUp(negative ? -raw : raw, 10n);
+  const whole = hundredths / 100n;
+  const fraction = (hundredths % 100n).toString().padStart(2, "0");
+  const body = `${groupDigits(whole.toString())},${fraction}`;
+  return `${negative ? "−" : ""}${body}${NBSP}${unit}`;
 }

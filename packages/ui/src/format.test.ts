@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { kopecks, milliunits } from "@priyomka/domain";
-import { formatKopecks, formatPercent, formatQty, formatQtyWithUnit } from "./format.js";
+import { kopecks, measureTotals, milliunits, roomVolume, wallArea } from "@priyomka/domain";
+import { formatKopecks, formatMeasure, formatPercent, formatQty, formatQtyWithUnit } from "./format.js";
 
 const NBSP = " ";
 
@@ -49,5 +49,53 @@ describe("formatPercent", () => {
     expect(formatPercent(1200n)).toBe(`12${NBSP}%`);
     expect(formatPercent(1250n)).toBe(`12,5${NBSP}%`);
     expect(formatPercent(4850n)).toBe(`48,5${NBSP}%`);
+  });
+});
+
+describe("formatMeasure", () => {
+  it("держит два знака после запятой, в отличие от количества", () => {
+    // Обмерный план читается столбцом: «18,4» рядом с «18,40» заставляет
+    // проверять, одно ли это число.
+    expect(formatMeasure(milliunits(18_400n), "м²")).toBe(`18,40${NBSP}м²`);
+    expect(formatMeasure(milliunits(2_700n), "м")).toBe(`2,70${NBSP}м`);
+    expect(formatQty(milliunits(18_400n))).toBe("18,4");
+  });
+
+  it("округляет третий знак половиной вверх", () => {
+    expect(formatMeasure(milliunits(262_953n), "м²")).toBe(`262,95${NBSP}м²`);
+    expect(formatMeasure(milliunits(6_345n), "м³")).toBe(`6,35${NBSP}м³`);
+  });
+
+  it("группирует разряды и выносит знак перед числом", () => {
+    expect(formatMeasure(milliunits(1_234_567n), "м²")).toBe(`1${NBSP}234,57${NBSP}м²`);
+    expect(formatMeasure(milliunits(-2_700n), "м")).toBe(`−2,70${NBSP}м`);
+  });
+
+  it("столбец ведомости сходится с показанным итогом", () => {
+    // Свойство, которое видит человек: на печатной ведомости сумма
+    // показанных объёмов обязана совпасть с показанным итогом. Величины
+    // складываются в тысячных, а показываются в сотых, и при неудачно
+    // подобранном обмере столбец расходится с итогом на копейку.
+    const обмер = [
+      { floorArea: milliunits(12_300n), ceilingPerimeter: milliunits(18_600n) },
+      { floorArea: milliunits(18_400n), ceilingPerimeter: milliunits(17_600n) },
+      { floorArea: milliunits(12_700n), ceilingPerimeter: milliunits(14_400n) },
+      { floorArea: milliunits(23_630n), ceilingPerimeter: milliunits(21_390n) },
+      { floorArea: milliunits(1_800n),  ceilingPerimeter: milliunits(5_400n) },
+      { floorArea: milliunits(4_400n),  ceilingPerimeter: milliunits(8_400n) },
+      { floorArea: milliunits(7_300n),  ceilingPerimeter: milliunits(11_600n) },
+    ].map((к) => ({ ...к, floorPerimeter: milliunits(0n), height: milliunits(2_700n) }));
+
+    const столбец = (значения: readonly string[]): string =>
+      значения.map((v) => v.replace(/[^\d,]/g, "").replace(",", ".")).reduce(
+        (сумма, v) => сумма + Math.round(Number(v) * 100), 0,
+      ).toString();
+
+    const объёмы = обмер.map((к) => formatMeasure(roomVolume(к), "м³"));
+    const итог = measureTotals(обмер).volume;
+    expect(столбец(объёмы)).toBe(столбец([formatMeasure(итог, "м³")]));
+
+    const стены = обмер.map((к) => formatMeasure(wallArea(к), "м²"));
+    expect(столбец(стены)).toBe(столбец([formatMeasure(measureTotals(обмер).wallArea, "м²")]));
   });
 });
