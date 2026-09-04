@@ -127,9 +127,27 @@
   /* --- радиусы ----------------------------------------------------------- */
   /* Углы почти прямые. Скругление 10–14 px — признак витрины; рабочая
      документация прямоугольна, и это половина отличия от типовой панели. */
-  --radius-sm:   3px;    /* пилюли, бейджи, поля ввода */
-  --radius-md:   4px;    /* блоки, кнопки */
-  --radius-lg:   6px;    /* листы снизу и модальные окна */
+  /* --- скругления --------------------------------------------------------
+     Шкала выверена по замеру, а не по вкусу. Прежние 3 / 4 / 6 px давали
+     верхний предел 4 px на рабочих экранах: угол читался как прямой, а
+     интерфейс — как незаконченный. Обратная крайность не лучше: 12-16 px
+     на кнопке и карточке — узнаваемая подпись типовой вёрстки.
+
+     Шаг удвоением, каждая ступень привязана к размеру элемента:
+       4 px  — мелкие элементы высотой до 24 px: пилюля, бейдж, поле ввода;
+       8 px  — органы управления и блоки высотой 40-48 px: кнопка, карточка,
+               реестр, панель;
+      12 px  — крупные поверхности: лист снизу, модальное окно, плашка
+               обмера.
+
+     --radius-inner — для элемента, вложенного в другой с отступом 2 px:
+     радиус внешнего минус отступ. Прежняя формула calc(--radius-sm - 2px)
+     давала 1 px у сегментированного переключателя — не решение, а огрех
+     вывода: почти прямой угол выглядит небрежностью, а не намерением. */
+  --radius-sm:    4px;   /* пилюли, бейджи, поля ввода */
+  --radius-md:    8px;   /* кнопки, блоки, карточки, реестр */
+  --radius-lg:   12px;   /* листы снизу, модальные окна, плашка обмера */
+  --radius-inner: 6px;   /* вложенное в блок с отступом 2 px */
   --radius-pill: 999px;
 
   /* --- тени: применяются скупо, карточки отделяются границей -------------- */
@@ -792,7 +810,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   width: var(--tap-min); height: var(--tap-min);
   border: 0;
   background: transparent;
-  border-radius: calc(var(--radius-sm) - 2px);
+  border-radius: var(--radius-inner);
   color: var(--band-ink);
   cursor: pointer;
 }
@@ -951,7 +969,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
      и цель в 32 px он пальцем в перчатке не берёт (реестр Д-07). */
   min-block-size: var(--tap-min); padding: 0 var(--space-3);
   white-space: nowrap;
-  border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
+  border: 0; background: transparent; border-radius: var(--radius-inner);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
 }
 .segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
@@ -1174,7 +1192,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__search { display: flex; align-items: center; gap: var(--space-2);
   block-size: var(--control-h); padding-inline: var(--space-3);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
-  color: var(--ink-3); min-inline-size: 240px; }
+  /* Ширина рассчитана по самой длинной подписи продукта — «Поиск по коду,
+     адресу и заказчику»: при 240 px она обрезалась, и основной орган
+     реестра выглядел незаконченным. */
+  color: var(--ink-3); min-inline-size: 336px; }
 .datatable__search input { flex: 1 1 auto; border: 0; background: none;
   font-family: inherit; font-size: var(--fs-body); color: var(--ink); }
 /* Кольцо фокуса остаётся на самом поле: смена цвета границы обёртки на
