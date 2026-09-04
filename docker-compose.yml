@@ -42,6 +42,12 @@ services:
       S3_BUCKET: ${S3_BUCKET:-priyomka}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-priyomka}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?задайте ключ в .env}
+      # Каталог хранилища файлов. Реализация порта FileStorage сейчас одна —
+      # на файловой системе, поэтому каталогу нужен том: без него план
+      # объекта исчезнет при первом пересоздании контейнера. Ключи S3 выше
+      # объявлены под второй адаптер и кодом пока не читаются.
+      STORAGE_DIR: /var/lib/priyomka/files
+    volumes: ["api-files:/var/lib/priyomka/files"]
     ports: ["3000:3000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -57,3 +63,4 @@ services:
 volumes:
   postgres-data:
   minio-data:
+  api-files:

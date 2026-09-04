@@ -101,8 +101,26 @@ export class ProjectsService {
     if (projects.length === 0) return [];
     const byId = new Map(projects.map((project) => [project.id, project.code]));
 
+    /**
+     * Записи журнала трёх видов: правка объекта, правка обмера, замена
+     * плана. Все три адресованы объектом, поэтому берутся одним запросом.
+     *
+     * Обмер адресуется объектом, а не помещением, намеренно: помещение
+     * можно удалить, и запись об удалении, сославшись на исчезнувшую
+     * строку, выпала бы из ленты — то есть самое важное событие обмера
+     * стало бы единственным невидимым. Какое именно помещение правили,
+     * названо в самой записи.
+     *
+     * Показывать эти записи обязательно: журнал заводился ради спора
+     * «кто поменял площадь», а запись, которую никто не видит, спора не
+     * решает.
+     */
     const entries = await this.prisma.auditLog.findMany({
-      where: { orgId: user.orgId, entity: "Project", entityId: { in: [...byId.keys()] } },
+      where: {
+        orgId: user.orgId,
+        entity: { in: ["Project", "MeasureRoom", "MeasurePlan"] },
+        entityId: { in: [...byId.keys()] },
+      },
       orderBy: { at: "desc" },
       take: limit,
       include: { actor: { select: { name: true } } },

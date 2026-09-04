@@ -378,3 +378,111 @@ export const importRecordSchema = z.object({
   report: importReportSchema,
 });
 export type ImportRecord = z.infer<typeof importRecordSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Обмерный план (стадия C.1)
+ *
+ * Величины обмера пересекают HTTP строкой в тысячных долях — той же
+ * идиомой, что количества сметы: площадь в тысячных м², периметры в
+ * тысячных м.п., высота в тысячных м, объём в тысячных м³.
+ *
+ * Знака у величины обмера нет: отрицательной площади не бывает, и
+ * `milliunitsString` для неё слишком широка.
+ * ------------------------------------------------------------------------ */
+
+export const measureAmountSchema = z
+  .string()
+  .regex(/^\d+$/, "Величина обмера передаётся в тысячных долях целым числом в строке");
+
+export const openingKindSchema = z.enum(["WINDOW", "DOOR"]);
+export type OpeningKind = z.infer<typeof openingKindSchema>;
+
+export const measureOpeningSchema = z.object({
+  kind: openingKindSchema,
+  count: z.number().int().positive(),
+  area: measureAmountSchema,
+  /** Откосы: суммарная длина по всем проёмам этого вида, тысячных м.п. */
+  reveal: measureAmountSchema,
+});
+export type MeasureOpening = z.infer<typeof measureOpeningSchema>;
+
+export const measureRoomSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  order: z.number().int(),
+  floorArea: measureAmountSchema,
+  floorPerimeter: measureAmountSchema,
+  ceilingPerimeter: measureAmountSchema,
+  height: measureAmountSchema,
+  /** Выводится сервером из четырёх величин выше. Клиент их не считает. */
+  wallArea: measureAmountSchema,
+  volume: measureAmountSchema,
+  openings: z.array(measureOpeningSchema),
+});
+export type MeasureRoom = z.infer<typeof measureRoomSchema>;
+
+export const measureTotalsSchema = z.object({
+  rooms: z.number().int().nonnegative(),
+  floorArea: measureAmountSchema,
+  wallArea: measureAmountSchema,
+  floorPerimeter: measureAmountSchema,
+  ceilingPerimeter: measureAmountSchema,
+  volume: measureAmountSchema,
+});
+export type MeasureTotals = z.infer<typeof measureTotalsSchema>;
+
+/**
+ * Сведения о загруженном плане объекта. Адреса файла в контракте нет: он
+ * выводится из кода объекта на стороне клиента. Иначе демонстрационная
+ * сборка, работающая без сервера, обязана подставлять в контрактное поле
+ * строку `data:`.
+ */
+export const measurePlanSchema = z.object({
+  fileName: z.string(),
+  contentType: z.string(),
+  byteSize: z.number().int().positive(),
+  uploadedAt: z.string(),
+  uploadedBy: z.string().nullable(),
+});
+export type MeasurePlan = z.infer<typeof measurePlanSchema>;
+
+/** Вкладка «Замер» одним запросом: помещения, итоги, сведения о плане. */
+export const measureViewSchema = z.object({
+  rooms: z.array(measureRoomSchema),
+  totals: measureTotalsSchema,
+  plan: measurePlanSchema.nullable(),
+});
+export type MeasureView = z.infer<typeof measureViewSchema>;
+
+/**
+ * Границы величин. Высота ниже 1,50 м и выше 6,00 м — почти наверняка
+ * промах в единицах (сантиметры вместо метров), и поймать его на вводе
+ * дешевле, чем объяснять потом объём в две тысячи кубометров.
+ *
+ * Верхние границы площади и периметров намеренно щедрые: продукт считает
+ * квартиры, но обмер коттеджа не должен упираться в предел.
+ */
+const HEIGHT_MIN = 1_500;
+const HEIGHT_MAX = 6_000;
+const LENGTH_MAX = 10_000_000; // 10 000 м
+const AREA_MAX = 10_000_000;   // 10 000 м²
+
+const inRange = (schema: typeof measureAmountSchema, min: number, max: number, what: string) =>
+  schema.refine((value) => {
+    const amount = Number(value);
+    return amount >= min && amount <= max;
+  }, `${what} вне допустимых границ`);
+
+export const createMeasureRoomSchema = z.object({
+  name: z.string().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
+  floorArea: inRange(measureAmountSchema, 1, AREA_MAX, "Площадь пола"),
+  floorPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр пола"),
+  ceilingPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр потолка"),
+  height: inRange(measureAmountSchema, HEIGHT_MIN, HEIGHT_MAX, "Высота"),
+  /** Не больше одной строки на вид проёма: окна и двери. */
+  openings: z.array(measureOpeningSchema).max(2).optional(),
+});
+export type CreateMeasureRoom = z.infer<typeof createMeasureRoomSchema>;
+
+export const updateMeasureRoomSchema = createMeasureRoomSchema.partial();
+export type UpdateMeasureRoom = z.infer<typeof updateMeasureRoomSchema>;

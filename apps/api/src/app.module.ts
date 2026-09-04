@@ -13,15 +13,21 @@ import { SummaryService } from "./summary/summary.service";
 import { SummaryController } from "./summary/summary.controller";
 import { DirectoryService } from "./directory/directory.service";
 import { DirectoryController } from "./directory/directory.controller";
+import { MeasureService } from "./measure/measure.service";
+import { MeasureController } from "./measure/measure.controller";
+import { FileStorage, LocalFileStorage } from "./common/file-storage";
 
 @Module({
   controllers: [
     AuthController, ProjectsController, EstimatesController,
-    SummaryController, DirectoryController,
+    SummaryController, DirectoryController, MeasureController,
   ],
   providers: [
     PrismaService, AuthService, SessionGuard, RolesGuard, AuditService,
-    ProjectsService, EstimatesService, SummaryService, DirectoryService,
+    ProjectsService, EstimatesService, SummaryService, DirectoryService, MeasureService,
+    // Хранилище файлов подключается портом: смена реализации на S3 при
+    // переезде в облако (план 6.1) — правка этой одной строки.
+    { provide: FileStorage, useClass: LocalFileStorage },
   ],
 })
 export class AppModule {}
