@@ -52,6 +52,27 @@
   --on-accent-fill:  rgba(255, 255, 255, .16);   /* бейдж кода на обложке */
   --on-accent-track: rgba(255, 255, 255, .24);   /* дорожка кольца на акценте */
 
+  /* --- инвертированная поверхность --------------------------------------
+     Тёмная плашка внутри светлого экрана: карточка помещения обмерного
+     плана. Смысл в том, чтобы числа замера читались как одно целое и не
+     смешивались со сводкой по объекту рядом.
+
+     Это не тема, а материал: в тёмной теме плашка не переворачивается
+     обратно в светлую, а сливается с общей палитрой — там весь экран уже
+     тёмный, и отдельная инверсия смысла не несёт. Поэтому значения ниже
+     переопределяются в тёмной теме на обычные поверхность, чернила и
+     акцент, а плашка отделяется от полотна линией, как всякая другая.
+
+     --line-inv — цвет ЛИНИИ, а не заливки. Заливать им полосу нельзя:
+     числа на нём дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7,
+     а подписи в тёмной — 3,39 при пороге 4,5. На заливке из этого набора
+     держится только основной текст, и заливки поэтому нет вовсе. */
+  --surface-inv:   #0E1A28;
+  --ink-on-inv:    #E8EDF2;
+  --ink-on-inv-2:  #A8B6C4;
+  --line-inv:      #28323E;
+  --accent-inv:    #8FBCE8;
+
   /* --- сигнальный: внимание, срочность, перевыработка -------------------- */
   /* --- полоса шапки и обложки -------------------------------------------
      Полоса чернильная в обеих темах, а не залитая акцентом. Крупная
@@ -180,6 +201,14 @@
     --line:          #28323E;
     --line-strong:   #3C4854;
 
+    /* Инвертированная поверхность сливается с общей палитрой: в тёмной
+       теме инвертировать нечего, плашка отделяется линией. */
+    --surface-inv:   #212C39;
+    --ink-on-inv:    #E8EDF2;
+    --ink-on-inv-2:  #8F9DAF;
+    --line-inv:      #3C4854;
+    --accent-inv:    #8FBCE8;
+
     --accent:        #8FBCE8;
     --accent-hover:  #8CB8E8;
     --accent-soft:   #1B2A3C;
@@ -226,6 +255,14 @@
 
   --line:          #28323E;
   --line-strong:   #3C4854;
+
+  /* Инвертированная поверхность сливается с общей палитрой: в тёмной
+     теме инвертировать нечего, плашка отделяется линией. */
+  --surface-inv:   #212C39;
+  --ink-on-inv:    #E8EDF2;
+  --ink-on-inv-2:  #8F9DAF;
+  --line-inv:      #3C4854;
+  --accent-inv:    #8FBCE8;
 
   --accent:        #8FBCE8;
   --accent-hover:  #8CB8E8;
@@ -1278,6 +1315,101 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .roadmap__text { margin-block-start: var(--space-2); font-size: var(--fs-sm); color: var(--ink-2); }
 
+/* --- обмерный план ---------------------------------------------------------
+   Стадия C.1. Ведомость величин, тумблер подробного вида, инвертированная
+   плашка помещения и печатный вид.
+   -------------------------------------------------------------------------- */
+
+/* Ведомость величин: подпись и значение в строку. Значение моноширинным с
+   табличными цифрами — столбец читается сверху вниз, а не по одному числу. */
+.spec { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0; }
+.spec--col { flex-direction: column; gap: var(--space-2); }
+.spec__item { display: flex; justify-content: space-between; gap: var(--space-3);
+  font-size: var(--fs-sm); color: var(--ink-3); }
+.spec__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  color: var(--ink); white-space: nowrap; }
+.spec--inv .spec__item  { color: var(--ink-on-inv-2); }
+.spec--inv .spec__value { color: var(--accent-inv); }
+
+/* Двоичный переключатель. Дорожка 44×24, но область нажатия берёт высоту
+   органа управления целиком: на телефоне это 48 px по нормативу. */
+.toggle { display: inline-flex; align-items: center; gap: var(--space-3);
+  min-block-size: var(--tap-min); padding: 0; background: none; border: 0;
+  cursor: pointer; color: inherit; }
+.toggle__track { position: relative; inline-size: 44px; block-size: 24px;
+  border-radius: var(--radius-pill); background: var(--line-strong);
+  transition: background var(--dur-fast) var(--ease); }
+.toggle__knob { position: absolute; inset-block-start: 2px; inset-inline-start: 2px;
+  inline-size: 20px; block-size: 20px; border-radius: var(--radius-pill);
+  background: var(--surface); transition: inset-inline-start var(--dur-fast) var(--ease); }
+.toggle[aria-checked="true"] .toggle__track { background: var(--accent); }
+.toggle[aria-checked="true"] .toggle__knob  { inset-inline-start: 22px; }
+.toggle__name { font-size: var(--fs-sm); color: var(--ink-2); }
+.toggle--inv .toggle__track { background: var(--line-inv); }
+.toggle--inv .toggle__knob  { background: var(--ink-on-inv-2); }
+.toggle--inv .toggle__name  { color: var(--ink-on-inv); }
+.toggle--inv[aria-checked="true"] .toggle__track { background: var(--accent-inv); }
+.toggle--inv[aria-checked="true"] .toggle__knob  { background: var(--surface-inv); }
+
+/* Инвертированная плашка помещения. Материал, а не тема: в тёмной теме
+   значения токенов сходятся с общей палитрой, и плашку держит линия. */
+.measure { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-5);
+  padding: var(--space-5); border: 1px solid var(--line-inv); border-radius: var(--radius-lg);
+  background: var(--surface-inv); color: var(--ink-on-inv); }
+.measure__nav { display: flex; flex-direction: column; gap: var(--space-1); }
+.measure__item { display: block; inline-size: 100%; text-align: start;
+  min-block-size: var(--tap-min); padding: var(--space-2) var(--space-3);
+  border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
+  font-size: var(--fs-body); color: var(--ink-on-inv-2); }
+.measure__item[aria-selected="true"] { background: var(--accent-inv); color: var(--surface-inv); }
+.measure__head { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4); padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--line-inv); }
+.measure__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5); margin-block-start: var(--space-4); }
+.measure__cap { font-family: var(--font-display); font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-on-inv-2);
+  margin-block-end: var(--space-2); }
+
+@media (max-width: 1023px) {
+  /* Список помещений становится прокручиваемой лентой: вертикальная
+     колонка на 360 px съедает половину экрана. */
+  .measure { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
+  .measure__nav { flex-direction: row; overflow-x: auto; gap: var(--space-2);
+    scrollbar-width: thin; }
+  .measure__item { inline-size: auto; white-space: nowrap; }
+}
+
+/* Снимок плана объекта. Ширина по колонке, высота по содержимому: план
+   квартиры бывает и вытянутым в ширину, и вытянутым в высоту. */
+.measure__plan { display: block; inline-size: 100%; max-inline-size: 720px; block-size: auto;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+
+/* Ведомость печати. На экране её нет, в печати нет всего остального:
+   лист обмера — это таблица помещений, а не снимок интерфейса. */
+.measure-print { display: none; }
+
+@media print {
+  /* На листе остаётся ведомость и ничего больше: ни навигации, ни сводки
+     по объекту, ни органов управления. Экранная часть вкладки скрыта одним
+     классом, а не перечислением блоков — перечисление устаревает на первой
+     же правке экрана. */
+  .appbar, .tabbar, .themeswitch, .stamp, .stamp__crumbs, .tabs,
+  .measure-screen, .project-layout > aside { display: none !important; }
+  .measure-print { display: block; }
+  /* Сетка карточки держит ширину колонки даже со скрытой сводкой: на листе
+     ведомость должна идти во всю страницу. */
+  .project-layout { display: block; }
+  .container { max-inline-size: none; padding: 0; }
+  .measure-print__head { margin-block-end: var(--space-4); }
+  .measure-print table { inline-size: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .measure-print th, .measure-print td { padding: var(--space-2); text-align: end;
+    border-block-end: 1px solid var(--line); }
+  .measure-print th:first-child, .measure-print td:first-child { text-align: start; }
+  .measure-print tfoot td { font-weight: var(--fw-h3); }
+  @page { size: A4 landscape; margin: 12mm; }
+}
+
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
    не входит в продукт: ритм разделов, рамка превью, образец цвета в таблице
@@ -1651,6 +1783,74 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
     </div>
   </section>
 
+
+  <!-- ── ОБМЕРНЫЙ ПЛАН ─────────────────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Обмерный план</h2>
+      <p class="t-sm t-muted">раздел 16: ведомость величин, тумблер, инвертированная поверхность</p>
+    </div>
+
+    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема. В тёмной теме плашка не переворачивается обратно в светлую, а сходится с общей палитрой и отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки: числа на такой заливке дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7.</p>
+
+    <div class="stack stack--tight">
+      <p class="field__label--cap">Общее</p>
+      <p class="spec">
+        <span class="spec__item">Помещений<span class="spec__value">7</span></span>
+        <span class="spec__item">Площадь<span class="spec__value">80,53 м²</span></span>
+        <span class="spec__item">Площадь стен<span class="spec__value">262,95 м²</span></span>
+        <span class="spec__item">Периметр потолка<span class="spec__value">97,39 м.п.</span></span>
+        <span class="spec__item">Периметр пола<span class="spec__value">86,07 м.п.</span></span>
+        <span class="spec__item">Объём<span class="spec__value">217,43 м³</span></span>
+      </p>
+    </div>
+
+    <div class="measure">
+      <nav class="measure__nav" aria-label="Помещения">
+        <button type="button" class="measure__item">Коридор</button>
+        <button type="button" class="measure__item" aria-selected="true">Спальня</button>
+        <button type="button" class="measure__item">Кухня</button>
+        <button type="button" class="measure__item">Гостиная</button>
+        <button type="button" class="measure__item">Санузел</button>
+      </nav>
+      <div>
+        <div class="measure__head">
+          <span class="t-h2">Спальня</span>
+          <button type="button" class="toggle toggle--inv" role="switch" aria-checked="false">
+            <span class="toggle__track"><span class="toggle__knob"></span></span>
+            <span class="toggle__name">Подробный</span>
+          </button>
+        </div>
+        <div class="measure__grid">
+          <div>
+            <p class="measure__cap">Основное</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Площадь<span class="spec__value">18,40 м²</span></span>
+              <span class="spec__item">Площадь стен<span class="spec__value">47,52 м²</span></span>
+              <span class="spec__item">Высота<span class="spec__value">2,70 м</span></span>
+              <span class="spec__item">Объём<span class="spec__value">49,68 м³</span></span>
+            </p>
+          </div>
+          <div>
+            <p class="measure__cap">Окна</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Количество<span class="spec__value">1</span></span>
+              <span class="spec__item">Площадь<span class="spec__value">2,10 м²</span></span>
+            </p>
+          </div>
+          <div>
+            <p class="measure__cap">Двери</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Количество<span class="spec__value">1</span></span>
+              <span class="spec__item">Площадь<span class="spec__value">1,68 м²</span></span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="t-sm t-muted">Тумблер вводится только вместе с работой, которую он делает: здесь он переводит краткий набор величин в полный. Величина обмера показывается с двумя знаками после запятой всегда — столбец ведомости читается сверху вниз, и «18,4» рядом с «18,40» заставляет проверять, одно ли это число.</p>
+  </section>
 
   <!-- ── СПИСОК ПО ЕДИНОМУ ОБРАЗЦУ ─────────────────────────────────────── -->
   <section class="doc__block">

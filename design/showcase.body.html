@@ -323,6 +323,74 @@
   </section>
 
 
+  <!-- ── ОБМЕРНЫЙ ПЛАН ─────────────────────────────────────────────────── -->
+  <section class="doc__block">
+    <div class="section-head">
+      <h2 class="t-h2">Обмерный план</h2>
+      <p class="t-sm t-muted">раздел 16: ведомость величин, тумблер, инвертированная поверхность</p>
+    </div>
+
+    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема. В тёмной теме плашка не переворачивается обратно в светлую, а сходится с общей палитрой и отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки: числа на такой заливке дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7.</p>
+
+    <div class="stack stack--tight">
+      <p class="field__label--cap">Общее</p>
+      <p class="spec">
+        <span class="spec__item">Помещений<span class="spec__value">7</span></span>
+        <span class="spec__item">Площадь<span class="spec__value">80,53 м²</span></span>
+        <span class="spec__item">Площадь стен<span class="spec__value">262,95 м²</span></span>
+        <span class="spec__item">Периметр потолка<span class="spec__value">97,39 м.п.</span></span>
+        <span class="spec__item">Периметр пола<span class="spec__value">86,07 м.п.</span></span>
+        <span class="spec__item">Объём<span class="spec__value">217,43 м³</span></span>
+      </p>
+    </div>
+
+    <div class="measure">
+      <nav class="measure__nav" aria-label="Помещения">
+        <button type="button" class="measure__item">Коридор</button>
+        <button type="button" class="measure__item" aria-selected="true">Спальня</button>
+        <button type="button" class="measure__item">Кухня</button>
+        <button type="button" class="measure__item">Гостиная</button>
+        <button type="button" class="measure__item">Санузел</button>
+      </nav>
+      <div>
+        <div class="measure__head">
+          <span class="t-h2">Спальня</span>
+          <button type="button" class="toggle toggle--inv" role="switch" aria-checked="false">
+            <span class="toggle__track"><span class="toggle__knob"></span></span>
+            <span class="toggle__name">Подробный</span>
+          </button>
+        </div>
+        <div class="measure__grid">
+          <div>
+            <p class="measure__cap">Основное</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Площадь<span class="spec__value">18,40 м²</span></span>
+              <span class="spec__item">Площадь стен<span class="spec__value">47,52 м²</span></span>
+              <span class="spec__item">Высота<span class="spec__value">2,70 м</span></span>
+              <span class="spec__item">Объём<span class="spec__value">49,68 м³</span></span>
+            </p>
+          </div>
+          <div>
+            <p class="measure__cap">Окна</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Количество<span class="spec__value">1</span></span>
+              <span class="spec__item">Площадь<span class="spec__value">2,10 м²</span></span>
+            </p>
+          </div>
+          <div>
+            <p class="measure__cap">Двери</p>
+            <p class="spec spec--col spec--inv">
+              <span class="spec__item">Количество<span class="spec__value">1</span></span>
+              <span class="spec__item">Площадь<span class="spec__value">1,68 м²</span></span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="t-sm t-muted">Тумблер вводится только вместе с работой, которую он делает: здесь он переводит краткий набор величин в полный. Величина обмера показывается с двумя знаками после запятой всегда — столбец ведомости читается сверху вниз, и «18,4» рядом с «18,40» заставляет проверять, одно ли это число.</p>
+  </section>
+
   <!-- ── СПИСОК ПО ЕДИНОМУ ОБРАЗЦУ ─────────────────────────────────────── -->
   <section class="doc__block">
     <div class="section-head">
