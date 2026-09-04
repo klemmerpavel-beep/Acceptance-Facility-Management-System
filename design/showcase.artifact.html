@@ -127,9 +127,27 @@
   /* --- радиусы ----------------------------------------------------------- */
   /* Углы почти прямые. Скругление 10–14 px — признак витрины; рабочая
      документация прямоугольна, и это половина отличия от типовой панели. */
-  --radius-sm:   3px;    /* пилюли, бейджи, поля ввода */
-  --radius-md:   4px;    /* блоки, кнопки */
-  --radius-lg:   6px;    /* листы снизу и модальные окна */
+  /* --- скругления --------------------------------------------------------
+     Шкала выверена по замеру, а не по вкусу. Прежние 3 / 4 / 6 px давали
+     верхний предел 4 px на рабочих экранах: угол читался как прямой, а
+     интерфейс — как незаконченный. Обратная крайность не лучше: 12-16 px
+     на кнопке и карточке — узнаваемая подпись типовой вёрстки.
+
+     Шаг удвоением, каждая ступень привязана к размеру элемента:
+       4 px  — мелкие элементы высотой до 24 px: пилюля, бейдж, поле ввода;
+       8 px  — органы управления и блоки высотой 40-48 px: кнопка, карточка,
+               реестр, панель;
+      12 px  — крупные поверхности: лист снизу, модальное окно, плашка
+               обмера.
+
+     --radius-inner — для элемента, вложенного в другой с отступом 2 px:
+     радиус внешнего минус отступ. Прежняя формула calc(--radius-sm - 2px)
+     давала 1 px у сегментированного переключателя — не решение, а огрех
+     вывода: почти прямой угол выглядит небрежностью, а не намерением. */
+  --radius-sm:    4px;   /* пилюли, бейджи, поля ввода */
+  --radius-md:    8px;   /* кнопки, блоки, карточки, реестр */
+  --radius-lg:   12px;   /* листы снизу, модальные окна, плашка обмера */
+  --radius-inner: 6px;   /* вложенное в блок с отступом 2 px */
   --radius-pill: 999px;
 
   /* --- тени: применяются скупо, карточки отделяются границей -------------- */
@@ -694,7 +712,11 @@ button.counterstrip__item:hover { color: var(--accent); }
    Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
    Полоса прокручивается внутри себя, полотно страницы по горизонтали
    не двигается.                                                            */
-.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr); gap: var(--space-2); overflow-x: auto; }
+/* Карточки выравниваются по верху, а не растягиваются: день с событием
+   выше пустого, и неделя читается как «здесь два события», а не как пять
+   пустых коробок одинаковой высоты. */
+.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
+  gap: var(--space-2); overflow-x: auto; align-items: start; }
 .daycard {
   display: flex;
   flex-direction: column;
@@ -709,7 +731,8 @@ button.counterstrip__item:hover { color: var(--accent); }
 /* День без событий рамки не получает: семь одинаковых карточек, пять из
    которых повторяют одну и ту же фразу, — это шум, а не сведения. Подпись
    остаётся: пустота названа, а не оставлена без объяснения. */
-.daycard--empty { background: transparent; border-color: transparent; }
+.daycard--empty { background: transparent; border-color: transparent;
+  min-height: 0; padding-block: var(--space-2); }
 .daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
 .daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
@@ -792,7 +815,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   width: var(--tap-min); height: var(--tap-min);
   border: 0;
   background: transparent;
-  border-radius: calc(var(--radius-sm) - 2px);
+  border-radius: var(--radius-inner);
   color: var(--band-ink);
   cursor: pointer;
 }
@@ -951,7 +974,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
      и цель в 32 px он пальцем в перчатке не берёт (реестр Д-07). */
   min-block-size: var(--tap-min); padding: 0 var(--space-3);
   white-space: nowrap;
-  border: 0; background: transparent; border-radius: calc(var(--radius-sm) - 2px);
+  border: 0; background: transparent; border-radius: var(--radius-inner);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
 }
 .segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
@@ -1174,7 +1197,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__search { display: flex; align-items: center; gap: var(--space-2);
   block-size: var(--control-h); padding-inline: var(--space-3);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
-  color: var(--ink-3); min-inline-size: 240px; }
+  /* Ширина рассчитана по самой длинной подписи продукта — «Поиск по коду,
+     адресу и заказчику»: при 240 px она обрезалась, и основной орган
+     реестра выглядел незаконченным. */
+  color: var(--ink-3); min-inline-size: 336px; }
 .datatable__search input { flex: 1 1 auto; border: 0; background: none;
   font-family: inherit; font-size: var(--fs-body); color: var(--ink); }
 /* Кольцо фокуса остаётся на самом поле: смена цвета границы обёртки на
@@ -1404,6 +1430,26 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .measure-print tfoot td { font-weight: var(--fw-h3); }
   @page { size: A4 landscape; margin: 12mm; }
 }
+
+/* --- конвейер объекта ------------------------------------------------------
+   Охват портфеля по ступеням на первом экране. Ступени идут в порядке
+   конвейера и делят ширину поровну: сравнение заполнения — единственное,
+   ради чего блок существует, и разная ширина сделала бы его невозможным.
+   -------------------------------------------------------------------------- */
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-5); }
+.pipeline__step { display: flex; flex-direction: column; gap: var(--space-2); }
+.pipeline__head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); }
+.pipeline__count { font-size: var(--fs-h2); font-weight: 600; text-align: end; }
+.pipeline__of { font-family: var(--font-ui); font-size: var(--fs-sm);
+  font-weight: var(--fw-sm); color: var(--ink-3); }
+.pipeline__detail { display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-2); font-size: var(--fs-sm); color: var(--ink-3); }
+/* Заполнение приходит из данных и меняется при загрузке сводки: движение
+   показывает величину, а не украшает экран. Правило prefers-reduced-motion
+   объявлено глобально в base.css и гасит переход целиком. */
+.pipeline .scale__fill { transition: inline-size var(--dur-base) var(--ease); }
 
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
@@ -1915,7 +1961,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   <section class="doc__block">
     <div class="section-head">
       <h2 class="t-h2">Сводка портфеля</h2>
-      <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
+      <p class="t-sm t-muted">первый экран: деньги, конвейер, неделя, счётчики, события</p>
     </div>
     <div class="figrow">
       <div class="figure figrow__lead">
@@ -1929,6 +1975,33 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
         <span class="figure__value">3 794 852,10 ₽</span>
         <span class="figure__note">пересчёт по позициям</span>
         <span class="figrow__second"><span class="num num--start num--danger">438 800,00 ₽</span><span class="figure__note">недосчёт в файлах · объектов: 1</span></span>
+      </div>
+    </div>
+    <div class="pipeline">
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Замер</span><span class="num pipeline__count">1<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Замер: 1 из 8 объектов"><span class="scale__fill" style="inline-size: 13%"></span></div></div>
+        <p class="pipeline__detail">7 помещений, 80,53 м²</p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Смета</span><span class="num pipeline__count">1<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Смета: 1 из 8 объектов"><span class="scale__fill" style="inline-size: 13%"></span></div></div>
+        <p class="pipeline__detail">132 позиции работ</p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Работа</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Работа: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">график производства работ<span class="pill">стадия C.3</span></p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Приёмка</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Приёмка: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">132 позиции ждут приёмки<span class="pill">стадия D</span></p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Документы</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Документы: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">акты по принятым позициям<span class="pill">стадия D</span></p>
       </div>
     </div>
     <div class="weekstrip">
@@ -1951,7 +2024,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
         <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Роман Дементьев</span></span></div>
       </div>
     </div>
-    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>
+    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Ступень конвейера, которой в продукте ещё нет, показывает ноль и называет стадию, а не правдоподобную долю. Числа сводки — из разбора действующей сметы, а не из макета.</p>
   </section>
 
   <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->

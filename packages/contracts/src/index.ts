@@ -196,6 +196,10 @@ export const calendarDaySchema = z.object({
  * Сводка первого экрана. Денежные величины — клиентские; фонд оплаты труда
  * приходит только роли OWNER и потому объявлен необязательным.
  */
+export const measureAmountSchema = z
+  .string()
+  .regex(/^\d+$/, "Величина обмера передаётся в тысячных долях целым числом в строке");
+
 export const dashboardSchema = z.object({
   today: z.string().date(),
   money: z.object({
@@ -223,6 +227,15 @@ export const dashboardSchema = z.object({
     pending: z.number().int(),
     acts: z.number().int(),
     expenses: z.number().int(),
+  }),
+  /**
+   * Охват портфеля обмером. Величины в тысячных долях, как везде: площадь
+   * отсюда станет количествами позиций сметы.
+   */
+  measure: z.object({
+    projects: z.number().int(),
+    rooms: z.number().int(),
+    floorArea: measureAmountSchema,
   }),
   deadlines: z.array(
     z.object({
@@ -389,10 +402,6 @@ export type ImportRecord = z.infer<typeof importRecordSchema>;
  * Знака у величины обмера нет: отрицательной площади не бывает, и
  * `milliunitsString` для неё слишком широка.
  * ------------------------------------------------------------------------ */
-
-export const measureAmountSchema = z
-  .string()
-  .regex(/^\d+$/, "Величина обмера передаётся в тысячных долях целым числом в строке");
 
 export const openingKindSchema = z.enum(["WINDOW", "DOOR"]);
 export type OpeningKind = z.infer<typeof openingKindSchema>;

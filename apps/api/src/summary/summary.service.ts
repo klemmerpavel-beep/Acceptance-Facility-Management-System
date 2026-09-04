@@ -40,6 +40,21 @@ export class SummaryService {
     });
     const facts = await estimateFacts(this.prisma, projects.map((project) => project.id));
 
+    /**
+     * Охват портфеля обмером. Одним запросом по всем видимым объектам: на
+     * восьми объектах разница незаметна, но запрос на объект превратил бы
+     * сводку в N+1 при первом же росте портфеля.
+     */
+    const rooms = await this.prisma.measureRoom.findMany({
+      where: { projectId: { in: projects.map((project) => project.id) } },
+      select: { projectId: true, floorArea: true },
+    });
+    const measure = {
+      projects: new Set(rooms.map((room) => room.projectId)).size,
+      rooms: rooms.length,
+      floorArea: rooms.reduce((total, room) => total + room.floorArea, 0n).toString(),
+    };
+
     const portfolioInput: PortfolioProject[] = projects.map((project) => {
       const own = facts.get(project.id);
       return {
@@ -115,6 +130,7 @@ export class SummaryService {
       // Приёмки, акты и расходы появятся на своих этапах. До тех пор здесь
       // нули, а не правдоподобные числа: сводка не выдумывает работу.
       acceptance: { accepted: 0, pending: portfolio.estimate.positions, acts: 0, expenses: 0 },
+      measure,
       deadlines: portfolio.deadlines.slice(0, 5),
       week,
       feed,

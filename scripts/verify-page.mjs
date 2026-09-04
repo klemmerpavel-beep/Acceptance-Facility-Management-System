@@ -550,7 +550,7 @@ await page.waitForTimeout(300);
 await page.click('.tabs__item:has-text("Обзор")');
 
 /*
- * Прямые углы. Документ не скруглён: наибольший радиус в системе — 6 px,
+ * Шкала скруглений. Верхняя ступень шкалы — 12 px,
  * и блок с большим скруглением означает значение мимо токена. Проверяется
  * на карточке объекта — там больше всего разных блоков.
  */
@@ -564,8 +564,8 @@ const roundest = await page.evaluate(() => {
   }
   return worst;
 });
-if (roundest.radius > 6) {
-  note("скругления", `${roundest.radius} px у «${roundest.selector}» при пороге 6 px`);
+if (roundest.radius > 12) {
+  note("скругления", `${roundest.radius} px у «${roundest.selector}» при пороге 12 px`);
 }
 console.log(`  наибольшее скругление блока: ${roundest.radius} px`);
 
