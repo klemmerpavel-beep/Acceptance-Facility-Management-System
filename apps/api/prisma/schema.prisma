@@ -36,6 +36,15 @@ enum ProjectStatus {
 /// Расчётная единица сдельной оплаты. По решению допроса расчёт ведётся
 /// с бригадой через бригадира, состав бригады не хранится; тип PERSON
 /// оставлен для объектов, где рассчитываются с конкретным мастером.
+/// Вид проёма обмерного плана. Величины хранятся измеренными итогами по
+/// виду, а не выводятся из размеров: у двери спальни площадь 1,68 м² и
+/// откосы 5,05 м.п. не даёт ни одна пара размеров — откосы у двери
+/// трёхсторонние и меряются по месту.
+enum OpeningKind {
+  WINDOW
+  DOOR
+}
+
 enum WorkerKind {
   BRIGADE
   PERSON
@@ -85,11 +94,12 @@ model User {
   phone     String?
   createdAt DateTime @default(now())
 
-  organization      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization      Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   authTokens        AuthToken[]
   sessions          Session[]
-  projectsAsForeman Project[]    @relation("ProjectForeman")
+  projectsAsForeman Project[]     @relation("ProjectForeman")
   auditEntries      AuditLog[]
+  measurePlans      MeasurePlan[]
 
   @@unique([orgId, email])
   @@index([orgId, role])
@@ -113,27 +123,29 @@ model Client {
 }
 
 model Project {
-  id        String        @id @default(uuid()) @db.Uuid
-  orgId     String        @db.Uuid
+  id               String        @id @default(uuid()) @db.Uuid
+  orgId            String        @db.Uuid
   /// Сквозной короткий код объекта: почта, документы, разговор, акт — R-99.
-  code      String
-  address   String
-  clientId  String        @db.Uuid
-  foremanId String?       @db.Uuid
-  status    ProjectStatus @default(NEW)
+  code             String
+  address          String
+  clientId         String        @db.Uuid
+  foremanId        String?       @db.Uuid
+  status           ProjectStatus @default(NEW)
   /// Дата начала работ на объекте. Отличается от даты заведения объекта в
   /// системе: объект может быть заведён задолго до выхода бригады.
-  startedAt DateTime?     @db.Date
-  deadline  DateTime?     @db.Date
-  keysCount Int           @default(0)
+  startedAt        DateTime?     @db.Date
+  deadline         DateTime?     @db.Date
+  keysCount        Int           @default(0)
   /// Надбавка «сопровождение объекта» в сотых долях процента: 1200 = 12,00 %.
-  supervisionShare Int    @default(1200)
-  createdAt DateTime      @default(now())
+  supervisionShare Int           @default(1200)
+  createdAt        DateTime      @default(now())
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  client       Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  foreman      User?        @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  foreman      User?         @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
   estimates    Estimate[]
+  measureRooms MeasureRoom[]
+  measurePlan  MeasurePlan?
 
   @@unique([orgId, code])
   @@index([orgId, status])
@@ -159,18 +171,18 @@ model Unit {
 /// Смета объекта. Редакция растёт при правке цен и ставок; правка
 /// количеств и наименований идёт на месте с записью в AuditLog (Р11).
 model Estimate {
-  id               String   @id @default(uuid()) @db.Uuid
-  projectId        String   @db.Uuid
-  version          Int      @default(1)
+  id                 String   @id @default(uuid()) @db.Uuid
+  projectId          String   @db.Uuid
+  version            Int      @default(1)
   /// Надбавка «сопровождение объекта» в сотых долях процента.
-  supervisionShare Int      @default(1200)
+  supervisionShare   Int      @default(1200)
   /// Заявленный в исходном файле итог по работам, копейки. Хранится, чтобы
   /// расхождение оставалось проверяемым и после импорта (БП-09).
   declaredWorksTotal BigInt?
-  isLocked         Boolean  @default(false)
-  createdAt        DateTime @default(now())
+  isLocked           Boolean  @default(false)
+  createdAt          DateTime @default(now())
 
-  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sections      EstimateSection[]
   items         EstimateItem[]
   otherExpenses OtherExpense[]
@@ -264,10 +276,10 @@ model EstimateImport {
 }
 
 model Worker {
-  id    String     @id @default(uuid()) @db.Uuid
-  orgId String     @db.Uuid
-  name  String
-  kind  WorkerKind @default(BRIGADE)
+  id          String     @id @default(uuid()) @db.Uuid
+  orgId       String     @db.Uuid
+  name        String
+  kind        WorkerKind @default(BRIGADE)
   /// Ставка по умолчанию в копейках за единицу; необязательна, поскольку
   /// начисление всегда идёт по ставке позиции сметы, а не по этой.
   defaultRate BigInt?
@@ -329,4 +341,82 @@ model AuditLog {
   @@index([orgId, entity, entityId])
   @@index([orgId, at])
   @@map("audit_log")
+}
+
+/// Помещение обмерного плана.
+///
+/// Прораб вносит четыре величины: площадь пола, периметр пола, периметр
+/// потолка и высоту. Площадь стен и объём в базе НЕ хранятся — они
+/// выводятся чистыми функциями packages/domain/src/measure.ts. Хранение
+/// производной завело бы вторую правду о тех же числах, расходящуюся с
+/// первой при первой же правке высоты.
+///
+/// Периметр пола меньше периметра потолка на ширину дверных проёмов:
+/// первый — длина плинтуса, второй — замкнутая линия примыкания стен к
+/// потолку. Обе величины измеряются, ни одна не выводится из площади.
+model MeasureRoom {
+  id               String   @id @default(uuid()) @db.Uuid
+  projectId        String   @db.Uuid
+  name             String
+  order            Int
+  /// Тысячные доли единицы, как количества сметы: 18,40 м² → 18400.
+  floorArea        BigInt
+  floorPerimeter   BigInt
+  ceilingPerimeter BigInt
+  height           BigInt
+  createdAt        DateTime @default(now())
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  openings MeasureOpening[]
+
+  /// Имя помещения — то, чем прораб его называет; два «Санузла» в одном
+  /// объекте это ошибка замера, а не данные. Заодно естественный ключ
+  /// для наполнения стенда.
+  @@unique([projectId, name])
+  @@index([projectId, order])
+  @@map("measure_rooms")
+}
+
+/// Проёмы одного вида в помещении: количество, суммарная площадь,
+/// суммарные откосы. Одна строка на вид — ровно то, что показывает
+/// артборд. Отсутствие окон в санузле выражается отсутствием строки, а не
+/// строкой нулей.
+model MeasureOpening {
+  id     String      @id @default(uuid()) @db.Uuid
+  roomId String      @db.Uuid
+  kind   OpeningKind
+  count  Int
+  /// Тысячные доли: площадь в м², откосы в м.п.
+  area   BigInt
+  reveal BigInt
+
+  room MeasureRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, kind])
+  @@map("measure_openings")
+}
+
+/// Изображение плана объекта. Один файл на объект, не на помещение:
+/// рисованного контура помещения в продукте нет.
+///
+/// В базе только ключ файла; сам файл лежит в хранилище за портом
+/// FileStorage. Отдельная таблица, а не колонки в projects: таблица
+/// объектов читается списком, сводкой и карточкой, и шесть колонок
+/// метаданных файла расширяют её без нужды. Общая сущность вложения
+/// появится вместе с фотоотчётами стадии C.4 — тогда эта модель станет
+/// её частным случаем.
+model MeasurePlan {
+  id           String   @id @default(uuid()) @db.Uuid
+  projectId    String   @unique @db.Uuid
+  storageKey   String   @unique
+  fileName     String
+  contentType  String
+  byteSize     Int
+  uploadedById String?  @db.Uuid
+  uploadedAt   DateTime @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@map("measure_plans")
 }
