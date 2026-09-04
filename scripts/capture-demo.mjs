@@ -58,6 +58,7 @@ const snapshot = {
   unitDirectory: await owner("/units"),
   "estimate-owner": estimateOwner,
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
+  measure: await owner("/projects/R-99/measure"),
   imports,
   preview,
   // Результат импорта — запись о том импорте, который действительно был:
@@ -76,5 +77,6 @@ console.log(`Слепок снят: ${TARGET} (${size} КБ)`);
 console.log(
   `  объектов у руководителя ${snapshot["projects-owner"].length},`,
   `у прораба ${snapshot["projects-foreman"].length};`,
-  `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length}`,
+  `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length};`,
+  `помещений обмера ${snapshot.measure.rooms.length}`,
 );

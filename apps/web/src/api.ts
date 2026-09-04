@@ -1,11 +1,11 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
-  importPreviewResponseSchema, importRecordSchema, importResultSchema, organizationSchema,
-  projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  type ClientRow, type Dashboard, type EstimateView, type ImportRecord, type ImportReport,
-  type ImportResult, type Organization, type ProjectEvent, type SmsCodeIssued, type Unit,
-  type UpdateOrganization, type WorkerRow,
+  importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
+  organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
+  type ClientRow, type CreateMeasureRoom, type Dashboard, type EstimateView, type ImportRecord,
+  type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
+  type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization, type WorkerRow,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -127,6 +127,44 @@ export const fetchCanonicalUnits = (code: string): Promise<string[]> =>
 
 export const fetchEstimate = (code: string): Promise<EstimateView> =>
   request(`/projects/${code}/estimate`, estimateViewSchema);
+
+/* --- обмерный план ------------------------------------------------------ */
+
+export const fetchMeasure = (code: string): Promise<MeasureView> =>
+  request(`/projects/${code}/measure`, measureViewSchema);
+
+export const createRoom = (code: string, room: CreateMeasureRoom): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/rooms`, measureViewSchema, json(room));
+
+export const updateRoom = (
+  code: string,
+  id: string,
+  room: UpdateMeasureRoom,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/rooms/${id}`, measureViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(room),
+  });
+
+export const deleteRoom = (code: string, id: string): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/rooms/${id}`, measureViewSchema, { method: "DELETE" });
+
+export function uploadPlan(code: string, file: File): Promise<MeasureView> {
+  const form = new FormData();
+  form.append("file", file);
+  return request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "PUT", body: form });
+}
+
+export const deletePlan = (code: string): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "DELETE" });
+
+/**
+ * Адрес изображения плана. Не поле контракта: демонстрационная сборка
+ * работает без сервера и подставляет сюда встроенное изображение, а
+ * контракт не должен знать о её существовании.
+ */
+export const planUrl = (code: string): string => `${BASE}/projects/${code}/measure/plan/file`;
 
 export const fetchImports = (code: string): Promise<ImportRecord[]> =>
   request(`/projects/${code}/estimate/imports`, z.array(importRecordSchema));
