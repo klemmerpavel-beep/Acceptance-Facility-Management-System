@@ -1961,7 +1961,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   <section class="doc__block">
     <div class="section-head">
       <h2 class="t-h2">Сводка портфеля</h2>
-      <p class="t-sm t-muted">первый экран: деньги, неделя, счётчики, события</p>
+      <p class="t-sm t-muted">первый экран: деньги, конвейер, неделя, счётчики, события</p>
     </div>
     <div class="figrow">
       <div class="figure figrow__lead">
@@ -1975,6 +1975,33 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
         <span class="figure__value">3 794 852,10 ₽</span>
         <span class="figure__note">пересчёт по позициям</span>
         <span class="figrow__second"><span class="num num--start num--danger">438 800,00 ₽</span><span class="figure__note">недосчёт в файлах · объектов: 1</span></span>
+      </div>
+    </div>
+    <div class="pipeline">
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Замер</span><span class="num pipeline__count">1<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Замер: 1 из 8 объектов"><span class="scale__fill" style="inline-size: 13%"></span></div></div>
+        <p class="pipeline__detail">7 помещений, 80,53 м²</p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Смета</span><span class="num pipeline__count">1<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Смета: 1 из 8 объектов"><span class="scale__fill" style="inline-size: 13%"></span></div></div>
+        <p class="pipeline__detail">132 позиции работ</p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Работа</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Работа: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">график производства работ<span class="pill">стадия C.3</span></p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Приёмка</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Приёмка: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">132 позиции ждут приёмки<span class="pill">стадия D</span></p>
+      </div>
+      <div class="pipeline__step">
+        <div class="pipeline__head"><span class="t-h3">Документы</span><span class="num pipeline__count">0<span class="pipeline__of"> из 8</span></span></div>
+        <div class="scale"><div class="scale__track" role="img" aria-label="Документы: 0 из 8 объектов"><span class="scale__fill" style="inline-size: 0%"></span></div></div>
+        <p class="pipeline__detail">акты по принятым позициям<span class="pill">стадия D</span></p>
       </div>
     </div>
     <div class="weekstrip">
@@ -1997,7 +2024,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
         <div class="feed__item"><span class="feed__time">02.09.26, 18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span><span class="feed__detail"> · Роман Дементьев</span></span></div>
       </div>
     </div>
-    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Числа сводки — из разбора действующей сметы, а не из макета.</p>
+    <p class="t-sm t-muted prose">Событий не придумывается: пустая неделя показывается пустой. Ступень конвейера, которой в продукте ещё нет, показывает ноль и называет стадию, а не правдоподобную долю. Числа сводки — из разбора действующей сметы, а не из макета.</p>
   </section>
 
   <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->
