@@ -11,3 +11,5 @@ coverage/
 .vite/
 apps/api/prisma/dev.db
 /private/
+# Хранилище файлов на файловой системе: план объекта, снимки.
+var/

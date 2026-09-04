@@ -52,14 +52,20 @@ function asInteger(value: bigint | number | string): bigint {
 
 /**
  * Единственное правило округления системы: половина вверх по модулю
- * (half away from zero). Применяется только здесь.
+ * (half away from zero).
  *
  * Выбор обоснован ожиданием заказчика: 0,5 копейки округляется вверх и для
  * начисления, и для сторно, поэтому пара «начисление + сторно» даёт ноль,
  * а не копейку расхождения. Банковское округление к чётному этого свойства
  * не даёт и на выборке из 132 позиций заметно смещает итог.
+ *
+ * Правило вынесено наружу ради обмера (`measure.ts`): площадь стен и объём
+ * получаются умножением двух величин в тысячных долях и делением на 1000 —
+ * та же операция, что у стоимости позиции. Второе написание того же
+ * правила разошлось бы с первым, и обмер начал бы округлять иначе, чем
+ * деньги, которые из него выводятся.
  */
-function divideRoundHalfUp(numerator: bigint, denominator: bigint): bigint {
+export function divideRoundHalfUp(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n) throw new RangeError("Делитель должен быть положительным");
   const negative = numerator < 0n;
   const absolute = negative ? -numerator : numerator;

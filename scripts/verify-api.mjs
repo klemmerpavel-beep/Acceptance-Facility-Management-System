@@ -179,6 +179,85 @@ check(
   "у единицы справочника нет ни одного написания",
 );
 
+/* --- Обмерный план ------------------------------------------------------
+ * Денежных величин в замере нет, разграничения по полям не требуется.
+ * Проверяется другое: кто вправе править, кому объект виден и сходятся ли
+ * производные величины с числами утверждённого артборда.
+ * --------------------------------------------------------------------- */
+
+const measure = await owner("/projects/R-99/measure").then((r) => r.json());
+check(measure.rooms.length === 7, `помещений в обмере ${measure.rooms.length} вместо семи`);
+check(measure.totals.floorArea === "80530", `площадь объекта ${measure.totals.floorArea} вместо 80530 тысячных`);
+check(measure.totals.floorPerimeter === "86070", `периметр пола ${measure.totals.floorPerimeter} вместо 86070`);
+check(measure.totals.ceilingPerimeter === "97390", `периметр потолка ${measure.totals.ceilingPerimeter} вместо 97390`);
+check(measure.totals.wallArea === "262953", `площадь стен ${measure.totals.wallArea} вместо 262953 — формула ушла с периметра потолка`);
+check(measure.totals.volume === "217431", `объём ${measure.totals.volume} вместо 217431`);
+
+const bedroom = measure.rooms.find((room) => room.name === "Спальня");
+check(bedroom !== undefined, "в обмере нет спальни, заданной артбордом");
+check(bedroom?.wallArea === "47520", `площадь стен спальни ${bedroom?.wallArea} вместо 47520`);
+check(bedroom?.volume === "49680", `объём спальни ${bedroom?.volume} вместо 49680`);
+check(bedroom?.openings.length === 2, `у спальни ${bedroom?.openings.length} видов проёмов вместо двух`);
+
+/** Обмер чужого объекта прорабу не виден: тот же 404, что у сметы. */
+const foreignMeasure = await foreman("/projects/R-19/measure");
+check(foreignMeasure.status === 404, `обмер чужого объекта отдан прорабу с кодом ${foreignMeasure.status}`);
+
+/** Прораб вносит замер — это его работа на объекте. */
+const created = await foreman("/projects/R-99/measure/rooms", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    name: "Проверочное помещение", floorArea: "1000",
+    floorPerimeter: "4000", ceilingPerimeter: "4000", height: "2700",
+  }),
+});
+check(created.status === 201, `внесение помещения прорабом отклонено с кодом ${created.status}`);
+const afterCreate = await created.json();
+check(afterCreate.totals?.floorArea === "81530", `итог после внесения ${afterCreate.totals?.floorArea} вместо 81530`);
+
+/** Высота в сантиметрах вместо метров — самый частый промах в единицах. */
+const wrongHeight = await foreman("/projects/R-99/measure/rooms", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    name: "Промах в единицах", floorArea: "1000",
+    floorPerimeter: "4000", ceilingPerimeter: "4000", height: "270000",
+  }),
+});
+check(wrongHeight.status === 400, `высота 270 метров принята с кодом ${wrongHeight.status}`);
+
+/** Два одинаковых названия в обмере — ошибка замера, а не данные. */
+const duplicate = await foreman("/projects/R-99/measure/rooms", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    name: "Спальня", floorArea: "1000",
+    floorPerimeter: "4000", ceilingPerimeter: "4000", height: "2700",
+  }),
+});
+check(duplicate.status === 400, `повтор названия помещения принят с кодом ${duplicate.status}`);
+
+/** Файл, назвавшийся изображением, но им не являющийся, отвергается по содержимому. */
+const disguised = new FormData();
+disguised.append(
+  "file",
+  new Blob([Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>0</script></svg>')], { type: "image/png" }),
+  "план.png",
+);
+const badPlan = await foreman("/projects/R-99/measure/plan", { method: "PUT", body: disguised });
+check(badPlan.status === 400, `SVG под видом PNG принят с кодом ${badPlan.status}`);
+
+/** Уборка: проверка не должна оставлять следов в обмере. */
+const probeId = afterCreate.rooms?.find((room) => room.name === "Проверочное помещение")?.id;
+if (probeId !== undefined) {
+  const cleaned = await owner(`/projects/R-99/measure/rooms/${probeId}`, { method: "DELETE" }).then((r) => r.json());
+  check(cleaned.totals?.floorArea === "80530", `после уборки итог ${cleaned.totals?.floorArea} вместо 80530`);
+}
+
+const anonymousMeasure = await fetch(`${BASE}/projects/R-99/measure`);
+check(anonymousMeasure.status === 401, `обмер отдан без сессии с кодом ${anonymousMeasure.status}`);
+
 const anonymous = await fetch(`${BASE}/projects/R-99/estimate`);
 check(anonymous.status === 401, `смета отдана без сессии с кодом ${anonymous.status}`);
 
@@ -186,5 +265,7 @@ console.log(`Позиций в ответе: ${foremanEstimate.positions}, ра�
 console.log(`Внутренних полей у руководителя: ${findInternal(ownerEstimate).length}, у прораба: ${leaks.length}`);
 console.log(`Сводка: объектов у руководителя ${ownerSummary.projects.total}, у прораба ${foremanSummary.projects.total};`,
   `заказчиков ${ownerClients.length} и ${foremanClients.length}`);
+console.log(`Обмер R-99: ${measure.rooms.length} помещений, площадь ${measure.totals.floorArea},`,
+  `стены ${measure.totals.wallArea}, объём ${measure.totals.volume} тысячных`);
 console.log(problems.length === 0 ? "\nРазграничение на уровне полей: замечаний нет" : "\nЗамечания:\n  " + problems.join("\n  "));
 process.exit(problems.length === 0 ? 0 : 1);
