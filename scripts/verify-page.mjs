@@ -23,6 +23,36 @@ const environment = [];
 const note = (kind, detail) => problems.push(`${kind}: ${detail}`);
 
 /**
+ * Шкала скруглений: 4 / 6 / 8 / 12 px и капсула. Прежняя проверка стерегла
+ * только верхний предел, и значение ниже ступени — 3 px, 1 px, 2 px — она
+ * пропускала. Ровно так снятая шкала 3 / 4 / 6 px пережила свою отмену.
+ * Ноль разрешён: прямой угол у панели, штампа и таблицы назначен намеренно.
+ */
+const ШКАЛА = [0, 4, 6, 8, 12];
+const геометрия = async (page, где) => {
+  const чужие = await page.evaluate((шкала) => {
+    const найдено = new Map();
+    for (const node of document.querySelectorAll("body *")) {
+      const style = getComputedStyle(node);
+      for (const угол of ["borderTopLeftRadius", "borderTopRightRadius",
+                          "borderBottomLeftRadius", "borderBottomRightRadius"]) {
+        const value = Number.parseFloat(style[угол]);
+        if (!Number.isFinite(value)) continue;
+        // Капсула объявляется как 999 px и браузером обрезается по высоте;
+        // вычисленное значение остаётся исходным, поэтому её видно по нему.
+        if (value >= 100) continue;
+        if (шкала.includes(value)) continue;
+        const имя = node.className.toString().slice(0, 40) || node.tagName;
+        if (!найдено.has(value)) найдено.set(value, имя);
+      }
+    }
+    return [...найдено].map(([value, имя]) => `${value} px у «${имя}»`);
+  }, ШКАЛА);
+  for (const дефект of чужие) note("скругления", `${где}: ${дефект} — значение мимо шкалы`);
+  return чужие.length;
+};
+
+/**
  * Ожидаемые события, не являющиеся дефектами страницы:
  *   401 на /auth/me до входа — так проверяется наличие сессии;
  *   недоступность fonts.googleapis.com — исходящая сеть песочницы закрыта,
@@ -134,6 +164,8 @@ const ожидаемые = ["Активные объекты", "Просроче
 if (labels.join("|") !== ожидаемые.join("|")) {
   note("главная", `подписи карточек: ${labels.join(" · ")}`);
 }
+
+await геометрия(page, "главная");
 
 /**
  * Полоса плана. Отрезки, деления шкалы и вертикаль текущего дня — три
@@ -270,6 +302,25 @@ await overflow("объекты, 1440");
 
 const rows = await page.locator(".datatable__table tbody tr").count();
 console.log(`  объектов в списке: ${rows}`);
+
+await геометрия(page, "объекты");
+
+/**
+ * Отклик строки на наведение. Реестр — рабочий список из семи колонок, и
+ * без подсветки строки глаз теряет её между кодом и сроком ровно так же,
+ * как терял до чередования. Проверяется поведением: фон ячейки под
+ * курсором обязан отличаться от фона той же ячейки в покое.
+ */
+const ячейка = page.locator(".datatable__table tbody tr td").first();
+const фонДо = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
+await ячейка.hover();
+await page.waitForTimeout(200);
+const фонПосле = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
+if (фонДо === фонПосле) {
+  note("реестр", `строка не отвечает на наведение: фон остаётся ${фонПосле}`);
+}
+await page.mouse.move(0, 0);
+await page.waitForTimeout(200);
 
 // Фильтр по статусу: выбор сужает таблицу и снимается обратно.
 const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
@@ -461,6 +512,7 @@ const brigades = виды.filter((вид) => вид.trim() === "Бригада")
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
 if (brigades === 0) note("контакты", "бригады не показаны");
 if (clients === 0) note("контакты", "заказчики не показаны");
+await геометрия(page, "контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
 

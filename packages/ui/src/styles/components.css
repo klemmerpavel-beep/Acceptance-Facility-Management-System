@@ -79,10 +79,11 @@
   gap: var(--space-1);
   height: var(--pill-h);
   padding: 0 var(--space-2);
-  /* Прямой угол, а не капсула: в системе с предельным радиусом 6 px
-     капсульная пилюля была единственной круглой формой и читалась как
-     заимствование из чужой панели (реестр Д-17). */
-  border-radius: var(--radius-sm);
+  /* Не капсула: решение Д-17 против единственной круглой формы в системе
+     остаётся в силе. Но его основание — потолок шкалы в 6 px — отпало
+     вместе с редакцией 1.9, и 4 px на элементе высотой 24 px читались уже
+     не как выбор, а как незакрытая заготовка. Ступень чипа. */
+  border-radius: var(--radius-chip);
   font-size: var(--fs-sm);
   font-weight: 500;
   white-space: nowrap;
@@ -101,7 +102,7 @@
   align-items: center;
   height: var(--pill-h);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-chip);
   background: var(--accent-soft);
   color: var(--accent);
   font-family: var(--font-mono);
@@ -129,7 +130,10 @@
   padding: 0 var(--space-3);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  /* Поле и кнопка одной высоты стоят в форме рядом. Разные углы у двух
+     органов управления одного размера читаются как недосмотр вёрстки,
+     а не как различие ролей. */
+  border-radius: var(--radius-md);
   color: var(--ink);
 }
 .input::placeholder { color: var(--ink-3); }
@@ -196,7 +200,7 @@
 
 /* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
-.metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-md); }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-family: var(--font-ui); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
@@ -213,6 +217,7 @@
   border: 0; border-block-end: 1px solid var(--line);
   background: none; text-align: start; color: inherit; font-family: inherit;
   font-size: var(--fs-body);
+  transition: color var(--dur-fast) var(--ease);
 }
 .counterstrip__item:last-child { border-block-end: 0; }
 button.counterstrip__item { cursor: pointer; }
@@ -249,7 +254,7 @@ button.counterstrip__item:hover { color: var(--accent); }
 .daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
 .daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
-.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
+.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-chip); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
 .daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
 .daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
 .daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
@@ -299,7 +304,10 @@ button.counterstrip__item:hover { color: var(--accent); }
      а не высоте строчных прописных (реестр Д-34). */
   min-block-size: var(--tap-min);
   padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
+  /* Капсула, как у блока работающего и колокола справа: три элемента
+     одного ряда и одной высоты, и разная форма углов у них ничего не
+     различает. */
+  border-radius: var(--radius-pill);
   color: var(--band-ink);
   text-decoration: none;
   font-size: var(--fs-sm);
@@ -325,27 +333,30 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .appbar__bell { display: inline-flex; align-items: center; justify-content: center;
   inline-size: var(--tap-min); block-size: var(--tap-min); flex: none;
   border: 0; border-radius: var(--radius-pill); background: none;
-  color: var(--band-ink); cursor: pointer; }
+  color: var(--band-ink); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease); }
 .appbar__bell:hover { background: var(--on-band-fill); }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
    системной. Подложка берётся из --on-accent-fill: переключатель лежит на
    акцентной заливке шапки, и белая плашка читалась бы там как отдельная
-   карточка. Область нажатия 44 px — норма §7; на десктопе она сжимается. */
-.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--on-band-fill); border-radius: var(--radius-sm); }
+   карточка. Область нажатия 44 px — норма §7, на всех ширинах.
+   Дорожка на ступень выше опции: при отступе 2 px внешний радиус обязан
+   быть внутренним плюс отступ (8 − 2 = 6), иначе угол опции выпирает
+   за угол дорожки. */
+.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--on-band-fill); border-radius: var(--radius-md); }
 .themeswitch__option {
   display: grid;
   place-items: center;
   width: var(--tap-min); height: var(--tap-min);
   border: 0;
   background: transparent;
-  border-radius: var(--radius-inner);
+  border-radius: var(--radius-chip);
   color: var(--band-ink);
   cursor: pointer;
 }
 .themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); }
-@media (min-width: 1024px) { .themeswitch__option { width: var(--tap-min); height: var(--tap-min); } }
 
 /* Объект в узкой раскладке — строка ведомости, а не карточка. Ссылкой
    служит вся строка: цель нажатия равна её высоте, а не высоте заголовка
@@ -356,6 +367,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   padding: var(--space-3) 0;
   border-block-end: 1px solid var(--line);
   color: inherit; text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .objectrow:first-child { border-block-start: 1px solid var(--line); }
 .objectrow:hover { background: var(--surface-2); }
@@ -497,14 +509,15 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Переключатель проекции — сегментированный контрол. */
 /* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
    не помещаются в 360 px и без этого сминаются в две строки. */
-.segmented { display: inline-flex; max-width: 100%; padding: 2px; background: var(--surface-2); border-radius: var(--radius-sm); overflow-x: auto; }
+/* Дорожка на ступень выше опции — как у переключателя темы: 8 − 2 = 6. */
+.segmented { display: inline-flex; max-width: 100%; padding: 2px; background: var(--surface-2); border-radius: var(--radius-md); overflow-x: auto; }
 .segmented__option {
   flex: none;
   /* Зона нажатия 44 px: на телефоне фильтром статусов пользуется прораб,
      и цель в 32 px он пальцем в перчатке не берёт (реестр Д-07). */
   min-block-size: var(--tap-min); padding: 0 var(--space-3);
   white-space: nowrap;
-  border: 0; background: transparent; border-radius: var(--radius-inner);
+  border: 0; background: transparent; border-radius: var(--radius-chip);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
 }
 .segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
@@ -681,7 +694,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Код страны — приставка поля, а не отдельный орган управления: выбирать
    в нём нечего, а фокус он ловил (реестр Д-26). */
 .signin__phone { display: flex; align-items: stretch;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
   background: var(--surface); }
 .signin__phone:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .signin__prefix { display: inline-flex; align-items: center; padding-inline: var(--space-3);
@@ -723,7 +736,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__size .selectwrap { inline-size: 96px; }
 .datatable__search { display: flex; align-items: center; gap: var(--space-2);
   block-size: var(--control-h); padding-inline: var(--space-3);
-  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
   /* Ширина рассчитана по самой длинной подписи продукта — «Поиск по коду,
      адресу и заказчику»: при 240 px она обрезалась, и основной орган
      реестра выглядел незаконченным. */
@@ -741,6 +754,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   font-size: var(--fs-sm); vertical-align: middle; }
 /* Чередование: на семи колонках глаз теряет строку между кодом и итогом. */
 .datatable__table tbody tr:nth-child(even) { background: var(--surface-2); }
+/* Наведение красится акцентной подложкой, а не --surface-2: последний занят
+   чередованием, и на чётной строке отклик был бы неотличим от её обычного
+   состояния. Реестр — рабочий список, по которому ведут пальцем и мышью:
+   без отклика строка теряется на седьмой колонке ровно так же, как её
+   теряли до чередования. */
+.datatable__table tbody td { transition: background-color var(--dur-fast) var(--ease); }
+.datatable__table tbody tr:hover td { background: var(--accent-soft); }
 .datatable__num { text-align: end; font-family: var(--font-mono);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
@@ -761,6 +781,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__table th[aria-sort] .datatable__sort .icon,
 .datatable__sort:hover .icon,
 .datatable__sort:focus-visible .icon { opacity: 1; }
+/* На устройстве без указателя ни наведения, ни фокуса не происходит, и
+   решение Д-28 оставляло сортировку необнаружимой вовсе. Значки неактивных
+   колонок показываются приглушённо — шум там меньше, чем цена пропавшего
+   органа управления. */
+@media (hover: none) {
+  .datatable__sort .icon { opacity: 1; color: var(--ink-3); }
+  .datatable__table th[aria-sort] .datatable__sort .icon { color: var(--accent); }
+}
 .datatable__foot { display: flex; align-items: center; flex-wrap: wrap;
   justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 .datatable__pager { display: flex; align-items: center; gap: var(--space-3); }
@@ -979,13 +1007,19 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   gap: 0 var(--space-3); min-block-size: 108px; padding: var(--space-4);
   border: 1px solid var(--line); border-radius: var(--radius-md);
   background: var(--surface); text-align: start; }
-.statcard--link { border-color: var(--line); font: inherit; cursor: pointer; }
+/* Поверхность 108 px высотой, по которой кликают, обязана отвечать не
+   только курсором: смена цвета границы на один пиксель — самый слабый из
+   возможных откликов, а нажатие без отклика читается как несработавшее. */
+.statcard--link { border-color: var(--line); font: inherit; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease); }
 /* Плашка загрузки в форме карточки — своим классом, а не составом
    `.statcard.skeleton`. Скелет, носящий класс настоящей карточки, делает
    загрузку и загруженное неразличимыми: проверка «на экране четыре
    карточки» проходила на пустом экране. */
 .skeleton--card { display: block; min-block-size: 108px; border-radius: var(--radius-md); }
-.statcard--link:hover { border-color: var(--accent); }
+.statcard--link:hover { border-color: var(--accent); background: var(--accent-soft); }
+.statcard--link:active { border-color: var(--accent-hover); }
 .statcard__icon { grid-row: 1; color: var(--ink-3); }
 .statcard__label { grid-row: 1; font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase;
