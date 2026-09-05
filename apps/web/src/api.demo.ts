@@ -12,7 +12,8 @@
 import type {
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
-  Role, SmsCodeIssued, Unit, UpdateMeasureRoom, WorkerRow,
+  CreateClient, CreateProject, CreateWorker,
+  SmsCodeIssued, Unit, UpdateMeasureRoom, WorkerRow,
 } from "@priyomka/contracts";
 import { measureTotals, milliunits, roomVolume, wallArea } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
@@ -42,7 +43,10 @@ interface Snapshot {
 
 const data = snapshot as unknown as Snapshot;
 
-let role: Role = "OWNER";
+/**
+ * Роли в демонстрации больше нет: пользователь у продукта один. Слепок
+ * по-прежнему снят от руководителя — это и есть единственный пользователь.
+ */
 let signedIn = true;
 
 /**
@@ -103,11 +107,7 @@ const measureView = (): MeasureView => {
 export const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : "Неизвестная ошибка. Повторите действие.";
 
-export const demoRole = (): Role => role;
-export const setDemoRole = (next: Role): void => {
-  role = next;
-  signedIn = true;
-};
+
 export const demoSignIn = (): void => {
   signedIn = true;
 };
@@ -117,12 +117,12 @@ const pause = (ms = 180): Promise<void> => new Promise((resolve) => setTimeout(r
 export async function fetchCurrentUser(): Promise<CurrentUser> {
   await pause(60);
   if (!signedIn) throw new Error("Войдите по ссылке, отправленной на почту.");
-  return role === "OWNER" ? data["me-owner"] : data["me-foreman"];
+  return data["me-owner"];
 }
 
 export async function fetchProjects(): Promise<ProjectSummary[]> {
   await pause(60);
-  const rows = role === "OWNER" ? data["projects-owner"] : data["projects-foreman"];
+  const rows = [...data["projects-owner"], ...заведённые.projects];
   return rows.map(withChangedStatus);
 }
 
@@ -133,23 +133,104 @@ const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
 
 export async function fetchDashboard(): Promise<Dashboard> {
   await pause(120);
-  return role === "OWNER" ? data["summary-owner"] : data["summary-foreman"];
+  return data["summary-owner"];
 }
+
+/**
+ * Записи, заведённые в демонстрации. Живут до перезагрузки, как и смена
+ * статуса: сервера нет, но притворяться, будто кнопка не сработала, хуже —
+ * форма выглядела бы сломанной именно там, где показывает главное обещание
+ * экрана: сохранённая запись видна в списке сразу.
+ */
+const заведённые: { clients: ClientRow[]; workers: WorkerRow[]; projects: ProjectSummary[] } = {
+  clients: [],
+  workers: [],
+  projects: [],
+};
+
+/** Идентификатор заведённой записи. Сервера нет, uuid берётся из счётчика. */
+let счётчик = 0;
+const новыйId = (): string =>
+  `00000000-0000-4000-8000-${String((счётчик += 1)).padStart(12, "0")}`;
 
 export async function fetchClients(): Promise<ClientRow[]> {
   await pause(80);
-  return role === "OWNER" ? data["clients-owner"] : data["clients-foreman"];
+  return [...data["clients-owner"], ...заведённые.clients];
 }
 
 export async function fetchWorkers(): Promise<WorkerRow[]> {
   await pause(80);
-  return data.workers;
+  return [...data.workers, ...заведённые.workers];
+}
+
+export async function createClient(input: CreateClient): Promise<ClientRow[]> {
+  await pause(120);
+  if ([...data["clients-owner"], ...заведённые.clients].some((row) => row.code === input.code)) {
+    throw new Error(`Заказчик с кодом ${input.code} уже заведён.`);
+  }
+  заведённые.clients.push({
+    id: новыйId(),
+    code: input.code,
+    name: input.name,
+    isCompany: input.isCompany,
+    requisites: input.requisites,
+    projects: 0,
+    estimateTotal: "0",
+  });
+  return [...data["clients-owner"], ...заведённые.clients];
+}
+
+export async function createWorker(input: CreateWorker): Promise<WorkerRow[]> {
+  await pause(120);
+  if ([...data.workers, ...заведённые.workers].some((row) => row.name === input.name)) {
+    throw new Error(`«${input.name}» уже есть в справочнике.`);
+  }
+  заведённые.workers.push({ id: новыйId(), name: input.name, kind: input.kind });
+  return [...data.workers, ...заведённые.workers];
+}
+
+export async function createProject(input: CreateProject): Promise<ProjectSummary> {
+  await pause(120);
+  const все = [...data["projects-owner"], ...заведённые.projects];
+  if (все.some((project) => project.code === input.code)) {
+    throw new Error(
+      `Объект ${input.code} уже заведён. Код объекта сквозной: два объекта с одним кодом разойдутся в почте и в актах.`,
+    );
+  }
+  const client = [...data["clients-owner"], ...заведённые.clients].find(
+    (row) => row.id === input.clientId,
+  );
+  const created: ProjectSummary = {
+    id: новыйId(),
+    code: input.code,
+    address: input.address,
+    status: "NEW",
+    startedAt: null,
+    deadline: input.deadline,
+    keysCount: 0,
+    supervisionShare: 1200,
+    client: {
+      code: client?.code ?? "—",
+      name: client?.name ?? "—",
+      isCompany: client?.isCompany ?? false,
+      requisites: client?.requisites ?? null,
+    },
+    foreman: null,
+    estimateTotal: null,
+    estimateVersion: null,
+    positions: 0,
+    // Графика у нового объекта нет, и готовность не задана, а не равна нулю.
+    readiness: null,
+    stages: [],
+  };
+  заведённые.projects.push(created);
+  return created;
 }
 
 export async function fetchEvents(code: string): Promise<ProjectEvent[]> {
   await pause(80);
   if (code !== "R-99") return [];
-  return role === "OWNER" ? data["events-owner"] : data["events-foreman"];
+  return data["events-owner"];
 }
 
 /**
@@ -162,8 +243,7 @@ export async function setProjectStatus(
   status: ProjectStatus,
 ): Promise<ProjectSummary> {
   await pause(240);
-  if (role !== "OWNER") throw new Error("Статус объекта меняет руководитель.");
-  const rows = data["projects-owner"];
+  const rows = [...data["projects-owner"], ...заведённые.projects];
   const project = rows.find((row) => row.code === code);
   if (project === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
   changedStatus.set(code, status);
@@ -249,7 +329,7 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
   if (code !== "R-99") {
     throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
   }
-  return role === "OWNER" ? data["estimate-owner"] : data["estimate-foreman"];
+  return data["estimate-owner"];
 }
 
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
@@ -320,7 +400,7 @@ export async function uploadPlan(_code: string, file: File): Promise<MeasureView
     contentType: file.type,
     byteSize: file.size,
     uploadedAt: new Date().toISOString(),
-    uploadedBy: data[role === "OWNER" ? "me-owner" : "me-foreman"].name,
+    uploadedBy: data["me-owner"].name,
   };
   return measureView();
 }

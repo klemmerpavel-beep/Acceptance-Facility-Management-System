@@ -1,0 +1,487 @@
+<style>
+  /* Оформление самой страницы приёмки. В продукт не входит: здесь только
+     то, что нужно документу — поля, нумерация для разметки замечаний и
+     рамка вокруг снимка экрана. */
+  body { background: var(--surface-2); }
+  .review { max-inline-size: 1180px; margin-inline: auto; padding: var(--space-6) var(--space-4) var(--space-7); }
+  .review__head { display: flex; flex-direction: column; gap: var(--space-3);
+    padding-block-end: var(--space-5); border-block-end: 2px solid var(--ink); }
+  .review__kicker { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+    letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+  .review__title { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: 600; }
+  .review__lead { max-inline-size: 62ch; color: var(--ink-2); }
+  .review__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4); padding-block-start: var(--space-4); }
+  .review__fact { display: flex; flex-direction: column; gap: 2px; }
+  .review__fact dt { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+    text-transform: uppercase; color: var(--ink-3); }
+  .review__fact dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  /* Блок замечания. Номер — не украшение: им заказчик адресует правку,
+     поэтому он стоит в поле слева и набран моноширинным. */
+  .item { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--space-4);
+    padding-block-start: var(--space-6); }
+  .item__no { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600;
+    color: var(--accent); padding-block-start: 2px; }
+  .item__body { display: flex; flex-direction: column; gap: var(--space-3); min-inline-size: 0; }
+  .item__title { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: 600; }
+  .item__note { max-inline-size: 68ch; font-size: var(--fs-sm); color: var(--ink-2); }
+  .item__note b { font-weight: 600; color: var(--ink); }
+
+  /* Рамка экрана: снимок продукта, а не блок документа. */
+  .screen { border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+    overflow: hidden; background: var(--bg); }
+  .screen .appbar { padding-inline: var(--space-4); }
+  .screen .cover { padding-inline: var(--space-4); }
+  .screen__body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
+  .screen--short .screen__body { min-block-size: 220px; }
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); }
+  .states .screen__body { min-block-size: 260px; }
+  .caption { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+    text-transform: uppercase; color: var(--ink-3); }
+  .rulelist { display: flex; flex-direction: column; gap: var(--space-2); }
+  .rulelist li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3);
+    font-size: var(--fs-sm); color: var(--ink-2); }
+  .rulelist b { font-weight: 600; color: var(--ink); }
+</style>
+
+<svg class="icon-sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
+  <symbol id="i-schedule" viewBox="0 0 20 20"><path d="M3 5h8M6 10h9M3 15h6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
+  <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 1 0 12A6 6 0 0 1 9 3z"/><path d="m13.5 13.5 3.5 3.5"/></symbol>
+  <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
+</defs></svg>
+
+<div class="review">
+
+  <header class="review__head">
+    <p class="review__kicker">DOLGIY STUDIO · Воронеж · на приёмку</p>
+    <h1 class="review__title">Приёмка: три экрана</h1>
+    <p class="review__lead t-body">
+      Главная, Проекты и Контакты со статичными данными действующего стенда. Страница нужна
+      для просмотра и разметки замечаний: у каждого блока слева стоит номер — им замечание и
+      адресуется. Работающие экраны живут в приложении и проверяются на стенде; эта страница
+      реализацию не подменяет.
+    </p>
+    <dl class="review__facts">
+      <div class="review__fact"><dt>Объектов в портфеле</dt><dd>8</dd></div>
+      <div class="review__fact"><dt>Этапов работ</dt><dd>31</dd></div>
+      <div class="review__fact"><dt>Позиций сметы</dt><dd>132</dd></div>
+      <div class="review__fact"><dt>Отклик на 120 объектах</dt><dd>281 мс</dd></div>
+    </dl>
+  </header>
+
+  <!-- 1. ГЛАВНАЯ ─────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">1</p>
+    <div class="item__body">
+      <h2 class="item__title">Главная</h2>
+      <p class="item__note">
+        Экран отвечает на вопрос <b>что горит сегодня</b> и решается по нему, никуда не
+        кликая. Сверху вниз: четыре числа срочности, план работ во времени, объекты таблицей.
+        Плиток объектов с прогрессом здесь нет — они показывали бы те же данные вторым
+        способом, и пришлось бы выбирать, какому представлению верить.
+      </p>
+
+      <div class="screen">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1" aria-current="page">Главная</a>
+            <a class="appbar__link" href="#s2">Проекты</a>
+            <a class="appbar__link" href="#s3">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span></p>
+          <h1 class="t-h1">Главная</h1>
+        </div>
+        <div class="screen__body">
+
+          <div class="statrow">
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-object"/></svg>
+              <span class="statcard__label">Активные объекты</span>
+              <span class="statcard__value">7</span>
+              <span class="statcard__note">всего в портфеле 8</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-alert"/></svg>
+              <span class="statcard__label">Просрочены</span>
+              <span class="statcard__value statcard__value--danger">2</span>
+              <span class="statcard__note">срок сдачи прошёл</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-schedule"/></svg>
+              <span class="statcard__label">Срок сегодня</span>
+              <span class="statcard__value">0</span>
+              <span class="statcard__note">на сегодня сроков нет</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-calendar"/></svg>
+              <span class="statcard__label">Срок на неделе</span>
+              <span class="statcard__value">1</span>
+              <span class="statcard__note">ближайшие семь дней</span>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="section-head">
+              <h2 class="t-h2">План работ</h2>
+              <p class="t-sm t-muted">этапы объектов во времени, текущий день отмечен · прогресс заявленный</p>
+            </div>
+            <div class="plan">
+              <div class="plan__scale" aria-hidden="true">
+                <span class="plan__label"></span>
+                <div class="plan__track">
+                  <span class="plan__tick num" style="inset-inline-start: 5%">янв 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 24%">апр 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 43%">июл 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 62%">окт 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 81%">янв 27</span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-19</span><span class="plan__address">Революции 9а, офис 3</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 0%; inline-size: 8%" title="Демонтаж: 10.11.2025 — 05.12.2025, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 8%; inline-size: 14%" title="Черновая электрика: 01.12.2025 — 20.01.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 22%; inline-size: 17%" title="Штукатурка стен: 15.01.2026 — 15.03.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 38%; inline-size: 23%" title="Чистовая отделка: 10.03.2026 — 01.06.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-31</span><span class="plan__address">Кольцовская 24б, кв. 118</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 31%; inline-size: 8%" title="Демонтаж: 12.05.2026 — 05.06.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 38%; inline-size: 12%" title="Черновая электрика: 01.06.2026 — 10.07.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 49%; inline-size: 15%" title="Штукатурка стен: 05.07.2026 — 25.08.2026, 85 %"><span class="plan__done" style="inline-size: 85%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 63%; inline-size: 14%" title="Плиточные работы: 20.08.2026 — 05.10.2026, 20 %"><span class="plan__done" style="inline-size: 20%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 76%; inline-size: 18%" title="Чистовая отделка: 01.10.2026 — 30.11.2026, 0 %"><span class="plan__done" style="inline-size: 0%"></span></span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-99</span><span class="plan__address">Московский проспект 116</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 21%; inline-size: 6%" title="Демонтаж: 02.03.2026 — 20.03.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 27%; inline-size: 8%" title="Черновая электрика: 21.03.2026 — 15.04.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 34%; inline-size: 13%" title="Штукатурка стен: 20.04.2026 — 30.05.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 46%; inline-size: 13%" title="Плиточные работы: 10.06.2026 — 20.07.2026, 80 %"><span class="plan__done" style="inline-size: 80%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 58%; inline-size: 10%" title="Чистовая отделка: 15.07.2026 — 15.08.2026, 35 %"><span class="plan__done" style="inline-size: 35%"></span></span>
+                </div>
+              </div>
+
+              <p class="plan__rest t-sm t-muted">Ещё 3 объекта с графиком — в разделе «Проекты».</p>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="section-head">
+              <h2 class="t-h2">Объекты</h2>
+              <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+            </div>
+            <div class="datatable">
+              <div class="datatable__head">
+                <div class="datatable__controls">
+                  <span class="datatable__search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" placeholder="Поиск по коду, адресу и заказчику"></span>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="datatable__table">
+                  <thead><tr>
+                    <th>Код</th><th>Адрес</th><th>Заказчик</th><th>Статус</th>
+                    <th class="datatable__num">Готовность</th><th>Срок</th><th>Прораб</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="code-badge">R-19</span></td>
+                      <td><a href="#s1">Революции 9а, офис 3</a></td>
+                      <td>Анна Мещерякова</td>
+                      <td><span class="pill pill--ok">Завершён</span></td>
+                      <td class="datatable__num">100 %</td>
+                      <td><span class="num--danger">01.06.2026<span class="t-sm t-muted"> · просрочен на 96 дней</span></span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-31</span></td>
+                      <td><a href="#s1">Кольцовская 24б, кв. 118</a></td>
+                      <td>Ирина Ковалёва</td>
+                      <td><span class="pill pill--ok">В работе</span></td>
+                      <td class="datatable__num">53 %</td>
+                      <td>30.11.2026<span class="t-sm t-muted"> · 86 дней</span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-38</span></td>
+                      <td><a href="#s1">Владимира Невского 15, кв. 61</a></td>
+                      <td>Сергей Балашов</td>
+                      <td><span class="pill">Новый</span></td>
+                      <td class="datatable__num"><span class="t-muted">не задано</span></td>
+                      <td><span class="num--danger">04.09.2026<span class="t-sm t-muted"> · просрочен на 1 день</span></span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-42</span></td>
+                      <td><a href="#s1">Плехановская 22</a></td>
+                      <td>Анна Мещерякова</td>
+                      <td><span class="pill">Новый</span></td>
+                      <td class="datatable__num"><span class="t-muted">не задано</span></td>
+                      <td><span class="t-muted">не задан</span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-99</span></td>
+                      <td><a href="#s1">Московский проспект 116</a></td>
+                      <td>Ирина Ковалёва</td>
+                      <td><span class="pill pill--ok">В работе</span></td>
+                      <td class="datatable__num">86 %</td>
+                      <td><span class="num--danger">15.08.2026<span class="t-sm t-muted"> · просрочен на 21 день</span></span></td>
+                      <td>Фархат Юсупов</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 5 из 8 записей</p></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>1.1</b><span>Четыре числа, а не пять: пятое заставило бы выбирать, какое из них главное.</span></li>
+        <li><b>1.2</b><span>На полосе плана один цвет: этапы различает положение во времени, а не оттенок. Красным отмечена только просрочка, вертикаль текущего дня чернильная — один цвет не может означать два разных.</span></li>
+        <li><b>1.3</b><span>Готовность у объекта без графика — «не задано», а не ноль: «работа не начата» и «график не заведён» это разные утверждения.</span></li>
+        <li><b>1.4</b><span>Готовность взвешена по длительности этапов. У R-99 это 86 %: демонтаж на 19 дней и отделка на 32 дня не равны.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2. ПРОЕКТЫ ─────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">2</p>
+    <div class="item__body">
+      <h2 class="item__title">Проекты</h2>
+      <p class="item__note">
+        Список объектов с теми же колонками, что на главной, плюс фильтр по статусу со
+        счётчиком в каждой кнопке: без счётчика выбор идёт вслепую и приводит к пустой
+        таблице. Постраничная выдача включается сама — по 10, 25 или 50 строк.
+      </p>
+
+      <div class="screen screen--short">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1">Главная</a>
+            <a class="appbar__link" href="#s2" aria-current="page">Проекты</a>
+            <a class="appbar__link" href="#s3">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span><span><svg class="icon icon--sm" aria-hidden="true"><use href="#i-crumb"/></svg>Проекты</span></p>
+          <h1 class="t-h1">Проекты</h1>
+        </div>
+        <div class="screen__body">
+          <div class="section-head">
+            <h2 class="t-h2">Портфель</h2>
+            <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Статус объекта">
+            <span class="segmented__option" aria-pressed="true">Все 8</span>
+            <span class="segmented__option" aria-pressed="false">Новый 2</span>
+            <span class="segmented__option" aria-pressed="false">В работе 4</span>
+            <span class="segmented__option" aria-pressed="false">Ждёт ответа 1</span>
+            <span class="segmented__option" aria-pressed="false">Завершён 1</span>
+          </div>
+          <div class="datatable">
+            <div class="table-scroll">
+              <table class="datatable__table">
+                <thead><tr><th>Код</th><th>Адрес</th><th>Заказчик</th><th>Статус</th><th class="datatable__num">Готовность</th><th>Срок</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="code-badge">R-27</span></td><td><a href="#s2">Ленинский проспект 174п</a></td><td>ООО «Гранит-Строй»</td><td><span class="pill pill--warn">Ждёт ответа</span></td><td class="datatable__num">49 %</td><td>15.10.2026<span class="t-sm t-muted"> · 40 дней</span></td></tr>
+                  <tr><td><span class="code-badge">R-64</span></td><td><a href="#s2">Бульвар Победы 23б, кв. 204</a></td><td>ООО «Гранит-Строй»</td><td><span class="pill pill--ok">В работе</span></td><td class="datatable__num">37 %</td><td>20.12.2026<span class="t-sm t-muted"> · 106 дней</span></td></tr>
+                  <tr><td><span class="code-badge">R-72</span></td><td><a href="#s2">Никитинская 42, кв. 7</a></td><td>Сергей Балашов</td><td><span class="pill pill--ok">В работе</span></td><td class="datatable__num">65 %</td><td>12.09.2026<span class="t-sm t-muted"> · 7 дней</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 3 из 8 записей</p></div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>2.1</b><span>Колонка, пустая во всей выборке, места не занимает: «Прораб» и «Итог сметы» появляются, когда есть чему в них стоять.</span></li>
+        <li><b>2.2</b><span>Сортируется каждая колонка: срок — по дате, а не по её показному виду; готовность — по числу.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3. КОНТАКТЫ ────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">3</p>
+    <div class="item__body">
+      <h2 class="item__title">Контакты</h2>
+      <p class="item__note">
+        Заказчики и работники <b>в одном справочнике</b>. Прежде это были два разных места;
+        разделение шло от учётной системы, а не от человека — «телефон Фархата» и «кто заказчик
+        на Никитинской» ищут одним движением. Различает записи колонка «Тип», и она же
+        сортируется, так что список сводится к одному виду нажатием на заголовок.
+      </p>
+
+      <div class="screen screen--short">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1">Главная</a>
+            <a class="appbar__link" href="#s2">Проекты</a>
+            <a class="appbar__link" href="#s3" aria-current="page">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span><span><svg class="icon icon--sm" aria-hidden="true"><use href="#i-crumb"/></svg>Контакты</span></p>
+          <h1 class="t-h1">Контакты</h1>
+        </div>
+        <div class="screen__body">
+          <div class="section-head">
+            <h2 class="t-h2">Справочник</h2>
+            <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить контакт</span>
+          </div>
+          <div class="datatable">
+            <div class="table-scroll">
+              <table class="datatable__table">
+                <thead><tr><th>Контакт</th><th>Тип</th><th>Код</th><th>Сведения</th><th class="datatable__num">Объектов</th><th class="datatable__num">Итог смет</th></tr></thead>
+                <tbody>
+                  <tr><td>Ирина Ковалёва</td><td><span class="pill">Заказчик</span></td><td><span class="code-badge">300</span></td><td>Физическое лицо</td><td class="datatable__num">2</td><td class="datatable__num">4 250 234,35 ₽</td></tr>
+                  <tr><td>ООО «Гранит-Строй»</td><td><span class="pill">Заказчик</span></td><td><span class="code-badge">204</span></td><td>Юридическое лицо</td><td class="datatable__num">2</td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                  <tr><td>Бригада Фархата</td><td><span class="pill">Бригада</span></td><td><span class="t-muted">—</span></td><td>Расчётная единица сдельной оплаты</td><td class="datatable__num"><span class="t-muted">—</span></td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                  <tr><td>Электрики Евгения</td><td><span class="pill">Бригада</span></td><td><span class="t-muted">—</span></td><td>Расчётная единица сдельной оплаты</td><td class="datatable__num"><span class="t-muted">—</span></td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 4 из 8 записей</p></div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>3.1</b><span>Обе пилюли нейтральные. Зелёный в системе означает «принято»; окрасить им вид контакта значило бы занять сигнальный цвет под категорию.</span></li>
+        <li><b>3.2</b><span>Заказчик без объектов виден в списке. Иначе заведённая запись исчезала бы до того, как ей заведут объект.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. ТРИ СОСТОЯНИЯ ───────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">4</p>
+    <div class="item__body">
+      <h2 class="item__title">Три обязательных состояния</h2>
+      <p class="item__note">
+        Пусто, загрузка, подтверждение добавления. Каждое реализовано в коде и наблюдается
+        живым прогоном браузера, а не описано словами.
+      </p>
+
+      <div class="states">
+        <div>
+          <p class="caption">4.1 · пусто</p>
+          <div class="screen">
+            <div class="screen__body">
+              <div class="empty">
+                <p class="empty__title">Объектов пока нет</p>
+                <p class="empty__text">Заведите первый объект — и здесь появятся сроки, план работ во времени и то, что требует внимания сегодня.</p>
+                <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="caption">4.2 · загрузка</p>
+          <div class="screen">
+            <div class="screen__body" aria-busy="true">
+              <div class="statrow">
+                <span class="skeleton statcard"></span>
+                <span class="skeleton statcard"></span>
+              </div>
+              <span class="skeleton skeleton--row"></span>
+              <span class="skeleton skeleton--row"></span>
+              <span class="skeleton skeleton--row"></span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="caption">4.3 · запись добавлена</p>
+          <div class="screen">
+            <div class="screen__body">
+              <p class="t-sm" role="status">Добавлено: Маляры Ивана. Запись стоит в списке ниже.</p>
+              <div class="datatable">
+                <div class="table-scroll">
+                  <table class="datatable__table">
+                    <thead><tr><th>Контакт</th><th>Тип</th><th>Сведения</th></tr></thead>
+                    <tbody>
+                      <tr><td>Маляры Ивана</td><td><span class="pill">Бригада</span></td><td>Сдельная оплата</td></tr>
+                      <tr><td>Плиточники Алексея</td><td><span class="pill">Бригада</span></td><td>Сдельная оплата</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>4.1</b><span>Пустой экран называет работу и даёт кнопку, а не показывает четыре нуля: ряд нулей читается как поломка.</span></li>
+        <li><b>4.2</b><span>Скелет повторяет форму будущей разметки, поэтому экран не дёргается, когда данные приедут.</span></li>
+        <li><b>4.3</b><span>Подтверждение — сама запись в списке плюс строка, называющая добавленное. Список перечитывать не нужно.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5. ЧТО ПРОВЕРЕНО ───────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">5</p>
+    <div class="item__body">
+      <h2 class="item__title">Что проверено</h2>
+      <div class="table-scroll">
+        <table class="estimate">
+          <thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
+          <tbody>
+            <tr><td>Числа главной и содержимое списков</td><td>считаются одной агрегацией домена; готовность R-99 — 8557 сотых процента и на сервере, и в тесте, и на экране</td></tr>
+            <tr><td>Отклик главной на 120 объектах</td><td>медиана 281 мс при пороге 2000 мс; таблица показывает страницу, полоса плана — 12 строк и явный остаток</td></tr>
+            <tr><td>Добавленная запись видна в списке</td><td>наблюдалось живым прогоном браузера: форма, отклик словами, поиск по добавленному имени</td></tr>
+            <tr><td>Тесты и линт</td><td>138 тестов, шесть пакетов в строгом режиме, доменные правила линта без замечаний</td></tr>
+            <tr><td>Сквозные проверки стенда</td><td>verify-api, verify-page и verify-canvas без замечаний</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="item__note">
+        Чего в этой поставке нет: отчётов и выгрузки, мобильной и планшетной вёрстки трёх
+        экранов, разделов «Заявки», «Контрагенты» и «Бухгалтерия», финансовых блоков
+        и видеонаблюдения. Это объявленные границы работы, а не пропуски.
+      </p>
+    </div>
+  </section>
+
+</div>

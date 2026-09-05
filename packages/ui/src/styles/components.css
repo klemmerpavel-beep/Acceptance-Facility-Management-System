@@ -599,9 +599,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
-/* Денежная величина в карточке сводки читается как заголовок блока и
-   выравнивается по началу строки, а не по колонке чисел таблицы. */
-.num--start { text-align: start; }
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */
@@ -980,8 +977,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Цвет чернильный, а не сигнальный. Красным на этой полосе обозначена
    просрочка; тот же красный у вертикали означал бы, что сегодняшний день —
    тоже нарушение, и один цвет нёс бы два разных смысла. */
+/* Вертикаль лежит поверх отрезков. Под ними её перекрывал промежуток
+   цвета поверхности, которым отрезки отделяются друг от друга, и линия
+   рвалась ровно там, где работа идёт, — то есть там, где на неё смотрят. */
 .plan__today { position: absolute; inset-block: -2px; inline-size: 2px;
-  background: var(--ink-2); }
+  z-index: 1; background: var(--ink-2); }
 .plan__scale .plan__today { inset-block-start: auto; block-size: 6px; }
 .plan__bar { position: absolute; inset-block-start: 4px; block-size: 14px;
   border-radius: var(--radius-sm); background: var(--accent-soft);
