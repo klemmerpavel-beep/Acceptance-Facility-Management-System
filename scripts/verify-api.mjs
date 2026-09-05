@@ -323,6 +323,113 @@ const мусорВТеле = await создать(owner, "/projects", {
 });
 check(мусорВТеле.status === 400, `тело мимо схемы принято с кодом ${мусорВТеле.status}`);
 
+/**
+ * Правка графика. Маршрутов пишущих пять; проверяется и то, что они
+ * работают, и то, что валидатор дат стоит на сервере, а не только на
+ * экране: подсказку в разметке обойти нечего не стоит, отказ сервера — нет.
+ *
+ * Стенд возвращается в исходное состояние: заведённый этап удаляется, и
+ * следующий прогон видит те же семь этапов R-99.
+ */
+const этап = (who, path, method, body) =>
+  who(path, {
+    method,
+    /* Заголовок ставится только вместе с телом. Fastify разбирает тело
+       прежде охраны и на пустом «application/json» отвечает 400 — отказ
+       пришёл бы раньше проверки прав, и проверка стерегла бы не то.
+       Клиент шлёт снятие так же (apps/web/src/api.ts:152). */
+    ...(body === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
+
+const проба = `Проверочный этап ${String(Date.now())}`;
+
+const заведён = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: проба, startsOn: "2026-04-01", endsOn: "2026-04-20", progress: 2500,
+});
+check(заведён.ok, `этап не заведён: код ${заведён.status}`);
+const послеЗаведения = заведён.ok ? await заведён.json() : [];
+check(послеЗаведения.length === 8, `после заведения этапов ${послеЗаведения.length} вместо восьми`);
+const новый = послеЗаведения.find((row) => row.name === проба);
+check(новый !== undefined, "заведённый этап не вернулся в списке");
+check(новый?.order === 7, `новый этап встал на место ${новый?.order} вместо последнего`);
+
+const перевёрнутые = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Перевёрнутый", startsOn: "2026-03-31", endsOn: "2026-03-07", progress: 0,
+});
+check(перевёрнутые.status === 400, `перевёрнутый отрезок принят с кодом ${перевёрнутые.status}`);
+const текстПеревёрнутого = перевёрнутые.status === 400 ? (await перевёрнутые.json()).message : "";
+check(
+  текстПеревёрнутого.includes("раньше начала"),
+  `отказ на перевёрнутом отрезке не называет причину: «${текстПеревёрнутого}»`,
+);
+
+/* Существование даты в календаре стерегут два слоя: «z.string().date()» в
+   договоре и «stageDateFault» в домене. Откат это показал — проверка
+   краснеет только когда снят и тот и другой. Слои оставлены оба: договор
+   отсекает мусор на границе, домен нужен экрану, где договора нет. */
+const несуществующая = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Тридцатое февраля", startsOn: "2026-04-01", endsOn: "2026-02-30", progress: 0,
+});
+check(несуществующая.status === 400, `30 февраля принято с кодом ${несуществующая.status}`);
+
+const чужойГод = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Далёкий год", startsOn: "2026-04-01", endsOn: "2029-07-24", progress: 0,
+});
+check(чужойГод.status === 400, `год за пределами проекта принят с кодом ${чужойГод.status}`);
+
+const дубльЭтапа = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Демонтаж", startsOn: "2026-04-01", endsOn: "2026-04-10", progress: 0,
+});
+check(дубльЭтапа.status === 400, `дубль названия этапа принят с кодом ${дубльЭтапа.status}`);
+
+const прорабПравитГрафик = await этап(foreman, "/projects/R-99/stages", "POST", {
+  name: "Нельзя", startsOn: "2026-04-01", endsOn: "2026-04-10", progress: 0,
+});
+check(прорабПравитГрафик.status === 403, `прораб завёл этап с кодом ${прорабПравитГрафик.status}`);
+
+const сдвинут = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "PATCH", {
+  startsOn: "2026-04-05", endsOn: "2026-04-25",
+});
+check(сдвинут.ok, `сдвиг этапа не прошёл: код ${сдвинут.status}`);
+const послеСдвига = сдвинут.ok ? await сдвинут.json() : [];
+check(
+  послеСдвига.find((row) => row.id === новый?.id)?.startsOn === "2026-04-05",
+  "сдвиг этапа не изменил дату начала",
+);
+
+const частичныйПорядок = await этап(owner, "/projects/R-99/stages/order", "PATCH", {
+  ids: [новый?.id],
+});
+check(частичныйПорядок.status === 400, `частичный порядок принят с кодом ${частичныйПорядок.status}`);
+
+const обратныйПорядок = послеСдвига.map((row) => row.id).reverse();
+const переставлен = await этап(owner, "/projects/R-99/stages/order", "PATCH", { ids: обратныйПорядок });
+check(переставлен.ok, `перестановка не прошла: код ${переставлен.status}`);
+const послеПерестановки = переставлен.ok ? await переставлен.json() : [];
+check(
+  послеПерестановки[0]?.id === обратныйПорядок[0],
+  "перестановка не поставила присланный этап первым",
+);
+
+const вернули = await этап(owner, "/projects/R-99/stages/order", "PATCH", {
+  ids: обратныйПорядок.slice().reverse(),
+});
+check(вернули.ok, `возврат порядка не прошёл: код ${вернули.status}`);
+
+const снят = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "DELETE");
+check(снят.ok, `этап не снят: код ${снят.status}`);
+const послеСнятия = снят.ok ? await снят.json() : [];
+check(послеСнятия.length === 7, `после снятия этапов ${послеСнятия.length} вместо семи`);
+check(
+  послеСнятия.every((row) => row.name !== проба),
+  "снятый этап остался в списке",
+);
+
+const anonymousStages = await fetch(`${BASE}/projects/R-99/stages`);
+check(anonymousStages.status === 401, `график отдан без сессии с кодом ${anonymousStages.status}`);
+
 const anonymousMeasure = await fetch(`${BASE}/projects/R-99/measure`);
 check(anonymousMeasure.status === 401, `обмер отдан без сессии с кодом ${anonymousMeasure.status}`);
 

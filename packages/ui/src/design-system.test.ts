@@ -113,7 +113,12 @@ describe("значение мимо токена — дефект", () => {
     }
     // Локальные свойства компонентов объявляются через var(--x, запасное)
     // и определяются в разметке, а не в стилях: они исключены.
-    const componentLocal = new Set(["--stack-gap", "--row-gap", "--level"]);
+    const componentLocal = new Set([
+      "--stack-gap", "--row-gap", "--level",
+      // Положение и длина отрезка графика — данные строки, а не оформление:
+      // их подставляет разметка в днях от начала окна.
+      "--gantt-from", "--gantt-span", "--gantt-days",
+    ]);
     const missing = [...referenced].filter((n) => !defined.has(n) && !componentLocal.has(n));
     expect(missing).toEqual([]);
   });

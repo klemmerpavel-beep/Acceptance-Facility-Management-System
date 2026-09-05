@@ -694,7 +694,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -810,6 +810,204 @@ if (strip !== null && panel !== null && strip.width > panel.width + 1) {
   note("замер", "лента помещений шире плашки: раскладка на 360 px разъезжается");
 }
 await step("замер на телефоне", "25-zamer-360.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
+/*
+ * График производства работ. Проверяется то, чего не видно на снимке:
+ * что сетка построена по календарю, что отрезок действительно двигается
+ * указателем, что валидатор дат стоит и на экране, и что заведённое
+ * снимается — стенд обязан вернуться в исходное состояние.
+ */
+await page.click('.tabs__item:has-text("Работа")');
+await page.waitForSelector(".gantt__row");
+
+const рядов = await page.locator(".gantt__row").count();
+if (рядов !== 7) note("график", `строк ${рядов} вместо семи этапов R-99`);
+
+/* График открывается там, где работа есть. Работы R-99 идут по 15 августа,
+   а «сегодня» стенда — 5 сентября: открытие на текущем месяце дало бы
+   пустое полотно. */
+const месяцОткрытия = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
+if (месяцОткрытия !== "Август 2026") {
+  note("график", `открылся месяц «${месяцОткрытия}» вместо августа, где стоят этапы`);
+}
+const клеток = await page.locator(".gantt__scale .gantt__day").count();
+if (клеток !== 31) note("график", `в августе ${клеток} клеток вместо тридцати одной`);
+const выходных = await page.locator(".gantt__scale .gantt__day--off").count();
+if (выходных !== 10) note("график", `выходных отмечено ${выходных} вместо десяти`);
+if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 0) {
+  note("график", "в августе отмечен текущий день, хотя сегодня сентябрь");
+}
+
+/* Колонки шапки и строк стоят на одних вертикалях. Проверяется числом:
+   дорожка строки не имеет собственной ширины (отрезок в ней позиционирован
+   абсолютно), и стоит забыть её задать, как готовность уезжает под
+   название, а шапка остаётся на месте. Глазом на снимке это заметно, а
+   проверкой раньше не ловилось. */
+const шапкаГотово = await page.locator(".gantt__scale .gantt__pct").boundingBox();
+const строкаГотово = await page.locator(".gantt__row .gantt__pct").first().boundingBox();
+if (шапкаГотово !== null && строкаГотово !== null
+    && Math.abs(шапкаГотово.x - строкаГотово.x) > 1) {
+  note("график", `колонка готовности в шапке на ${Math.round(шапкаГотово.x)} px, в строке на ${Math.round(строкаГотово.x)} px`);
+}
+const шапкаДень = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+const дорожка = await page.locator(".gantt__row .gantt__track").first().boundingBox();
+if (шапкаДень !== null && дорожка !== null && Math.abs(шапкаДень.x - дорожка.x) > 1) {
+  note("график", `шкала дней и дорожка расходятся: ${Math.round(шапкаДень.x)} против ${Math.round(дорожка.x)} px`);
+}
+
+/* Прокрутка по месяцам: подпись обязана смениться, а сетка — пересобраться. */
+await page.click('.segmented button:has-text("Вперёд")');
+await page.waitForTimeout(300);
+const сентябрь = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
+if (сентябрь === месяцОткрытия) note("график", `подпись месяца не сменилась: «${сентябрь}»`);
+if ((await page.locator(".gantt__scale .gantt__day").count()) !== 30) {
+  note("график", "в сентябре не тридцать дней");
+}
+if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 1) {
+  note("график", "текущий день в сентябре не отмечен");
+}
+await page.click('.segmented button:has-text("Назад")');
+await page.waitForTimeout(300);
+
+/* Масштаб меняет ширину дня, а не число дней. */
+const узкий = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+await page.click('.segmented button[aria-label="Крупнее"]');
+await page.waitForTimeout(300);
+const широкий = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+if (узкий !== null && широкий !== null && широкий.width <= узкий.width) {
+  note("график", `масштаб не расширил день: ${Math.round(узкий.width)} → ${Math.round(широкий.width)} px`);
+}
+await page.click('.segmented button[aria-label="Мельче"]');
+await page.waitForTimeout(300);
+
+await step("работа, график", "26-grafik.png");
+
+/* Перестановка строки стрелкой с клавиатуры: номера обязаны разойтись. */
+const доПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+await page.locator(".gantt__move").first().focus();
+await page.keyboard.press("ArrowDown");
+await page.waitForTimeout(700);
+const послеПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+if (доПерестановки[0] === послеПерестановки[0]) {
+  note("график", `перестановка не изменила порядок: первым остался «${послеПерестановки[0] ?? ""}»`);
+}
+await page.locator(".gantt__move").nth(1).focus();
+await page.keyboard.press("ArrowUp");
+await page.waitForTimeout(700);
+const возвращённый = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+if (возвращённый.join("|") !== доПерестановки.join("|")) {
+  note("график", `порядок не вернулся: «${возвращённый.join(", ")}»`);
+}
+
+/* Метка увода: этап вне открытого месяца оставляет пустую дорожку и метку,
+   уводящую в его месяц. В августе таких этапов шесть из семи. */
+const меток = await page.locator(".gantt__away").count();
+if (меток !== 6) note("график", `меток увода ${меток} вместо шести`);
+
+/* Перетаскивание отрезка мышью: дата в подписи строки обязана сдвинуться.
+   Берётся строка с отрезком, а не первая: в августе идёт только последний
+   этап, остальные лежат весной. */
+const первый = page.locator(".gantt__row:has(.gantt__bar)").first();
+const подписьДо = await первый.locator(".gantt__title").getAttribute("title");
+const отрезок = await первый.locator(".gantt__bar").boundingBox();
+if (отрезок === null) {
+  note("график", "у первого этапа нет отрезка в открытом месяце");
+} else {
+  /* Ширина дня берётся на действующем масштабе, а не на том, что был
+     измерён при проверке масштаба: там она в полтора раза больше, и жест
+     считался бы в других единицах. */
+  const деньСейчас = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+  const деньШириной = деньСейчас?.width ?? 32;
+  await page.mouse.move(отрезок.x + отрезок.width / 2, отрезок.y + отрезок.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(отрезок.x + отрезок.width / 2 + деньШириной * 3, отрезок.y + отрезок.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+  const подписьПосле = await первый.locator(".gantt__title").getAttribute("title");
+  if (подписьДо === подписьПосле) {
+    note("график", `перетаскивание не сдвинуло сроки: «${подписьПосле ?? ""}»`);
+  } else {
+    /* Сдвиг возвращается тем же жестом в обратную сторону. */
+    const снова = await первый.locator(".gantt__bar").boundingBox();
+    if (снова !== null) {
+      await page.mouse.move(снова.x + снова.width / 2, снова.y + снова.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(снова.x + снова.width / 2 - деньШириной * 3, снова.y + снова.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(900);
+      const подписьВозврата = await первый.locator(".gantt__title").getAttribute("title");
+      if (подписьВозврата !== подписьДо) {
+        note("график", `сроки не вернулись: «${подписьВозврата ?? ""}» вместо «${подписьДо ?? ""}»`);
+      }
+    }
+  }
+}
+
+/* Лист правки: валидатор отказывает перевёрнутым датам до обращения к серверу. */
+await page.click('button:has-text("Добавить этап")');
+await page.waitForSelector(".sheet input");
+const поляЭтапа = page.locator(".sheet input");
+await поляЭтапа.nth(0).fill("Проверка страницы");
+await поляЭтапа.nth(1).fill("2026-08-20");
+await поляЭтапа.nth(2).fill("2026-08-08");
+await page.waitForTimeout(300);
+const отказ = (await page.locator(".sheet .field__error").first().textContent())?.trim() ?? "";
+if (!отказ.includes("раньше начала")) {
+  note("график", `лист не отказал перевёрнутым датам: «${отказ}»`);
+}
+if (await page.locator('.sheet button:has-text("Завести этап")').isEnabled()) {
+  note("график", "кнопка заведения доступна при перевёрнутых датах");
+}
+await step("работа, отказ валидатора", "27-grafik-otkaz.png");
+
+/* Исправленные даты — этап заводится и становится восьмым. */
+await поляЭтапа.nth(2).fill("2026-08-24");
+await page.waitForTimeout(200);
+await page.click('.sheet button:has-text("Завести этап")');
+await page.waitForTimeout(900);
+const послеЗаведения = await page.locator(".gantt__row").count();
+if (послеЗаведения !== 8) note("график", `после заведения строк ${послеЗаведения} вместо восьми`);
+
+/* Заведённое снимается: стенд возвращается к семи этапам. */
+await page.click('.gantt__title:has-text("Проверка страницы")');
+await page.waitForSelector('.sheet button:has-text("Снять этап")');
+await page.click('.sheet button:has-text("Снять этап")');
+await page.waitForSelector(".sheet .btn--danger");
+const текстСнятия = await page.locator(".sheet").innerText();
+if (!текстСнятия.includes("Готовность объекта пересчитается")) {
+  note("график", "подтверждение снятия не называет последствие");
+}
+await page.click(".sheet .btn--danger");
+await page.waitForTimeout(900);
+const послеСнятия = await page.locator(".gantt__row").count();
+if (послеСнятия !== 7) note("график", `после снятия строк ${послеСнятия} вместо семи`);
+
+/* График на телефоне: колонка названия уже, день той же ширины. */
+await page.setViewportSize({ width: 360, height: 780 });
+await page.waitForTimeout(400);
+const деньУзко = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+if (узкий !== null && деньУзко !== null && Math.abs(деньУзко.width - узкий.width) > 1) {
+  note("график", `на 360 px день сжался до ${Math.round(деньУзко.width)} px`);
+}
+/* Ручка перестановки на телефоне не показывается: её работу делает поле
+   «Место в графике» в листе. Проверяется и то, что её нет, и то, что путь
+   к листу открыт целью нужного размера. */
+if (await page.locator(".gantt__move").first().isVisible()) {
+  note("график", "ручка перестановки показана на 360 px, где её тянуть нечем");
+}
+const названиеЭтапа = await page.locator(".gantt__title").first().boundingBox();
+if (названиеЭтапа !== null && названиеЭтапа.height < 48) {
+  note("график", `название этапа на 360 px — ${Math.round(названиеЭтапа.height)} px вместо 48`);
+}
+await page.click(".gantt__title");
+await page.waitForSelector(".sheet select");
+const мест = await page.locator(".sheet select option").count();
+if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
+await page.click('.sheet button:has-text("Отмена")');
+await page.waitForTimeout(300);
+await step("работа на телефоне", "28-grafik-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
 

@@ -13,9 +13,12 @@ import type {
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
   CreateClient, CreateProject, CreateWorker,
-  SmsCodeIssued, Unit, UpdateMeasureRoom, WorkerRow,
+  SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
 } from "@priyomka/contracts";
-import { measureTotals, milliunits, roomVolume, wallArea } from "@priyomka/domain";
+import {
+  measureTotals, milliunits, projectRange, roomVolume, stageDateFault, wallArea,
+  type ProjectRange,
+} from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 interface Snapshot {
@@ -207,6 +210,9 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     status: "NEW",
     startedAt: null,
     deadline: input.deadline,
+    // Объект заводится «сегодня» демонстрации, а не в день открытия страницы:
+    // снимок и так живёт в одной дате, и вторая сбила бы сроки.
+    createdAt: data["summary-owner"].today,
     keysCount: 0,
     supervisionShare: 1200,
     client: {
@@ -335,6 +341,98 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
   await pause(120);
   return code === "R-99" ? data.imports : [];
+}
+
+/* --- график производства работ ------------------------------------------
+   Сервера в демонстрации нет, но правка графика обязана работать: именно
+   её заказчик и смотрит. Этапы берутся из снимка объекта R-99 и живут в
+   памяти вкладки — до перезагрузки страницы. Валидатор дат тот же, что на
+   сервере: демонстрация не должна принимать то, что продукт отвергнет. */
+
+let этапы: WorkStage[] | null = null;
+
+const этапыR99 = (): WorkStage[] => {
+  этапы ??= data["projects-owner"].find((project) => project.code === "R-99")?.stages ?? [];
+  return [...этапы].sort((left, right) => left.order - right.order);
+};
+
+/** Диапазон объекта — тем же правилом домена, что на сервере. */
+const диапазонR99 = (): ProjectRange => {
+  const объект = data["projects-owner"].find((project) => project.code === "R-99");
+  return projectRange({
+    startedAt: объект?.startedAt ?? null,
+    deadline: объект?.deadline ?? null,
+    createdAt: объект?.createdAt ?? data["summary-owner"].today,
+  });
+};
+
+const проверитьДаты = (dates: { startsOn: string; endsOn: string }): void => {
+  const отказ = stageDateFault(dates, диапазонR99());
+  if (отказ !== null) throw new Error(отказ);
+};
+
+export async function fetchStages(code: string): Promise<WorkStage[]> {
+  await pause(180);
+  return code === "R-99" ? этапыR99() : [];
+}
+
+export async function createStage(_code: string, stage: CreateWorkStage): Promise<WorkStage[]> {
+  await pause(260);
+  const список = этапыR99();
+  if (список.some((existing) => existing.name === stage.name)) {
+    throw new Error(`Этап «${stage.name}» на объекте уже есть.`);
+  }
+  проверитьДаты(stage);
+  этапы = [...список, {
+    id: новыйId(),
+    name: stage.name,
+    order: список.length,
+    startsOn: stage.startsOn,
+    endsOn: stage.endsOn,
+    progress: stage.progress,
+  }];
+  return этапыR99();
+}
+
+export async function updateStage(
+  _code: string,
+  id: string,
+  stage: UpdateWorkStage,
+): Promise<WorkStage[]> {
+  await pause(220);
+  const список = этапыR99();
+  const прежний = список.find((existing) => existing.id === id);
+  if (прежний === undefined) throw new Error("Этап не найден на этом объекте.");
+  const next = {
+    ...прежний,
+    ...(stage.name === undefined ? {} : { name: stage.name }),
+    ...(stage.startsOn === undefined ? {} : { startsOn: stage.startsOn }),
+    ...(stage.endsOn === undefined ? {} : { endsOn: stage.endsOn }),
+    ...(stage.progress === undefined ? {} : { progress: stage.progress }),
+  };
+  проверитьДаты(next);
+  этапы = список.map((existing) => (existing.id === id ? next : existing));
+  return этапыR99();
+}
+
+export async function deleteStage(_code: string, id: string): Promise<WorkStage[]> {
+  await pause(220);
+  этапы = этапыR99().filter((stage) => stage.id !== id).map((stage, index) => ({ ...stage, order: index }));
+  return этапыR99();
+}
+
+export async function reorderStages(_code: string, ids: string[]): Promise<WorkStage[]> {
+  await pause(200);
+  const список = этапыR99();
+  if (ids.length !== список.length || new Set(ids).size !== ids.length) {
+    throw new Error("Порядок этапов задаётся полным списком этапов объекта, без повторов.");
+  }
+  этапы = ids.map((id, index) => {
+    const stage = список.find((existing) => existing.id === id);
+    if (stage === undefined) throw new Error("Порядок этапов задаётся полным списком этапов объекта, без повторов.");
+    return { ...stage, order: index };
+  });
+  return этапыR99();
 }
 
 /* --- обмерный план ------------------------------------------------------ */

@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import type {
   CurrentUser, EstimateView, ImportRecord, ProjectEvent, ProjectStatus, ProjectSummary,
 } from "@priyomka/contracts";
-import { daysBetween, workingDaysBetween } from "@priyomka/domain";
+import { daysBetween, projectRange, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus, errorMessage } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
+import { Schedule } from "./Schedule.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -53,19 +54,19 @@ function ReadinessScale({ share }: { share: number }): React.JSX.Element {
  * «Документы», а не «Акты» — в акте документы не исчерпываются.
  */
 /**
- * Вкладки карточки. Здесь то, что работает: обзор, замер, смета и
+ * Вкладки карточки. Здесь то, что работает: обзор, замер, смета, работа и
  * служебный импорт руководителю. Остальные вкладки целевого состава —
- * работа, отчёт, приёмка, чеки, документы — перечислены в «Что дальше»:
- * пять заглушек подряд не сообщают ничего, кроме того, что тыкать
- * бесполезно.
+ * отчёт, приёмка, чеки, документы — перечислены в «Что дальше»: четыре
+ * заглушки подряд не сообщают ничего, кроме того, что тыкать бесполезно.
  *
  * Порядок вкладок повторяет конвейер объекта: замер даёт площади, площади
- * идут в смету.
+ * идут в смету, смета — в график работ.
  */
 const TABS = [
   { key: "overview", label: "Обзор" },
   { key: "measure", label: "Замер" },
   { key: "estimate", label: "Смета" },
+  { key: "work", label: "Работа" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -313,6 +314,18 @@ export function ProjectCard({
 
             <div role="tabpanel" id="panel-measure" aria-labelledby="tab-measure" hidden={tab !== "measure"}>
               {tab === "measure" && <Measure code={project.code} address={project.address} role={user.role} onEvents={load} />}
+            </div>
+
+            <div role="tabpanel" id="panel-work" aria-labelledby="tab-work" hidden={tab !== "work"}>
+              {tab === "work" && (
+                <Schedule
+                  code={project.code}
+                  role={user.role}
+                  today={today}
+                  range={projectRange(project)}
+                  onEvents={load}
+                />
+              )}
             </div>
 
             <div role="tabpanel" id="panel-estimate" aria-labelledby="tab-estimate" hidden={tab !== "estimate"}>

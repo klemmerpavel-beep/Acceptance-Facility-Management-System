@@ -186,6 +186,7 @@
   --gutter:        24px;
   --summary-col:   320px;   /* левая колонка сводки объекта */
   --gantt-label:   200px;   /* колонка названия этапа в графике */
+  --day-w:          32px;   /* день в графике; ступени масштаба 24 / 32 / 48 */
   --modal-w:       480px;   /* центрированное окно на десктопе */
   --measure:       76ch;    /* предельная длина строки читаемого текста */
 
@@ -1078,10 +1079,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   flex: none;
   /* Зона нажатия 44 px: на телефоне фильтром статусов пользуется прораб,
      и цель в 32 px он пальцем в перчатке не берёт (реестр Д-07). */
+  display: inline-flex; align-items: center; gap: var(--space-1);
   min-block-size: var(--tap-min); padding: 0 var(--space-3);
   white-space: nowrap;
   border: 0; background: transparent; border-radius: var(--radius-chip);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
+}
+.segmented__label {
+  flex: none; display: grid; place-items: center;
+  min-block-size: var(--tap-min); padding: 0 var(--space-3);
+  white-space: nowrap; font-size: var(--fs-sm); font-weight: 500; color: var(--ink);
 }
 .segmented__option[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
 
@@ -1152,19 +1159,173 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .tranche__legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-3); font-size: var(--fs-sm); color: var(--ink-2); }
 
 /* --- 5.8 График производства работ ---------------------------------------
-   Масштаб — недели и месяцы, без дней: точность в днях избыточна. */
-.gantt__row { display: grid; grid-template-columns: var(--gantt-label) minmax(0, 1fr) 120px 56px; align-items: center; gap: var(--space-3); height: var(--row-h); }
-.gantt__track { position: relative; height: 12px; background: var(--surface-2); border-radius: var(--radius-pill); }
-.gantt__bar { position: absolute; top: 0; height: 100%; background: var(--accent); border-radius: var(--radius-pill); }
-.gantt__bar--invalid { background: var(--danger); }
-.gantt__hint { padding-left: calc(var(--gantt-label) + var(--space-3)); font-size: var(--fs-sm); color: var(--danger); }
+   Масштаб — дни, а не недели. Прежняя формулировка «точность в днях
+   избыточна» не выдержала разбора действующей сметы: спор с заказчиком
+   идёт ровно о двух-трёх днях, и отрезок, привязанный к неделе, эти дни
+   округляет — то есть стирает предмет спора.
 
-/* Ниже 768 px фиксированные колонки графика шире экрана: название и процент
-   встают в одну строку, дорожка занимает следующую. */
+   Ширину дня несёт --day-w тремя ступенями (24 / 32 / 48 px). Ступень
+   назначает экран, подставляя свойство в полотно: масштаб — рабочее
+   состояние, а не тема. При 24 px месяц целиком входит в 1440 px, при
+   48 px номер дня читается на касании.
+
+   Колонок три: название, дни, готовность. Колонки мастера нет — этап её
+   не хранит (schema.prisma:439). В артборде канвы она нарисована; это
+   отступление артборда от продукта, зафиксированное в canvas.json. */
+
+.gantt__canvas { overflow-x: auto; overscroll-behavior-x: contain; }
+.gantt__scale,
+.gantt__row {
+  display: grid;
+  grid-template-columns: var(--gantt-label) max-content 72px;
+  align-items: center;
+  border-block-end: 1px solid var(--line);
+}
+.gantt__scale { background: var(--surface-2); }
+
+/* Колонка названия не уезжает с прокруткой дней: отрезок в конце месяца
+   иначе принадлежит неизвестно какому этапу. */
+.gantt__name {
+  position: sticky; inset-inline-start: 0; z-index: 1;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-inline-size: 0; padding-inline: var(--space-3);
+  block-size: 100%; background: var(--surface);
+}
+.gantt__scale .gantt__name { background: var(--surface-2); }
+
+.gantt__month { padding: var(--space-2) var(--space-3) 0; }
+.gantt__days { display: grid; grid-auto-flow: column; grid-auto-columns: var(--day-w); }
+.gantt__day {
+  display: grid; place-items: center;
+  border-inline-end: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: var(--fs-cap);
+  line-height: var(--lh-cap); color: var(--ink-2);
+}
+.gantt__scale .gantt__day { block-size: 28px; }
+.gantt__day--off { background: var(--surface-2); color: var(--ink-3); }
+/* Сегодня отмечено подчёркиванием, а не заливкой: заливка выходного уже
+   занята, и две заливки в одной шкале читались бы как один признак. */
+.gantt__day--today { box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
+
+/* Дни под строками рисуются один раз подложкой, а не в каждой строке:
+   тридцать ячеек на строку при семи строках — двести десять узлов, и
+   любое расхождение округления развалило бы совмещение со шкалой. */
+.gantt__body { position: relative; }
+.gantt__grid {
+  position: absolute; inset-block: 0;
+  inset-inline-start: var(--gantt-label);
+  pointer-events: none;
+}
+.gantt__grid .gantt__days { block-size: 100%; }
+
+/* Одна ручка перестановки на строку, а не пара стрелок. Две цели по 44 px
+   одна над другой в строку 40 px не помещаются, а сдвинутые — перекрываются,
+   и «вверх» ловит нажатие «вниз». Ручка тянется указателем и слушает
+   стрелки с клавиатуры; второй путь — поле «место в графике» в листе. */
+.gantt__move {
+  flex: none; display: grid; place-items: center;
+  inline-size: var(--tap-min); min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+  margin-inline-start: calc(var(--space-2) * -1);
+  padding: 0; border: 0; border-radius: var(--radius-chip);
+  background: none; color: var(--ink-3); cursor: grab;
+  touch-action: none;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.gantt__move:hover { color: var(--ink); background: var(--surface-2); }
+.gantt__move[aria-pressed="true"] { cursor: grabbing; color: var(--accent); background: var(--accent-soft); }
+
+.gantt__num { flex: none; inline-size: 20px; font-family: var(--font-mono);
+  font-size: var(--fs-sm); text-align: end; color: var(--ink-3); }
+.gantt__title {
+  min-inline-size: 0; min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--ink); font-family: inherit; font-size: var(--fs-sm);
+  text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gantt__title:hover { color: var(--accent); }
+
+/* Дорожка занимает весь месяц явно. Отрезок в ней позиционирован
+   абсолютно и ширины не даёт: без этой строки колонка дней в строках
+   схлопывалась в ноль, и готовность съезжала под название, тогда как в
+   шапке стояла на месте — колонки шапки и строк расходились. */
+.gantt__track {
+  position: relative;
+  inline-size: calc(var(--day-w) * var(--gantt-days, 30));
+  block-size: var(--row-h);
+}
+.gantt__bar {
+  position: absolute; inset-block-start: 50%; translate: 0 -50%;
+  inset-inline-start: calc(var(--day-w) * var(--gantt-from, 0));
+  inline-size: calc(var(--day-w) * var(--gantt-span, 1));
+  display: flex; align-items: center; justify-content: space-between;
+  block-size: 16px; border-radius: var(--radius-pill);
+  background: var(--accent); cursor: grab; touch-action: none;
+}
+/* Отрезок вне договорного срока и отрезок с ошибкой в датах — один
+   признак: и то и другое требует правки. Имя то же, что у полосы
+   сроков на главной (.deadline__bar--late). */
+.gantt__bar--late { background: var(--danger); }
+/* Во время перетаскивания отрезок поднят тенью и не участвует в переходах:
+   плавность здесь читалась бы как задержка — палец уже ушёл вперёд. */
+.gantt__bar--drag { cursor: grabbing; box-shadow: var(--shadow-2); }
+.gantt__handle {
+  inline-size: 6px; block-size: 100%; flex: none;
+  background: var(--on-accent-track); cursor: ew-resize; touch-action: none;
+}
+.gantt__handle:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+.gantt__handle:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+
+/* Готовность прижата к правому краю так же, как название к левому: колонка
+   дней шире экрана, и без этого процент уезжал за предел прокрутки — то
+   есть переставал существовать для того, кто на график и смотрит. */
+.gantt__pct {
+  position: sticky; inset-inline-end: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: flex-end;
+  block-size: 100%; padding-inline: var(--space-3);
+  background: var(--surface);
+  border-inline-start: 1px solid var(--line);
+  font-size: var(--fs-sm); color: var(--ink-2);
+}
+.gantt__scale .gantt__pct { background: var(--surface-2); }
+
+/* Этап, лежащий вне открытого месяца, оставляет пустую строку. Метка у края
+   называет его месяц и уводит туда: шесть пустых строк иначе читаются как
+   поломка, а не как «работа была весной». */
+.gantt__away {
+  position: absolute; inset-block-start: 50%; translate: 0 -50%;
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  min-block-size: var(--tap-min); padding-inline: var(--space-2);
+  border: 0; border-radius: var(--radius-chip);
+  background: none; color: var(--ink-3); cursor: pointer;
+  font-family: inherit; font-size: var(--fs-cap); white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+.gantt__away:hover { color: var(--accent); }
+.gantt__away--before { inset-inline-start: 0; }
+.gantt__away--after { inset-inline-end: 0; }
+.gantt__hint {
+  grid-column: 1 / -1;
+  position: sticky; inset-inline-start: 0;
+  inline-size: min(100%, var(--measure));
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm); color: var(--danger);
+}
+
+/* Ниже 768 px колонка названия съедает половину экрана. Сужается она, а не
+   день: день — единица измерения, и его сжатие исказило бы длину отрезка.
+   Переопределение стоит на полотне, чтобы подложку дней сдвинуло вместе со
+   строками: подложка — сосед строки, а не потомок. */
 @media (max-width: 767px) {
-  .gantt__row { grid-template-columns: minmax(0, 1fr) auto; height: auto; row-gap: var(--space-2); padding-block: var(--space-2); }
-  .gantt__track { grid-column: 1 / -1; order: 3; }
-  .gantt__hint { padding-left: 0; }
+  .gantt__canvas { --gantt-label: 168px; }
+  .gantt__scale,
+  .gantt__row { grid-template-columns: var(--gantt-label) max-content 56px; }
+  /* Ручка перестановки уходит: она съедала 44 px из 168, оставляя названию
+     полсотни, а тянуть строку в полотне, которое само едет по горизонтали,
+     на телефоне и не выходит. Место в графике меняется полем в листе —
+     тем самым вторым путём, который норматив и требует. */
+  .gantt__move { display: none; }
 }
 
 /* --- 5.7 Чеки и расходы --------------------------------------------------- */

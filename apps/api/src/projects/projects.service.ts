@@ -237,6 +237,7 @@ interface ProjectRow {
   status: ProjectSummary["status"];
   startedAt: Date | null;
   deadline: Date | null;
+  createdAt: Date;
   keysCount: number;
   supervisionShare: number;
   client: { code: string; name: string; isCompany: boolean; requisites: string | null };
@@ -284,6 +285,7 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
     status: project.status,
     startedAt: asDate(project.startedAt),
     deadline: asDate(project.deadline),
+    createdAt: project.createdAt.toISOString().slice(0, 10),
     keysCount: project.keysCount,
     supervisionShare: project.supervisionShare,
     client: {

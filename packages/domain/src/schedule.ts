@@ -100,7 +100,9 @@ export interface PlanWindow {
  * в полосу целиком. Полоса, обрезающая просроченный хвост, скрывает ровно
  * то, ради чего на неё смотрят.
  */
-export function planWindow(stages: readonly StageSpan[]): PlanWindow | null {
+export function planWindow(
+  stages: readonly Pick<StageSpan, "startsOn" | "endsOn">[],
+): PlanWindow | null {
   const first = stages[0];
   if (first === undefined) return null;
 
@@ -143,6 +145,69 @@ export function windowAround(day: string, months: number): PlanWindow {
   return { from, to, days: Math.max(1, daysBetween(from, to) + 1) };
 }
 
+/* ---------------------------------------------------------------------------
+   Календарная арифметика окна правки
+   --------------------------------------------------------------------------
+   Экран правки графика считает не в процентах, а в днях: отрезок тянут
+   указателем, и смещение обязано ложиться на границу дня. Проценты для
+   этого не годятся — обратный перевод даёт то 3,999, то 4,001 дня, и
+   отрезок «прилипает» через раз. Арифметика живёт здесь, рядом с остальной
+   работой над датами: два места, считающие дни, разойдутся на високосном
+   годе, и разойдутся молча. */
+
+/** День, сдвинутый на `delta` суток. Переход через месяц и год — по календарю. */
+export function shiftDay(day: string, delta: number): string {
+  const moment = new Date(`${day}T00:00:00Z`);
+  moment.setUTCDate(moment.getUTCDate() + delta);
+  return moment.toISOString().slice(0, 10);
+}
+
+/** Номер дня в окне от нуля. Отрицательный и запредельный не отсекаются. */
+export function dayIndex(day: string, window: PlanWindow): number {
+  return daysBetween(window.from, day);
+}
+
+/** Дни окна подряд, включая обе границы. */
+export function windowDays(window: PlanWindow): readonly string[] {
+  const days: string[] = [];
+  for (let index = 0; index < window.days; index += 1) days.push(shiftDay(window.from, index));
+  return days;
+}
+
+/** Календарный месяц, в который попадает день. */
+export function monthWindow(day: string): PlanWindow {
+  const [year, month] = day.split("-").map(Number);
+  if (year === undefined || month === undefined) {
+    throw new Error(`Дата ${day} не в формате ГГГГ-ММ-ДД`);
+  }
+  const iso = (value: Date): string => value.toISOString().slice(0, 10);
+  const from = iso(new Date(Date.UTC(year, month - 1, 1)));
+  // Нулевой день следующего месяца — последний день текущего.
+  const to = iso(new Date(Date.UTC(year, month, 0)));
+  return { from, to, days: daysBetween(from, to) + 1 };
+}
+
+/**
+ * Первый день месяца, сдвинутого на `delta` месяцев.
+ *
+ * Считается от первого числа, а не от переданного дня: сдвиг 31 марта на
+ * месяц назад дал бы 3 марта — февраль короче, и лишние дни переполняются
+ * в следующий месяц.
+ */
+export function shiftMonth(day: string, delta: number): string {
+  const [year, month] = day.split("-").map(Number);
+  if (year === undefined || month === undefined) {
+    throw new Error(`Дата ${day} не в формате ГГГГ-ММ-ДД`);
+  }
+  return new Date(Date.UTC(year, month - 1 + delta, 1)).toISOString().slice(0, 10);
+}
+
+/** Суббота или воскресенье. Производственный календарь праздников не учитывается. */
+export function isDayOff(day: string): boolean {
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}
+
 /** Отступ и длина отрезка в процентах ширины окна. */
 export interface BarGeometry {
   readonly offset: number;
@@ -181,4 +246,136 @@ export function dayOffset(day: string, window: PlanWindow): number | null {
   const index = daysBetween(window.from, day);
   if (index < 0 || index >= window.days) return null;
   return round2(((index + 0.5) / window.days) * 100);
+}
+
+/* ---------------------------------------------------------------------------
+   Валидатор дат этапа
+   -------------------------------------------------------------------------- */
+
+/** Пара дат этапа, которую проверяет валидатор. Прогресс ему не нужен. */
+export interface StageDates {
+  /** ГГГГ-ММ-ДД. */
+  readonly startsOn: string;
+  /** ГГГГ-ММ-ДД. */
+  readonly endsOn: string;
+}
+
+/** Сроки объекта по договору: границы, вне которых этап стоять не может. */
+export interface ProjectRange {
+  /** ГГГГ-ММ-ДД. */
+  readonly from: string;
+  /** ГГГГ-ММ-ДД. */
+  readonly to: string;
+}
+
+/** ДД.ММ.ГГГГ — вид, в котором дата называется человеку. */
+const день = (iso: string): string => {
+  const [год, месяц, число] = iso.split("-");
+  return `${число ?? "??"}.${месяц ?? "??"}.${год ?? "????"}`;
+};
+
+/**
+ * Существует ли дата в календаре.
+ *
+ * `new Date("2028-02-30")` не бросает исключения — он молча даёт 1 марта.
+ * Поэтому дата собирается обратно и сверяется со строкой: несуществующее
+ * число само себя выдаёт сдвигом.
+ */
+const существует = (iso: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(iso)) return false;
+  const дата = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(дата.getTime()) && дата.toISOString().slice(0, 10) === iso;
+};
+
+const год = (iso: string): number => Number.parseInt(iso.slice(0, 4), 10);
+
+/**
+ * Причина, по которой даты этапа нельзя записать, или `null`.
+ *
+ * Свод правил один на сервер и на экран (БП-11 норматива проекта): два
+ * независимых свода расходятся на третьей правке, и тогда экран показывает
+ * подсказку там, где сервер пропускает, — или наоборот.
+ *
+ * Правила проверяются в объявленном порядке, и первый отказ возвращается
+ * сразу: человеку нужна одна причина, а не список из трёх. Порядок выбран
+ * от грубого к тонкому — несуществующая дата делает бессмысленным и
+ * сравнение с началом, и проверку года.
+ *
+ * Материал для проверки не выдуман: в графике заказчика восемь дефектных
+ * дат на семнадцать строк, включая 30 февраля и четыре года за пределами
+ * проекта. Каждая из восьми стоит отдельным случаем в тестах.
+ *
+ * Почему отказов только два вида, а третий — предупреждение
+ * --------------------------------------------------------
+ * Несуществующая дата и перевёрнутый отрезок невозможны: такой этап не
+ * бывает ни при каком стечении обстоятельств, и записывать его нельзя.
+ * Год за пределами договора ±1 — тоже отказ: это опечатка в разряде года,
+ * а не срок.
+ *
+ * А вот дата позже срока сдачи — не дефект. Работы срываются, и система,
+ * отказавшаяся записать реальное отставание, заставит вести график в
+ * тетради. Поэтому такая дата принимается и сопровождается предупреждением
+ * (`stageDateWarning`): человек видит, на сколько этап выходит за договор,
+ * и решает сам. Перечень дефектных дат заказчика относит `26.02.27` и
+ * `24.07.27` к дефектам; валидатор их не отклоняет — по этому правилу они
+ * попадают в предупреждение, потому что отличить срыв от опечатки система
+ * не может, а человек может.
+ */
+/**
+ * Диапазон объекта из трёх его дат.
+ *
+ * Ни начала работ, ни срока сдачи может не быть — тогда границей служит
+ * дата заведения. Отказаться проверять вовсе было бы хуже: именно на
+ * объекте без срока опечатка в годе и остаётся незамеченной.
+ *
+ * Выводится здесь, а не на сервере и на экране порознь: два вывода
+ * разойдутся, и человек получит отказ там, где экран обещал согласие.
+ */
+export function projectRange(dates: {
+  readonly startedAt: string | null;
+  readonly deadline: string | null;
+  readonly createdAt: string;
+}): ProjectRange {
+  const from = dates.startedAt ?? dates.createdAt;
+  const to = dates.deadline ?? dates.startedAt ?? dates.createdAt;
+  return from <= to ? { from, to } : { from: to, to: from };
+}
+
+export function stageDateFault(dates: StageDates, range: ProjectRange): string | null {
+  for (const [iso, что] of [[dates.startsOn, "начала"], [dates.endsOn, "окончания"]] as const) {
+    if (!существует(iso)) {
+      return `${день(iso)} не существует. Укажите существующую дату ${что}.`;
+    }
+  }
+
+  if (dates.endsOn < dates.startsOn) {
+    return `Окончание ${день(dates.endsOn)} раньше начала ${день(dates.startsOn)}. Проверьте порядок дат.`;
+  }
+
+  /* Год в пределах договора ±1. Допуск в год нужен затем, что этап может
+     начаться до подписания и закончиться после сдачи; всё, что дальше, —
+     опечатка в годе, а не срок. */
+  const снизу = год(range.from) - 1;
+  const сверху = год(range.to) + 1;
+  for (const iso of [dates.startsOn, dates.endsOn]) {
+    if (год(iso) < снизу || год(iso) > сверху) {
+      return `Год ${String(год(iso))} за пределами проекта ${день(range.from)} — ${день(range.to)}.`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Предупреждение о сроке, выходящем за договор, или `null`.
+ *
+ * Отдельно от отказа: отказ означает «так не бывает», предупреждение —
+ * «так бывает, но посмотрите». Смешать их значит либо блокировать
+ * настоящее отставание, либо молча пропускать опечатку.
+ */
+export function stageDateWarning(dates: StageDates, range: ProjectRange): string | null {
+  if (stageDateFault(dates, range) !== null) return null;
+  if (dates.endsOn <= range.to) return null;
+  const дней = daysBetween(range.to, dates.endsOn);
+  return `Окончание ${день(dates.endsOn)} позже срока сдачи ${день(range.to)} на ${String(дней)} дн.`;
 }

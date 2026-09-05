@@ -26,6 +26,13 @@ export function Sprite(): React.JSX.Element {
         <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" /></symbol>
         <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z" /><path d="M4 13V4h9" /></symbol>
 
+        {/* График производства работ. Ручка перестановки — двусторонняя
+            вертикальная стрелка: она называет доступное движение, а не
+            текущее положение. */}
+        <symbol id="i-move" viewBox="0 0 20 20"><path d="M10 3v14" /><path d="m6.5 6.5 3.5-3.5 3.5 3.5" /><path d="m6.5 13.5 3.5 3.5 3.5-3.5" /></symbol>
+        <symbol id="i-expand" viewBox="0 0 20 20"><path d="M4 8V4h4M16 12v4h-4M16 8V4h-4M4 12v4h4" /></symbol>
+        <symbol id="i-minus" viewBox="0 0 20 20"><path d="M4 10h12" /></symbol>
+
         {/* Разделы шапки. Рисунок тот же чертёжный: прямые и прямые углы. */}
         <symbol id="i-home" viewBox="0 0 20 20"><path d="M3 9 10 3l7 6v8H3z" /><path d="M8 17v-5h4v5" /></symbol>
         <symbol id="i-request" viewBox="0 0 20 20"><path d="M4 3h9l3 3v11H4z" /><path d="M7 8h6M7 11h6M7 14h3" /></symbol>

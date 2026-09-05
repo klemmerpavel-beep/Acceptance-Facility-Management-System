@@ -138,6 +138,38 @@ export const workStageSchema = z.object({
 });
 export type WorkStage = z.infer<typeof workStageSchema>;
 
+/**
+ * Тело запроса на заведение и правку этапа.
+ *
+ * Соотношение дат и год в диапазоне договора схема не проверяет: ей
+ * неизвестны сроки объекта. Это делает сервис через `stageDateFault` из
+ * `@priyomka/domain` — тем же кодом, которым экран показывает подсказку до
+ * обращения к сети. Два независимых свода правил разошлись бы на третьей
+ * правке.
+ */
+export const createWorkStageSchema = z.object({
+  name: z.string().trim().min(1, "Назовите этап").max(60, "Слишком длинное название этапа"),
+  startsOn: z.string().date("Начало этапа: дата в формате ГГГГ-ММ-ДД."),
+  endsOn: z.string().date("Окончание этапа: дата в формате ГГГГ-ММ-ДД."),
+  /** Заявленный прогресс в сотых долях процента. По умолчанию этап не начат. */
+  progress: z.number().int().min(0).max(10_000).default(0),
+});
+export type CreateWorkStage = z.infer<typeof createWorkStageSchema>;
+
+export const updateWorkStageSchema = createWorkStageSchema.partial();
+export type UpdateWorkStage = z.infer<typeof updateWorkStageSchema>;
+
+/**
+ * Перестановка этапов: полный порядок, а не пара «этап и новое место».
+ * Частичный порядок оставляет вопрос, что делать с остальными строками, и
+ * два одновременных перемещения дают разный результат в зависимости от
+ * того, чьё пришло первым.
+ */
+export const reorderWorkStagesSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "Порядок этапов пуст."),
+});
+export type ReorderWorkStages = z.infer<typeof reorderWorkStagesSchema>;
+
 export const projectSummarySchema = z.object({
   id: z.string().uuid(),
   code: projectCodeSchema,
@@ -146,6 +178,13 @@ export const projectSummarySchema = z.object({
   /** Дата начала работ. Отличается от даты заведения объекта в системе. */
   startedAt: z.string().date().nullable(),
   deadline: z.string().date().nullable(),
+  /**
+   * Дата заведения объекта. Нужна затем, что из неё выводится диапазон
+   * допустимых дат этапа, когда ни начала работ, ни срока сдачи нет
+   * (`projectRange` в домене). Без неё экран считал бы диапазон своим
+   * правилом и расходился бы с сервером на объекте без сроков.
+   */
+  createdAt: z.string().date(),
   keysCount: z.number().int().nonnegative(),
   supervisionShare: z.number().int().nonnegative(),
   client: z.object({

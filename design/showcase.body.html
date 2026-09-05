@@ -22,6 +22,9 @@
     <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
     <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></symbol>
+    <symbol id="i-move" viewBox="0 0 20 20"><path d="M10 3v14"/><path d="m6.5 6.5 3.5-3.5 3.5 3.5"/><path d="m6.5 13.5 3.5 3.5 3.5-3.5"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 20 20"><path d="M4 8V4h4M16 12v4h-4M16 8V4h-4M4 12v4h4"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 20 20"><path d="M4 10h12"/></symbol>
 </defs>
 </svg>
 <header class="appbar">
@@ -304,14 +307,75 @@
         <span class="metric"><span class="metric__value">8</span><span class="metric__label">ошибок в датах</span></span>
       </div>
     </div>
-    <div class="stack stack--tight">
-      <div class="gantt__row"><span class="t-sm">Подготовительные работы</span><div class="gantt__track"><div class="gantt__bar" data-from="0" data-to="8"></div></div><span class="t-sm t-secondary">—</span><span class="num">100 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Электрики Евгения</span><span class="num">62 %</span></div>
-      <p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p>
-      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Бригада Фархата</span><span class="num">59 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Вентиляция</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="38" data-to="48"></div></div><span class="t-sm t-secondary">Алексей</span><span class="num">0 %</span></div>
-      <p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p>
-      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Бригада Рашида</span><span class="num">12 %</span></div>
+    <div class="gantt__canvas">
+      <div class="gantt__scale">
+        <span class="gantt__name t-cap">Этап</span>
+        <div>
+          <p class="gantt__month t-cap">Сентябрь 2026</p>
+          <div class="gantt__days"><span class="gantt__day">1</span><span class="gantt__day">2</span><span class="gantt__day">3</span><span class="gantt__day">4</span><span class="gantt__day gantt__day--off">5</span><span class="gantt__day gantt__day--off">6</span><span class="gantt__day">7</span><span class="gantt__day">8</span><span class="gantt__day gantt__day--today">9</span><span class="gantt__day">10</span><span class="gantt__day">11</span><span class="gantt__day gantt__day--off">12</span><span class="gantt__day gantt__day--off">13</span><span class="gantt__day">14</span><span class="gantt__day">15</span><span class="gantt__day">16</span><span class="gantt__day">17</span><span class="gantt__day">18</span><span class="gantt__day gantt__day--off">19</span><span class="gantt__day gantt__day--off">20</span><span class="gantt__day">21</span><span class="gantt__day">22</span><span class="gantt__day">23</span><span class="gantt__day">24</span><span class="gantt__day">25</span><span class="gantt__day gantt__day--off">26</span><span class="gantt__day gantt__day--off">27</span><span class="gantt__day">28</span><span class="gantt__day">29</span><span class="gantt__day">30</span></div>
+        </div>
+        <span class="gantt__pct t-cap">Готово</span>
+      </div>
+      <div class="gantt__body">
+        <div class="gantt__grid" aria-hidden="true"><div class="gantt__days"><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day gantt__day--today"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day gantt__day--off"></span><span class="gantt__day"></span><span class="gantt__day"></span><span class="gantt__day"></span></div></div>
+        <div class="gantt__row">
+          <div class="gantt__name">
+            <button class="gantt__move" type="button" aria-label="Переместить этап"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-move"></use></svg></button>
+            <span class="gantt__num">1</span>
+            <button class="gantt__title" type="button">Подготовительные работы</button>
+          </div>
+          <div class="gantt__track">
+            <div class="gantt__bar" style="--gantt-from:0;--gantt-span:4"><span class="gantt__handle"></span><span class="gantt__handle"></span></div>
+          </div>
+          <span class="gantt__pct num">100 %</span>
+        </div>
+        <div class="gantt__row">
+          <div class="gantt__name">
+            <button class="gantt__move" type="button" aria-label="Переместить этап"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-move"></use></svg></button>
+            <span class="gantt__num">2</span>
+            <button class="gantt__title" type="button">Черновая электрика</button>
+          </div>
+          <div class="gantt__track">
+            <div class="gantt__bar gantt__bar--late" style="--gantt-from:3;--gantt-span:6"><span class="gantt__handle"></span><span class="gantt__handle"></span></div>
+          </div>
+          <span class="gantt__pct num">62 %</span>
+        </div>
+        <p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p>
+        <div class="gantt__row">
+          <div class="gantt__name">
+            <button class="gantt__move" type="button" aria-label="Переместить этап"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-move"></use></svg></button>
+            <span class="gantt__num">3</span>
+            <button class="gantt__title" type="button">Штукатурка</button>
+          </div>
+          <div class="gantt__track">
+            <div class="gantt__bar" style="--gantt-from:8;--gantt-span:7"><span class="gantt__handle"></span><span class="gantt__handle"></span></div>
+          </div>
+          <span class="gantt__pct num">59 %</span>
+        </div>
+        <div class="gantt__row">
+          <div class="gantt__name">
+            <button class="gantt__move" type="button" aria-label="Переместить этап"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-move"></use></svg></button>
+            <span class="gantt__num">4</span>
+            <button class="gantt__title" type="button">Вентиляция</button>
+          </div>
+          <div class="gantt__track">
+            <div class="gantt__bar gantt__bar--late" style="--gantt-from:14;--gantt-span:5"><span class="gantt__handle"></span><span class="gantt__handle"></span></div>
+          </div>
+          <span class="gantt__pct num">0 %</span>
+        </div>
+        <p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p>
+        <div class="gantt__row">
+          <div class="gantt__name">
+            <button class="gantt__move" type="button" aria-label="Переместить этап"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-move"></use></svg></button>
+            <span class="gantt__num">5</span>
+            <button class="gantt__title" type="button">Плитка / ламинат</button>
+          </div>
+          <div class="gantt__track">
+            <div class="gantt__bar" style="--gantt-from:18;--gantt-span:9"><span class="gantt__handle"></span><span class="gantt__handle"></span></div>
+          </div>
+          <span class="gantt__pct num">12 %</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -705,10 +769,6 @@
   // Ширины полос задаются данными, а не стилем в разметке.
   for (const fill of document.querySelectorAll("[data-fill]")) {
     fill.style.width = fill.dataset.fill + "%";
-  }
-  for (const bar of document.querySelectorAll(".gantt__bar")) {
-    bar.style.left = bar.dataset.from + "%";
-    bar.style.width = (bar.dataset.to - bar.dataset.from) + "%";
   }
 
   // Переключатель темы: три состояния. Системное снимает признак —

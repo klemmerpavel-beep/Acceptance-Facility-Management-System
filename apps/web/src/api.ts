@@ -3,10 +3,12 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
+  workStageSchema,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
-  type CreateWorker, type Dashboard, type EstimateView, type ImportRecord,
+  type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
-  type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization, type WorkerRow,
+  type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
+  type UpdateWorkStage, type WorkerRow, type WorkStage,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -159,6 +161,40 @@ export function uploadPlan(code: string, file: File): Promise<MeasureView> {
 
 export const deletePlan = (code: string): Promise<MeasureView> =>
   request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "DELETE" });
+
+/* --- график производства работ ------------------------------------------
+   Каждый пишущий вызов возвращает список этапов целиком: перестановка
+   меняет половину строк, и собирать новый порядок на экране значило бы
+   завести вторую копию правил сортировки. */
+
+const stagesSchema = z.array(workStageSchema);
+
+export const fetchStages = (code: string): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages`, stagesSchema);
+
+export const createStage = (code: string, stage: CreateWorkStage): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages`, stagesSchema, json(stage));
+
+export const updateStage = (
+  code: string,
+  id: string,
+  stage: UpdateWorkStage,
+): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages/${id}`, stagesSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(stage),
+  });
+
+export const deleteStage = (code: string, id: string): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages/${id}`, stagesSchema, { method: "DELETE" });
+
+export const reorderStages = (code: string, ids: string[]): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages/order`, stagesSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
 
 /**
  * Адрес изображения плана. Не поле контракта: демонстрационная сборка
