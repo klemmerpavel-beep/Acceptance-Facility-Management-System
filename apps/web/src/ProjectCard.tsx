@@ -236,7 +236,11 @@ export function ProjectCard({
                     : plural(deadline.days, "день", "дня", "дней")}
                 </span>
               </div>
-              {project.readiness > 0 && <ReadinessScale share={project.readiness / 100} />}
+              {/* Готовность показывается только тогда, когда график заведён.
+                  Ноль означал бы «работа не начата», а не «мы не знаем». */}
+              {project.readiness !== null && project.readiness > 0 && (
+                <ReadinessScale share={project.readiness / 100} />
+              )}
             </div>
 
             <dl className="deflist">

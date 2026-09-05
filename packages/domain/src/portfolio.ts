@@ -62,7 +62,14 @@ export interface DeadlineRow {
 export interface PortfolioView {
   money: PortfolioMoney;
   statuses: { status: ProjectStatus; count: number }[];
-  projects: { total: number; withEstimate: number; overdue: number; dueSoon: number };
+  projects: {
+    total: number;
+    withEstimate: number;
+    overdue: number;
+    dueToday: number;
+    dueWeek: number;
+    dueSoon: number;
+  };
   estimate: {
     positions: number;
     findings: number;
@@ -108,6 +115,13 @@ export function workingDaysBetween(from: string, to: string): number {
 
 /** Срок считается близким за две недели: раньше на него не реагируют. */
 const SOON_DAYS = 14;
+
+/**
+ * Ближайшая неделя — семь дней, а не «до конца календарной недели».
+ * В понедельник вторая формулировка охватила бы пять дней, в субботу —
+ * один, и число на карточке меняло бы смысл в зависимости от дня захода.
+ */
+const WEEK_DAYS = 7;
 
 export function buildPortfolio(
   projects: readonly PortfolioProject[],
@@ -157,6 +171,8 @@ export function buildPortfolio(
       total: projects.length,
       withEstimate: projects.filter((project) => project.worksTotal !== null).length,
       overdue: dated.filter((row) => row.days < 0).length,
+      dueToday: dated.filter((row) => row.days === 0).length,
+      dueWeek: dated.filter((row) => row.days >= 0 && row.days <= WEEK_DAYS).length,
       dueSoon: dated.filter((row) => row.days >= 0 && row.days <= SOON_DAYS).length,
     },
     estimate: {

@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Post, UseGuards } from "@nestjs/common";
 import {
+  createClientSchema,
+  createWorkerSchema,
   updateOrganizationSchema,
   type ClientRow,
   type Organization,
@@ -19,6 +21,13 @@ export class DirectoryController {
   @Get("clients")
   clients(@CurrentUser() user: RequestUser): Promise<ClientRow[]> {
     return this.directory.clients(user);
+  }
+
+  /** Ответом идёт весь справочник: добавленная запись видна сразу. */
+  @Post("clients")
+  @Roles("OWNER")
+  createClient(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<ClientRow[]> {
+    return this.directory.createClient(user, createClientSchema.parse(body));
   }
 
   @Get("organization")
@@ -41,5 +50,11 @@ export class DirectoryController {
   @Get("workers")
   workers(@CurrentUser() user: RequestUser): Promise<WorkerRow[]> {
     return this.directory.workers(user);
+  }
+
+  @Post("workers")
+  @Roles("OWNER")
+  createWorker(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<WorkerRow[]> {
+    return this.directory.createWorker(user, createWorkerSchema.parse(body));
   }
 }

@@ -86,6 +86,31 @@ describe("сводка по портфелю", () => {
     expect(earlier.projects.dueSoon).toBe(1);
   });
 
+  it("срок сегодня и срок на неделе — три вложенных счётчика, а не три независимых", () => {
+    // 30.11.2026 — срок R-31. Заход в этот день, за пять дней и за десять.
+    const сегодня = buildPortfolio([R31], { today: "2026-11-30", role: "OWNER" });
+    expect(сегодня.projects.dueToday).toBe(1);
+    expect(сегодня.projects.dueWeek).toBe(1);
+    expect(сегодня.projects.dueSoon).toBe(1);
+
+    const заПять = buildPortfolio([R31], { today: "2026-11-25", role: "OWNER" });
+    expect(заПять.projects.dueToday).toBe(0);
+    expect(заПять.projects.dueWeek).toBe(1);
+
+    // Восемь дней — за пределами недели, но внутри двух: карточка «на неделе»
+    // обязана погаснуть раньше карточки «близкий срок».
+    const заВосемь = buildPortfolio([R31], { today: "2026-11-22", role: "OWNER" });
+    expect(заВосемь.projects.dueWeek).toBe(0);
+    expect(заВосемь.projects.dueSoon).toBe(1);
+  });
+
+  it("просроченный объект в счётчики предстоящих сроков не попадает", () => {
+    const view = buildPortfolio([R99], { today: "2026-09-05", role: "OWNER" });
+    expect(view.projects.overdue).toBe(1);
+    expect(view.projects.dueToday).toBe(0);
+    expect(view.projects.dueWeek).toBe(0);
+  });
+
   it("завершённый объект в срочность не попадает", () => {
     const done = { ...R99, status: "DONE" as const };
     const view = buildPortfolio([done], { today: TODAY, role: "OWNER" });

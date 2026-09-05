@@ -1,86 +1,77 @@
 import { useEffect, useState } from "react";
-import type { Dashboard as DashboardData, ProjectEvent, ProjectStatus } from "@priyomka/contracts";
-import { formatKopecks, formatMeasure } from "@priyomka/ui";
+import type {
+  Dashboard as DashboardData,
+  ProjectEvent,
+  ProjectStatus,
+  ProjectSummary,
+} from "@priyomka/contracts";
 import { fetchDashboard, errorMessage } from "./api.js";
-import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
-
-const money = (value: string): string => formatKopecks(BigInt(value));
-const area = (value: string): string => formatMeasure(BigInt(value), "м²");
-
-const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+import { PlanStrip } from "./PlanStrip.js";
+import { ProjectTable } from "./ProjectTable.js";
+import { formatDay, formatTime, plural } from "./status.js";
 
 /**
- * Величина ряда сводки: подпись, число, вторая величина под ним.
+ * Главная — первый экран при запуске.
  *
- * Не карточка. Четыре одинаковые рамки на первом экране уравнивают величины
- * в весе, и главную приходится искать. Здесь числа лежат на полотне,
- * разделяются волосяной линией, а ведущая величина крупнее прочих.
+ * Единственный пользователь продукта открывает его утром перед выездом на
+ * две-три минуты и решает по первому экрану, никуда не кликая. Отсюда
+ * состав, сверху вниз: четыре числа, отвечающих на вопрос «что горит
+ * сегодня»; план работ во времени; объекты таблицей.
+ *
+ * Чего здесь нет и почему
+ * -----------------------
+ * Плиток объектов с прогрессом нет: таблица под ними показывала бы те же
+ * данные вторым способом, и человеку пришлось бы решать, какому из двух
+ * представлений верить.
+ *
+ * Денежных величин портфеля нет. Они по-прежнему считаются и приходят в
+ * ответе сводки, но экран отвечает на вопрос о работе, а не о деньгах, и
+ * четыре денежных числа наверху сдвинули бы сроки под сгиб.
+ *
+ * Ленты событий нет: она переехала за колокол в шапке, туда, где её ищут
+ * по эталону.
  */
-function SummaryFigure({
-  label,
-  value,
-  caption,
-  second,
-  lead,
-}: {
-  label: string;
-  value: string;
-  caption: string;
-  second: { value: string; caption: string; tone?: "danger" };
-  lead?: boolean;
-}): React.JSX.Element {
-  return (
-    <div className={lead === true ? "figure figrow__lead" : "figure"}>
-      <span className="figure__label">{label}</span>
-      <span className="figure__value">{value}</span>
-      <span className="figure__note">{caption}</span>
-      <span className="figrow__second">
-        <span className={second.tone === "danger" ? "num num--start num--danger" : "num num--start"}>
-          {second.value}
-        </span>
-        <span className="figure__note">{second.caption}</span>
-      </span>
-    </div>
-  );
-}
+
+/** Порог ленты объектов в таблице главной: дальше — раздел «Проекты». */
+const TABLE_LIMIT = 25;
 
 /**
- * Классы пишутся целиком, а не собираются шаблоном из кусков: собранный
- * класс не находится поиском по разметке, и механическая проверка мёртвых
- * правил дизайн-системы становится слепой.
+ * Числовая карточка эталона: линейная иконка, надзаголовок капсом, крупное
+ * число, подпись под ним.
+ *
+ * Число набрано пропорциональными цифрами, а не табличными: `tabular-nums`
+ * даёт каждой цифре ширину нуля, и «12» на 28 пикселях выглядит разреженной.
+ * Табличные цифры остаются там, где числа стоят столбцом, — в таблице ниже.
  */
-const COUNTER_CLASS = {
-  plain: "counterstrip__count",
-  danger: "counterstrip__count counterstrip__count--danger",
-} as const;
-
-const EVENT_CLASS = {
-  neutral: "daycard__event",
-  ok: "daycard__event daycard__event--ok",
-  warn: "daycard__event daycard__event--warn",
-  danger: "daycard__event daycard__event--danger",
-} as const;
-
-function Counter({
-  value,
+function StatCard({
+  icon,
   label,
+  value,
+  note,
   tone,
-  onClick,
+  onOpen,
 }: {
-  value: number | string;
+  icon: string;
   label: string;
+  value: number;
+  note: string;
   tone?: "danger";
-  onClick?: () => void;
+  onOpen?: () => void;
 }): React.JSX.Element {
   const body = (
     <>
-      <span>{label}</span>
-      <span className={tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger}>{value}</span>
+      <svg className="icon statcard__icon" aria-hidden="true"><use href={icon} /></svg>
+      <span className="statcard__label">{label}</span>
+      <span className={`statcard__value${tone === undefined ? "" : " statcard__value--danger"}`}>
+        {value}
+      </span>
+      <span className="statcard__note">{note}</span>
     </>
   );
-  if (onClick === undefined) return <div className="counterstrip__item">{body}</div>;
-  return (
-    <button type="button" className="counterstrip__item" onClick={onClick}>
+  return onOpen === undefined ? (
+    <div className="statcard">{body}</div>
+  ) : (
+    <button type="button" className="statcard statcard--link" onClick={onOpen}>
       {body}
     </button>
   );
@@ -95,58 +86,6 @@ function Counter({
  * журнал объекта.
  */
 const FEED_LIMIT = 8;
-
-/**
- * Ступень конвейера объекта.
- *
- * Показывает охват портфеля: сколько объектов прошло эту ступень из
- * скольких. Ступень, которой в продукте ещё нет, показывает честный ноль и
- * называет стадию, на которой появится, — правдоподобное число вместо нуля
- * разрушило бы доверие к остальным числам экрана.
- *
- * Ступени не кликабельны намеренно. Правило 4 карты разделов требует, чтобы
- * счётчик вёл в отфильтрованный список; фильтра по ступени конвейера в
- * реестре пока нет, а счётчик, ведущий в тот же нефильтрованный список,
- * нарушает правило сильнее, чем обычная величина.
- */
-function Stage({
-  name,
-  done,
-  total,
-  detail,
-  stage,
-}: {
-  name: string;
-  done: number;
-  total: number;
-  detail: string;
-  stage?: string;
-}): React.JSX.Element {
-  const share = total === 0 ? 0 : Math.round((done / total) * 100);
-  return (
-    <div className="pipeline__step">
-      <div className="pipeline__head">
-        <span className="t-h3">{name}</span>
-        <span className="num pipeline__count">
-          {done}<span className="pipeline__of"> из {total}</span>
-        </span>
-      </div>
-      <div className="scale">
-        <div
-          className="scale__track"
-          role="img"
-          aria-label={`${name}: ${done} из ${total} объектов`}
-        >
-          <span className="scale__fill" style={{ inlineSize: `${String(share)}%` }} />
-        </div>
-      </div>
-      <p className="pipeline__detail">
-        {detail}
-        {stage !== undefined && <span className="pill">{stage}</span>}
-      </p>
-    </div>
-  );
-}
 
 export function EventFeed({
   events,
@@ -195,18 +134,29 @@ export function EventFeed({
   );
 }
 
+/** Статусы, при которых объект считается активным: работа по нему идёт или вот-вот пойдёт. */
+const ACTIVE: readonly ProjectStatus[] = ["NEW", "IN_PROGRESS", "WAITING_CLIENT"];
+
 export function Dashboard({
+  projects,
+  today,
   onOpenProjects,
+  onOpen,
+  onAdd,
 }: {
+  projects: ProjectSummary[];
+  today: string;
   onOpenProjects: (status: ProjectStatus | null) => void;
+  onOpen: (project: ProjectSummary) => void;
+  onAdd: () => void;
 }): React.JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchDashboard()
-      .then((result) => { setData(result); setError(null); })
-      .catch((cause: unknown) => setError(errorMessage(cause)));
+      .then(setData)
+      .catch((cause: unknown) => { setError(errorMessage(cause)); });
   }, []);
 
   if (error !== null) {
@@ -220,9 +170,19 @@ export function Dashboard({
     );
   }
 
+  /**
+   * Загрузка показывает форму того, что придёт: четыре плашки карточек и
+   * три полосы под ними. Скелет в форме будущей разметки не даёт экрану
+   * дёрнуться, когда данные приедут.
+   */
   if (data === null) {
     return (
-      <main className="container stack" aria-busy="true">
+      <main className="container stack stack--loose" aria-busy="true">
+        <div className="statrow">
+          {[0, 1, 2, 3].map((index) => (
+            <span className="skeleton statcard" key={index} />
+          ))}
+        </div>
         <span className="skeleton skeleton--row" />
         <span className="skeleton skeleton--row" />
         <span className="skeleton skeleton--row" />
@@ -230,228 +190,88 @@ export function Dashboard({
     );
   }
 
-  const discrepancy = BigInt(data.estimate.discrepancy);
+  /**
+   * Портфеля нет вовсе. Экран называет работу, а не показывает четыре нуля:
+   * ряд нулей в карточках читается как поломка, а не как пустота.
+   */
+  if (data.projects.total === 0) {
+    return (
+      <main className="container">
+        <div className="empty">
+          <p className="empty__title">Объектов пока нет</p>
+          <p className="empty__text">
+            Заведите первый объект — и здесь появятся сроки, план работ во времени и то,
+            что требует внимания сегодня.
+          </p>
+          <button type="button" className="btn btn--primary" onClick={onAdd}>
+            <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+            Добавить объект
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const активные = data.statuses
+    .filter((row) => ACTIVE.includes(row.status))
+    .reduce((total, row) => total + row.count, 0);
 
   return (
     <main className="container stack stack--loose">
-      <section className="figrow">
-        <SummaryFigure
-          lead
-          label="Портфель"
-          value={money(data.money.estimate)}
-          caption="итог смет для клиентов"
-          second={{ value: money(data.money.supervision), caption: "в том числе сопровождение" }}
+      <section className="statrow">
+        <StatCard
+          icon="#i-object"
+          label="Активные объекты"
+          value={активные}
+          note={`всего в портфеле ${String(data.projects.total)}`}
+          onOpen={() => { onOpenProjects(null); }}
         />
-        {/* Подпись величины называет число под собой, а не второе рядом:
-            иначе крупная сумма читается как расхождение. Ведущее здесь —
-            работы, недосчёт импорта идёт второй величиной. */}
-        <SummaryFigure
-          label="Работы"
-          value={money(data.money.works)}
-          caption="без надбавки за сопровождение"
-          second={{
-            value: money(data.estimate.discrepancy),
-            caption:
-              discrepancy === 0n
-                ? "пересчёт сошёлся с итогом файлов"
-                : `недосчёт в файлах · объектов: ${data.estimate.projectsWithDiscrepancy}`,
-            ...(discrepancy === 0n ? {} : { tone: "danger" as const }),
-          }}
+        <StatCard
+          icon="#i-alert"
+          label="Просрочены"
+          value={data.projects.overdue}
+          note={data.projects.overdue === 0 ? "срок не нарушен ни на одном" : "срок сдачи прошёл"}
+          {...(data.projects.overdue > 0 ? { tone: "danger" as const } : {})}
         />
-        {/* Фонд оплаты труда приходит только руководителю: у прораба этого
-            поля нет в ответе сервера, и величина не рисуется вовсе. */}
-        {data.money.wage !== undefined && (
-          <SummaryFigure
-            label="Фонд оплаты труда"
-            value={money(data.money.wage)}
-            caption="по действующим сметам"
-            second={{
-              value: money((BigInt(data.money.works) - BigInt(data.money.wage)).toString()),
-              caption: "валовая разница к работам",
-            }}
-          />
-        )}
-      </section>
-
-      {/* Конвейер объекта. Первый экран отвечает на вопрос «что требует
-          внимания сегодня», и охват портфеля отвечает на него прямее
-          прочего: он показывает, где работа стоит. Порядок ступеней —
-          порядок конвейера, а не важности. */}
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">Конвейер объекта</h2>
-          <p className="t-sm t-muted">охват портфеля по ступеням</p>
-        </div>
-        <div className="pipeline">
-          <Stage
-            name="Замер"
-            done={data.measure.projects}
-            total={data.projects.total}
-            detail={
-              data.measure.rooms === 0
-                ? "обмер не внесён ни на одном объекте"
-                : `${String(data.measure.rooms)} ${plural(data.measure.rooms, "помещение", "помещения", "помещений")}, ${area(data.measure.floorArea)}`
-            }
-          />
-          <Stage
-            name="Смета"
-            done={data.projects.withEstimate}
-            total={data.projects.total}
-            detail={`${String(data.estimate.positions)} ${plural(data.estimate.positions, "позиция", "позиции", "позиций")} работ`}
-          />
-          <Stage
-            name="Работа"
-            done={0}
-            total={data.projects.total}
-            detail="график производства работ"
-            stage="стадия C.3"
-          />
-          <Stage
-            name="Приёмка"
-            done={0}
-            total={data.projects.total}
-            detail={`${String(data.acceptance.pending)} ${plural(data.acceptance.pending, "позиция ждёт", "позиции ждут", "позиций ждут")} приёмки`}
-            stage="стадия D"
-          />
-          <Stage
-            name="Документы"
-            done={data.acceptance.acts}
-            total={data.projects.total}
-            detail="акты по принятым позициям"
-            stage="стадия D"
-          />
-        </div>
+        <StatCard
+          icon="#i-schedule"
+          label="Срок сегодня"
+          value={data.projects.dueToday}
+          note={data.projects.dueToday === 0 ? "на сегодня сроков нет" : "сдать до конца дня"}
+        />
+        <StatCard
+          icon="#i-calendar"
+          label="Срок на неделе"
+          value={data.projects.dueWeek}
+          note="ближайшие семь дней"
+        />
       </section>
 
       <section className="stack">
         <div className="section-head">
-          <h2 className="t-h2">Неделя</h2>
+          <h2 className="t-h2">План работ</h2>
+          <p className="t-sm t-muted">
+            этапы объектов во времени, текущий день отмечен · прогресс заявленный
+          </p>
         </div>
-        <div className="weekstrip">
-          {data.week.map((day) => {
-            const date = new Date(day.date);
-            const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
-            return (
-              <div
-                className={
-                  day.isToday
-                    ? "daycard daycard--today"
-                    : day.events.length === 0
-                      ? "daycard daycard--empty"
-                      : "daycard"
-                }
-                key={day.date}
-              >
-                <p className="daycard__head">
-                  <span className="daycard__date">{day.date.slice(8)}</span>
-                  <span className="daycard__weekday">{weekday}</span>
-                </p>
-                {day.events.map((event, index) => (
-                  <span className={EVENT_CLASS[event.tone]} key={`${event.kind}-${index}`}>
-                    {event.title}
-                  </span>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        {/* Пустота названа один раз строкой под полосой, а не пять раз
-            повторённой фразой в пустых днях: повтор одной и той же подписи
-            читается как шум и мешает увидеть день, где событие есть. */}
-        {data.week.every((day) => day.events.length === 0) && (
-          <p className="t-sm t-muted">На этой неделе событий нет.</p>
-        )}
+        <PlanStrip projects={projects} today={today} onOpen={onOpen} />
       </section>
 
-      <section className="split">
-        <div className="stack">
-          <div className="section-head">
-            <h2 className="t-h2">Объекты</h2>
-            <button type="button" className="btn btn--text" onClick={() => onOpenProjects(null)}>
-              Все объекты
-            </button>
-          </div>
-          <div className="counterstrip">
-            {data.statuses.map((row) => (
-              <Counter
-                key={row.status}
-                value={row.count}
-                label={STATUS_LABEL[row.status]}
-                onClick={() => onOpenProjects(row.status)}
-              />
-            ))}
-            {data.projects.overdue > 0 && (
-              <Counter value={data.projects.overdue} label="Просрочены" tone="danger" />
-            )}
-            {data.projects.dueSoon > 0 && (
-              <Counter value={data.projects.dueSoon} label="Срок ближе двух недель" />
-            )}
-          </div>
+      <section className="stack">
+        <div className="section-head">
+          <h2 className="t-h2">Объекты</h2>
+          <button type="button" className="btn btn--primary" onClick={onAdd}>
+            <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+            Добавить объект
+          </button>
         </div>
-
-        {/* Принятых позиций и актов здесь нет: до стадии D эти величины
-            структурно нулевые, а ноль, который не может стать другим
-            числом, — украшение. Строка о приёмке живёт в «Что дальше». */}
-        <div className="stack">
-          <div className="section-head">
-            <h2 className="t-h2">Сметы</h2>
-            <span className="t-sm t-muted">
-              загружено: {data.projects.withEstimate} из {data.projects.total}{" "}
-              {plural(data.projects.total, "объекта", "объектов", "объектов")}
-            </span>
-          </div>
-          <div className="counterstrip">
-            <Counter value={data.estimate.positions} label="Позиций" />
-            <Counter
-              value={data.estimate.findings}
-              label="Находок в отчётах импорта"
-              {...(data.estimate.findings > 0 ? { tone: "danger" as const } : {})}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="split">
-        <div className="stack">
-          <div className="section-head">
-            <h2 className="t-h2">Ближайшие сроки</h2>
-          </div>
-          {data.deadlines.length === 0 ? (
-            <div className="empty">
-              <p className="empty__title">Сроков нет</p>
-              <p className="empty__text">Ни у одного действующего объекта не задан дедлайн.</p>
-            </div>
-          ) : (
-            <dl className="deflist">
-              {data.deadlines.map((row) => (
-                <div className="deflist__row" key={row.code}>
-                  <dt className="deflist__term">
-                    <span className="code-badge">{row.code}</span> {row.address}
-                  </dt>
-                  <dd className={row.days < 0 ? "deflist__value num--danger" : "deflist__value"}>
-                    {row.days < 0
-                      ? `просрочен на ${Math.abs(row.days)} ${plural(row.days, "день", "дня", "дней")}`
-                      : `${row.days} ${plural(row.days, "день", "дня", "дней")}`}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-
-        <div className="stack">
-          <div className="section-head">
-            <h2 className="t-h2">Последние события</h2>
-          </div>
-          {data.feed.length === 0 ? (
-            <div className="empty">
-              <p className="empty__title">Событий пока нет</p>
-              <p className="empty__text">Импорт сметы и смена статуса объекта попадают сюда.</p>
-            </div>
-          ) : (
-            <EventFeed events={data.feed} />
-          )}
-        </div>
+        <ProjectTable
+          projects={projects}
+          today={today}
+          limit={TABLE_LIMIT}
+          onOpen={onOpen}
+          onAll={() => { onOpenProjects(null); }}
+        />
       </section>
     </main>
   );

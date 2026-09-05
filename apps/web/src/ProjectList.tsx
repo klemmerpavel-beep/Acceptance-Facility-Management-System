@@ -1,119 +1,12 @@
 import { useState } from "react";
-import type { ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
+import type { ProjectStatus, ProjectSummary } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { DataTable, type Column } from "./DataTable.js";
+import { DataTable } from "./DataTable.js";
 import { MOBILE, useMediaQuery } from "./media.js";
-import { STATUS_LABEL, STATUS_ORDER, STATUS_PILL, formatDate, plural } from "./status.js";
+import { deadlineCell, projectColumns } from "./ProjectTable.js";
+import { STATUS_LABEL, STATUS_ORDER, STATUS_PILL } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
-
-/** Срок объекта в человеческом виде: просрочка называется просрочкой. */
-function deadlineCell(deadline: string | null, today: string): React.JSX.Element {
-  if (deadline === null) return <span className="t-muted">не задан</span>;
-  const days = Math.round(
-    (Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
-  );
-  return (
-    <span className={days < 0 ? "num--danger" : undefined}>
-      {formatDate(deadline)}
-      <span className="t-sm t-muted">
-        {days < 0
-          ? ` · просрочен на ${Math.abs(days)} ${plural(days, "день", "дня", "дней")}`
-          : ` · ${days} ${plural(days, "день", "дня", "дней")}`}
-      </span>
-    </span>
-  );
-}
-
-/**
- * Колонки объекта. Сортируется каждая (норматив 5.14): срок — по дате, а не
- * по её показному виду, итог сметы — по копейкам, а не по строке с
- * разрядами. Отсутствующее значение сортировкой уходит вниз.
- */
-function projectColumns(
-  today: string,
-  onOpen: (project: ProjectSummary) => void,
-  shown: readonly ProjectSummary[],
-): readonly Column<ProjectSummary>[] {
-  /* Колонка, пустая во всей выборке, места не занимает: «Прораб» стоял
-     прочерком в шести строках из восьми, «Итог сметы» — «сметы нет» в семи
-     из восьми, и вдвоём они держали 15 % ширины (реестр Д-15). */
-  const anyForeman = shown.some((project) => project.foreman !== null);
-  const anyEstimate = shown.some((project) => project.estimateTotal !== null);
-  const columns: Column<ProjectSummary>[] = [
-    {
-      key: "code",
-      label: "Код",
-      value: (project) => project.code,
-      render: (project) => <span className="code-badge">{project.code}</span>,
-    },
-    {
-      key: "address",
-      label: "Адрес",
-      value: (project) => project.address,
-      render: (project) => (
-        // Ссылка, а не строка с обработчиком: объект открывается и
-        // клавиатурой, и в новой вкладке средствами браузера.
-        <a
-          href={`#${project.code}`}
-          onClick={(event) => { event.preventDefault(); onOpen(project); }}
-        >
-          {project.address}
-        </a>
-      ),
-    },
-    {
-      key: "client",
-      label: "Заказчик",
-      // Ищется и по коду, показывается именем: код заказчика — служебная
-      // величина справочника, в списке объектов её читать не нужно.
-      value: (project) => `${project.client.name} ${project.client.code}`,
-      render: (project) => project.client.name,
-    },
-    {
-      key: "status",
-      label: "Статус",
-      value: (project) => STATUS_LABEL[project.status],
-      render: (project) => (
-        <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-      ),
-    },
-
-    {
-      key: "deadline",
-      label: "Срок",
-      value: (project) => project.deadline,
-      render: (project) => deadlineCell(project.deadline, today),
-    },
-  ];
-
-  if (anyForeman) {
-    columns.push({
-      key: "foreman",
-      label: "Прораб",
-      value: (project) => project.foreman?.name ?? null,
-      render: (project) => project.foreman?.name ?? "—",
-    });
-  }
-  if (anyEstimate) {
-    columns.push({
-      key: "total",
-      label: "Итог сметы",
-      value: (project) => (project.estimateTotal === null ? null : BigInt(project.estimateTotal)),
-      render: (project) =>
-        project.estimateTotal === null ? (
-          <span className="t-muted">сметы нет</span>
-        ) : (
-          <>
-            {money(project.estimateTotal)}
-            <span className="t-sm t-muted"> · {project.positions} поз.</span>
-          </>
-        ),
-      numeric: true,
-    });
-  }
-  return columns;
-}
 
 /**
  * Объект на телефоне — карточка, а не строка таблицы. Таблица из семи
@@ -164,18 +57,18 @@ function ProjectCardRow({
 
 export function ProjectList({
   projects,
-  role,
   today,
   filter,
   onFilter,
   onOpen,
+  onAdd,
 }: {
   projects: ProjectSummary[];
-  role: Role;
   today: string;
   filter: ProjectStatus | null;
   onFilter: (status: ProjectStatus | null) => void;
   onOpen: (project: ProjectSummary) => void;
+  onAdd: () => void;
 }): React.JSX.Element {
   // Подписка объявляется до раннего возврата: порядок вызова хуков не
   // должен зависеть от того, пуст список или нет.
@@ -187,10 +80,12 @@ export function ProjectList({
       <div className="empty">
         <p className="empty__title">Объектов пока нет</p>
         <p className="empty__text">
-          {role === "FOREMAN"
-            ? "Вас не назначили прорабом ни на один объект."
-            : "Заведите первый объект, чтобы импортировать смету."}
+          Заведите первый объект: с него начинается замер, смета и всё остальное.
         </p>
+        <button type="button" className="btn btn--primary" onClick={onAdd}>
+          <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+          Добавить объект
+        </button>
       </div>
     );
   }
@@ -207,6 +102,14 @@ export function ProjectList({
 
   return (
     <div className="stack">
+      <div className="section-head">
+        <h2 className="t-h2">Портфель</h2>
+        <button type="button" className="btn btn--primary" onClick={onAdd}>
+          <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+          Добавить объект
+        </button>
+      </div>
+
       {/* Фильтр по статусу. Счётчик стоит рядом с названием: иначе выбор
           вслепую приводит к пустой таблице. */}
       <div className="segmented" role="group" aria-label="Статус объекта">
