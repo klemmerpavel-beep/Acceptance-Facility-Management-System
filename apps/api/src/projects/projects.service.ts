@@ -1,6 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { ProjectEvent, ProjectSummary } from "@priyomka/contracts";
-import { basisPoints, clientTotals } from "@priyomka/domain";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { CreateProject, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
+import { basisPoints, clientTotals, projectReadiness } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
@@ -26,7 +31,7 @@ export class ProjectsService {
   async list(user: RequestUser): Promise<ProjectSummary[]> {
     const projects = await this.prisma.project.findMany({
       where: projectScope(user),
-      include: { client: true, foreman: true },
+      include: { client: true, foreman: true, workStages: STAGES },
       orderBy: { code: "asc" },
     });
     const facts = await estimateFacts(this.prisma, projects.map((project) => project.id));
@@ -36,13 +41,64 @@ export class ProjectsService {
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
     const project = await this.prisma.project.findFirst({
       where: { ...projectScope(user), code },
-      include: { client: true, foreman: true },
+      include: { client: true, foreman: true, workStages: STAGES },
     });
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
     const facts = await estimateFacts(this.prisma, [project.id]);
     return toSummary(project, facts.get(project.id));
+  }
+
+  /**
+   * Заведение объекта.
+   *
+   * Заказчик обязателен и берётся из справочника: объект без заказчика не
+   * бьётся ни со сметой, ни со счётом, а «завести на потом» означает
+   * завести навсегда. Прораб и дата начала не спрашиваются — их назначают
+   * тогда, когда бригада действительно выходит.
+   */
+  async create(user: RequestUser, input: CreateProject): Promise<ProjectSummary> {
+    const client = await this.prisma.client.findFirst({
+      where: { orgId: user.orgId, id: input.clientId },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new BadRequestException({ message: "Заказчик не найден в справочнике." });
+    }
+
+    const занят = await this.prisma.project.findUnique({
+      where: { orgId_code: { orgId: user.orgId, code: input.code } },
+      select: { id: true },
+    });
+    if (занят) {
+      throw new BadRequestException({
+        message: `Объект ${input.code} уже заведён. Код объекта сквозной: два объекта с одним кодом разойдутся в почте и в актах.`,
+      });
+    }
+
+    const project = await this.prisma.project.create({
+      data: {
+        orgId: user.orgId,
+        code: input.code,
+        address: input.address,
+        clientId: client.id,
+        deadline: input.deadline === null ? null : new Date(input.deadline),
+      },
+      select: { id: true },
+    });
+
+    await this.audit.record({
+      orgId: user.orgId,
+      actorId: user.id,
+      entity: "Project",
+      entityId: project.id,
+      field: "создан",
+      oldValue: null,
+      newValue: `${input.code} — ${input.address}`,
+    });
+
+    return this.byCode(user, input.code);
   }
 
   /**
@@ -185,7 +241,24 @@ interface ProjectRow {
   supervisionShare: number;
   client: { code: string; name: string; isCompany: boolean; requisites: string | null };
   foreman: { id: string; name: string } | null;
+  workStages: StageRow[];
 }
+
+interface StageRow {
+  id: string;
+  name: string;
+  order: number;
+  startsOn: Date;
+  endsOn: Date;
+  progress: number;
+}
+
+/**
+ * Этапы приходят вместе с объектом одним запросом и в порядке ведения.
+ * Отдельным обращением на объект полоса плана стоила бы сотни запросов на
+ * один экран — ровно то, чем оборачивается ленивая связь в списке.
+ */
+const STAGES = { orderBy: { order: "asc" } } as const;
 
 const asDate = (value: Date | null): string | null =>
   value === null ? null : value.toISOString().slice(0, 10);
@@ -197,6 +270,13 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
     facts === undefined
       ? null
       : clientTotals(facts.works, basisPoints(facts.supervisionShare));
+  const readiness = projectReadiness(
+    project.workStages.map((stage) => ({
+      startsOn: stage.startsOn.toISOString().slice(0, 10),
+      endsOn: stage.endsOn.toISOString().slice(0, 10),
+      progress: basisPoints(stage.progress),
+    })),
+  );
   return {
     id: project.id,
     code: project.code,
@@ -216,9 +296,19 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
     estimateTotal: totals === null ? null : totals.total.toString(),
     estimateVersion: facts?.version ?? null,
     positions: facts?.positions ?? 0,
-    // Готовность считается по приёмкам. Их пока нет, и ноль здесь честный:
-    // подставлять долю импортированных позиций было бы выдумкой.
-    readiness: 0,
+    // Готовность взвешена по длительности этапов (packages/domain/src/schedule.ts).
+    // Объект без графика получает null, а не ноль: «работа не начата» и
+    // «график не заведён» — разные утверждения, и одно число на оба лишило
+    // бы читателя возможности их различить.
+    readiness: readiness === null ? null : Number(readiness),
+    stages: project.workStages.map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      order: stage.order,
+      startsOn: stage.startsOn.toISOString().slice(0, 10),
+      endsOn: stage.endsOn.toISOString().slice(0, 10),
+      progress: stage.progress,
+    })),
   };
 }
 

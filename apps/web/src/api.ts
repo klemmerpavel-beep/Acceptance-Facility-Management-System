@@ -3,7 +3,8 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  type ClientRow, type CreateMeasureRoom, type Dashboard, type EstimateView, type ImportRecord,
+  type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
+  type CreateWorker, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization, type WorkerRow,
 } from "@priyomka/contracts";
@@ -179,6 +180,24 @@ export const fetchWorkers = (): Promise<WorkerRow[]> =>
 
 export const fetchEvents = (code: string): Promise<ProjectEvent[]> =>
   request(`/projects/${code}/events`, z.array(eventSchema));
+
+/** Тело запроса на заведение записи. Одна форма на три маршрута. */
+const заведение = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/** Ответ — заведённая карточка, а не признак успеха: экран показывает её сразу. */
+export const createProject = (input: CreateProject): Promise<ProjectSummary> =>
+  request("/projects", projectSummarySchema, заведение(input));
+
+/** Ответ — весь справочник: список на экране обновляется целиком, без второго запроса. */
+export const createClient = (input: CreateClient): Promise<ClientRow[]> =>
+  request("/clients", z.array(clientRowSchema), заведение(input));
+
+export const createWorker = (input: CreateWorker): Promise<WorkerRow[]> =>
+  request("/workers", z.array(workerRowSchema), заведение(input));
 
 /** Смена статуса объекта. Ответ — обновлённая карточка, а не признак успеха. */
 export const setProjectStatus = (

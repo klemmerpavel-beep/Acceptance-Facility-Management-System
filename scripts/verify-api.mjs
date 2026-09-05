@@ -255,6 +255,74 @@ if (probeId !== undefined) {
   check(cleaned.totals?.floorArea === "80530", `после уборки итог ${cleaned.totals?.floorArea} вместо 80530`);
 }
 
+/**
+ * График производства работ: готовность считается из этапов и совпадает с
+ * доменным правилом. 8557 — то же число, что в schedule.test.ts; если
+ * сервер посчитает иначе, полоса плана и таблица разойдутся.
+ */
+const списокОбъектов = await owner("/projects").then((r) => r.json());
+const R99строка = списокОбъектов.find((project) => project.code === "R-99");
+check(R99строка?.stages?.length === 7, `у R-99 этапов ${R99строка?.stages?.length} вместо 7`);
+check(R99строка?.readiness === 8557, `готовность R-99 ${R99строка?.readiness} вместо 8557`);
+const безГрафика = списокОбъектов.find((project) => project.code === "R-42");
+check(безГрафика?.readiness === null, `объект без этапов даёт готовность ${безГрафика?.readiness}, а не «не задано»`);
+check(безГрафика?.stages?.length === 0, "у объекта без графика оказались этапы");
+
+/**
+ * Счётчики срочности вложены: сегодня ⊆ неделя ⊆ две недели. Разъехавшись,
+ * они дали бы на главной три числа, противоречащих друг другу.
+ */
+const срочность = ownerSummary.projects;
+check(
+  срочность.dueToday <= срочность.dueWeek && срочность.dueWeek <= срочность.dueSoon,
+  `счётчики срочности не вложены: сегодня ${срочность.dueToday}, неделя ${срочность.dueWeek}, две ${срочность.dueSoon}`,
+);
+
+/**
+ * Заведение записей: проверяются отказы.
+ *
+ * Удачное заведение здесь не проверяется намеренно. Маршрута удаления
+ * объекта, заказчика и работника в продукте нет, поэтому успешная проба
+ * оставила бы в портфеле лишнюю строку и сломала бы счёт объектов у
+ * следующей проверки. Обещание «сохранённая запись видна в списке сразу»
+ * проверяется живым прогоном браузера на свежем стенде — там оно и
+ * наблюдается, а не выводится из кода ответа.
+ */
+const создать = (who, path, body) =>
+  who(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+const заказчикR99 = ownerClients[0];
+
+const повторКодаОбъекта = await создать(owner, "/projects", {
+  code: "R-99", address: "Проверочная 1", clientId: заказчикR99?.id, deadline: null,
+});
+check(повторКодаОбъекта.status === 400, `повтор кода объекта прошёл с кодом ${повторКодаОбъекта.status}`);
+
+const повторКодаЗаказчика = await создать(owner, "/clients", {
+  code: заказчикR99?.code, name: "Двойник", isCompany: false, requisites: null,
+});
+check(повторКодаЗаказчика.status === 400, `повтор кода заказчика прошёл с кодом ${повторКодаЗаказчика.status}`);
+
+const чужойЗаказчик = await создать(owner, "/projects", {
+  code: "R-00", address: "Проверочная 1", clientId: "00000000-0000-4000-8000-00000000dead", deadline: null,
+});
+check(чужойЗаказчик.status === 400, `объект на несуществующего заказчика прошёл с кодом ${чужойЗаказчик.status}`);
+
+const прорабЗаводитОбъект = await создать(foreman, "/projects", {
+  code: "R-00", address: "Нельзя", clientId: заказчикR99?.id, deadline: null,
+});
+check(прорабЗаводитОбъект.status === 403, `прораб завёл объект с кодом ${прорабЗаводитОбъект.status}`);
+
+const прорабЗаводитЗаказчика = await создать(foreman, "/clients", {
+  code: "000", name: "Нельзя", isCompany: false, requisites: null,
+});
+check(прорабЗаводитЗаказчика.status === 403, `прораб завёл заказчика с кодом ${прорабЗаводитЗаказчика.status}`);
+
+const мусорВТеле = await создать(owner, "/projects", {
+  code: "плохой код", address: "x", clientId: "не uuid", deadline: null,
+});
+check(мусорВТеле.status === 400, `тело мимо схемы принято с кодом ${мусорВТеле.status}`);
+
 const anonymousMeasure = await fetch(`${BASE}/projects/R-99/measure`);
 check(anonymousMeasure.status === 401, `обмер отдан без сессии с кодом ${anonymousMeasure.status}`);
 
@@ -267,5 +335,7 @@ console.log(`Сводка: объектов у руководителя ${ownerS
   `заказчиков ${ownerClients.length} и ${foremanClients.length}`);
 console.log(`Обмер R-99: ${measure.rooms.length} помещений, площадь ${measure.totals.floorArea},`,
   `стены ${measure.totals.wallArea}, объём ${measure.totals.volume} тысячных`);
+console.log(`График R-99: ${R99строка?.stages?.length} этапов, готовность ${R99строка?.readiness} сотых процента;`,
+  `объектов без графика ${списокОбъектов.filter((project) => project.stages.length === 0).length}`);
 console.log(problems.length === 0 ? "\nРазграничение на уровне полей: замечаний нет" : "\nЗамечания:\n  " + problems.join("\n  "));
 process.exit(problems.length === 0 ? 0 : 1);

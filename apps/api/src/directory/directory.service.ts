@@ -1,5 +1,13 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import type { ClientRow, Organization, Unit, UpdateOrganization, WorkerRow } from "@priyomka/contracts";
+import type {
+  ClientRow,
+  CreateClient,
+  CreateWorker,
+  Organization,
+  Unit,
+  UpdateOrganization,
+  WorkerRow,
+} from "@priyomka/contracts";
 import { parseContactPhone } from "@priyomka/domain";
 import { unitAliases } from "@priyomka/importer";
 import { basisPoints, clientTotals, kopecks, sum, type Kopecks } from "@priyomka/domain";
@@ -26,11 +34,18 @@ export class DirectoryService {
       where: projectScope(user),
       select: { id: true, clientId: true, supervisionShare: true },
     });
-    if (projects.length === 0) return [];
 
     const facts = await estimateFacts(this.prisma, projects.map((project) => project.id));
+    // Руководитель видит справочник целиком, включая заказчиков без
+    // объектов: иначе заведённый заказчик исчезал бы из списка сразу после
+    // добавления и до того, как ему заведут первый объект. Прораб по
+    // прежнему видит только заказчиков доступных ему объектов — это
+    // разграничение видимости строк, а не полнота справочника.
     const clients = await this.prisma.client.findMany({
-      where: { orgId: user.orgId, id: { in: [...new Set(projects.map((p) => p.clientId))] } },
+      where:
+        user.role === "OWNER"
+          ? { orgId: user.orgId }
+          : { orgId: user.orgId, id: { in: [...new Set(projects.map((p) => p.clientId))] } },
       orderBy: { code: "asc" },
     });
 
@@ -121,6 +136,51 @@ export class DirectoryService {
       name: code,
       aliases: [...spellings],
     }));
+  }
+
+  /**
+   * Заведение заказчика. Код короткий и обиходный — «300», «118»: им
+   * заказчика называют в разговоре, и он идёт в тему письма вместе с кодом
+   * объекта. Двух заказчиков с одним кодом быть не может по той же
+   * причине, по какой не может быть двух объектов с кодом R-99.
+   */
+  async createClient(user: RequestUser, input: CreateClient): Promise<ClientRow[]> {
+    const занят = await this.prisma.client.findUnique({
+      where: { orgId_code: { orgId: user.orgId, code: input.code } },
+      select: { id: true },
+    });
+    if (занят) {
+      throw new BadRequestException({ message: `Заказчик с кодом ${input.code} уже заведён.` });
+    }
+    await this.prisma.client.create({
+      data: {
+        orgId: user.orgId,
+        code: input.code,
+        name: input.name,
+        isCompany: input.isCompany,
+        requisites: input.requisites,
+      },
+    });
+    return this.clients(user);
+  }
+
+  /**
+   * Заведение бригады или мастера. Ставка здесь не спрашивается:
+   * начисление всегда идёт по ставке позиции сметы, а не по ставке
+   * работника, и поле, которое ни на что не влияет, вводить незачем.
+   */
+  async createWorker(user: RequestUser, input: CreateWorker): Promise<WorkerRow[]> {
+    const занят = await this.prisma.worker.findUnique({
+      where: { orgId_name: { orgId: user.orgId, name: input.name } },
+      select: { id: true },
+    });
+    if (занят) {
+      throw new BadRequestException({ message: `«${input.name}» уже есть в справочнике.` });
+    }
+    await this.prisma.worker.create({
+      data: { orgId: user.orgId, name: input.name, kind: input.kind },
+    });
+    return this.workers(user);
   }
 
   async workers(user: RequestUser): Promise<WorkerRow[]> {

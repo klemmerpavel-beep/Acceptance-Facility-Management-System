@@ -164,7 +164,7 @@
 
 .figure { display: flex; flex-direction: column; gap: var(--space-1); }
 .figure + .figure { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.figure__label { font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+.figure__label { font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .figure__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
 .figure__value--h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); }
 .figure__note { font-size: var(--fs-sm); color: var(--ink-3); }
@@ -198,80 +198,7 @@
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
 .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
-.metric__label { font-family: var(--font-display); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
-
-/* --- Ряд сводных величин ---------------------------------------------------
-   Четыре величины подряд — это ряд чисел, а не четыре карточки. Рамка,
-   заливка и радиус вокруг каждой уравнивают их в весе и превращают первый
-   экран в поле одинаковых прямоугольников: именно это правило раздела
-   «Поверхности по роли» и запрещает. Величины лежат на полотне, разделяются
-   волосяной линией, и главная из них крупнее прочих.                       */
-.figrow { display: grid; grid-auto-flow: row; gap: var(--space-4); }
-.figrow > * { padding-block-start: var(--space-4); border-block-start: 1px solid var(--line); }
-.figrow > :first-child { padding-block-start: 0; border-block-start: 0; }
-@media (min-width: 768px) {
-  .figrow { grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; }
-  .figrow > * { padding: 0 var(--space-5); border-block-start: 0; border-inline-start: 1px solid var(--line); }
-  .figrow > :first-child { padding-inline-start: 0; border-inline-start: 0; }
-}
-/* Ведущая величина — та, за которой на экран и приходят. Она одна. */
-.figrow__lead .figure__value { font-size: var(--fs-display); line-height: var(--lh-display); }
-.figrow .figure__value { font-size: var(--fs-h2); line-height: var(--lh-h2); }
-.figrow__second { display: flex; flex-direction: column; gap: 2px; padding-top: var(--space-3); }
-
-/* --- Полоса счётчиков ------------------------------------------------------
-   Десять однозначных чисел в десяти карточках занимают половину первого
-   экрана. В полосе они читаются одним движением глаза: подпись слева,
-   число справа, строки разделены линией. Строка кликабельна целиком.      */
-.counterstrip { display: flex; flex-direction: column; }
-.counterstrip__item {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--tap-min);
-  padding: var(--space-2) 0;
-  border: 0; border-block-end: 1px solid var(--line);
-  background: none; text-align: start; color: inherit; font-family: inherit;
-  font-size: var(--fs-body);
-}
-.counterstrip__item:last-child { border-block-end: 0; }
-button.counterstrip__item { cursor: pointer; }
-button.counterstrip__item:hover { color: var(--accent); }
-.counterstrip__count { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-h3); font-weight: 600; }
-.counterstrip__count--danger { color: var(--danger); }
-
-/* --- Недельная полоса ------------------------------------------------------
-   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
-   Полоса прокручивается внутри себя, полотно страницы по горизонтали
-   не двигается.                                                            */
-/* Карточки выравниваются по верху, а не растягиваются: день с событием
-   выше пустого, и неделя читается как «здесь два события», а не как пять
-   пустых коробок одинаковой высоты. */
-.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
-  gap: var(--space-2); overflow-x: auto; align-items: start; }
-.daycard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-height: 96px;
-  padding: var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
-/* День без событий рамки не получает: семь одинаковых карточек, пять из
-   которых повторяют одну и ту же фразу, — это шум, а не сведения. Подпись
-   остаётся: пустота названа, а не оставлена без объяснения. */
-.daycard--empty { background: transparent; border-color: transparent;
-  min-height: 0; padding-block: var(--space-2); }
-.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
-.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
-.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
-.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
-.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
-.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
-.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
+.metric__label { font-family: var(--font-ui); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
 /* --- Лента событий ---------------------------------------------------------
    Время слева отдельной колонкой: события читают сверху вниз, и колонка
@@ -283,7 +210,7 @@ button.counterstrip__item:hover { color: var(--accent); }
 .feed--byday .feed__item { grid-template-columns: 56px minmax(0, 1fr); }
 .feed__item:last-child { border-bottom: 0; }
 .feed__day { padding: var(--space-4) 0 var(--space-2);
-  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+  font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3);
   border-block-end: 1px solid var(--line-strong); }
 .feed__day:first-child { padding-block-start: 0; }
@@ -328,12 +255,24 @@ button.counterstrip__item:hover { color: var(--accent); }
 /* Пункт «Ещё» — кнопка среди ссылок: сбрасываются её значения по умолчанию. */
 button.appbar__link { gap: var(--space-1); border: 0; background: none;
   font-family: inherit; cursor: pointer; }
-/* Имя работающего в шапке. На узком экране уступает место переключателю
-   темы и выходу: кто вошёл — видно на первом же экране. */
-.appbar__user { display: none; font-size: var(--fs-sm); opacity: .82; white-space: nowrap; }
-/* Имя появляется с 1024 px: до этой ширины его место занимают восемь
-   разделов, кнопка действий и переключатель темы. */
-@media (min-width: 1024px) { .appbar__user { display: inline; } }
+/* Блок работающего — пилюля с именем и аватаром, ведущая в настройки.
+   Это не четвёртый раздел: настройки правят раз в квартал, и место в ряду
+   навигации им не по частоте обращения. */
+.appbar__user { display: inline-flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); padding-inline: var(--space-2) var(--space-1);
+  border: 0; border-radius: var(--radius-pill); background: var(--on-band-fill);
+  color: var(--band-ink); font-family: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.appbar__user[aria-current="page"] { background: var(--band-active); color: var(--band-active-ink); }
+/* Имя появляется с 1024 px: до этой ширины его место занимают разделы.
+   Аватар остаётся — по нему блок находят и на узком экране. */
+.appbar__name { display: none; white-space: nowrap; }
+@media (min-width: 1024px) { .appbar__name { display: inline; } }
+.appbar__avatar { inline-size: 24px; block-size: 24px; flex: none; }
+.appbar__bell { display: inline-flex; align-items: center; justify-content: center;
+  inline-size: var(--tap-min); block-size: var(--tap-min); flex: none;
+  border: 0; border-radius: var(--radius-pill); background: none;
+  color: var(--band-ink); cursor: pointer; }
+.appbar__bell:hover { background: var(--on-band-fill); }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
@@ -428,12 +367,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    заголовок страницы; под ней начинается рабочее полотно. Приём даёт
    заметную обложку без отдельного сайдбара и отдаёт содержимому всю
    ширину экрана — главная структурная находка референса.               */
-/* Обложка лежит на полотне, а не на второй чернильной полосе. Шапка и
-   обложка одного цвета сливались в блок 140 px, который на реестре из
-   восьми строк занимал шестую часть экрана под одно слово, а в тёмной теме
-   терял границу с содержимым (реестр Д-16). */
-.cover { padding-block: var(--space-4) var(--space-3); border-block-end: 1px solid var(--line); }
-.cover__crumbs { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); color: var(--ink-3); }
+/* Редакция 2.0: обложка вернулась на полосу шапки. В редакции 1.7 она
+   ушла на полотно доводом, что шапка и обложка одного цвета сливаются в
+   блок 140 px. Довод снят вместе с чернильной полосой: индиго-обложка —
+   несущая часть раскладки эталона, а высота ограничена тем, что в ней
+   стоят ровно две строки — крошки и заголовок. */
+.cover { padding-block: var(--space-3) var(--space-5);
+  background: var(--band); color: var(--band-ink); }
+.cover .t-h1 { color: var(--band-ink); }
+.cover__crumbs { display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--fs-sm); color: var(--band-ink); opacity: .78; }
+.cover__crumbs > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .cover__crumbs a { color: inherit; text-decoration: none; }
 /* Рабочее полотно отделено от обложки отступом. */
 .cover + main { padding-block-start: var(--space-5); }
@@ -647,7 +591,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Подпись группы отделена волосяной линией, строки — без рамок.           */
 .deflist { display: flex; flex-direction: column; gap: var(--space-2); }
 .deflist__head { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);
-  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+  font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .deflist__row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .deflist__term { font-size: var(--fs-sm); color: var(--ink-2); }
@@ -655,9 +599,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
-/* Денежная величина в карточке сводки читается как заголовок блока и
-   выравнивается по началу строки, а не по колонке чисел таблицы. */
-.num--start { text-align: start; }
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */
@@ -700,7 +641,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   justify-content: space-between; gap: var(--space-4); }
 .signin__actions > :only-child { margin-inline-start: auto; }
 /* Надзаголовок поля: капс, как подпись «ВВЕДИТЕ НОМЕР ТЕЛЕФОНА». */
-.field__label--cap { font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap);
+.field__label--cap { font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
   text-transform: uppercase; color: var(--ink-3); }
 
@@ -750,7 +691,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
   padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: var(--font-display); font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
   text-transform: uppercase; color: var(--ink-2);
   /* Цель нажатия не равна высоте строчных прописных: без этого сортировка
@@ -864,7 +805,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .roadmap__item { padding-block: var(--space-4); border-block-end: 1px solid var(--line); }
 .roadmap__item:last-child { border-block-end: 0; }
 .roadmap__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); }
-.roadmap__where { font-family: var(--font-display); font-size: var(--fs-cap);
+.roadmap__where { font-family: var(--font-ui); font-size: var(--fs-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .roadmap__text { margin-block-start: var(--space-2); font-size: var(--fs-sm); color: var(--ink-2); }
 
@@ -920,7 +861,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   border-block-end: 1px solid var(--line-inv); }
 .measure__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-5); margin-block-start: var(--space-4); }
-.measure__cap { font-family: var(--font-display); font-size: var(--fs-cap);
+.measure__cap { font-family: var(--font-ui); font-size: var(--fs-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-on-inv-2);
   margin-block-end: var(--space-2); }
 
@@ -963,22 +904,98 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   @page { size: A4 landscape; margin: 12mm; }
 }
 
-/* --- конвейер объекта ------------------------------------------------------
-   Охват портфеля по ступеням на первом экране. Ступени идут в порядке
-   конвейера и делят ширину поровну: сравнение заполнения — единственное,
-   ради чего блок существует, и разная ширина сделала бы его невозможным.
+/* --- 5.20 Числовая карточка ------------------------------------------------
+   Первый экран отвечает четырьмя числами: активные объекты, просрочки,
+   срок сегодня, срок на неделе. Форма взята у эталона: линейная иконка,
+   надзаголовок капсом, крупное число, подпись под ним.
+
+   Карточка, а не ряд величин на полотне: числа здесь однородны и
+   равнозначны — ни одно из четырёх не ведущее, — и рамка вокруг каждой
+   разделяет их надёжнее волосяной линии. Ведущая величина, ради которой
+   правило «поверхности по роли» запрещало карточки, на этом экране
+   отсутствует: срочность не ранжируется заранее, ранжирует её день.
+
+   Число набрано пропорциональными цифрами: табличные дают каждой цифре
+   ширину нуля, и «12» на 28 пикселях выглядит разреженной. Табличные
+   остаются в таблице ниже, где числа стоят столбцом.
    -------------------------------------------------------------------------- */
-.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-5); }
-.pipeline__step { display: flex; flex-direction: column; gap: var(--space-2); }
-.pipeline__head { display: flex; align-items: baseline; justify-content: space-between;
-  gap: var(--space-3); }
-.pipeline__count { font-size: var(--fs-h2); font-weight: 600; text-align: end; }
-.pipeline__of { font-family: var(--font-ui); font-size: var(--fs-sm);
-  font-weight: var(--fw-sm); color: var(--ink-3); }
-.pipeline__detail { display: flex; align-items: center; flex-wrap: wrap;
-  gap: var(--space-2); font-size: var(--fs-sm); color: var(--ink-3); }
-/* Заполнение приходит из данных и меняется при загрузке сводки: движение
-   показывает величину, а не украшает экран. Правило prefers-reduced-motion
-   объявлено глобально в base.css и гасит переход целиком. */
-.pipeline .scale__fill { transition: inline-size var(--dur-base) var(--ease); }
+.statrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4); }
+.statcard { display: grid; grid-template-columns: auto 1fr; align-items: center;
+  gap: 0 var(--space-3); min-block-size: 108px; padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); text-align: start; }
+.statcard--link { border-color: var(--line); font: inherit; cursor: pointer; }
+/* Плашка загрузки в форме карточки. Заливка скелета обязана перекрыть
+   белую заливку карточки — иначе на экране четыре пустые белые рамки,
+   которые читаются как «данные пришли и оказались пустыми». */
+.statcard.skeleton { border-color: transparent; background: var(--surface-2); }
+.statcard--link:hover { border-color: var(--accent); }
+.statcard__icon { grid-row: 1; color: var(--ink-3); }
+.statcard__label { grid-row: 1; font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-weight: var(--fw-cap); letter-spacing: var(--ls-cap); text-transform: uppercase;
+  color: var(--ink-3); }
+.statcard__value { grid-column: 1 / -1; font-size: var(--fs-display);
+  line-height: var(--lh-display); font-weight: 600; color: var(--ink); }
+.statcard__value--danger { color: var(--danger); }
+.statcard__note { grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* --- 5.21 План работ во времени --------------------------------------------
+   Отрезки этапов по объектам на общей шкале дней. Форма выбрана по
+   назначению данных: этапы — не различимые ряды, которые надо отличать
+   друг от друга, а один вид работы, отложенный во времени. Поэтому цвет
+   один и легенды нет — она повторила бы заголовок. Различает отрезки
+   положение на шкале.
+
+   Отрезок не толще 14 px и не заполняет строку целиком: остаток высоты —
+   воздух, по которому строки читаются как отдельные. Просрочка отмечена
+   не только цветом: у неё своя заливка, различимая и в оттенках серого.
+
+   Подписи на отрезках нет. «Черновая электрика» не помещается в полосу
+   шириной в две недели, а обрезанная подпись хуже её отсутствия: название,
+   даты и процент несёт подсказка.
+   -------------------------------------------------------------------------- */
+.plan { display: flex; flex-direction: column; gap: var(--space-1); }
+.plan__row, .plan__scale { display: grid; grid-template-columns: var(--gantt-label) minmax(0, 1fr);
+  gap: var(--space-3); align-items: center; }
+.plan__row { min-block-size: 32px; }
+.plan__label { display: flex; align-items: baseline; gap: var(--space-2);
+  min-inline-size: 0; font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
+.plan__address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan__track { position: relative; block-size: 22px; border-block-end: 1px solid var(--line); }
+.plan__scale .plan__track { block-size: 20px; border-block-end: 0; }
+.plan__tick { position: absolute; inset-block-start: 0; font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+/* Деления шкалы — волосяные линии по первым числам месяцев. Сплошные и
+   на один шаг от полотна: без них отрезок читается как длина, но не как
+   срок, и «до конца октября» приходится прикидывать на глаз. */
+.plan__grid { position: absolute; inset-block: 0; inline-size: 1px;
+  background: var(--line); }
+/* Вертикаль текущего дня. Сплошная волосяная линия, а не пунктир: пунктир
+   на графике читается как «предположительно», а сегодня — это факт.
+
+   Цвет чернильный, а не сигнальный. Красным на этой полосе обозначена
+   просрочка; тот же красный у вертикали означал бы, что сегодняшний день —
+   тоже нарушение, и один цвет нёс бы два разных смысла. */
+/* Вертикаль лежит поверх отрезков. Под ними её перекрывал промежуток
+   цвета поверхности, которым отрезки отделяются друг от друга, и линия
+   рвалась ровно там, где работа идёт, — то есть там, где на неё смотрят. */
+.plan__today { position: absolute; inset-block: -2px; inline-size: 2px;
+  z-index: 1; background: var(--ink-2); }
+.plan__scale .plan__today { inset-block-start: auto; block-size: 6px; }
+.plan__bar { position: absolute; inset-block-start: 4px; block-size: 14px;
+  border-radius: var(--radius-sm); background: var(--accent-soft);
+  /* Разделяет соседние отрезки промежуток цвета поверхности, а не обводка:
+     обводка добавляет чернил, которые не несут данных. */
+  box-shadow: 0 0 0 2px var(--surface); overflow: hidden; }
+.plan__bar--late { background: var(--danger-soft); }
+.plan__done { display: block; block-size: 100%; background: var(--accent); }
+.plan__bar--late .plan__done { background: var(--danger); }
+.plan__rest { padding-block-start: var(--space-2); }
+
+/* Ниже 768 px колонка названий сжимается: адрес уступает место шкале —
+   без неё блок перестаёт быть графиком. */
+@media (max-width: 767px) {
+  .plan__row, .plan__scale { grid-template-columns: 96px minmax(0, 1fr); }
+  .plan__address { display: none; }
+}

@@ -11,5 +11,9 @@
     <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
     <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
+    <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></symbol>
   </defs>
 </svg>

@@ -116,6 +116,28 @@ export const currentUserSchema = z.object({
 });
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 
+/** Расчётная единица сдельной оплаты: бригада или мастер. */
+export const workerKindSchema = z.enum(["BRIGADE", "PERSON"]);
+export type WorkerKind = z.infer<typeof workerKindSchema>;
+
+/**
+ * Этап работ — строка графика производства работ объекта.
+ *
+ * Приходит вместе с объектом, а не отдельным запросом: полоса плана на
+ * главной рисует все объекты сразу, и второй запрос на этап каждого из них
+ * упёрся бы в сотню обращений на один экран.
+ */
+export const workStageSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  order: z.number().int().nonnegative(),
+  startsOn: z.string().date(),
+  endsOn: z.string().date(),
+  /** Заявленный прогресс в сотых долях процента: 5000 = 50,00 %. */
+  progress: z.number().int().min(0).max(10_000),
+});
+export type WorkStage = z.infer<typeof workStageSchema>;
+
 export const projectSummarySchema = z.object({
   id: z.string().uuid(),
   code: projectCodeSchema,
@@ -137,10 +159,46 @@ export const projectSummarySchema = z.object({
   estimateTotal: kopecksString.nullable(),
   estimateVersion: z.number().int().nullable(),
   positions: z.number().int().nonnegative(),
-  /** Доля принятого в сотых долях процента. До этапа приёмки — ноль. */
-  readiness: z.number().int().nonnegative(),
+  /**
+   * Готовность в сотых долях процента, средневзвешенная по длительности
+   * этапов. `null` — этапов нет, готовность не задана.
+   *
+   * Ноль и «не задано» намеренно различаются. Ноль означает «работа не
+   * начата», отсутствие графика — «мы не знаем». Одно число на оба смысла
+   * заставляет читателя гадать, а гадать он не станет — он перестанет
+   * верить и остальным числам экрана.
+   */
+  readiness: z.number().int().min(0).max(10_000).nullable(),
+  /** Этапы графика в порядке ведения. Пусто — график не заведён. */
+  stages: z.array(workStageSchema),
 });
 export type ProjectSummary = z.infer<typeof projectSummarySchema>;
+
+/**
+ * Заведение объекта. Код проверяется тем же выражением, что и в пути
+ * запроса: объект с кодом, которого нельзя открыть ссылкой, — брак.
+ */
+export const createProjectSchema = z.object({
+  code: projectCodeSchema,
+  address: z.string().trim().min(3, "Адрес объекта: не короче трёх знаков.").max(200),
+  clientId: z.string().uuid("Выберите заказчика из справочника."),
+  deadline: z.string().date("Срок сдачи: дата в формате ГГГГ-ММ-ДД.").nullable(),
+});
+export type CreateProject = z.infer<typeof createProjectSchema>;
+
+export const createClientSchema = z.object({
+  code: z.string().trim().min(1, "Код заказчика обязателен.").max(20),
+  name: z.string().trim().min(2, "Имя или название заказчика: не короче двух знаков.").max(120),
+  isCompany: z.boolean(),
+  requisites: z.string().trim().max(400).nullable(),
+});
+export type CreateClient = z.infer<typeof createClientSchema>;
+
+export const createWorkerSchema = z.object({
+  name: z.string().trim().min(2, "Название бригады или имя мастера: не короче двух знаков.").max(120),
+  kind: workerKindSchema,
+});
+export type CreateWorker = z.infer<typeof createWorkerSchema>;
 
 export const updateProjectStatusSchema = z.object({ status: projectStatusSchema });
 export type UpdateProjectStatus = z.infer<typeof updateProjectStatusSchema>;
@@ -168,11 +226,10 @@ export const clientRowSchema = z.object({
 });
 export type ClientRow = z.infer<typeof clientRowSchema>;
 
-/** Расчётная единица сдельной оплаты: бригада или мастер. */
 export const workerRowSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
-  kind: z.enum(["BRIGADE", "PERSON"]),
+  kind: workerKindSchema,
 });
 export type WorkerRow = z.infer<typeof workerRowSchema>;
 
@@ -214,6 +271,9 @@ export const dashboardSchema = z.object({
     total: z.number().int(),
     withEstimate: z.number().int(),
     overdue: z.number().int(),
+    /** Срок сегодня. Вложен в dueWeek, а тот — в dueSoon. */
+    dueToday: z.number().int(),
+    dueWeek: z.number().int(),
     dueSoon: z.number().int(),
   }),
   estimate: z.object({

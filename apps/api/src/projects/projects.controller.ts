@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import type { ProjectEvent, ProjectSummary } from "@priyomka/contracts";
-import { updateProjectStatusSchema } from "@priyomka/contracts";
+import { createProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
 import { ProjectsService } from "./projects.service";
 import { SessionGuard } from "../auth/session.guard";
-import { RolesGuard } from "../common/roles.guard";
+import { Roles, RolesGuard } from "../common/roles.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
 
 @Controller("projects")
@@ -19,6 +19,12 @@ export class ProjectsController {
   @Get(":code")
   byCode(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ProjectSummary> {
     return this.projects.byCode(user, code);
+  }
+
+  @Post()
+  @Roles("OWNER")
+  create(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<ProjectSummary> {
+    return this.projects.create(user, createProjectSchema.parse(body));
   }
 
   @Get(":code/events")

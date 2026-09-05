@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import type { Organization, Role, Unit } from "@priyomka/contracts";
+import type { Organization, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
-import { fetchOrganization, fetchUnits, saveOrganization, errorMessage } from "./api.js";
+import { fetchOrganization, fetchUnits, logout, saveOrganization, errorMessage } from "./api.js";
 import { tabArrowHandler } from "./tabs.js";
+import { ThemeSwitch } from "./ThemeSwitch.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -49,7 +50,13 @@ const text = (form: FormData, field: string): string => {
 const shownPhone = (stored: string | null): string =>
   stored !== null && isPhoneNumber(stored) ? formatPhone(stored) : (stored ?? "");
 
-export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => void }): React.JSX.Element {
+export function Settings({
+  onRoadmap,
+  onSignedOut,
+}: {
+  onRoadmap: () => void;
+  onSignedOut: () => void;
+}): React.JSX.Element {
   const [tab, setTab] = useState<Tab>("overview");
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [units, setUnits] = useState<Unit[] | null>(null);
@@ -118,9 +125,7 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
           <h2 className="t-h2">Данные организации</h2>
           {/* Д-29: обязательность названа текстом. Атрибут title на сенсорном
               экране не показывается, и звёздочка оставалась без объяснения. */}
-          {role === "OWNER" && (
-            <p className="t-sm t-muted">Поля со звёздочкой обязательны.</p>
-          )}
+          <p className="t-sm t-muted">Поля со звёздочкой обязательны.</p>
           <form
               key={`${organization.phone ?? ""}|${organization.email ?? ""}`}
               className="stack stack--loose settings__form"
@@ -128,14 +133,14 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
             >
               <label className="field">
                 <span className="field__label">Название <span className="settings__required">*</span></span>
-                <input className="input" name="name" required defaultValue={organization.name} disabled={role !== "OWNER"} aria-describedby={error === null ? undefined : "settings-error"} aria-invalid={error === null ? undefined : true} />
+                <input className="input" name="name" required defaultValue={organization.name} aria-describedby={error === null ? undefined : "settings-error"} aria-invalid={error === null ? undefined : true} />
               </label>
 
               <div className="settings__grid">
                 <label className="field">
                   <span className="field__label">Часовой пояс <span className="settings__required">*</span></span>
                   <span className="selectwrap">
-                    <select className="input" name="timeZone" defaultValue={organization.timeZone} disabled={role !== "OWNER"}>
+                    <select className="input" name="timeZone" defaultValue={organization.timeZone}>
                       {TIME_ZONES.map((zone) => (
                         <option key={zone} value={zone}>{zone}</option>
                       ))}
@@ -152,22 +157,20 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
                 </div>
                 <label className="field">
                   <span className="field__label">Телефон</span>
-                  <input className="input input--tel" name="phone" type="tel" defaultValue={shownPhone(organization.phone)} disabled={role !== "OWNER"} placeholder="+7 (___) ___-__-__" />
+                  <input className="input input--tel" name="phone" type="tel" defaultValue={shownPhone(organization.phone)} placeholder="+7 (___) ___-__-__" />
                 </label>
                 <label className="field">
                   <span className="field__label">Почта</span>
-                  <input className="input" name="email" type="email" defaultValue={organization.email ?? ""} disabled={role !== "OWNER"} />
+                  <input className="input" name="email" type="email" defaultValue={organization.email ?? ""} />
                 </label>
               </div>
 
-              {role === "OWNER" && (
-                <div className="row">
-                  <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
-                    Сохранить изменения
-                  </button>
-                  {saved && <span className="pill pill--ok" role="status">Сохранено</span>}
-                </div>
-              )}
+              <div className="row">
+                <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>
+                  Сохранить изменения
+                </button>
+                {saved && <span className="pill pill--ok" role="status">Сохранено</span>}
+              </div>
           </form>
         </section>
       )}
@@ -197,6 +200,27 @@ export function Settings({ role, onRoadmap }: { role: Role; onRoadmap: () => voi
         </section>
       )}
       </div>
+
+      {/* Тема и выход переехали сюда из шапки: в шапке эталона справа стоят
+          блок пользователя и колокол, и два лишних органа управления рядом
+          с ними сделали бы её длиннее полосы навигации. Оба нужны редко —
+          тему выбирают один раз, выходят в конце дня. */}
+      <section className="panel panel--pad stack settings__panel">
+        <h2 className="t-h2">Рабочее место</h2>
+        <div className="field">
+          <span className="field__label">Тема оформления</span>
+          <ThemeSwitch />
+        </div>
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={() => void logout().then(onSignedOut)}
+          >
+            Выйти
+          </button>
+        </div>
+      </section>
 
       <p className="t-sm t-muted">
         Чего в системе пока нет и когда появится —{" "}

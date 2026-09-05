@@ -117,29 +117,67 @@ if (shown === null || !/^\d{6}$/u.test(shown.trim())) {
 await page.fill('input[inputmode="numeric"]', shown?.trim() ?? "");
 await page.click('button[type="submit"]');
 
-// Первый экран — сводка по портфелю.
-await page.waitForSelector(".weekstrip");
-await step("сводка", "03-svodka.png");
-await overflow("сводка, 1440");
+// Первый экран — главная.
+await page.waitForSelector(".statcard");
+await step("главная", "03-glavnaya.png");
+await overflow("главная, 1440");
 
-const cards = await page.locator(".figrow > .figure").count();
-const week = await page.locator(".daycard").count();
-const feed = await page.locator(".feed__item").count();
-console.log(`  величин сводки: ${cards}, дней в неделе: ${week}, строк в ленте: ${feed}`);
-if (week !== 7) note("неделя", `в полосе ${week} дней вместо семи`);
-if (cards < 3) note("сводка", `величин ${cards}: ряд денежных величин не собран`);
-if ((await page.locator(".daycard--today").count()) !== 1) {
-  note("неделя", "сегодняшний день не отмечен ровно один раз");
+/**
+ * Состав экрана. Числовых карточек ровно четыре, и это не придирка к
+ * вёрстке: экран отвечает на вопрос «что горит сегодня», и пятое число
+ * заставило бы выбирать, какое из них главное.
+ */
+const cards = await page.locator(".statcard").count();
+if (cards !== 4) note("главная", `числовых карточек ${cards} вместо четырёх`);
+const labels = await page.locator(".statcard__label").allTextContents();
+const ожидаемые = ["Активные объекты", "Просрочены", "Срок сегодня", "Срок на неделе"];
+if (labels.join("|") !== ожидаемые.join("|")) {
+  note("главная", `подписи карточек: ${labels.join(" · ")}`);
 }
 
 /**
- * Лента ограничена и сгруппирована по дням. Без предела она вырастает
- * длиннее всей страницы: смена статуса и импорт повторяются десятками.
+ * Полоса плана. Отрезки, деления шкалы и вертикаль текущего дня — три
+ * вещи, без любой из которых блок перестаёт быть графиком: без отрезков
+ * он пуст, без делений длина не переводится в срок, без вертикали не
+ * видно, что уже позади.
  */
+const bars = await page.locator(".plan__bar").count();
+const planRows = await page.locator(".plan__row").count();
+console.log(`  числовых карточек: ${cards}, строк плана: ${planRows}, отрезков: ${bars}`);
+if (bars === 0) note("план работ", "не показано ни одного отрезка этапа");
+if ((await page.locator(".plan__today").count()) === 0) {
+  note("план работ", "текущий день не отмечен");
+}
+if ((await page.locator(".plan__grid").count()) === 0) {
+  note("план работ", "у шкалы нет делений: длина отрезка не переводится в срок");
+}
+
+/**
+ * Готовность не выдумывается. Объект без графика обязан показать
+ * «не задано», а не ноль: ноль означал бы «работа не начата».
+ */
+const строкиТаблицы = await page.locator(".datatable__table tbody tr").allTextContents();
+if (!строкиТаблицы.some((row) => row.includes("не задано"))) {
+  note("главная", "объект без графика не показал «не задано» в готовности");
+}
+const колонки = await page.locator(".datatable__table thead th").allTextContents();
+for (const нужна of ["Готовность", "Срок", "Статус", "Адрес"]) {
+  if (!колонки.some((c) => c.includes(нужна))) note("главная", `в таблице нет колонки «${нужна}»`);
+}
+
+/**
+ * Лента событий переехала за колокол шапки. Проверяется там же, где её
+ * ищут: предел в восемь записей и группировка по дням остаются в силе.
+ */
+await page.click(".appbar__bell");
+await page.waitForSelector('[aria-label="События портфеля"] .feed__item');
+const feed = await page.locator('[aria-label="События портфеля"] .feed__item').count();
 if (feed > 9) note("лента событий", `строк ${feed}: предел в восемь записей не работает`);
-if ((await page.locator(".feed__day").count()) === 0) {
+if ((await page.locator('[aria-label="События портфеля"] .feed__day').count()) === 0) {
   note("лента событий", "нет группировки по дням");
 }
+await step("события портфеля", "03b-sobytiya.png");
+await page.keyboard.press("Escape");
 
 /**
  * Поверхности по роли. Рамка, заливка и радиус означают «отдельный
@@ -160,7 +198,7 @@ const focusVisible = await page.evaluate(() => {
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
 // Переход в список объектов через шапку.
-await page.click('.appbar__link:has-text("Объекты")');
+await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
@@ -325,7 +363,7 @@ await step("импорт выполнен", "09-import.png");
  * каждый прогон оставляет в журнале две записи, и лента объекта, который
  * идёт в демонстрацию, заполнялась бы следами проверок вместо работы.
  */
-await page.click('.appbar__link:has-text("Объекты")');
+await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-72")) a');
 await page.waitForSelector("aside .pill");
@@ -343,30 +381,73 @@ await page.waitForSelector('.sheet[role="dialog"]');
 await page.click(`.sheet button:has-text("${statusBefore?.trim() ?? "В работе"}")`);
 await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 
-// Контрагенты: заказчики и бригады.
-await page.click('.appbar__link:has-text("Контрагенты")');
-await page.waitForSelector('h2:has-text("Заказчики")');
-const clients = await page.locator(".datatable__table tbody tr").count();
-const brigades = await page.locator('section:has(h2:text-is("Бригады")) .deflist__row').count();
+/**
+ * Контакты: заказчики и работники одним списком.
+ *
+ * Проверяется именно сведение: два вида в одной таблице с колонкой типа.
+ * Пока они жили разными разделами, «телефон Фархата» и «кто заказчик на
+ * Никитинской» искались в разных местах.
+ */
+await page.click('.appbar__link:has-text("Контакты")');
+await page.waitForSelector(".datatable__table tbody tr");
+const виды = await page.locator(".datatable__table tbody .pill").allTextContents();
+const clients = виды.filter((вид) => вид.trim() === "Заказчик").length;
+const brigades = виды.filter((вид) => вид.trim() === "Бригада").length;
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
-if (brigades === 0) note("контрагенты", "бригады не показаны");
-if (clients === 0) note("контрагенты", "список заказчиков пуст");
-await step("контрагенты", "09b-kontragenty.png");
-await overflow("контрагенты, 1440");
+if (brigades === 0) note("контакты", "бригады не показаны");
+if (clients === 0) note("контакты", "заказчики не показаны");
+await step("контакты", "09b-kontakty.png");
+await overflow("контакты, 1440");
+
+/**
+ * Заведение записи. Обещание экрана — сохранённая запись видна в списке
+ * сразу, а не после перезагрузки. Проверяется наблюдением: форма, отклик
+ * словами, поиск по добавленному имени.
+ *
+ * Имя пробы уникально в каждом прогоне: без этого второй запуск подряд
+ * упирался бы в собственную запись первого. Маршрута удаления работника в
+ * продукте нет, но наполнение стенда приводит его к описанному состоянию и
+ * убирает все пробы разом.
+ */
+const проба = `Проверочная бригада ${String(Date.now()).slice(-6)}`;
+await page.click('button:has-text("Добавить контакт")');
+await page.waitForSelector('[aria-label="Новый контакт"]');
+await step("форма контакта", "09c-forma-kontakta.png");
+await page.click('[aria-label="Новый контакт"] .segmented__option:has-text("Бригада")');
+await page.fill('[aria-label="Новый контакт"] .input', проба);
+await page.click('button:has-text("Завести бригаду")');
+await page.waitForSelector('main [role="status"]');
+const отклик = (await page.locator('main [role="status"]').innerText()).trim();
+if (!отклик.includes(проба)) {
+  note("заведение", `подтверждение не назвало добавленное: «${отклик}»`);
+}
+await page.fill(".datatable__search input", проба);
+await page.waitForTimeout(300);
+const найдено = await page.locator(".datatable__table tbody tr").count();
+if (найдено !== 1) note("заведение", `добавленная запись не нашлась в списке: строк ${найдено}`);
+await step("запись добавлена", "09d-zapis-dobavlena.png");
+await page.fill(".datatable__search input", "");
 
 /**
  * Состав навигации. Правило: в шапке только то, что открывает рабочий
- * экран. Четыре раздела — «Главная», «Объекты», «Контрагенты»,
- * «Настройки»; ни «Ещё», ни меню быстрых действий, ни заглушек.
+ * экран. Разделов ровно три — «Главная», «Проекты», «Контакты». Настройки
+ * и «Что дальше» открываются из блока пользователя: их правят раз в
+ * квартал, и место в ряду разделов им не по частоте обращения.
  */
 const navLabels = (await page.locator(".appbar__nav .appbar__link").allTextContents())
   .map((text) => text.trim());
-const navWanted = ["Главная", "Объекты", "Контрагенты", "Настройки"];
+const navWanted = ["Главная", "Проекты", "Контакты"];
 if (navLabels.join("|") !== navWanted.join("|")) {
   note("навигация", `в шапке «${navLabels.join(", ")}»`);
 }
 if ((await page.locator(".appbar__action").count()) !== 0) {
   note("навигация", "в шапке осталась кнопка меню быстрых действий");
+}
+if ((await page.locator(".appbar__user").count()) !== 1) {
+  note("навигация", "блока пользователя в шапке нет");
+}
+if ((await page.locator(".appbar__bell").count()) !== 1) {
+  note("навигация", "колокола событий в шапке нет");
 }
 
 /*
@@ -383,8 +464,11 @@ for (const label of navWanted) {
   }
 }
 
-// Настройки организации: карточка и справочник единиц.
-await page.click('.appbar__link:has-text("Настройки")');
+/**
+ * Настройки организации: карточка и справочник единиц. Открываются из
+ * блока пользователя в шапке — раздела навигации у них больше нет.
+ */
+await page.click(".appbar__user");
 await page.waitForSelector('.tabs__item:has-text("Организация")');
 const settingsTabs = (await page.locator(".tabs__item").allTextContents())
   .map((text) => text.trim());
@@ -423,7 +507,7 @@ await step("что дальше", "18-chto-dalshe.png");
 await overflow("что дальше, 1440");
 
 // Вкладки карточки объекта: две рабочих и служебный импорт руководителю.
-await page.click('.appbar__link:has-text("Объекты")');
+await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
@@ -569,7 +653,7 @@ if (roundest.radius > 12) {
 }
 console.log(`  наибольшее скругление блока: ${roundest.radius} px`);
 
-await page.click('.appbar__link:has-text("Объекты")');
+await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 
 // Мобильная ширина. Нижняя таб-панель существует только здесь.
@@ -601,7 +685,7 @@ if (covered !== null) note("мобильная навигация", `таб-па
  * ширине 360 px уводят половину сведений за край экрана, а работает там
  * прораб.
  */
-await page.click('.tabbar__item:has-text("Объекты")');
+await page.click('.tabbar__item:has-text("Проекты")');
 await page.waitForSelector(".segmented__option");
 await page.waitForTimeout(300);
 const mobileTable = await page.locator("main .datatable__table").count();
@@ -626,7 +710,7 @@ await overflow("после импорта, 768");
  * не складывалась, а сжималась: адрес рвался на три строки, высота строки
  * росла вдвое. Список объектов обязан быть ведомостью (реестр Д-04).
  */
-await page.click('.appbar__link:has-text("Объекты")');
+await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForTimeout(400);
 if ((await page.locator("main .datatable__table").count()) > 0) {
   note("список объектов, 768", "на планшете показана таблица вместо ведомости");
@@ -648,6 +732,10 @@ await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
 await step("тёмная тема", "12-dark.png");
+
+// Переключатель темы переехал в настройки, к блоку «Рабочее место».
+await page.click(".appbar__user");
+await page.waitForSelector(".themeswitch");
 
 /**
  * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
@@ -701,10 +789,13 @@ await page.waitForTimeout(300);
 const afterReload = await themeState();
 if (afterReload.attribute !== "dark") note("тема", "выбор не пережил перезагрузку страницы");
 
-// Переключатель на узком экране: он стоит в шапке рядом с выходом.
+// Переключатель на узком экране: он стоит в настройках, в блоке
+// «Рабочее место». Перезагрузка выше вернула экран на главную.
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(300);
-await overflow("шапка с переключателем темы, 360");
+await page.click(".appbar__user");
+await page.waitForSelector(".themeswitch");
+await overflow("настройки с переключателем темы, 360");
 const tap = await page.locator(".themeswitch__option").first().boundingBox();
 if (tap === null || tap.width < 44 || tap.height < 44) {
   note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);

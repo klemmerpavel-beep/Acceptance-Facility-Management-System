@@ -37,6 +37,15 @@ export function Sprite(): React.JSX.Element {
 
         {/* Действия и списки. */}
         <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></symbol>
+        {/* Колокол уведомлений и знак просрочки — редакция 2.0. Рисунок тот
+            же чертёжный: контур, прямые, прямые углы. */}
+        <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5" /><path d="M3 14h14" /><path d="M8 17h4" /></symbol>
+        <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z" /><path d="M10 8v4M10 14h.01" /></symbol>
+        <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z" /><path d="M3 9h14M7 3v4M13 3v4" /></symbol>
+        {/* Аватар работающего в шапке. Геометрический силуэт без черт лица:
+            сотрудник стенда вымышлен, и портрет выдавал бы его за настоящего
+            человека. Рисунок тот же контурный, что у прочих иконок. */}
+        <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" /><path d="M4 17v-1a6 6 0 0 1 12 0v1" /></symbol>
         <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z" /><path d="M13.5 13.5 17 17" /></symbol>
         <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4" /><path d="M6 12l4 4 4-4" /></symbol>
         <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4" /></symbol>

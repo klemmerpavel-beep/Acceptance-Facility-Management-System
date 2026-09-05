@@ -1,4 +1,9 @@
-<title>Дизайн-система Приёмки</title>
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Приёмка: три экрана</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 /* ============================================================================
@@ -1480,759 +1485,497 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .plan__row, .plan__scale { grid-template-columns: 96px minmax(0, 1fr); }
   .plan__address { display: none; }
 }
+</style>
+</head>
+<body>
 
-/* ============================================================================
-   Оформление витрины. Только то, что относится к самой странице показа и
-   не входит в продукт: ритм разделов, рамка превью, образец цвета в таблице
-   спецификации. Значения — из токенов продукта.
-   ========================================================================= */
+<style>
+  /* Оформление самой страницы приёмки. В продукт не входит: здесь только
+     то, что нужно документу — поля, нумерация для разметки замечаний и
+     рамка вокруг снимка экрана. */
+  body { background: var(--surface-2); }
+  .review { max-inline-size: 1180px; margin-inline: auto; padding: var(--space-6) var(--space-4) var(--space-7); }
+  .review__head { display: flex; flex-direction: column; gap: var(--space-3);
+    padding-block-end: var(--space-5); border-block-end: 2px solid var(--ink); }
+  .review__kicker { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
+    letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
+  .review__title { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: 600; }
+  .review__lead { max-inline-size: 62ch; color: var(--ink-2); }
+  .review__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4); padding-block-start: var(--space-4); }
+  .review__fact { display: flex; flex-direction: column; gap: 2px; }
+  .review__fact dt { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+    text-transform: uppercase; color: var(--ink-3); }
+  .review__fact dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* Разделы разделяются шагом контейнера, а не собственными отступами
-   элементов: персональные margin у блоков не используются. */
-.doc { display: flex; flex-direction: column; gap: var(--space-7); }
-.doc__block { display: flex; flex-direction: column; gap: var(--space-4); }
+  /* Блок замечания. Номер — не украшение: им заказчик адресует правку,
+     поэтому он стоит в поле слева и набран моноширинным. */
+  .item { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--space-4);
+    padding-block-start: var(--space-6); }
+  .item__no { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600;
+    color: var(--accent); padding-block-start: 2px; }
+  .item__body { display: flex; flex-direction: column; gap: var(--space-3); min-inline-size: 0; }
+  .item__title { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: 600; }
+  .item__note { max-inline-size: 68ch; font-size: var(--fs-sm); color: var(--ink-2); }
+  .item__note b { font-weight: 600; color: var(--ink); }
 
-.device-row { display: flex; align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
-
-.spec-fields { display: flex; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; }
-.spec-fields .field { flex: 1 1 220px; max-width: 340px; }
-
-/* Образец цвета внутри строки таблицы спецификации. */
-.swatch { display: inline-flex; align-items: center; gap: var(--space-2); }
-.swatch::before { content: ""; inline-size: var(--space-3); block-size: var(--space-3);
-  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--swatch); }
-
-/* Превью устройства: мобильный экран, показанный внутри десктопной страницы.
-   Ширина превью не связана с шириной окна, поэтому десктопные правила листа
-   внутри него не действуют — иначе лист становится шириной 480 px и режется. */
-.device {
-  position: relative;
-  inline-size: min(360px, 100%);
-  overflow: hidden;
-  background: var(--bg);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-}
-.device .sheet {
-  position: absolute;
-  inset: auto 0 0 0;
-  width: auto;
-  transform: none;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: none;
-}
-.device--sheet { min-height: 540px; background: var(--overlay); }
-
-.device__body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
-.device-column { inline-size: min(360px, 100%); }
-.tranche-demo { flex: 1 1 320px; }
+  /* Рамка экрана: снимок продукта, а не блок документа. */
+  .screen { border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+    overflow: hidden; background: var(--bg); }
+  .screen .appbar { padding-inline: var(--space-4); }
+  .screen .cover { padding-inline: var(--space-4); }
+  .screen__body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
+  .screen--short .screen__body { min-block-size: 220px; }
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); }
+  .states .screen__body { min-block-size: 260px; }
+  .caption { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+    text-transform: uppercase; color: var(--ink-3); }
+  .rulelist { display: flex; flex-direction: column; gap: var(--space-2); }
+  .rulelist li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3);
+    font-size: var(--fs-sm); color: var(--ink-2); }
+  .rulelist b { font-weight: 600; color: var(--ink); }
 </style>
 
-<svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <!-- Контурная геометрия: прямые и прямые углы. Тот же чертёжный рисунок,
-         из которого выведен акцент — берлинская лазурь. -->
-    <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></symbol>
-    <symbol id="i-estimate" viewBox="0 0 20 20"><path d="M3 5h9M3 10h9M3 15h9"/><path d="M15 5h2M15 10h2M15 15h2"/></symbol>
-    <symbol id="i-acceptance" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M6.5 10.5 9 13l4.5-4.5"/></symbol>
-    <symbol id="i-expense" viewBox="0 0 20 20"><path d="M5 3h10v14l-2.5-1.5L10 17l-2.5-1.5L5 17z"/><path d="M8 7h4M8 10h4"/></symbol>
-    <symbol id="i-schedule" viewBox="0 0 20 20"><path d="M3 5h8M6 10h9M3 15h6"/></symbol>
-    <symbol id="i-back" viewBox="0 0 20 20"><path d="M12 4 6 10l6 6"/></symbol>
-    <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
-    <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
-    <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z"/><path d="M4 13V4h9"/></symbol>
-    <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></symbol>
-    <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4"/><path d="M6 12l4 4 4-4"/></symbol>
-    <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4"/></symbol>
-    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
-    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
-    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
-      <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
-    <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
-    <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></symbol>
-</defs>
-</svg>
-<header class="appbar">
-  <span class="appbar__brand">Приёмка</span>
-  <nav class="appbar__nav">
-    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
-    <a class="appbar__link" href="#">Смета</a>
-    <a class="appbar__link" href="#">Приёмка</a>
-    <a class="appbar__link" href="#">Расходы</a>
-    <a class="appbar__link" href="#">Акты</a>
-    <a class="appbar__link" href="#">График</a>
-  </nav>
-  <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
-    <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
-    <button type="button" class="themeswitch__option" data-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-light"/></svg><span class="visually-hidden">Светлая тема</span></button>
-    <button type="button" class="themeswitch__option" data-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-dark"/></svg><span class="visually-hidden">Тёмная тема</span></button>
-  </div>
-</header>
+<svg class="icon-sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 11h6V3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
+  <symbol id="i-schedule" viewBox="0 0 20 20"><path d="M3 5h8M6 10h9M3 15h6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
+  <symbol id="i-avatar" viewBox="0 0 20 20"><path d="M10 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 1 0 12A6 6 0 0 1 9 3z"/><path d="m13.5 13.5 3.5 3.5"/></symbol>
+  <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5"/></symbol>
+</defs></svg>
 
-<div class="container">
-  <p class="stamp__crumbs"><a href="#">Объекты</a><svg class="icon icon--sm"><use href="#i-crumb"/></svg><span>R-99</span></p>
-  <div class="stamp">
-    <div class="stamp__cell"><span class="t-cap">Объект</span><span class="stamp__value stamp__value--code">R-99</span></div>
-    <div class="stamp__cell stamp__cell--wide"><span class="t-cap">Адрес</span><span class="stamp__value">Московский проспект 116</span></div>
-    <div class="stamp__cell"><span class="t-cap">Стадия</span><span class="stamp__value">В работе</span></div>
-    <div class="stamp__cell"><span class="t-cap">Срок</span><span class="stamp__value stamp__value--code stamp__value--late">15.08.2026</span></div>
-    <div class="stamp__cell"><span class="t-cap">Прораб</span><span class="stamp__value">Фархат Юсупов</span></div>
-    <div class="stamp__cell"><span class="t-cap">Смета</span><span class="stamp__value stamp__value--code">ред. 2</span></div>
-  </div>
-</div>
+<div class="review">
 
-<main class="container doc">
+  <header class="review__head">
+    <p class="review__kicker">DOLGIY STUDIO · Воронеж · на приёмку</p>
+    <h1 class="review__title">Приёмка: три экрана</h1>
+    <p class="review__lead t-body">
+      Главная, Проекты и Контакты со статичными данными действующего стенда. Страница нужна
+      для просмотра и разметки замечаний: у каждого блока слева стоит номер — им замечание и
+      адресуется. Работающие экраны живут в приложении и проверяются на стенде; эта страница
+      реализацию не подменяет.
+    </p>
+    <dl class="review__facts">
+      <div class="review__fact"><dt>Объектов в портфеле</dt><dd>8</dd></div>
+      <div class="review__fact"><dt>Этапов работ</dt><dd>31</dd></div>
+      <div class="review__fact"><dt>Позиций сметы</dt><dd>132</dd></div>
+      <div class="review__fact"><dt>Отклик на 120 объектах</dt><dd>281 мс</dd></div>
+    </dl>
+  </header>
 
-  <div class="project-layout">
-
-    <!-- ── СВОДКА ОБЪЕКТА ─────────────────────────────────────────────── -->
-    <aside class="stack">
-      <div class="stack">
-        <div class="figure">
-          <span class="figure__label">Выполнено на сумму</span>
-          <span class="figure__value">1 784 222,20 ₽</span>
-          <span class="figure__note">47 % итога сметы</span>
-        </div>
-        <div class="figure">
-          <span class="figure__label">Потрачено на материалы</span>
-          <span class="figure__value figure__value--h2">312 480,00 ₽</span>
-          <span class="figure__note">возмещается заказчиком</span>
-        </div>
-      </div>
-
-      <div class="figure figure--framed">
-        <span class="figure__label">Остаток текущего транша</span>
-        <span class="figure__value">160 000,00 ₽</span>
-        <div class="tranche">
-          <div class="tranche__bar"><div class="tranche__fill" data-fill="68"></div></div>
-          <p class="tranche__legend"><span>Транш № 3</span><span>из 500 000,00 ₽</span></p>
-        </div>
-      </div>
-
-      <div class="tile row row--between">
-        <div class="stack stack--tight">
-          <span class="figure__label">Статус объекта</span>
-          <span class="t-body">Работы идут, транш открыт</span>
-        </div>
-        <button class="btn btn--secondary">Изменить</button>
-      </div>
-
-      <div class="tile stack stack--tight">
-        <span class="figure__label">Чеки на материалы</span>
-        <p class="mail-gateway">checks+<span class="code-badge">R99</span>@dolgiy.studio</p>
-        <p class="t-sm t-muted">Код объекта ищется и в теме письма. Письмо без кода не теряется.</p>
-        <button class="btn btn--text"><svg class="icon icon--sm"><use href="#i-copy"/></svg>Скопировать адрес</button>
-      </div>
-
-      <div class="tile tile--accent row row--between">
-        <div class="figure">
-          <span class="figure__label">Осталось</span>
-          <span class="figure__value">30</span>
-          <span class="figure__note">дней · дедлайн 15.08.2026</span>
-        </div>
-        <div class="scale scale--on-accent">
-          <div class="scale__track" role="img" aria-label="Принято 47 процентов итога сметы">
-            <span class="scale__fill" style="inline-size:47%"></span>
-            <span class="scale__tick" style="inset-inline-start:25%"></span>
-            <span class="scale__tick" style="inset-inline-start:50%"></span>
-            <span class="scale__tick" style="inset-inline-start:75%"></span>
-          </div>
-          <p class="scale__legend"><span>принято</span><span class="scale__value">47 %</span></p>
-        </div>
-      </div>
-
-      <dl class="deflist">
-        <p class="deflist__head">Информация</p>
-        <div class="deflist__row"><dt class="deflist__term">Клиент</dt><dd class="deflist__value">И. Иванов</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Прораб</dt><dd class="deflist__value">Фархат Юсупов</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Адрес</dt><dd class="deflist__value">Московский пр. 116</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Ключи</dt><dd class="deflist__value">2 комплекта</dd></div>
-        <div class="deflist__row"><dt class="deflist__term">Смета</dt><dd class="deflist__value">редакция 2 от 25.08.2026</dd></div>
-      </dl>
-    </aside>
-
-    <!-- ── РАБОЧАЯ ОБЛАСТЬ ────────────────────────────────────────────── -->
-    <div class="stack stack--loose">
-      <div class="tabs" role="tablist">
-        <button class="tabs__item" role="tab" aria-selected="true">Смета</button>
-        <button class="tabs__item" role="tab" aria-selected="false">Приёмка</button>
-        <button class="tabs__item" role="tab" aria-selected="false">Начисления</button>
-        <button class="tabs__item" role="tab" aria-selected="false">Расходы</button>
-        <button class="tabs__item" role="tab" aria-selected="false">Акты</button>
-        <button class="tabs__item" role="tab" aria-selected="false">График</button>
-      </div>
-
-      <div class="panel panel--flush">
-        <div class="panel__head">
-          <div class="row">
-            <p class="t-h3">132 позиции · 22 раздела</p>
-            <span class="pill pill--danger">Расхождение 438 800,00 ₽</span>
-          </div>
-          <div class="segmented" role="group" aria-label="Проекция сметы">
-            <button class="segmented__option" aria-pressed="true">Внутренняя</button>
-            <button class="segmented__option" aria-pressed="false">Клиентская</button>
-          </div>
-        </div>
-        <div class="table-scroll">
-          <table class="estimate">
-            <thead>
-              <tr>
-                <th colspan="7"></th>
-                <th colspan="3" class="estimate__internal estimate__internal-group">Внутреннее</th>
-              </tr>
-              <tr>
-                <th>№</th><th>Наименование</th><th>Ед.</th>
-                <th class="estimate__num">Кол.</th><th class="estimate__num">Цена ед.</th>
-                <th class="estimate__num">Сумма</th><th>Принято</th>
-                <th class="estimate__num estimate__internal">Ставка ЗП</th>
-                <th class="estimate__num estimate__internal">ЗП</th>
-                <th class="estimate__num estimate__internal">Прибыль</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="estimate__section"><td colspan="10"><button class="estimate__section-toggle" aria-expanded="true"><svg class="icon icon--sm disclosure"><use href="#i-chevron"/></svg>Подготовительные работы</button></td></tr>
-              <tr><td class="estimate__num">1</td><td class="estimate__row-name" style="--level:1">Окрывные работы</td><td>шт</td><td class="estimate__num">2</td><td class="estimate__num">10 000,00</td><td class="estimate__num">20 000,00</td><td><span class="pill pill--ok">Принято</span></td><td class="estimate__num estimate__internal">5 000,00</td><td class="estimate__num estimate__internal">10 000,00</td><td class="estimate__num estimate__internal">10 000,00</td></tr>
-              <tr><td class="estimate__num">2</td><td class="estimate__row-name" style="--level:1">Полусухая стяжка</td><td>м²</td><td class="estimate__num">120,2</td><td class="estimate__num">1 000,00</td><td class="estimate__num">120 200,00</td><td><span class="pill pill--ok">Принято</span></td><td class="estimate__num estimate__internal">700,00</td><td class="estimate__num estimate__internal">84 140,00</td><td class="estimate__num estimate__internal">36 060,00</td></tr>
-              <tr><td class="estimate__num">3</td><td class="estimate__row-name" style="--level:1">Штукатурка стен по маякам (до 2,5 см)</td><td>м²</td><td class="estimate__num">406,91</td><td class="estimate__num">900,00</td><td class="estimate__num">366 219,00</td><td><span class="pill pill--warn">240 из 406,91</span></td><td class="estimate__num estimate__internal">350,00</td><td class="estimate__num estimate__internal">142 418,50</td><td class="estimate__num estimate__internal">223 800,50</td></tr>
-              <tr><td class="estimate__num">4</td><td class="estimate__row-name" style="--level:1">Грунтование стен (перед штукатуркой)</td><td>м²</td><td class="estimate__num">406,91</td><td class="estimate__num">120,00</td><td class="estimate__num">48 829,20</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">70,00</td><td class="estimate__num estimate__internal">28 483,70</td><td class="estimate__num estimate__internal">20 345,50</td></tr>
-              <tr class="estimate__section"><td colspan="10"><button class="estimate__section-toggle" aria-expanded="true"><svg class="icon icon--sm disclosure"><use href="#i-chevron"/></svg>Кондиционирование (по факту)</button></td></tr>
-              <tr class="estimate__section"><td colspan="10"><span class="estimate__row-name t-secondary" style="--level:1">Черновой монтаж</span></td></tr>
-              <tr><td class="estimate__num">5</td><td class="estimate__row-name" style="--level:2">Сквозное отверстие Ф52 мм</td><td>шт</td><td class="estimate__num">3</td><td class="estimate__num">3 100,00</td><td class="estimate__num">9 300,00</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">500,00</td><td class="estimate__num estimate__internal">1 500,00</td><td class="estimate__num estimate__internal">7 800,00</td></tr>
-              <tr><td class="estimate__num">6</td><td class="estimate__row-name" style="--level:2">Штробление стен в бетон (до 5×5 см)</td><td>м.п.</td><td class="estimate__num">8</td><td class="estimate__num">3 500,00</td><td class="estimate__num">28 000,00</td><td><span class="pill">Ожидает</span></td><td class="estimate__num estimate__internal">170,00</td><td class="estimate__num estimate__internal">1 360,00</td><td class="estimate__num estimate__internal">26 640,00</td></tr>
-              <tr><td colspan="10"><span class="skeleton skeleton--row"></span></td></tr>
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colspan="5">Итого по работам · пересчёт по позициям</td>
-                <td class="estimate__num">3 794 852,10</td>
-                <td colspan="4" class="t-sm t-muted">в файле заявлено 3 356 052,10</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel panel--pad stack stack--tight">
-        <p class="figure__label">Отчёт о расхождениях · импорт от 02.09.2026</p>
-        <hr class="rule">
-        <p class="row row--between"><span class="t-sm">Раздел «Черновой электромонтаж» не входит в формулу итога</span><span class="num num--danger">295 000,00 ₽</span></p>
-        <p class="row row--between"><span class="t-sm">У раздела «Монтажные работы» ячейка итога пуста</span><span class="num num--danger">143 800,00 ₽</span></p>
-        <p class="row row--between"><span class="t-sm">Двойной учёт подытога кондиционирования в фонде оплаты</span><span class="num num--danger">24 160,00 ₽</span></p>
-        <p class="row row--between"><span class="t-sm">Фонд оплаты труда занижен на ту же величину за вычетом двойного учёта</span><span class="num num--danger">220 735,00 ₽</span></p>
-        <p class="row row--between"><span class="t-sm">Позиции 161 и 162: стоимость есть, ставка и прибыль отсутствуют</span><span class="num t-muted">2 позиции</span></p>
-        <p class="row row--between"><span class="t-sm">Написания единиц: сведены к справочнику, требуют решения</span><span class="num t-muted">15 → 9 + 3</span></p>
-        <hr class="rule">
-        <p class="row row--between"><span class="t-body">Недосчёт итога по работам</span><span class="num num--h2 num--danger">438 800,00 ₽</span></p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── ПРИЁМКА НА МОБИЛЬНОМ ──────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Приёмка · мобильный, 360 px</h2>
-      <p class="t-sm t-muted">раздел → отметка → «Принять» → затвор → «Подтвердить»</p>
-    </div>
-    <div class="device-row">
-
-      <div class="device">
-        <div class="appbar">
-          <button class="btn btn--icon" aria-label="Назад"><svg class="icon"><use href="#i-back"/></svg></button>
-          <span class="code-badge">R-99</span>
-          <span class="appbar__title">Подготовительные работы</span>
-        </div>
-        <div class="device__body">
-          <div class="accept-item accept-item--done">
-            <div><p class="accept-item__name">Полусухая стяжка</p><p class="accept-item__qty">120,2 м² · принято полностью</p></div>
-            <span class="pill pill--ok">Принято</span>
-          </div>
-          <div class="accept-item">
-            <div><p class="accept-item__name">Штукатурка стен по маякам (до 2,5 см)</p><p class="accept-item__qty">406,91 м² · принято 240</p></div>
-            <input type="checkbox" class="accept-item__check" checked aria-label="Отметить: штукатурка стен">
-          </div>
-          <div class="accept-item">
-            <div><p class="accept-item__name">Грунтование стен (перед штукатуркой)</p><p class="accept-item__qty">406,91 м² · принято 0</p></div>
-            <input type="checkbox" class="accept-item__check" checked aria-label="Отметить: грунтование стен">
-          </div>
-          <div class="accept-item">
-            <div><p class="accept-item__name">Установка перфорированного уголка и планки примыкания к окну</p><p class="accept-item__qty">39,07 м.п. · принято 0</p></div>
-            <input type="checkbox" class="accept-item__check" aria-label="Отметить: установка уголка">
-          </div>
-          <button class="btn btn--primary btn--touch btn--block">Принять 2 позиции</button>
-        </div>
-      </div>
-
-      <div class="device device--sheet">
-        <div class="sheet">
-          <div class="row row--between"><p class="t-h3">Приёмка · 2 позиции</p><button class="btn btn--text">Отмена</button></div>
-          <label class="field"><span class="field__label">Штукатурка стен · остаток 166,91 м²</span><input class="input input--num input--touch" value="166,91"></label>
-          <label class="field"><span class="field__label">Грунтование стен · остаток 406,91 м²</span><input class="input input--num input--touch" value="406,91"></label>
-          <p class="photo-slot"><svg class="icon"><use href="#i-acceptance"/></svg>Фото раздела · камера открывается сразу</p>
-          <label class="field"><span class="field__label">Комментарий, необязательно</span><input class="input input--touch" placeholder="Угол у окна доделать"></label>
-          <p class="row row--between"><span class="t-sm t-secondary">Бригада</span><span class="t-sm">Фархат · от этапа графика</span></p>
-          <button class="btn btn--primary btn--touch btn--block">Подтвердить</button>
-        </div>
-      </div>
-
-      <div class="device-column stack">
-        <p class="toast"><span class="pill pill--ok">Принято</span><span class="t-sm">Начислено <b class="num">198 508,20 ₽</b> — Фархат</span></p>
-        <dl class="deflist">
-          <p class="deflist__head">Начисления · Фархат</p>
-          <div class="deflist__row"><dt class="deflist__term">За текущий транш</dt><dd class="deflist__value num">417 137,10 ₽</dd></div>
-          <div class="deflist__row"><dt class="deflist__term">За неделю</dt><dd class="deflist__value num">198 508,20 ₽</dd></div>
-          <div class="deflist__row"><dt class="deflist__term">Всего по объекту</dt><dd class="deflist__value num">1 210 044,00 ₽</dd></div>
-        </dl>
-        <div class="panel panel--pad stack stack--tight">
-          <p class="row row--between"><span class="t-sm">Монтаж ГКЛ стена · 5,36 м²</span><span class="pill pill--danger">Сторно</span></p>
-          <p class="t-sm t-muted">Принято по ошибке, работа не выполнена. Р. Долгий, 28.08.2026.</p>
-          <p class="t-sm">Начисление сторнировано на <span class="num num--danger">−4 288,00 ₽</span>. Запись приёмки сохранена.</p>
-        </div>
-        <div class="empty">
-          <p class="empty__title">Приёмок пока нет</p>
-          <p class="empty__text">Отметьте первую позицию раздела — начисление появится сразу.</p>
-          <button class="btn btn--primary">К разделам</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── ТРАНШ И ПЕРЕВЫРАБОТКА ─────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Транш</h2>
-      <p class="t-sm t-muted">перевыработка — нормальное событие, требующее закрытия акта</p>
-    </div>
-    <div class="device-row">
-      <div class="panel panel--pad stack stack--tight tranche-demo">
-        <span class="figure__label">Транш № 3 · в работе</span>
-        <div class="tranche">
-          <div class="tranche__bar"><div class="tranche__fill" data-fill="68"></div></div>
-          <p class="tranche__legend"><span>выработано 340 000,00 ₽</span><span>остаток 160 000,00 ₽</span></p>
-        </div>
-      </div>
-      <div class="panel panel--pad stack stack--tight tranche-demo">
-        <span class="figure__label">Транш № 2 · закрывается актом</span>
-        <div class="tranche">
-          <div class="tranche__bar"><div class="tranche__fill tranche__fill--over" data-fill="100"></div></div>
-          <p class="tranche__legend"><span>выработано 548 200,00 ₽</span><span class="pill pill--signal">сверх транша 48 200,00 ₽</span></p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── ГРАФИК ────────────────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">График производства работ</h2>
-      <div class="row">
-        <span class="metric"><span class="metric__value">148 / 244</span><span class="metric__label">рабочих дней</span></span>
-        <span class="metric"><span class="metric__value">273</span><span class="metric__label">дня по договору</span></span>
-        <span class="metric"><span class="metric__value">8</span><span class="metric__label">ошибок в датах</span></span>
-      </div>
-    </div>
-    <div class="stack stack--tight">
-      <div class="gantt__row"><span class="t-sm">Подготовительные работы</span><div class="gantt__track"><div class="gantt__bar" data-from="0" data-to="8"></div></div><span class="t-sm t-secondary">—</span><span class="num">100 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Черновая электрика</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="8" data-to="20"></div></div><span class="t-sm t-secondary">Электрики Евгения</span><span class="num">62 %</span></div>
-      <p class="gantt__hint">Окончание 10.01.26 раньше начала 21.12.26. Проверьте год начала.</p>
-      <div class="gantt__row"><span class="t-sm">Штукатурка</span><div class="gantt__track"><div class="gantt__bar" data-from="20" data-to="38"></div></div><span class="t-sm t-secondary">Бригада Фархата</span><span class="num">59 %</span></div>
-      <div class="gantt__row"><span class="t-sm">Вентиляция</span><div class="gantt__track"><div class="gantt__bar gantt__bar--invalid" data-from="38" data-to="48"></div></div><span class="t-sm t-secondary">Алексей</span><span class="num">0 %</span></div>
-      <p class="gantt__hint">30 февраля не существует. Укажите существующую дату окончания.</p>
-      <div class="gantt__row"><span class="t-sm">Плитка / ламинат</span><div class="gantt__track"><div class="gantt__bar" data-from="48" data-to="64"></div></div><span class="t-sm t-secondary">Бригада Рашида</span><span class="num">12 %</span></div>
-    </div>
-  </section>
-
-  <!-- ── РАСХОДЫ ───────────────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Расходы и чеки</h2>
-      <p class="t-sm t-muted">письмо без опознанного кода не теряется</p>
-    </div>
-    <div class="panel panel--flush">
-      <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Леруа Мерлен · грунтовка, профиль</p><p class="t-sm t-muted">из письма checks+R99@ · 28.08.2026</p></div><span class="row"><span class="num">12 480,00 ₽</span><span class="pill pill--warn">Черновик</span></span></div>
-      <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Петрович · гипсокартон, 12 листов</p><p class="t-sm t-muted">подтверждено руководителем · 27.08.2026</p></div><span class="row"><span class="num">18 900,00 ₽</span><span class="pill pill--ok">Учтено</span></span></div>
-      <div class="expense"><span class="expense__thumb expense__thumb--none"><svg class="icon"><use href="#i-expense"/></svg></span><div><p class="t-body">Письмо без кода объекта</p><p class="t-sm t-muted">тема: «чек» · 26.08.2026</p></div><span class="row"><span class="num">3 200,00 ₽</span><span class="pill">Не распознано</span></span></div>
-    </div>
-  </section>
-
-
-  <!-- ── ОБМЕРНЫЙ ПЛАН ─────────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Обмерный план</h2>
-      <p class="t-sm t-muted">раздел 16: ведомость величин, тумблер, инвертированная поверхность</p>
-    </div>
-
-    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема. В тёмной теме плашка не переворачивается обратно в светлую, а сходится с общей палитрой и отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки: числа на такой заливке дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7.</p>
-
-    <div class="stack stack--tight">
-      <p class="field__label--cap">Общее</p>
-      <p class="spec">
-        <span class="spec__item">Помещений<span class="spec__value">7</span></span>
-        <span class="spec__item">Площадь<span class="spec__value">80,53 м²</span></span>
-        <span class="spec__item">Площадь стен<span class="spec__value">262,95 м²</span></span>
-        <span class="spec__item">Периметр потолка<span class="spec__value">97,39 м.п.</span></span>
-        <span class="spec__item">Периметр пола<span class="spec__value">86,07 м.п.</span></span>
-        <span class="spec__item">Объём<span class="spec__value">217,43 м³</span></span>
+  <!-- 1. ГЛАВНАЯ ─────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">1</p>
+    <div class="item__body">
+      <h2 class="item__title">Главная</h2>
+      <p class="item__note">
+        Экран отвечает на вопрос <b>что горит сегодня</b> и решается по нему, никуда не
+        кликая. Сверху вниз: четыре числа срочности, план работ во времени, объекты таблицей.
+        Плиток объектов с прогрессом здесь нет — они показывали бы те же данные вторым
+        способом, и пришлось бы выбирать, какому представлению верить.
       </p>
-    </div>
 
-    <div class="measure">
-      <nav class="measure__nav" aria-label="Помещения">
-        <button type="button" class="measure__item">Коридор</button>
-        <button type="button" class="measure__item" aria-selected="true">Спальня</button>
-        <button type="button" class="measure__item">Кухня</button>
-        <button type="button" class="measure__item">Гостиная</button>
-        <button type="button" class="measure__item">Санузел</button>
-      </nav>
-      <div>
-        <div class="measure__head">
-          <span class="t-h2">Спальня</span>
-          <button type="button" class="toggle toggle--inv" role="switch" aria-checked="false">
-            <span class="toggle__track"><span class="toggle__knob"></span></span>
-            <span class="toggle__name">Подробный</span>
-          </button>
+      <div class="screen">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1" aria-current="page">Главная</a>
+            <a class="appbar__link" href="#s2">Проекты</a>
+            <a class="appbar__link" href="#s3">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span></p>
+          <h1 class="t-h1">Главная</h1>
         </div>
-        <div class="measure__grid">
-          <div>
-            <p class="measure__cap">Основное</p>
-            <p class="spec spec--col spec--inv">
-              <span class="spec__item">Площадь<span class="spec__value">18,40 м²</span></span>
-              <span class="spec__item">Площадь стен<span class="spec__value">47,52 м²</span></span>
-              <span class="spec__item">Высота<span class="spec__value">2,70 м</span></span>
-              <span class="spec__item">Объём<span class="spec__value">49,68 м³</span></span>
-            </p>
+        <div class="screen__body">
+
+          <div class="statrow">
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-object"/></svg>
+              <span class="statcard__label">Активные объекты</span>
+              <span class="statcard__value">7</span>
+              <span class="statcard__note">всего в портфеле 8</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-alert"/></svg>
+              <span class="statcard__label">Просрочены</span>
+              <span class="statcard__value statcard__value--danger">2</span>
+              <span class="statcard__note">срок сдачи прошёл</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-schedule"/></svg>
+              <span class="statcard__label">Срок сегодня</span>
+              <span class="statcard__value">0</span>
+              <span class="statcard__note">на сегодня сроков нет</span>
+            </div>
+            <div class="statcard">
+              <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-calendar"/></svg>
+              <span class="statcard__label">Срок на неделе</span>
+              <span class="statcard__value">1</span>
+              <span class="statcard__note">ближайшие семь дней</span>
+            </div>
           </div>
-          <div>
-            <p class="measure__cap">Окна</p>
-            <p class="spec spec--col spec--inv">
-              <span class="spec__item">Количество<span class="spec__value">1</span></span>
-              <span class="spec__item">Площадь<span class="spec__value">2,10 м²</span></span>
-            </p>
+
+          <div class="stack">
+            <div class="section-head">
+              <h2 class="t-h2">План работ</h2>
+              <p class="t-sm t-muted">этапы объектов во времени, текущий день отмечен · прогресс заявленный</p>
+            </div>
+            <div class="plan">
+              <div class="plan__scale" aria-hidden="true">
+                <span class="plan__label"></span>
+                <div class="plan__track">
+                  <span class="plan__tick num" style="inset-inline-start: 5%">янв 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 24%">апр 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 43%">июл 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 62%">окт 26</span>
+                  <span class="plan__tick num" style="inset-inline-start: 81%">янв 27</span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-19</span><span class="plan__address">Революции 9а, офис 3</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 0%; inline-size: 8%" title="Демонтаж: 10.11.2025 — 05.12.2025, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 8%; inline-size: 14%" title="Черновая электрика: 01.12.2025 — 20.01.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 22%; inline-size: 17%" title="Штукатурка стен: 15.01.2026 — 15.03.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 38%; inline-size: 23%" title="Чистовая отделка: 10.03.2026 — 01.06.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-31</span><span class="plan__address">Кольцовская 24б, кв. 118</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 31%; inline-size: 8%" title="Демонтаж: 12.05.2026 — 05.06.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 38%; inline-size: 12%" title="Черновая электрика: 01.06.2026 — 10.07.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 49%; inline-size: 15%" title="Штукатурка стен: 05.07.2026 — 25.08.2026, 85 %"><span class="plan__done" style="inline-size: 85%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 63%; inline-size: 14%" title="Плиточные работы: 20.08.2026 — 05.10.2026, 20 %"><span class="plan__done" style="inline-size: 20%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 76%; inline-size: 18%" title="Чистовая отделка: 01.10.2026 — 30.11.2026, 0 %"><span class="plan__done" style="inline-size: 0%"></span></span>
+                </div>
+              </div>
+
+              <div class="plan__row">
+                <a class="plan__label" href="#s1"><span class="code-badge">R-99</span><span class="plan__address">Московский проспект 116</span></a>
+                <div class="plan__track">
+                  <span class="plan__grid" style="inset-inline-start: 5%"></span><span class="plan__grid" style="inset-inline-start: 24%"></span><span class="plan__grid" style="inset-inline-start: 43%"></span><span class="plan__grid" style="inset-inline-start: 62%"></span><span class="plan__grid" style="inset-inline-start: 81%"></span>
+                  <span class="plan__today" style="inset-inline-start: 57%"></span>
+                  <span class="plan__bar" style="inset-inline-start: 21%; inline-size: 6%" title="Демонтаж: 02.03.2026 — 20.03.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 27%; inline-size: 8%" title="Черновая электрика: 21.03.2026 — 15.04.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar" style="inset-inline-start: 34%; inline-size: 13%" title="Штукатурка стен: 20.04.2026 — 30.05.2026, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 46%; inline-size: 13%" title="Плиточные работы: 10.06.2026 — 20.07.2026, 80 %"><span class="plan__done" style="inline-size: 80%"></span></span>
+                  <span class="plan__bar plan__bar--late" style="inset-inline-start: 58%; inline-size: 10%" title="Чистовая отделка: 15.07.2026 — 15.08.2026, 35 %"><span class="plan__done" style="inline-size: 35%"></span></span>
+                </div>
+              </div>
+
+              <p class="plan__rest t-sm t-muted">Ещё 3 объекта с графиком — в разделе «Проекты».</p>
+            </div>
           </div>
-          <div>
-            <p class="measure__cap">Двери</p>
-            <p class="spec spec--col spec--inv">
-              <span class="spec__item">Количество<span class="spec__value">1</span></span>
-              <span class="spec__item">Площадь<span class="spec__value">1,68 м²</span></span>
-            </p>
+
+          <div class="stack">
+            <div class="section-head">
+              <h2 class="t-h2">Объекты</h2>
+              <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+            </div>
+            <div class="datatable">
+              <div class="datatable__head">
+                <div class="datatable__controls">
+                  <span class="datatable__search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" placeholder="Поиск по коду, адресу и заказчику"></span>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="datatable__table">
+                  <thead><tr>
+                    <th>Код</th><th>Адрес</th><th>Заказчик</th><th>Статус</th>
+                    <th class="datatable__num">Готовность</th><th>Срок</th><th>Прораб</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="code-badge">R-19</span></td>
+                      <td><a href="#s1">Революции 9а, офис 3</a></td>
+                      <td>Анна Мещерякова</td>
+                      <td><span class="pill pill--ok">Завершён</span></td>
+                      <td class="datatable__num">100 %</td>
+                      <td><span class="num--danger">01.06.2026<span class="t-sm t-muted"> · просрочен на 96 дней</span></span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-31</span></td>
+                      <td><a href="#s1">Кольцовская 24б, кв. 118</a></td>
+                      <td>Ирина Ковалёва</td>
+                      <td><span class="pill pill--ok">В работе</span></td>
+                      <td class="datatable__num">53 %</td>
+                      <td>30.11.2026<span class="t-sm t-muted"> · 86 дней</span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-38</span></td>
+                      <td><a href="#s1">Владимира Невского 15, кв. 61</a></td>
+                      <td>Сергей Балашов</td>
+                      <td><span class="pill">Новый</span></td>
+                      <td class="datatable__num"><span class="t-muted">не задано</span></td>
+                      <td><span class="num--danger">04.09.2026<span class="t-sm t-muted"> · просрочен на 1 день</span></span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-42</span></td>
+                      <td><a href="#s1">Плехановская 22</a></td>
+                      <td>Анна Мещерякова</td>
+                      <td><span class="pill">Новый</span></td>
+                      <td class="datatable__num"><span class="t-muted">не задано</span></td>
+                      <td><span class="t-muted">не задан</span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><span class="code-badge">R-99</span></td>
+                      <td><a href="#s1">Московский проспект 116</a></td>
+                      <td>Ирина Ковалёва</td>
+                      <td><span class="pill pill--ok">В работе</span></td>
+                      <td class="datatable__num">86 %</td>
+                      <td><span class="num--danger">15.08.2026<span class="t-sm t-muted"> · просрочен на 21 день</span></span></td>
+                      <td>Фархат Юсупов</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 5 из 8 записей</p></div>
+            </div>
           </div>
+
         </div>
       </div>
-    </div>
 
-    <p class="t-sm t-muted">Тумблер вводится только вместе с работой, которую он делает: здесь он переводит краткий набор величин в полный. Величина обмера показывается с двумя знаками после запятой всегда — столбец ведомости читается сверху вниз, и «18,4» рядом с «18,40» заставляет проверять, одно ли это число.</p>
+      <ul class="rulelist">
+        <li><b>1.1</b><span>Четыре числа, а не пять: пятое заставило бы выбирать, какое из них главное.</span></li>
+        <li><b>1.2</b><span>На полосе плана один цвет: этапы различает положение во времени, а не оттенок. Красным отмечена только просрочка, вертикаль текущего дня чернильная — один цвет не может означать два разных.</span></li>
+        <li><b>1.3</b><span>Готовность у объекта без графика — «не задано», а не ноль: «работа не начата» и «график не заведён» это разные утверждения.</span></li>
+        <li><b>1.4</b><span>Готовность взвешена по длительности этапов. У R-99 это 86 %: демонтаж на 19 дней и отделка на 32 дня не равны.</span></li>
+      </ul>
+    </div>
   </section>
 
-  <!-- ── СПИСОК ПО ЕДИНОМУ ОБРАЗЦУ ─────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Список по единому образцу</h2>
-      <p class="t-sm t-muted">раздел 5.14: сортировка по каждой колонке, поиск, счётчик показанного</p>
-    </div>
-    <div class="datatable">
-      <div class="datatable__head">
-        <div class="datatable__title">
-          <h3 class="t-h2">Объекты</h3>
-          <span class="t-sm t-muted">8 объектов в выборке</span>
+  <!-- 2. ПРОЕКТЫ ─────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">2</p>
+    <div class="item__body">
+      <h2 class="item__title">Проекты</h2>
+      <p class="item__note">
+        Список объектов с теми же колонками, что на главной, плюс фильтр по статусу со
+        счётчиком в каждой кнопке: без счётчика выбор идёт вслепую и приводит к пустой
+        таблице. Постраничная выдача включается сама — по 10, 25 или 50 строк.
+      </p>
+
+      <div class="screen screen--short">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1">Главная</a>
+            <a class="appbar__link" href="#s2" aria-current="page">Проекты</a>
+            <a class="appbar__link" href="#s3">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span><span><svg class="icon icon--sm" aria-hidden="true"><use href="#i-crumb"/></svg>Проекты</span></p>
+          <h1 class="t-h1">Проекты</h1>
         </div>
-        <div class="datatable__controls">
-          <label class="datatable__size">
-            <span class="field__label">Записей</span>
-            <span class="selectwrap"><select class="input"><option>10</option></select><svg class="icon selectwrap__chevron"><use href="#i-chevron"/></svg></span>
-          </label>
-          <label class="datatable__search">
-            <svg class="icon"><use href="#i-search"/></svg>
-            <input type="search" placeholder="Поиск по коду, адресу и заказчику">
-          </label>
+        <div class="screen__body">
+          <div class="section-head">
+            <h2 class="t-h2">Портфель</h2>
+            <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Статус объекта">
+            <span class="segmented__option" aria-pressed="true">Все 8</span>
+            <span class="segmented__option" aria-pressed="false">Новый 2</span>
+            <span class="segmented__option" aria-pressed="false">В работе 4</span>
+            <span class="segmented__option" aria-pressed="false">Ждёт ответа 1</span>
+            <span class="segmented__option" aria-pressed="false">Завершён 1</span>
+          </div>
+          <div class="datatable">
+            <div class="table-scroll">
+              <table class="datatable__table">
+                <thead><tr><th>Код</th><th>Адрес</th><th>Заказчик</th><th>Статус</th><th class="datatable__num">Готовность</th><th>Срок</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="code-badge">R-27</span></td><td><a href="#s2">Ленинский проспект 174п</a></td><td>ООО «Гранит-Строй»</td><td><span class="pill pill--warn">Ждёт ответа</span></td><td class="datatable__num">49 %</td><td>15.10.2026<span class="t-sm t-muted"> · 40 дней</span></td></tr>
+                  <tr><td><span class="code-badge">R-64</span></td><td><a href="#s2">Бульвар Победы 23б, кв. 204</a></td><td>ООО «Гранит-Строй»</td><td><span class="pill pill--ok">В работе</span></td><td class="datatable__num">37 %</td><td>20.12.2026<span class="t-sm t-muted"> · 106 дней</span></td></tr>
+                  <tr><td><span class="code-badge">R-72</span></td><td><a href="#s2">Никитинская 42, кв. 7</a></td><td>Сергей Балашов</td><td><span class="pill pill--ok">В работе</span></td><td class="datatable__num">65 %</td><td>12.09.2026<span class="t-sm t-muted"> · 7 дней</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 3 из 8 записей</p></div>
+          </div>
         </div>
       </div>
+
+      <ul class="rulelist">
+        <li><b>2.1</b><span>Колонка, пустая во всей выборке, места не занимает: «Прораб» и «Итог сметы» появляются, когда есть чему в них стоять.</span></li>
+        <li><b>2.2</b><span>Сортируется каждая колонка: срок — по дате, а не по её показному виду; готовность — по числу.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3. КОНТАКТЫ ────────────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">3</p>
+    <div class="item__body">
+      <h2 class="item__title">Контакты</h2>
+      <p class="item__note">
+        Заказчики и работники <b>в одном справочнике</b>. Прежде это были два разных места;
+        разделение шло от учётной системы, а не от человека — «телефон Фархата» и «кто заказчик
+        на Никитинской» ищут одним движением. Различает записи колонка «Тип», и она же
+        сортируется, так что список сводится к одному виду нажатием на заголовок.
+      </p>
+
+      <div class="screen screen--short">
+        <header class="appbar">
+          <span class="appbar__brand">Приёмка</span>
+          <nav class="appbar__nav" aria-label="Разделы">
+            <a class="appbar__link" href="#s1">Главная</a>
+            <a class="appbar__link" href="#s2">Проекты</a>
+            <a class="appbar__link" href="#s3" aria-current="page">Контакты</a>
+          </nav>
+          <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
+          <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        </header>
+        <div class="cover">
+          <p class="cover__crumbs"><span>Главная</span><span><svg class="icon icon--sm" aria-hidden="true"><use href="#i-crumb"/></svg>Контакты</span></p>
+          <h1 class="t-h1">Контакты</h1>
+        </div>
+        <div class="screen__body">
+          <div class="section-head">
+            <h2 class="t-h2">Справочник</h2>
+            <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить контакт</span>
+          </div>
+          <div class="datatable">
+            <div class="table-scroll">
+              <table class="datatable__table">
+                <thead><tr><th>Контакт</th><th>Тип</th><th>Код</th><th>Сведения</th><th class="datatable__num">Объектов</th><th class="datatable__num">Итог смет</th></tr></thead>
+                <tbody>
+                  <tr><td>Ирина Ковалёва</td><td><span class="pill">Заказчик</span></td><td><span class="code-badge">300</span></td><td>Физическое лицо</td><td class="datatable__num">2</td><td class="datatable__num">4 250 234,35 ₽</td></tr>
+                  <tr><td>ООО «Гранит-Строй»</td><td><span class="pill">Заказчик</span></td><td><span class="code-badge">204</span></td><td>Юридическое лицо</td><td class="datatable__num">2</td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                  <tr><td>Бригада Фархата</td><td><span class="pill">Бригада</span></td><td><span class="t-muted">—</span></td><td>Расчётная единица сдельной оплаты</td><td class="datatable__num"><span class="t-muted">—</span></td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                  <tr><td>Электрики Евгения</td><td><span class="pill">Бригада</span></td><td><span class="t-muted">—</span></td><td>Расчётная единица сдельной оплаты</td><td class="datatable__num"><span class="t-muted">—</span></td><td class="datatable__num"><span class="t-muted">—</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="datatable__foot"><p class="t-sm t-muted">Показано с 1 по 4 из 8 записей</p></div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>3.1</b><span>Обе пилюли нейтральные. Зелёный в системе означает «принято»; окрасить им вид контакта значило бы занять сигнальный цвет под категорию.</span></li>
+        <li><b>3.2</b><span>Заказчик без объектов виден в списке. Иначе заведённая запись исчезала бы до того, как ей заведут объект.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. ТРИ СОСТОЯНИЯ ───────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">4</p>
+    <div class="item__body">
+      <h2 class="item__title">Три обязательных состояния</h2>
+      <p class="item__note">
+        Пусто, загрузка, подтверждение добавления. Каждое реализовано в коде и наблюдается
+        живым прогоном браузера, а не описано словами.
+      </p>
+
+      <div class="states">
+        <div>
+          <p class="caption">4.1 · пусто</p>
+          <div class="screen">
+            <div class="screen__body">
+              <div class="empty">
+                <p class="empty__title">Объектов пока нет</p>
+                <p class="empty__text">Заведите первый объект — и здесь появятся сроки, план работ во времени и то, что требует внимания сегодня.</p>
+                <span class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Добавить объект</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="caption">4.2 · загрузка</p>
+          <div class="screen">
+            <div class="screen__body" aria-busy="true">
+              <div class="statrow">
+                <span class="skeleton statcard"></span>
+                <span class="skeleton statcard"></span>
+              </div>
+              <span class="skeleton skeleton--row"></span>
+              <span class="skeleton skeleton--row"></span>
+              <span class="skeleton skeleton--row"></span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="caption">4.3 · запись добавлена</p>
+          <div class="screen">
+            <div class="screen__body">
+              <p class="t-sm" role="status">Добавлено: Маляры Ивана. Запись стоит в списке ниже.</p>
+              <div class="datatable">
+                <div class="table-scroll">
+                  <table class="datatable__table">
+                    <thead><tr><th>Контакт</th><th>Тип</th><th>Сведения</th></tr></thead>
+                    <tbody>
+                      <tr><td>Маляры Ивана</td><td><span class="pill">Бригада</span></td><td>Сдельная оплата</td></tr>
+                      <tr><td>Плиточники Алексея</td><td><span class="pill">Бригада</span></td><td>Сдельная оплата</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="rulelist">
+        <li><b>4.1</b><span>Пустой экран называет работу и даёт кнопку, а не показывает четыре нуля: ряд нулей читается как поломка.</span></li>
+        <li><b>4.2</b><span>Скелет повторяет форму будущей разметки, поэтому экран не дёргается, когда данные приедут.</span></li>
+        <li><b>4.3</b><span>Подтверждение — сама запись в списке плюс строка, называющая добавленное. Список перечитывать не нужно.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5. ЧТО ПРОВЕРЕНО ───────────────────────────────────────────────── -->
+  <section class="item">
+    <p class="item__no">5</p>
+    <div class="item__body">
+      <h2 class="item__title">Что проверено</h2>
       <div class="table-scroll">
-        <table class="datatable__table">
-          <thead>
-            <tr>
-              <th><button class="datatable__sort" type="button">Код<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
-              <th><button class="datatable__sort" type="button">Адрес<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
-              <th><button class="datatable__sort" type="button">Статус<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
-              <th aria-sort="ascending"><button class="datatable__sort" type="button">Срок<svg class="icon icon--sm"><use href="#i-sort-asc"/></svg></button></th>
-              <th class="datatable__num"><button class="datatable__sort" type="button">Итог сметы<svg class="icon icon--sm"><use href="#i-sort"/></svg></button></th>
-            </tr>
-          </thead>
+        <table class="estimate">
+          <thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
           <tbody>
-            <tr>
-              <td><span class="code-badge">R-99</span></td>
-              <td><a href="#spisok">Московский проспект 116</a></td>
-              <td><span class="pill pill--ok">В работе</span></td>
-              <td class="num--danger">15.08.2026 · просрочен на 19 дней</td>
-              <td class="datatable__num">4 250 234,35 ₽</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">R-72</span></td>
-              <td><a href="#spisok">Никитинская 42, кв. 7</a></td>
-              <td><span class="pill pill--ok">В работе</span></td>
-              <td>12.09.2026 · 9 дней</td>
-              <td class="datatable__num t-muted">сметы нет</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">R-38</span></td>
-              <td><a href="#spisok">Владимира Невского 15, кв. 61</a></td>
-              <td><span class="pill">Новый</span></td>
-              <td>04.09.2026 · 1 день</td>
-              <td class="datatable__num t-muted">сметы нет</td>
-            </tr>
+            <tr><td>Числа главной и содержимое списков</td><td>считаются одной агрегацией домена; готовность R-99 — 8557 сотых процента и на сервере, и в тесте, и на экране</td></tr>
+            <tr><td>Отклик главной на 120 объектах</td><td>медиана 281 мс при пороге 2000 мс; таблица показывает страницу, полоса плана — 12 строк и явный остаток</td></tr>
+            <tr><td>Добавленная запись видна в списке</td><td>наблюдалось живым прогоном браузера: форма, отклик словами, поиск по добавленному имени</td></tr>
+            <tr><td>Тесты и линт</td><td>138 тестов, шесть пакетов в строгом режиме, доменные правила линта без замечаний</td></tr>
+            <tr><td>Сквозные проверки стенда</td><td>verify-api, verify-page и verify-canvas без замечаний</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="datatable__foot">
-        <p class="t-sm t-muted">Показано с 1 по 3 из 8 записей</p>
-      </div>
+      <p class="item__note">
+        Чего в этой поставке нет: отчётов и выгрузки, мобильной и планшетной вёрстки трёх
+        экранов, разделов «Заявки», «Контрагенты» и «Бухгалтерия», финансовых блоков
+        и видеонаблюдения. Это объявленные границы работы, а не пропуски.
+      </p>
     </div>
   </section>
 
+</div>
 
-  <!-- ── ГЛАВНАЯ ───────────────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Главная</h2>
-      <p class="t-sm t-muted">первый экран: четыре числа, план работ, объекты таблицей</p>
-    </div>
-
-    <div class="statrow">
-      <div class="statcard">
-        <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-object"/></svg>
-        <span class="statcard__label">Активные объекты</span>
-        <span class="statcard__value">7</span>
-        <span class="statcard__note">всего в портфеле 8</span>
-      </div>
-      <div class="statcard">
-        <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-alert"/></svg>
-        <span class="statcard__label">Просрочены</span>
-        <span class="statcard__value statcard__value--danger">2</span>
-        <span class="statcard__note">срок сдачи прошёл</span>
-      </div>
-      <div class="statcard">
-        <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-schedule"/></svg>
-        <span class="statcard__label">Срок сегодня</span>
-        <span class="statcard__value">0</span>
-        <span class="statcard__note">на сегодня сроков нет</span>
-      </div>
-      <div class="statcard">
-        <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-calendar"/></svg>
-        <span class="statcard__label">Срок на неделе</span>
-        <span class="statcard__value">1</span>
-        <span class="statcard__note">ближайшие семь дней</span>
-      </div>
-    </div>
-
-    <div class="plan">
-      <div class="plan__scale" aria-hidden="true">
-        <span class="plan__label"></span>
-        <div class="plan__track">
-          <span class="plan__tick num" style="inset-inline-start: 6%">мар 26</span>
-          <span class="plan__tick num" style="inset-inline-start: 25%">май 26</span>
-          <span class="plan__tick num" style="inset-inline-start: 44%">июл 26</span>
-          <span class="plan__tick num" style="inset-inline-start: 63%">сен 26</span>
-          <span class="plan__tick num" style="inset-inline-start: 82%">ноя 26</span>
-        </div>
-      </div>
-      <div class="plan__row">
-        <a class="plan__label" href="#glavnaya"><span class="code-badge">R-99</span><span class="plan__address">Московский проспект 116</span></a>
-        <div class="plan__track">
-          <span class="plan__grid" style="inset-inline-start: 6%"></span>
-          <span class="plan__grid" style="inset-inline-start: 25%"></span>
-          <span class="plan__grid" style="inset-inline-start: 44%"></span>
-          <span class="plan__grid" style="inset-inline-start: 63%"></span>
-          <span class="plan__grid" style="inset-inline-start: 82%"></span>
-          <span class="plan__today" style="inset-inline-start: 68%"></span>
-          <span class="plan__bar" style="inset-inline-start: 4%; inline-size: 11%" title="Демонтаж: 02.03 — 20.03, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
-          <span class="plan__bar" style="inset-inline-start: 15%; inline-size: 15%" title="Черновая электрика: 21.03 — 15.04, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
-          <span class="plan__bar" style="inset-inline-start: 27%; inline-size: 24%" title="Штукатурка стен: 20.04 — 30.05, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
-          <span class="plan__bar plan__bar--late" style="inset-inline-start: 51%; inline-size: 24%" title="Плиточные работы: 10.06 — 20.07, 80 %"><span class="plan__done" style="inline-size: 80%"></span></span>
-          <span class="plan__bar plan__bar--late" style="inset-inline-start: 74%; inline-size: 19%" title="Чистовая отделка: 15.07 — 15.08, 35 %"><span class="plan__done" style="inline-size: 35%"></span></span>
-        </div>
-      </div>
-      <div class="plan__row">
-        <a class="plan__label" href="#glavnaya"><span class="code-badge">R-72</span><span class="plan__address">Никитинская 42, кв. 7</span></a>
-        <div class="plan__track">
-          <span class="plan__grid" style="inset-inline-start: 6%"></span>
-          <span class="plan__grid" style="inset-inline-start: 25%"></span>
-          <span class="plan__grid" style="inset-inline-start: 44%"></span>
-          <span class="plan__grid" style="inset-inline-start: 63%"></span>
-          <span class="plan__grid" style="inset-inline-start: 82%"></span>
-          <span class="plan__today" style="inset-inline-start: 68%"></span>
-          <span class="plan__bar" style="inset-inline-start: 36%; inline-size: 8%" title="Демонтаж: 15.06 — 28.06, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
-          <span class="plan__bar" style="inset-inline-start: 44%; inline-size: 12%" title="Черновая электрика: 29.06 — 18.07, 100 %"><span class="plan__done" style="inline-size: 100%"></span></span>
-          <span class="plan__bar plan__bar--late" style="inset-inline-start: 55%; inline-size: 16%" title="Штукатурка стен: 15.07 — 10.08, 90 %"><span class="plan__done" style="inline-size: 90%"></span></span>
-          <span class="plan__bar" style="inset-inline-start: 70%; inline-size: 12%" title="Стяжка пола: 05.08 — 25.08, 40 %"><span class="plan__done" style="inline-size: 40%"></span></span>
-        </div>
-      </div>
-      <p class="plan__rest t-sm t-muted">Ещё 4 объекта с графиком — в разделе «Проекты».</p>
-    </div>
-
-    <p class="t-sm t-muted prose">Числа не выдумываются. Объект без графика показывает «не задано», а не ноль: «работа не начата» и «график не заведён» — разные утверждения. Цвет на полосе один: этапы не различают по оттенку, их различает положение во времени. Красным отмечена только просрочка, вертикаль текущего дня — чернильная: один цвет не может означать два разных.</p>
-  </section>
-
-  <!-- ── ОБЪЁМ ИСПЫТАНИЯ ───────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Объём полевого испытания</h2>
-      <p class="t-sm t-muted">одна функция и пять решений</p>
-    </div>
-
-    <div class="figure figure--framed">
-      <span class="figure__label">Ключевая функция</span>
-      <p class="t-h2">Пакетная приёмка позиций раздела с фотофиксацией, порождающая начисление сдельной оплаты</p>
-      <p class="t-body t-secondary prose">Одно действие прораба: отметить выполненное, снять помещение, подтвердить. Тем же действием начисляется оплата бригаде по ставке позиции, уменьшается остаток транша, позиция становится доступной для акта.</p>
-      <p class="t-sm t-muted">Проверяемые пороги: три касания на пакет · не более 30 секунд на позицию · не менее 80 % выполненного отмечено</p>
-    </div>
-
-    <div class="table-scroll">
-      <table class="estimate">
-        <thead><tr><th>Решение</th><th>Что делает</th><th>Почему без него испытание не состоится</th></tr></thead>
-        <tbody>
-          <tr><td>Вход по ссылке</td><td>Прораб открывает объект персональной ссылкой без регистрации, пароля и кода из СМС</td><td>Заказчик не смог завершить регистрацию в продукте-конкуренте. Пока барьер входа не снят, метрика измеряет порог освоения, а не продукт</td></tr>
-          <tr><td>Импорт сметы</td><td>Разбор файла заказчика с отчётом о расхождениях</td><td>Единственный способ наполнить систему. Отчёт показывает недосчёт 438 800 ₽ до того, как принята первая позиция</td></tr>
-          <tr><td>Сводка объекта</td><td>Выполнено на сумму, остаток транша, процент готовности; транш заводится одним числом</td><td>Без неё руководителю незачем заходить, и приёмка остаётся односторонней</td></tr>
-          <tr><td>Свод начислений</td><td>Итог по бригаде за транш, за неделю, всего по объекту</td><td>Единственный механизм удержания прораба: прекращение приёмки немедленно останавливает начисления</td></tr>
-          <tr><td>Сторно с причиной</td><td>Обратная запись руководителя, а не удаление</td><td>Без него первая ошибка делает данные недостоверными, и прораб перестаёт отмечать</td></tr>
-          <tr><td class="t-muted">Поля по ролям</td><td class="t-muted">Ставка, ЗП и прибыль не попадают в ответ сервера для прораба</td><td class="t-muted">Действует с первого дня, но экраном не является</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="t-sm t-muted">За пределами испытания: акты и выгрузка в PDF, почтовый шлюз чеков, график производства работ. Входят в первую версию, для замера двух определяющих метрик не нужны.</p>
-  </section>
-
-  <!-- ── СПЕЦИФИКАЦИЯ ──────────────────────────────────────────────────── -->
-  <section class="doc__block">
-    <div class="section-head">
-      <h2 class="t-h2">Спецификация</h2>
-      <p class="t-sm t-muted">значение мимо токена — дефект, проверяется тестом</p>
-    </div>
-
-    <div class="stack stack--tight prose">
-      <p class="figure__label">Типографика</p>
-      <p class="num num--display">3 758 778,35 ₽</p>
-      <p class="t-sm t-muted">IBM Plex Mono · 32/1,15/600 · табличные цифры, разряды неразрывным пробелом, копейки всегда две цифры</p>
-      <hr class="rule">
-      <p class="t-h1">Московский проспект 116</p>
-      <p class="t-h2">Штукатурка и малярные работы</p>
-      <p class="t-body">Golos Text — родная кириллица, деловой рисунок, не Inter. Плотность выше воздушности: 132 позиции сметы должны помещаться на экране без бесконечной прокрутки.</p>
-      <p class="t-sm t-secondary">Вторичный текст и подписи полей · 13/1,45/400</p>
-    </div>
-
-    <div class="row row--wrap">
-      <button class="btn btn--primary">Принять</button>
-      <button class="btn btn--secondary">Изменить смету</button>
-      <button class="btn btn--text">Скопировать адрес</button>
-      <button class="btn btn--danger">Сторнировать</button>
-      <button class="btn btn--primary" data-loading="true">Подтвердить</button>
-      <button class="btn btn--primary" disabled>Закрыть транш</button>
-    </div>
-    <div class="row row--wrap">
-      <span class="pill pill--ok">Принято</span>
-      <span class="pill pill--warn">Ожидает приёмки</span>
-      <span class="pill pill--danger">Сторно</span>
-      <span class="pill pill--signal">Перевыработка</span>
-      <span class="pill">Не распознано</span>
-      <span class="code-badge">R-99</span>
-      <svg class="icon"><use href="#i-object"/></svg>
-      <svg class="icon"><use href="#i-estimate"/></svg>
-      <svg class="icon"><use href="#i-schedule"/></svg>
-    </div>
-    <div class="spec-fields">
-      <label class="field"><span class="field__label">Количество</span><input class="input input--num" value="406,91"><span class="field__hint">По смете осталось 406,91 м²</span></label>
-      <label class="field"><span class="field__label">Количество</span><input class="input input--num" value="12" aria-invalid="true"><span class="field__error">Нельзя принять 12 м² — по смете осталось 8,4 м². Уменьшите количество или измените смету.</span></label>
-    </div>
-
-    <div class="table-scroll">
-      <table class="estimate">
-        <thead><tr><th>Токен</th><th>Светлая</th><th>Тёмная</th><th>Где применяется</th></tr></thead>
-        <tbody>
-          <tr><td>--accent</td><td><span class="swatch" style="--swatch:#17457A">#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
-          <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#E4EBF4">#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
-          <tr><td>--on-accent-fill</td><td><span class="swatch" style="--swatch:#17457A">белая, 16 %</span></td><td>тёмная, 14 %</td><td>Накладки поверх акцентной заливки: бейдж на обложке, дорожка кольца</td></tr>
-          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
-          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
-          <tr><td>--danger</td><td><span class="swatch" style="--swatch:#B3261E">#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
-          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
-          <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
-          <tr><td>--row-h</td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
-          <tr><td>--control-h / --control-h-touch</td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
-          <tr><td>--tap-min</td><td class="estimate__num" colspan="2">44 px</td><td>Минимальная область нажатия на мобильном</td></tr>
-          <tr><td>--indent-level</td><td class="estimate__num" colspan="2">16 px</td><td>Отступ вложенности раздела; в файле заказчика два уровня</td></tr>
-          <tr><td>--summary-col</td><td class="estimate__num" colspan="2">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
-          <tr><td>--measure</td><td class="estimate__num" colspan="2">76ch</td><td>Предельная длина строки читаемого текста</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-</main>
-
-<nav class="tabbar">
-  <a class="tabbar__item" aria-current="page" href="#"><svg class="icon"><use href="#i-object"/></svg>Объект</a>
-  <a class="tabbar__item" href="#"><svg class="icon"><use href="#i-estimate"/></svg>Смета</a>
-  <a class="tabbar__item" href="#"><svg class="icon"><use href="#i-acceptance"/></svg>Приёмка</a>
-  <a class="tabbar__item" href="#"><svg class="icon"><use href="#i-expense"/></svg>Расходы</a>
-  <a class="tabbar__item" href="#"><svg class="icon"><use href="#i-schedule"/></svg>График</a>
-</nav>
-
-<script>
-  // Ширины полос задаются данными, а не стилем в разметке.
-  for (const fill of document.querySelectorAll("[data-fill]")) {
-    fill.style.width = fill.dataset.fill + "%";
-  }
-  for (const bar of document.querySelectorAll(".gantt__bar")) {
-    bar.style.left = bar.dataset.from + "%";
-    bar.style.width = (bar.dataset.to - bar.dataset.from) + "%";
-  }
-
-  // Переключатель темы: три состояния. Системное снимает признак —
-  // в этом состоянии тёмную тему включает медиазапрос, а не атрибут.
-  document.getElementById("theme").addEventListener("click", (event) => {
-    const option = event.target.closest(".themeswitch__option");
-    if (!option) return;
-    const mode = option.dataset.mode;
-    const root = document.documentElement;
-    if (mode === "system") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", mode);
-    for (const other of document.querySelectorAll(".themeswitch__option")) {
-      other.setAttribute("aria-pressed", String(other === option));
-    }
-  });
-
-  document.querySelectorAll(".tabs").forEach((group) => {
-    group.addEventListener("click", (event) => {
-      const tab = event.target.closest(".tabs__item");
-      if (!tab) return;
-      group.querySelectorAll(".tabs__item").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
-    });
-  });
-
-  document.querySelectorAll(".segmented").forEach((group) => {
-    group.addEventListener("click", (event) => {
-      const option = event.target.closest(".segmented__option");
-      if (!option) return;
-      group.querySelectorAll(".segmented__option").forEach((o) => o.setAttribute("aria-pressed", String(o === option)));
-      const internal = group.querySelector('[aria-pressed="true"]').textContent.trim() === "Внутренняя";
-      document.querySelectorAll(".estimate__internal").forEach((cell) => { cell.hidden = !internal; });
-      // Колонтитул перекрывает те же колонки, что и шапка: без правки он
-      // расходится с таблицей на три колонки.
-      const footNote = document.querySelector(".estimate tfoot td:last-child");
-      if (footNote) footNote.colSpan = internal ? 4 : 1;
-    });
-  });
-
-  document.querySelectorAll(".estimate__section-toggle").forEach((toggle) => {
-    toggle.addEventListener("click", () => {
-      const open = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", String(!open));
-      let row = toggle.closest("tr").nextElementSibling;
-      while (row && !row.classList.contains("estimate__section")) {
-        row.hidden = open;
-        row = row.nextElementSibling;
-      }
-    });
-  });
-</script>
+</body>
+</html>
