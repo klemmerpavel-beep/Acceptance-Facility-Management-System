@@ -809,14 +809,27 @@ button.counterstrip__item:hover { color: var(--accent); }
   background: var(--band);
   color: var(--band-ink);
 }
-.appbar__brand { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
+/* Лока́п: знак и слово одной строкой, как у эталона. Знак свой — в языке
+   набора значков; знак и слово эталона не воспроизводятся. */
+.appbar__brand { display: inline-flex; align-items: center; gap: var(--space-2); flex: none;
+  font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
+.appbar__mark { inline-size: 24px; block-size: 24px; }
 .appbar__title { margin-inline: auto; font-size: var(--fs-sm); }
 /* Пилюли прокручиваются вбок, а не выталкивают страницу: между 768 и
    1024 px пять подписей и блок пользователя в строку не помещаются.
    То же решение, что у фильтра статусов на 360 px. */
-.appbar__nav { display: flex; gap: var(--space-1); margin-inline: auto;
-  min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
-.appbar__nav::-webkit-scrollbar { display: none; }
+/* Полоса разделов — одна капсула, внутри которой лежат все пункты, и
+   плашку носит только выбранный. У эталона это один орган управления, а не
+   пять отдельных кнопок: та же дорожка на ступень выше содержимого, что у
+   сегментированного переключателя. */
+.appbar__nav { display: flex; gap: 0; margin-inline: auto;
+  min-inline-size: 0; padding: 2px; background: var(--on-band-fill);
+  border-radius: var(--radius-pill); }
+/* Прокручиваются только ссылки. Будь прокрутка на самой капсуле, она
+   обрезала бы выпадающий список «Ещё» собственной границей. */
+.appbar__nav-scroll { display: flex; gap: 0; min-inline-size: 0;
+  overflow-x: auto; scrollbar-width: none; }
+.appbar__nav-scroll::-webkit-scrollbar { display: none; }
 .appbar__link { flex: none; }
 .appbar__link {
   display: inline-flex;
@@ -857,6 +870,24 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   color: var(--band-ink); cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease); }
 .appbar__bell:hover { background: var(--on-band-fill); }
+
+/* «Ещё» — список служебных экранов, а не раздел. Собран на <details>:
+   раскрытие, закрытие по Esc и обход с клавиатуры даёт браузер. */
+.appbar__more { position: relative; flex: none; }
+.appbar__more > summary { list-style: none; cursor: pointer; }
+.appbar__more > summary::-webkit-details-marker { display: none; }
+.appbar__more[open] > summary { background: var(--on-band-track); }
+.appbar__menu { position: absolute; inset-block-start: calc(100% + var(--space-2));
+  inset-inline-end: 0; z-index: 12; min-inline-size: 200px;
+  display: flex; flex-direction: column; padding: var(--space-1);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
+.appbar__menu-item { display: block; inline-size: 100%; min-block-size: var(--tap-min);
+  padding-inline: var(--space-3); border: 0; border-radius: var(--radius-chip);
+  background: none; text-align: start; color: var(--ink); font-family: inherit;
+  font-size: var(--fs-sm); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease); }
+.appbar__menu-item:hover { background: var(--surface-2); }
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
@@ -1721,14 +1752,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 </defs>
 </svg>
 <header class="appbar">
-  <span class="appbar__brand">DOLSTUDIO</span>
-  <nav class="appbar__nav">
-    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
-    <a class="appbar__link" href="#">Смета</a>
-    <a class="appbar__link" href="#">Приёмка</a>
-    <a class="appbar__link" href="#">Расходы</a>
-    <a class="appbar__link" href="#">Акты</a>
-    <a class="appbar__link" href="#">График</a>
+  <span class="appbar__brand"><svg class="icon appbar__mark" aria-hidden="true"><use href="#i-mark"/></svg>DOLSTUDIO</span>
+  <nav class="appbar__nav" aria-label="Разделы">
+    <div class="appbar__nav-scroll">
+      <a class="appbar__link" href="#" aria-current="page">Главная</a>
+      <a class="appbar__link" href="#">Заявки</a>
+      <a class="appbar__link" href="#">Проекты</a>
+      <a class="appbar__link" href="#">Контрагенты</a>
+      <a class="appbar__link" href="#">Бухгалтерия</a>
+    </div>
+    <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
   </nav>
   <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
     <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>

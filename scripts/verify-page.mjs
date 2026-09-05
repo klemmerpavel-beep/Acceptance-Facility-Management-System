@@ -529,7 +529,7 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
  * Пока они жили разными разделами, «телефон Фархата» и «кто заказчик на
  * Никитинской» искались в разных местах.
  */
-await page.click('.appbar__link:has-text("Контакты")');
+await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector(".datatable__table tbody tr");
 const виды = await page.locator(".datatable__table tbody .pill").allTextContents();
 const clients = виды.filter((вид) => вид.trim() === "Заказчик").length;
@@ -571,16 +571,41 @@ await step("запись добавлена", "09d-zapis-dobavlena.png");
 await page.fill(".datatable__search input", "");
 
 /**
- * Состав навигации. Правило: в шапке только то, что открывает рабочий
- * экран. Разделов ровно три — «Главная», «Проекты», «Контакты». Настройки
- * и «Что дальше» открываются из блока пользователя: их правят раз в
- * квартал, и место в ряду разделов им не по частоте обращения.
+ * Состав навигации по эталону: пять разделов и «Ещё» в одной капсуле.
+ * Прежнее правило «в шапке только то, что открывает рабочий экран» отменено
+ * решением заказчика; взамен действует другое, и оно проверяется ниже:
+ * раздел без своего экрана ведёт на «Что дальше», а не в пустую заглушку.
  */
-const navLabels = (await page.locator(".appbar__nav .appbar__link").allTextContents())
+const navLabels = (await page.locator(".appbar__nav-scroll .appbar__link").allTextContents())
   .map((text) => text.trim());
-const navWanted = ["Главная", "Проекты", "Контакты"];
+const navWanted = ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"];
 if (navLabels.join("|") !== navWanted.join("|")) {
-  note("навигация", `в шапке «${navLabels.join(", ")}»`);
+  note("навигация", `в шапке «${navLabels.join(", ")}» вместо «${navWanted.join(", ")}»`);
+}
+if ((await page.locator(".appbar__nav .appbar__more").count()) !== 1) {
+  note("навигация", "в полосе разделов нет пункта «Ещё»");
+}
+if ((await page.locator(".appbar__brand .appbar__mark").count()) !== 1) {
+  note("навигация", "знак слева состоит только из слова, без символа");
+}
+
+/**
+ * «Ещё» — список служебных экранов. Раскрывается, содержит объявленные
+ * строки, ведёт в настройки и закрывается за собой.
+ */
+await page.click(".appbar__more > summary");
+await page.waitForTimeout(200);
+const menu = (await page.locator(".appbar__menu-item").allTextContents()).map((s) => s.trim());
+if (menu.join("|") !== ["Настройки", "Что дальше", "Выйти"].join("|")) {
+  note("навигация", `в списке «Ещё» «${menu.join(", ")}»`);
+}
+await page.click('.appbar__menu-item:has-text("Что дальше")');
+await page.waitForTimeout(400);
+if ((await page.locator(".roadmap__item").count()) === 0) {
+  note("навигация", "«Что дальше» из списка «Ещё» не открылся");
+}
+if (await page.locator(".appbar__menu").isVisible()) {
+  note("навигация", "список «Ещё» остался раскрытым после выбора");
 }
 if ((await page.locator(".appbar__action").count()) !== 0) {
   note("навигация", "в шапке осталась кнопка меню быстрых действий");
@@ -605,6 +630,21 @@ for (const label of navWanted) {
     note("навигация", `раздел «${label}» встречает пустым состоянием «${title?.trim() ?? ""}»`);
   }
 }
+
+/**
+ * Раздел без своего экрана ведёт на «Что дальше», где названа его стадия.
+ * Это правило пришло на смену прежнему запрету пунктов без содержания, и
+ * без проверки оно продержится ровно до первой правки навигации.
+ */
+for (const label of ["Заявки", "Бухгалтерия"]) {
+  await page.click(`.appbar__link:has-text("${label}")`);
+  await page.waitForTimeout(400);
+  if ((await page.locator(".roadmap__item").count()) === 0) {
+    note("навигация", `раздел «${label}» не ведёт на «Что дальше»`);
+  }
+}
+await page.click('.appbar__link:has-text("Главная")');
+await page.waitForSelector(".statcard");
 
 /**
  * Настройки организации: карточка и справочник единиц. Открываются из

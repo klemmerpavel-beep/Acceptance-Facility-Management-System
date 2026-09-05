@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
-import { fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects } from "./api.js";
+import { fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout } from "./api.js";
 import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
 import { Contacts } from "./Contacts.js";
@@ -8,7 +8,7 @@ import { NewProjectSheet } from "./NewProjectSheet.js";
 import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
 import { ProjectCard } from "./ProjectCard.js";
-import { SECTIONS, type Section } from "./sections.js";
+import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
 import { Settings } from "./Settings.js";
 import { ThemeSwitch } from "./ThemeSwitch.js";
 import { useModalDialog } from "./modal.js";
@@ -33,6 +33,13 @@ export function App(): React.JSX.Element {
   /** Сегодняшний день считается один раз на сеанс и передаётся вниз:
    *  два экрана не должны разойтись на границе суток. */
   const today = new Date().toISOString().slice(0, 10);
+
+  /* Список «Ещё» закрывается сам после выбора: раскрытый список поверх
+     нового экрана — забытое состояние, а не подсказка. */
+  const moreRef = useRef<HTMLDetailsElement>(null);
+  const closeMore = (): void => {
+    if (moreRef.current !== null) moreRef.current.open = false;
+  };
 
   const load = (): void => {
     void (async () => {
@@ -109,21 +116,54 @@ export function App(): React.JSX.Element {
    * ровно то, что человек ищет, вернувшись после выходных. Колокол без
    * содержимого нарушал бы правило «показываем только работающее».
    */
+  /**
+   * Шапка по эталону: слева лока́п из знака и слова, по центру одна капсула
+   * со всеми пунктами и «Ещё», справа блок работающего, переключатель темы
+   * и колокол.
+   *
+   * Знак — свой, в языке набора значков. Знак и слово эталона не
+   * воспроизводятся: это чужой товарный знак.
+   */
   const header = (
     <header className="appbar">
-      <span className="appbar__brand">DOLSTUDIO</span>
+      <span className="appbar__brand">
+        <svg className="icon appbar__mark" aria-hidden="true"><use href="#i-mark" /></svg>
+        DOLSTUDIO
+      </span>
       <nav className="appbar__nav" aria-label="Разделы">
-        {SECTIONS.map((item) => (
-          <a
-            key={item.key}
-            className="appbar__link"
-            aria-current={opened === null && section === item.key ? "page" : undefined}
-            href={`#${item.key}`}
-            onClick={(event) => { event.preventDefault(); go(item.key); }}
-          >
-            {item.label}
-          </a>
-        ))}
+        <div className="appbar__nav-scroll">
+          {SECTIONS.map((item) => (
+            <a
+              key={item.key}
+              className="appbar__link"
+              aria-current={opened === null && section === item.key ? "page" : undefined}
+              href={`#${item.key}`}
+              onClick={(event) => { event.preventDefault(); go(item.key); }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+        {/* «Ещё» — не раздел, а список служебных экранов. Собран на
+            <details>: раскрытие, закрытие по Esc и обход с клавиатуры
+            браузер берёт на себя, и своего состояния для этого не нужно. */}
+        <details className="appbar__more" ref={moreRef}>
+          <summary className="appbar__link">
+            Ещё
+            <svg className="icon icon--sm" aria-hidden="true"><use href="#i-chevron" /></svg>
+          </summary>
+          <div className="appbar__menu">
+            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); setOpened(null); setSection("settings"); }}>
+              Настройки
+            </button>
+            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); setOpened(null); setSection("roadmap"); }}>
+              Что дальше
+            </button>
+            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); void logout().then(load); }}>
+              Выйти
+            </button>
+          </div>
+        </details>
       </nav>
       <button
         type="button"
@@ -254,8 +294,20 @@ export function App(): React.JSX.Element {
       )}
       {section === "contacts" && (
         <>
-          {cover("Контакты", ["Главная", "Контакты"])}
+          {cover("Контрагенты", ["Главная", "Контрагенты"])}
           <Contacts />
+        </>
+      )}
+      {/* Разделы без своего экрана ведут на «Что дальше»: там названа
+          стадия, на которой раздел появится. Пустая заглушка сообщила бы
+          «здесь ничего нет», а этот экран сообщает «здесь будет и когда». */}
+      {PLANNED_SECTIONS.some((key) => key === section) && (
+        <>
+          {cover(SECTIONS.find((item) => item.key === section)?.label ?? "Что дальше", [
+            "Главная",
+            SECTIONS.find((item) => item.key === section)?.label ?? "Что дальше",
+          ])}
+          <Roadmap />
         </>
       )}
       {section === "settings" && (

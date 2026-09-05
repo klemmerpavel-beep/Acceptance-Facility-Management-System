@@ -25,14 +25,16 @@
 </defs>
 </svg>
 <header class="appbar">
-  <span class="appbar__brand">DOLSTUDIO</span>
-  <nav class="appbar__nav">
-    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
-    <a class="appbar__link" href="#">Смета</a>
-    <a class="appbar__link" href="#">Приёмка</a>
-    <a class="appbar__link" href="#">Расходы</a>
-    <a class="appbar__link" href="#">Акты</a>
-    <a class="appbar__link" href="#">График</a>
+  <span class="appbar__brand"><svg class="icon appbar__mark" aria-hidden="true"><use href="#i-mark"/></svg>DOLSTUDIO</span>
+  <nav class="appbar__nav" aria-label="Разделы">
+    <div class="appbar__nav-scroll">
+      <a class="appbar__link" href="#" aria-current="page">Главная</a>
+      <a class="appbar__link" href="#">Заявки</a>
+      <a class="appbar__link" href="#">Проекты</a>
+      <a class="appbar__link" href="#">Контрагенты</a>
+      <a class="appbar__link" href="#">Бухгалтерия</a>
+    </div>
+    <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
   </nav>
   <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
     <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
