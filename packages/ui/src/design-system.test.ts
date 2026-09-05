@@ -262,6 +262,31 @@ describe("контраст: 7:1 для основного текста и орг
     ["--ink-on-inv-2", "--surface-inv", "подписи на инвертированной плашке", AA],
   ];
 
+  /**
+   * Отделение мягкой заливки от поверхности. Проверка контраста смотрит на
+   * пару «текст на фоне» и слепа к паре «заливка на заливке»: в тёмной теме
+   * --accent-soft давал 1,02 к --surface, и незакрашенная часть отрезка
+   * графика, подсветка строки реестра и карточка «сегодня» пропадали
+   * целиком, хотя текст на них проходил 7:1. Порог 1,10 — ниже самой
+   * слабой действующей пары (1,128) и выше того, что различить нельзя.
+   */
+  const SURFACE_SEPARATION = 1.1;
+
+  it.each([
+    ["светлая", light],
+    ["тёмная", dark],
+  ] as const)("%s тема: мягкая заливка отделяется от поверхности", (_name, palette) => {
+    const surface = palette.get("--surface");
+    expect(surface).toBeDefined();
+    const слабые: string[] = [];
+    for (const [token, value] of palette) {
+      if (!token.endsWith("-soft")) continue;
+      const ratio = contrast(value, surface ?? "#FFFFFF");
+      if (ratio < SURFACE_SEPARATION) слабые.push(`${token}: ${ratio.toFixed(3)}`);
+    }
+    expect(слабые).toEqual([]);
+  });
+
   const themes: readonly (readonly [string, Map<string, string>])[] = [
     ["светлая", light],
     ["тёмная", dark],

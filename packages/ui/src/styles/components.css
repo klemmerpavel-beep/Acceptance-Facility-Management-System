@@ -339,13 +339,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
    что «светлая», и пользователь, не менявший тему, должен оставаться на
-   системной. Подложка берётся из --on-accent-fill: переключатель лежит на
-   акцентной заливке шапки, и белая плашка читалась бы там как отдельная
-   карточка. Область нажатия 44 px — норма §7, на всех ширинах.
+   системной. Область нажатия 44 px — норма §7, на всех ширинах.
    Дорожка на ступень выше опции: при отступе 2 px внешний радиус обязан
    быть внутренним плюс отступ (8 − 2 = 6), иначе угол опции выпирает
-   за угол дорожки. */
-.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--on-band-fill); border-radius: var(--radius-md); }
+   за угол дорожки.
+
+   Основные значения — для поверхности, а не для полосы шапки. Прежде было
+   наоборот: подложка --on-band-fill и значки --band-ink рисовали в
+   настройках белое по белому, и два невыбранных состояния из трёх
+   исчезали. Управление, которого не видно, всё равно что отсутствует. */
+.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--surface-2); border-radius: var(--radius-md); }
 .themeswitch__option {
   display: grid;
   place-items: center;
@@ -353,10 +356,22 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   border: 0;
   background: transparent;
   border-radius: var(--radius-chip);
-  color: var(--band-ink);
+  color: var(--ink-2);
   cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); }
+.themeswitch__option[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-1); }
+/* В поле настроек дорожка иначе растягивается на всю ширину панели и
+   читается как полоса, а не как переключатель из трёх состояний. */
+.field > .themeswitch { align-self: start; }
+/* В шапке тот же переключатель лежит на акцентной заливке: белая плашка
+   читалась бы там как отдельная карточка. */
+.appbar .themeswitch { background: var(--on-band-fill); }
+.appbar .themeswitch__option { color: var(--band-ink); }
+.appbar .themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); box-shadow: none; }
+/* До 768 px шапка держит знак, блок работающего и колокол; четвёртый орган
+   в неё не помещается. Там переключатель остаётся в настройках. */
+@media (max-width: 767px) { .appbar .themeswitch { display: none; } }
 
 /* Объект в узкой раскладке — строка ведомости, а не карточка. Ссылкой
    служит вся строка: цель нажатия равна её высоте, а не высоте заголовка

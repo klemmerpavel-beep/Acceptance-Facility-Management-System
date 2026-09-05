@@ -850,9 +850,18 @@ await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
 await step("тёмная тема", "12-dark.png");
 
-// Переключатель темы переехал в настройки, к блоку «Рабочее место».
+/**
+ * Переключатель темы есть в двух местах: в шапке — чтобы выйти из темы, в
+ * которой ничего не видно, одним нажатием, — и в настройках, где он
+ * остаётся единственным на ширине до 768 px. Обе копии читают одно
+ * состояние: собственное у каждой расходилось бы при нажатии в шапке.
+ */
+const шапкаТемы = page.locator(".appbar .themeswitch");
+if ((await шапкаТемы.count()) !== 1) note("тема", "в шапке нет переключателя темы");
+if (!(await шапкаТемы.isVisible())) note("тема", "переключатель темы в шапке скрыт на 1440 px");
+
 await page.click(".appbar__user");
-await page.waitForSelector(".themeswitch");
+await page.waitForSelector(".settings__panel .themeswitch");
 
 /**
  * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
@@ -869,7 +878,7 @@ const themeState = async () =>
 const systemDark = await themeState();
 if (systemDark.attribute !== null) note("тема", `в системном режиме признак не снят: ${systemDark.attribute}`);
 
-await page.click('.themeswitch__option[title="Светлая тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Светлая тема"]');
 await page.waitForTimeout(200);
 const forcedLight = await themeState();
 if (forcedLight.attribute !== "light") note("тема", "выбор светлой не выставил data-theme");
@@ -882,7 +891,7 @@ if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")
 await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
 
 await page.emulateMedia({ colorScheme: "light" });
-await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
 await page.waitForTimeout(200);
 const forcedDark = await themeState();
 if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной не выставил data-theme");
@@ -891,7 +900,7 @@ if (forcedDark.background === forcedLight.background) {
 }
 await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
-await page.click('.themeswitch__option[title="Как в системе"]');
+await page.click('.settings__panel .themeswitch__option[title="Как в системе"]');
 await page.waitForTimeout(200);
 const backToSystem = await themeState();
 if (backToSystem.attribute !== null) note("тема", "возврат к системной не снял признак");
@@ -899,8 +908,24 @@ if (backToSystem.background !== forcedLight.background) {
   note("тема", "возврат к системной не вернул системный фон");
 }
 
+/**
+ * Копии синхронны. Нажатие в шапке обязано отразиться в настройках: две
+ * независимые копии показывали бы разный выбор на одном экране.
+ */
+await page.click('.appbar .themeswitch__option[title="Светлая тема"]');
+await page.waitForTimeout(200);
+const вНастройках = await page
+  .locator('.settings__panel .themeswitch__option[title="Светлая тема"]')
+  .getAttribute("aria-pressed");
+if (вНастройках !== "true") {
+  note("тема", "выбор в шапке не отразился в настройках: копии переключателя разошлись");
+}
+if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "light") {
+  note("тема", "переключатель в шапке не сменил тему");
+}
+
 // Выбор обязан пережить перезагрузку: иначе переключатель бесполезен.
-await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
 await page.reload({ waitUntil: "networkidle" });
 await page.waitForTimeout(300);
 const afterReload = await themeState();
@@ -911,9 +936,12 @@ if (afterReload.attribute !== "dark") note("тема", "выбор не пере
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(300);
 await page.click(".appbar__user");
-await page.waitForSelector(".themeswitch");
+await page.waitForSelector(".settings__panel .themeswitch");
 await overflow("настройки с переключателем темы, 360");
-const tap = await page.locator(".themeswitch__option").first().boundingBox();
+if (await page.locator(".appbar .themeswitch").isVisible()) {
+  note("тема", "переключатель в шапке не скрыт на 360 px: шапке не хватает места на четвёртый орган");
+}
+const tap = await page.locator(".settings__panel .themeswitch__option").first().boundingBox();
 if (tap === null || tap.width < 44 || tap.height < 44) {
   note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
 }

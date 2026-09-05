@@ -10,6 +10,7 @@ import { ProjectList } from "./ProjectList.js";
 import { ProjectCard } from "./ProjectCard.js";
 import { SECTIONS, type Section } from "./sections.js";
 import { Settings } from "./Settings.js";
+import { ThemeSwitch } from "./ThemeSwitch.js";
 import { useModalDialog } from "./modal.js";
 
 type State =
@@ -133,6 +134,12 @@ export function App(): React.JSX.Element {
         <span className="appbar__name">{state.user.name}</span>
         <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
       </button>
+      {/* Переключатель темы вернулся в шапку. Прежде он стоял только в
+          настройках — «тему выбирают один раз», — но выбирают её ровно
+          тогда, когда в текущей ничего не видно, и путь в два перехода
+          через блок работающего в этот момент не находят. До 768 px
+          он скрыт стилями: там шапка держит три органа управления. */}
+      <ThemeSwitch />
       <button
         type="button"
         className="appbar__bell"
