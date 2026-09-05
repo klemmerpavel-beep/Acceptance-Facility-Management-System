@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { basisPoints } from "./money.js";
 import {
   barGeometry,
+  coversDay,
   dayOffset,
   planWindow,
   projectReadiness,
@@ -178,5 +179,23 @@ describe("окно вокруг дня", () => {
     for (const months of [3, 6, 12]) {
       expect(dayOffset("2026-09-05", windowAround("2026-09-05", months))).not.toBeNull();
     }
+  });
+});
+
+describe("coversDay: идёт ли работа в этот день", () => {
+  const этап: StageSpan = { startsOn: "2026-09-01", endsOn: "2026-09-10", progress: basisPoints(0) };
+
+  it("день внутри отрезка", () => {
+    expect(coversDay(этап, "2026-09-05")).toBe(true);
+  });
+
+  it("границы включены: начатый сегодня этап сегодня и идёт", () => {
+    expect(coversDay(этап, "2026-09-01")).toBe(true);
+    expect(coversDay(этап, "2026-09-10")).toBe(true);
+  });
+
+  it("день до начала и после конца работой не считается", () => {
+    expect(coversDay(этап, "2026-08-31")).toBe(false);
+    expect(coversDay(этап, "2026-09-11")).toBe(false);
   });
 });

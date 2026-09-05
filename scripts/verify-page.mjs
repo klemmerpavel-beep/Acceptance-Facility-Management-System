@@ -221,8 +221,33 @@ if ((await page.locator(".daycard--today").count()) !== 1) {
 }
 const counters = await page.locator(".counterstrip__item").count();
 if (counters === 0) note("главная", "счётчики по статусам не показаны");
-if ((await page.locator(".deflist__row").count()) === 0) {
+if ((await page.locator(".deadline").count()) === 0) {
   note("главная", "блок ближайших сроков пуст");
+}
+/**
+ * Инфографика блоков главной. Числа без доли отвечают «сколько», но не
+ * «много ли»: мера в карточке, столбик у статуса, расходящаяся шкала у
+ * срока и загрузка дня — четыре места, где величина показана, а не только
+ * названа. Проверяется наличием заливки, а не наличием разметки: пустая
+ * дорожка выглядит так же, как отсутствующая.
+ */
+const заливки = await page.evaluate(() =>
+  [...document.querySelectorAll(".meter__fill, .deadline__bar")]
+    .map((el) => Number.parseFloat(getComputedStyle(el).inlineSize))
+    .filter((width) => Number.isFinite(width) && width > 0).length,
+);
+if (заливки < 8) note("инфографика главной", `заполненных полос ${заливки}: меры и шкалы пусты`);
+if ((await page.locator(".statcard__meter .meter").count()) !== 4) {
+  note("инфографика главной", "мера доли есть не у каждой числовой карточки");
+}
+if ((await page.locator(".counterstrip__bar .meter").count()) === 0) {
+  note("инфографика главной", "у счётчиков статусов нет столбиков доли");
+}
+if ((await page.locator(".daycard__load .meter").count()) !== 7) {
+  note("инфографика главной", "загрузка показана не во всех семи днях недели");
+}
+if ((await page.locator(".deadline__zero").count()) === 0) {
+  note("инфографика главной", "на шкале сроков нет отметки текущего дня");
 }
 const homeFeed = await page.locator("main .feed__item").count();
 if (homeFeed === 0) note("главная", "лента событий на экране пуста");

@@ -70,6 +70,22 @@ export function projectReadiness(stages: readonly StageSpan[]): BasisPoints | nu
 }
 
 /** Окно графика: крайние даты и длина в днях, обе границы включительно. */
+/**
+ * Идёт ли работа по этапу в этот день. Границы включены: этап, начатый
+ * сегодня, сегодня же и идёт.
+ *
+ * Нужна недельной полосе главной: день без событий сам по себе ничего не
+ * сообщает, а «в работе четыре объекта» сообщает. Величина считается из
+ * тех же этапов, что и план работ, — иначе неделя и план разошлись бы.
+ *
+ * Тип сужен до двух дат намеренно: предикат не смотрит на прогресс, и
+ * требовать его значило бы заставлять вызывающего строить величину,
+ * которая здесь не нужна.
+ */
+export function coversDay(stage: Pick<StageSpan, "startsOn" | "endsOn">, day: string): boolean {
+  return stage.startsOn <= day && day <= stage.endsOn;
+}
+
 export interface PlanWindow {
   readonly from: string;
   readonly to: string;

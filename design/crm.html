@@ -174,7 +174,10 @@
   --shadow-2: 0 4px 16px rgba(14, 26, 40, .10);   /* только модальные и меню */
 
   /* --- метрика компонентов ----------------------------------------------- */
-  --header-h:        56px;   /* шапка приложения */
+  /* Шапка выше полосы органов управления на две ступени отступа: при 56 px
+     ряд навигации упирался в верхний край окна, и первое, что видел глаз,
+     было отсутствие поля над знаком. */
+  --header-h:        72px;   /* шапка приложения */
   --tabbar-h:        56px;   /* нижняя таб-панель на мобильном */
   --control-h:       44px;   /* кнопки и поля, десктоп */
   --control-h-touch: 48px;   /* кнопки на мобильном */
@@ -693,6 +696,16 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .section-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line-strong); }
 
+/* Мера: одна величина к своему пределу. Это не график, а дорожка с
+   заливкой (форма для «доли к пределу»): доля к пределу графика не требует,
+   а одна полоса читается быстрее диаграммы из двух долей.
+   Толщина 6 px — заливка не спорит с числом, под которым стоит. */
+.meter { block-size: 6px; background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.meter__fill { display: block; block-size: 100%; background: var(--accent);
+  border-radius: var(--radius-pill); transition: inline-size var(--dur-base) var(--ease); }
+.meter--danger .meter__fill { background: var(--danger); }
+.meter--quiet .meter__fill { background: var(--ink-3); }
+
 /* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
 .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-md); }
@@ -705,8 +718,11 @@ a { color: var(--accent); text-underline-offset: 2px; }
    число справа, строки разделены линией. Строка кликабельна целиком.      */
 .counterstrip { display: flex; flex-direction: column; }
 .counterstrip__item {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: var(--space-3);
+  /* Сетка, а не строка: под названием и числом идёт столбик доли, и он
+     обязан занимать всю ширину, а не тесниться между ними. */
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
   min-height: var(--tap-min);
   padding: var(--space-2) 0;
   border: 0; border-block-end: 1px solid var(--line);
@@ -720,6 +736,9 @@ button.counterstrip__item:hover { color: var(--accent); }
 .counterstrip__count { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: var(--fs-h3); font-weight: 600; }
 .counterstrip__count--danger { color: var(--danger); }
+/* Столбики строятся от наибольшего статуса, а не от размера портфеля:
+   иначе четыре доли по 12-50 % превратились бы в четыре обрубка. */
+.counterstrip__bar { grid-column: 1 / -1; }
 
 /* --- Недельная полоса ------------------------------------------------------
    Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
@@ -746,6 +765,10 @@ button.counterstrip__item:hover { color: var(--accent); }
 .daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
 .daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
 .daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-chip); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
+/* Загрузка дня прижата к низу плашки: события растут сверху, загрузка
+   стоит на одной линии во всех семи ячейках и читается как ряд. */
+.daycard__load { margin-block-start: auto; display: flex; flex-direction: column; gap: var(--space-1); }
+.daycard__count { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
 .daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
 .daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
@@ -766,6 +789,13 @@ button.counterstrip__item:hover { color: var(--accent); }
 .feed__day:first-child { padding-block-start: 0; }
 .feed__time { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; }
 .feed__title { font-size: var(--fs-sm); }
+/* Вид события метится значком, а не цветом строки: три вида на восьми
+   строках различают взглядом, а не чтением первых слов. Цвет здесь —
+   второй канал, первый — рисунок значка. */
+.feed__mark { display: inline-block; flex: none; margin-inline-end: var(--space-2);
+  vertical-align: -3px; color: var(--ink-3); }
+.feed__mark--import { color: var(--accent); }
+.feed__mark--status { color: var(--ok); }
 .feed__detail { font-size: var(--fs-sm); color: var(--ink-3); overflow-wrap: anywhere; }
 @media (max-width: 767px) { .feed__item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
 
@@ -855,9 +885,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* В поле настроек дорожка иначе растягивается на всю ширину панели и
    читается как полоса, а не как переключатель из трёх состояний. */
 .field > .themeswitch { align-self: start; }
-/* В шапке тот же переключатель лежит на акцентной заливке: белая плашка
-   читалась бы там как отдельная карточка. */
-.appbar .themeswitch { background: var(--on-band-fill); }
+/* В шапке дорожки нет вовсе: три плашки подряд рядом с блоком работающего
+   читались как четвёртый блок навигации. Остаётся ряд значков, из которых
+   плашку носит только выбранный. */
+.appbar .themeswitch { background: none; padding: 0; gap: 0; }
 .appbar .themeswitch__option { color: var(--band-ink); }
 .appbar .themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); box-shadow: none; }
 /* До 768 px шапка держит знак, блок работающего и колокол; четвёртый орган
@@ -1175,6 +1206,22 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */
+/* Ближайшие сроки. Величина — дни до срока, у просроченных отрицательные,
+   поэтому форма расходящаяся: нулевая отметка — сегодня, просрочка влево
+   сигнальным, запас вправо акцентом. Одна шкала на все строки — иначе
+   «21 день» и «86 дней» дали бы одинаковые отрезки. */
+.deadline { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline; gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-2); border-block-end: 1px solid var(--line); }
+.deadline:last-child { border-block-end: 0; }
+.deadline__term { font-size: var(--fs-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.deadline__value { font-size: var(--fs-sm); text-align: end; white-space: nowrap; }
+.deadline__scale { grid-column: 1 / -1; position: relative; block-size: 8px; }
+.deadline__zero { position: absolute; inset-block: -1px; inline-size: 1px; background: var(--line-strong); }
+.deadline__bar { position: absolute; inset-block-start: 1px; block-size: 6px;
+  border-radius: var(--radius-pill); background: var(--accent); }
+.deadline__bar--late { background: var(--danger); }
+
 .finding__rows { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .finding__rows summary { font-family: var(--font-ui); cursor: pointer; min-block-size: var(--tap-min);
   display: flex; align-items: center; }
@@ -1533,6 +1580,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   line-height: var(--lh-display); font-weight: 600; color: var(--ink); }
 .statcard__value--danger { color: var(--danger); }
 .statcard__note { grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--ink-3); }
+/* Доля числа в портфеле. Знаменатель назван подписью под мерой («всего в
+   портфеле 8»), поэтому дорожка обходится без оси и подписей: она отвечает
+   на вопрос «это много или мало», на который одно число не отвечает. */
+.statcard__meter { grid-column: 1 / -1; margin-block-start: var(--space-2); }
 
 /* --- 5.21 План работ во времени --------------------------------------------
    Отрезки этапов по объектам на общей шкале дней. Форма выбрана по
@@ -1711,36 +1762,36 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-object"/></svg>
               <span class="statcard__label">Активные объекты</span>
               <span class="statcard__value">7</span>
-              <span class="statcard__note">всего в портфеле 8</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:87.5%"></span></div></div><span class="statcard__note">всего в портфеле 8</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-alert"/></svg>
               <span class="statcard__label">Просрочены</span>
               <span class="statcard__value statcard__value--danger">2</span>
-              <span class="statcard__note">срок сдачи прошёл</span>
+              <div class="statcard__meter"><div class="meter meter--danger"><span class="meter__fill" style="inline-size:25.0%"></span></div></div><span class="statcard__note">срок сдачи прошёл</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-schedule"/></svg>
               <span class="statcard__label">Срок сегодня</span>
               <span class="statcard__value">0</span>
-              <span class="statcard__note">на сегодня сроков нет</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:0.0%"></span></div></div><span class="statcard__note">на сегодня сроков нет</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-calendar"/></svg>
               <span class="statcard__label">Срок на неделе</span>
               <span class="statcard__value">1</span>
-              <span class="statcard__note">ближайшие семь дней</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:12.5%"></span></div></div><span class="statcard__note">ближайшие семь дней</span>
             </div>
           </div>
 
           <div class="weekstrip">
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span></div>
-            <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
           </div>
 
           <div class="stack">
@@ -1812,19 +1863,19 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
             <div class="stack">
                     <div class="section-head"><h2 class="t-h2">Объекты по статусам</h2></div>
                     <div class="counterstrip">
-                      <button type="button" class="counterstrip__item"><span>Новый</span><span class="counterstrip__count">2</span></button>
-                      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span></button>
-                      <button type="button" class="counterstrip__item"><span>Ждёт ответа</span><span class="counterstrip__count">1</span></button>
-                      <button type="button" class="counterstrip__item"><span>Завершён</span><span class="counterstrip__count">1</span></button>
+                      <button type="button" class="counterstrip__item"><span>Новый</span><span class="counterstrip__count">2</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:100%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>Ждёт ответа</span><span class="counterstrip__count">1</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:25%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>Завершён</span><span class="counterstrip__count">1</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:25%"></span></div></div></button>
                     </div>
             </div>
             <div class="stack">
                     <div class="section-head"><h2 class="t-h2">Ближайшие сроки</h2></div>
                     <dl class="deflist">
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-99</span> Московский проспект 116</dt><dd class="deflist__value num--danger">просрочен на 21 день</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-38</span> Владимира Невского 15, кв. 61</dt><dd class="deflist__value num--danger">просрочен на 1 день</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-72</span> Никитинская 42, кв. 7</dt><dd class="deflist__value">7 дней</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-27</span> Ленинский проспект 174п</dt><dd class="deflist__value">40 дней</dd></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-99</span> Московский проспект 116</dt><dd class="deadline__value num--danger">просрочен на 21 день</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar deadline__bar--late" style="inset-inline-start:37.8%;inline-size:12.2%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-38</span> Владимира Невского 15, кв. 61</dt><dd class="deadline__value num--danger">просрочен на 1 день</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar deadline__bar--late" style="inset-inline-start:49.4%;inline-size:0.6%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-72</span> Никитинская 42, кв. 7</dt><dd class="deadline__value">7 дней</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar" style="inset-inline-start:50%;inline-size:4.1%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-27</span> Ленинский проспект 174п</dt><dd class="deadline__value">40 дней</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar" style="inset-inline-start:50%;inline-size:23.3%"></span></div></div>
                     </dl>
             </div>
           </div>
