@@ -98,6 +98,35 @@ export function planWindow(stages: readonly StageSpan[]): PlanWindow | null {
   return { from, to, days: Math.max(1, daysBetween(from, to) + 1) };
 }
 
+/**
+ * Окно вокруг дня: `months` месяцев, считая с предыдущего.
+ *
+ * Полоса, растянутая на весь диапазон этапов портфеля, отдаёт текущему
+ * месяцу одну двенадцатую ширины, а завершённому прошлому году — половину
+ * экрана. Смотрят на неё ради того, что горит сейчас, и окно строится
+ * вокруг сегодняшнего дня.
+ *
+ * Назад отсчитывается ровно один месяц, а не половина срока: прошлое нужно
+ * затем, чтобы увидеть хвост просрочки, и одного месяца для этого хватает.
+ * Остальная ширина уходит вперёд, где лежит работа, которую ещё можно
+ * успеть сделать.
+ */
+export function windowAround(day: string, months: number): PlanWindow {
+  const [year, month] = day.split("-").map(Number);
+  if (year === undefined || month === undefined) {
+    throw new Error(`Дата ${day} не в формате ГГГГ-ММ-ДД`);
+  }
+
+  const начало = new Date(Date.UTC(year, month - 2, 1));
+  // Нулевой день следующего месяца — последний день текущего.
+  const конец = new Date(Date.UTC(year, month - 2 + months, 0));
+  const iso = (value: Date): string => value.toISOString().slice(0, 10);
+  const from = iso(начало);
+  const to = iso(конец);
+
+  return { from, to, days: Math.max(1, daysBetween(from, to) + 1) };
+}
+
 /** Отступ и длина отрезка в процентах ширины окна. */
 export interface BarGeometry {
   readonly offset: number;

@@ -220,7 +220,7 @@ export function App(): React.JSX.Element {
       {header}
       {section === "home" && (
         <>
-          {cover("Главная", ["Главная"])}
+          {cover("Главная", [state.user.organization.name])}
           <Dashboard
             projects={state.projects}
             today={today}

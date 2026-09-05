@@ -200,6 +200,60 @@
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-family: var(--font-ui); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 
+/* --- Полоса счётчиков ------------------------------------------------------
+   Десять однозначных чисел в десяти карточках занимают половину первого
+   экрана. В полосе они читаются одним движением глаза: подпись слева,
+   число справа, строки разделены линией. Строка кликабельна целиком.      */
+.counterstrip { display: flex; flex-direction: column; }
+.counterstrip__item {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  padding: var(--space-2) 0;
+  border: 0; border-block-end: 1px solid var(--line);
+  background: none; text-align: start; color: inherit; font-family: inherit;
+  font-size: var(--fs-body);
+}
+.counterstrip__item:last-child { border-block-end: 0; }
+button.counterstrip__item { cursor: pointer; }
+button.counterstrip__item:hover { color: var(--accent); }
+.counterstrip__count { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-h3); font-weight: 600; }
+.counterstrip__count--danger { color: var(--danger); }
+
+/* --- Недельная полоса ------------------------------------------------------
+   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
+   Полоса прокручивается внутри себя, полотно страницы по горизонтали
+   не двигается.                                                            */
+/* Карточки выравниваются по верху, а не растягиваются: день с событием
+   выше пустого, и неделя читается как «здесь два события», а не как пять
+   пустых коробок одинаковой высоты. */
+.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
+  gap: var(--space-2); overflow-x: auto; align-items: start; }
+.daycard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 96px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
+/* День без событий рамки не получает: семь одинаковых карточек, пять из
+   которых повторяют одну и ту же фразу, — это шум, а не сведения. Подпись
+   остаётся: пустота названа, а не оставлена без объяснения. */
+.daycard--empty { background: transparent; border-color: transparent;
+  min-height: 0; padding-block: var(--space-2); }
+.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
+.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
+.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
+.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
+.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
+.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
+
 /* --- Лента событий ---------------------------------------------------------
    Время слева отдельной колонкой: события читают сверху вниз, и колонка
    времени держит взгляд на одной вертикали.                                */
@@ -926,10 +980,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   border: 1px solid var(--line); border-radius: var(--radius-md);
   background: var(--surface); text-align: start; }
 .statcard--link { border-color: var(--line); font: inherit; cursor: pointer; }
-/* Плашка загрузки в форме карточки. Заливка скелета обязана перекрыть
-   белую заливку карточки — иначе на экране четыре пустые белые рамки,
-   которые читаются как «данные пришли и оказались пустыми». */
-.statcard.skeleton { border-color: transparent; background: var(--surface-2); }
+/* Плашка загрузки в форме карточки — своим классом, а не составом
+   `.statcard.skeleton`. Скелет, носящий класс настоящей карточки, делает
+   загрузку и загруженное неразличимыми: проверка «на экране четыре
+   карточки» проходила на пустом экране. */
+.skeleton--card { display: block; min-block-size: 108px; border-radius: var(--radius-md); }
 .statcard--link:hover { border-color: var(--accent); }
 .statcard__icon { grid-row: 1; color: var(--ink-3); }
 .statcard__label { grid-row: 1; font-size: var(--fs-cap); line-height: var(--lh-cap);

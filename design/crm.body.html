@@ -84,9 +84,10 @@
       <h2 class="item__title">Главная</h2>
       <p class="item__note">
         Экран отвечает на вопрос <b>что горит сегодня</b> и решается по нему, никуда не
-        кликая. Сверху вниз: четыре числа срочности, план работ во времени, объекты таблицей.
-        Плиток объектов с прогрессом здесь нет — они показывали бы те же данные вторым
-        способом, и пришлось бы выбирать, какому представлению верить.
+        кликая. Сверху вниз, в порядке убывания срочности: четыре числа, неделя днями,
+        план работ во времени, счётчики статусов и ближайшие сроки, лента событий, объекты
+        таблицей. Плиток объектов с прогрессом здесь нет — они показывали бы те же данные
+        вторым способом, и пришлось бы выбирать, какому представлению верить.
       </p>
 
       <div class="screen">
@@ -133,11 +134,27 @@
             </div>
           </div>
 
+          <div class="weekstrip">
+            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
+            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
+            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p></div>
+            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span></div>
+            <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
+            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
+          </div>
+
           <div class="stack">
             <div class="section-head">
               <h2 class="t-h2">План работ</h2>
               <p class="t-sm t-muted">этапы объектов во времени, текущий день отмечен · прогресс заявленный</p>
             </div>
+            <div class="segmented" role="group" aria-label="Масштаб плана">
+              <span class="segmented__option" aria-pressed="true">Квартал</span>
+              <span class="segmented__option" aria-pressed="false">Полгода</span>
+              <span class="segmented__option" aria-pressed="false">Год</span>
+            </div>
+
             <div class="plan">
               <div class="plan__scale" aria-hidden="true">
                 <span class="plan__label"></span>
@@ -189,6 +206,41 @@
               </div>
 
               <p class="plan__rest t-sm t-muted">Ещё 3 объекта с графиком — в разделе «Проекты».</p>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="stack">
+                    <div class="section-head"><h2 class="t-h2">Объекты по статусам</h2></div>
+                    <div class="counterstrip">
+                      <button type="button" class="counterstrip__item"><span>Новый</span><span class="counterstrip__count">2</span></button>
+                      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span></button>
+                      <button type="button" class="counterstrip__item"><span>Ждёт ответа</span><span class="counterstrip__count">1</span></button>
+                      <button type="button" class="counterstrip__item"><span>Завершён</span><span class="counterstrip__count">1</span></button>
+                    </div>
+            </div>
+            <div class="stack">
+                    <div class="section-head"><h2 class="t-h2">Ближайшие сроки</h2></div>
+                    <dl class="deflist">
+                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-99</span> Московский проспект 116</dt><dd class="deflist__value num--danger">просрочен на 21 день</dd></div>
+                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-38</span> Владимира Невского 15, кв. 61</dt><dd class="deflist__value num--danger">просрочен на 1 день</dd></div>
+                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-72</span> Никитинская 42, кв. 7</dt><dd class="deflist__value">7 дней</dd></div>
+                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-27</span> Ленинский проспект 174п</dt><dd class="deflist__value">40 дней</dd></div>
+                    </dl>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="section-head">
+                    <h2 class="t-h2">Последние события</h2>
+                    <p class="t-sm t-muted">смена статуса, импорт сметы, правка обмера</p>
+            </div>
+            <div class="feed feed--byday">
+                    <div>
+                      <p class="feed__day">05 сентября</p>
+                      <div class="feed__item"><span class="feed__time">19:15</span><span><span class="feed__title">R-99 · Импорт сметы: редакция 1, позиций 132</span><span class="feed__detail"> smeta-obezlichennaya.xlsx</span></span></div>
+                      <div class="feed__item"><span class="feed__time">18:40</span><span><span class="feed__title">R-31 · Статус: Новый → В работе</span></span></div>
+                    </div>
             </div>
           </div>
 
@@ -270,6 +322,9 @@
         <li><b>1.2</b><span>На полосе плана один цвет: этапы различает положение во времени, а не оттенок. Красным отмечена только просрочка, вертикаль текущего дня чернильная — один цвет не может означать два разных.</span></li>
         <li><b>1.3</b><span>Готовность у объекта без графика — «не задано», а не ноль: «работа не начата» и «график не заведён» это разные утверждения.</span></li>
         <li><b>1.4</b><span>Готовность взвешена по длительности этапов. У R-99 это 86 %: демонтаж на 19 дней и отделка на 32 дня не равны.</span></li>
+        <li><b>1.5</b><span>Окно плана строится вокруг текущего дня, а не по всему диапазону этапов портфеля: растянутая полоса отдавала текущему месяцу одну двенадцатую ширины. Масштаб переключается — квартал, полгода, год.</span></li>
+        <li><b>1.6</b><span>Подписей на отрезках нет. Порог «отрезок шире стольких процентов» шириной текста не является: «Черновая электрика» не помещается и в четверть полосы, а обрезанная подпись хуже её отсутствия. Название, даты и долю несёт подсказка.</span></li>
+        <li><b>1.7</b><span>Счётчик статуса ведёт в список с наложенным фильтром: число, по которому нельзя перейти, заставляет искать руками то, что система уже посчитала.</span></li>
       </ul>
     </div>
   </section>

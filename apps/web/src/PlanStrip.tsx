@@ -1,6 +1,14 @@
+import { useState } from "react";
 import type { ProjectSummary } from "@priyomka/contracts";
-import { barGeometry, dayOffset, planWindow, type StageSpan } from "@priyomka/domain";
-import { basisPoints } from "@priyomka/domain";
+import {
+  barGeometry,
+  basisPoints,
+  dayOffset,
+  windowAround,
+  type PlanWindow,
+  type StageSpan,
+} from "@priyomka/domain";
+import { plural } from "./status.js";
 
 /**
  * План работ во времени.
@@ -15,6 +23,10 @@ import { basisPoints } from "@priyomka/domain";
  * во времени. Поэтому цвет один, легенды нет: она повторила бы заголовок.
  * Различает отрезки положение на шкале, а не оттенок.
  *
+ * Окно строится вокруг текущего дня, а не по всему диапазону этапов
+ * портфеля. Растянутая на весь диапазон полоса отдавала текущему месяцу
+ * одну двенадцатую ширины, а завершённому прошлому году — половину экрана.
+ *
  * Геометрия целиком приходит из `@priyomka/domain/schedule`. Считать её
  * здесь значило бы завести вторую арифметику графика — расходящуюся с той,
  * из которой сервер берёт готовность объекта.
@@ -22,6 +34,13 @@ import { basisPoints } from "@priyomka/domain";
 
 /** Столько объектов помещается в полосу, дальше идёт строка остатка. */
 const LIMIT = 12;
+
+/** Масштабы окна. Квартал по умолчанию: месяц позади, два впереди. */
+const SCALES = [
+  { months: 3, label: "Квартал" },
+  { months: 6, label: "Полгода" },
+  { months: 12, label: "Год" },
+] as const;
 
 const МЕСЯЦЫ = [
   "янв", "фев", "мар", "апр", "май", "июн",
@@ -57,6 +76,10 @@ const toSpans = (project: ProjectSummary): StageSpan[] =>
     progress: basisPoints(stage.progress),
   }));
 
+/** Объект попадает в полосу, если хотя бы один его этап виден в окне. */
+const виденВОкне = (project: ProjectSummary, окно: PlanWindow): boolean =>
+  toSpans(project).some((span) => barGeometry(span, окно).length > 0);
+
 export function PlanStrip({
   projects,
   today,
@@ -66,10 +89,10 @@ export function PlanStrip({
   today: string;
   onOpen: (project: ProjectSummary) => void;
 }): React.JSX.Element {
+  const [months, setMonths] = useState<number>(3);
   const сГрафиком = projects.filter((project) => project.stages.length > 0);
-  const окно = planWindow(сГрафиком.flatMap(toSpans));
 
-  if (окно === null) {
+  if (сГрафиком.length === 0) {
     return (
       <div className="empty">
         <p className="empty__title">График не заведён ни на одном объекте</p>
@@ -81,8 +104,10 @@ export function PlanStrip({
     );
   }
 
-  const показаны = сГрафиком.slice(0, LIMIT);
-  const остаток = сГрафиком.length - показаны.length;
+  const окно = windowAround(today, months);
+  const вОкне = сГрафиком.filter((project) => виденВОкне(project, окно));
+  const показаны = вОкне.slice(0, LIMIT);
+  const скрыто = сГрафиком.length - показаны.length;
   const сегодня = dayOffset(today, окно);
   const метки = ticks(окно.from, окно.to);
   const деления = метки
@@ -90,73 +115,101 @@ export function PlanStrip({
     .filter((at): at is number => at !== null);
 
   return (
-    <div className="plan">
-      <div className="plan__scale" aria-hidden="true">
-        <span className="plan__label" />
-        <div className="plan__track">
-          {метки.map((tick) => {
-            const at = dayOffset(tick, окно);
-            return at === null ? null : (
-              <span className="plan__tick num" key={tick} style={{ insetInlineStart: `${String(at)}%` }}>
-                {месяц(tick)}
-              </span>
-            );
-          })}
-        </div>
+    <div className="stack stack--tight">
+      <div className="segmented" role="group" aria-label="Масштаб плана">
+        {SCALES.map((scale) => (
+          <button
+            key={scale.months}
+            type="button"
+            className="segmented__option"
+            aria-pressed={months === scale.months}
+            onClick={() => { setMonths(scale.months); }}
+          >
+            {scale.label}
+          </button>
+        ))}
       </div>
 
-      {показаны.map((project) => {
-        const spans = toSpans(project);
-        return (
-          <div className="plan__row" key={project.id}>
-            <a
-              className="plan__label"
-              href={`#${project.code}`}
-              onClick={(event) => { event.preventDefault(); onOpen(project); }}
-            >
-              <span className="code-badge">{project.code}</span>
-              <span className="plan__address">{project.address}</span>
-            </a>
+      {показаны.length === 0 ? (
+        /* Этапы есть, но все они вне выбранного окна. Это законное
+           состояние, и оно называется, а не показывается пустой полосой. */
+        <div className="empty">
+          <p className="empty__title">В этом окне работ нет</p>
+          <p className="empty__text">
+            У {сГрафиком.length} {plural(сГрафиком.length, "объекта", "объектов", "объектов")} график
+            заведён, но их этапы лежат за пределами выбранного масштаба. Расширьте окно.
+          </p>
+        </div>
+      ) : (
+        <div className="plan">
+          <div className="plan__scale" aria-hidden="true">
+            <span className="plan__label" />
             <div className="plan__track">
-              {деления.map((at) => (
-                <span className="plan__grid" key={at} style={{ insetInlineStart: `${String(at)}%` }} />
-              ))}
-              {сегодня !== null && (
-                <span className="plan__today" style={{ insetInlineStart: `${String(сегодня)}%` }} />
-              )}
-              {project.stages.map((stage, index) => {
-                const span = spans[index];
-                if (span === undefined) return null;
-                const { offset, length } = barGeometry(span, окно);
-                if (length === 0) return null;
-                const просрочен = stage.endsOn < today && stage.progress < 10_000;
-                return (
-                  <span
-                    key={stage.id}
-                    className={`plan__bar${просрочен ? " plan__bar--late" : ""}`}
-                    style={{ insetInlineStart: `${String(offset)}%`, inlineSize: `${String(length)}%` }}
-                    /* Подсказка вместо подписи на отрезке: этап «Черновая
-                       электрика» не помещается в полосу шириной в две недели,
-                       а обрезанная подпись хуже её отсутствия. */
-                    title={`${stage.name}: ${stage.startsOn} — ${stage.endsOn}, ${String(Math.round(stage.progress / 100))} %`}
-                  >
-                    <span
-                      className="plan__done"
-                      style={{ inlineSize: `${String(Math.round(stage.progress / 100))}%` }}
-                    />
+              {метки.map((tick) => {
+                const at = dayOffset(tick, окно);
+                return at === null ? null : (
+                  <span className="plan__tick num" key={tick} style={{ insetInlineStart: `${String(at)}%` }}>
+                    {месяц(tick)}
                   </span>
                 );
               })}
             </div>
           </div>
-        );
-      })}
 
-      {остаток > 0 && (
-        <p className="plan__rest t-sm t-muted">
-          Ещё {остаток} {остаток === 1 ? "объект" : остаток < 5 ? "объекта" : "объектов"} с
-          графиком — в разделе «Проекты».
-        </p>
+          {показаны.map((project) => {
+            const spans = toSpans(project);
+            return (
+              <div className="plan__row" key={project.id}>
+                <a
+                  className="plan__label"
+                  href={`#${project.code}`}
+                  onClick={(event) => { event.preventDefault(); onOpen(project); }}
+                >
+                  <span className="code-badge">{project.code}</span>
+                  <span className="plan__address">{project.address}</span>
+                </a>
+                <div className="plan__track">
+                  {деления.map((at) => (
+                    <span className="plan__grid" key={at} style={{ insetInlineStart: `${String(at)}%` }} />
+                  ))}
+                  {сегодня !== null && (
+                    <span className="plan__today" style={{ insetInlineStart: `${String(сегодня)}%` }} />
+                  )}
+                  {project.stages.map((stage, index) => {
+                    const span = spans[index];
+                    if (span === undefined) return null;
+                    const { offset, length } = barGeometry(span, окно);
+                    if (length === 0) return null;
+                    const просрочен = stage.endsOn < today && stage.progress < 10_000;
+                    const доля = Math.round(stage.progress / 100);
+                    return (
+                      <span
+                        key={stage.id}
+                        className={`plan__bar${просрочен ? " plan__bar--late" : ""}`}
+                        style={{ insetInlineStart: `${String(offset)}%`, inlineSize: `${String(length)}%` }}
+                        title={`${stage.name}: ${stage.startsOn} — ${stage.endsOn}, ${String(доля)} %`}
+                      >
+                        {/* Подписи на отрезке нет. Порог «отрезок шире стольких
+                            процентов» шириной текста не является: «Черновая
+                            электрика» не помещается и в четверть полосы, а
+                            обрезанная подпись хуже её отсутствия. Название,
+                            даты и долю несёт подсказка. */}
+                        <span className="plan__done" style={{ inlineSize: `${String(доля)}%` }} />
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {скрыто > 0 && (
+            <p className="plan__rest t-sm t-muted">
+              Ещё {скрыто} {plural(скрыто, "объект", "объекта", "объектов")} с графиком — за
+              пределами окна или ниже двенадцатой строки.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

@@ -153,6 +153,71 @@ if ((await page.locator(".plan__grid").count()) === 0) {
 }
 
 /**
+ * Масштаб плана. Окно строится вокруг текущего дня, и переключение обязано
+ * менять число делений шкалы: квартал — три месяца, год — двенадцать.
+ * Без этого полоса растянулась бы на весь диапазон этапов портфеля и
+ * отдала текущему месяцу одну двенадцатую ширины.
+ */
+const scales = page.locator('[aria-label="Масштаб плана"] .segmented__option');
+if ((await scales.count()) !== 3) note("план работ", "переключателя масштаба нет");
+const ticksQuarter = await page.locator(".plan__scale .plan__tick").count();
+await scales.nth(2).click();
+await page.waitForTimeout(300);
+const ticksYear = await page.locator(".plan__scale .plan__tick").count();
+if (ticksQuarter !== 3) note("план работ", `в квартале ${ticksQuarter} делений вместо трёх`);
+if (ticksYear !== 12) note("план работ", `в годе ${ticksYear} делений вместо двенадцати`);
+await scales.nth(0).click();
+await page.waitForTimeout(300);
+
+/**
+ * Подписей на отрезках нет намеренно: порог «отрезок шире стольких
+ * процентов» шириной текста не является, и подпись обрезалась посреди
+ * слова. Название несёт подсказка.
+ */
+if ((await page.locator(".plan__name").count()) > 0) {
+  note("план работ", "на отрезках появились подписи, которые нечем измерить");
+}
+
+/**
+ * Неделя, счётчики, сроки и события — блоки, вернувшиеся решением
+ * заказчика. Неделя ровно из семи дней, сегодня отмечено один раз.
+ */
+const week = await page.locator(".daycard").count();
+if (week !== 7) note("неделя", `в полосе ${week} дней вместо семи`);
+if ((await page.locator(".daycard--today").count()) !== 1) {
+  note("неделя", "сегодняшний день не отмечен ровно один раз");
+}
+const counters = await page.locator(".counterstrip__item").count();
+if (counters === 0) note("главная", "счётчики по статусам не показаны");
+if ((await page.locator(".deflist__row").count()) === 0) {
+  note("главная", "блок ближайших сроков пуст");
+}
+const homeFeed = await page.locator("main .feed__item").count();
+if (homeFeed === 0) note("главная", "лента событий на экране пуста");
+if (homeFeed > 9) note("лента событий", `строк ${homeFeed}: предел в восемь записей не работает`);
+
+/**
+ * Число, по которому нельзя перейти, бесполезно (норматив 07_IA, правило 4).
+ * Счётчик статуса ведёт в список с наложенным фильтром.
+ */
+const firstCounter = page.locator("button.counterstrip__item").first();
+if ((await firstCounter.count()) === 0) {
+  note("главная", "ни один счётчик статуса не ведёт в отфильтрованный список");
+} else {
+  await firstCounter.click();
+  await page.waitForSelector(".segmented");
+  const pressed = await page.locator('.segmented__option[aria-pressed="true"]').innerText();
+  if (pressed.trim() === "" || pressed.includes("Все")) {
+    note("главная", `счётчик статуса не наложил фильтр: выбрано «${pressed.trim()}»`);
+  }
+  // Фильтр снимается: проверка не должна менять состояние экрана для
+  // следующих сценариев.
+  await page.click('.segmented__option:has-text("Все")');
+  await page.click('.appbar__link:has-text("Главная")');
+  await page.waitForSelector(".datatable__table tbody tr");
+}
+
+/**
  * Готовность не выдумывается. Объект без графика обязан показать
  * «не задано», а не ноль: ноль означал бы «работа не начата».
  */
