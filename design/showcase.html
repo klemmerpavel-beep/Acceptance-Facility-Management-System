@@ -725,11 +725,12 @@ button.counterstrip__item:hover { color: var(--accent); }
    Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
    Полоса прокручивается внутри себя, полотно страницы по горизонтали
    не двигается.                                                            */
-/* Карточки выравниваются по верху, а не растягиваются: день с событием
-   выше пустого, и неделя читается как «здесь два события», а не как пять
-   пустых коробок одинаковой высоты. */
+/* Семь плашек одной высоты. Прежде день без событий рамки не получал, и
+   полоса читалась как два блока среди пустоты; решением заказчика неделя
+   показывается сеткой, в которой каждый день — ячейка, а событие в ней —
+   содержимое. Растягивание по высоте держит ряд ровным. */
 .weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
-  gap: var(--space-2); overflow-x: auto; align-items: start; }
+  gap: var(--space-2); overflow-x: auto; align-items: stretch; }
 .daycard {
   display: flex;
   flex-direction: column;
@@ -741,11 +742,6 @@ button.counterstrip__item:hover { color: var(--accent); }
   border-radius: var(--radius-md);
 }
 .daycard--today { border-color: var(--accent); background: var(--accent-soft); }
-/* День без событий рамки не получает: семь одинаковых карточек, пять из
-   которых повторяют одну и ту же фразу, — это шум, а не сведения. Подпись
-   остаётся: пустота названа, а не оставлена без объяснения. */
-.daycard--empty { background: transparent; border-color: transparent;
-  min-height: 0; padding-block: var(--space-2); }
 .daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
 .daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
@@ -1188,7 +1184,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Полоса демонстрационной сборки. В продукте её нет: она сообщает, что
    сервер и база не участвуют, а данные сняты с работающего стенда. */
-.demo-bar { padding-block: var(--space-2); background: var(--signal-soft); border-bottom: 1px solid var(--signal); color: var(--ink); }
 
 /* --- 5.15 Экран входа ------------------------------------------------------
    Блок формы стоит по центру полосы, логотип — у левого верхнего края.
@@ -1675,7 +1670,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 </defs>
 </svg>
 <header class="appbar">
-  <span class="appbar__brand">Приёмка</span>
+  <span class="appbar__brand">DOLSTUDIO</span>
   <nav class="appbar__nav">
     <a class="appbar__link" aria-current="page" href="#">Объекты</a>
     <a class="appbar__link" href="#">Смета</a>
@@ -2146,13 +2141,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
     </div>
 
     <div class="weekstrip">
-      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
-      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
-      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p></div>
-      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
       <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span></div>
       <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
-      <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
+      <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
     </div>
 
     <div class="segmented" role="group" aria-label="Масштаб плана">

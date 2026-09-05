@@ -111,7 +111,7 @@ export function App(): React.JSX.Element {
    */
   const header = (
     <header className="appbar">
-      <span className="appbar__brand">Приёмка</span>
+      <span className="appbar__brand">DOLSTUDIO</span>
       <nav className="appbar__nav" aria-label="Разделы">
         {SECTIONS.map((item) => (
           <a

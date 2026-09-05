@@ -311,13 +311,7 @@ export function Dashboard({
             const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
             return (
               <div
-                className={
-                  day.isToday
-                    ? "daycard daycard--today"
-                    : day.events.length === 0
-                      ? "daycard daycard--empty"
-                      : "daycard"
-                }
+                className={day.isToday ? "daycard daycard--today" : "daycard"}
                 key={day.date}
               >
                 <p className="daycard__head">

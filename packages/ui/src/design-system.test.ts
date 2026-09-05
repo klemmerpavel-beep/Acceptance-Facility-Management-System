@@ -277,11 +277,11 @@ describe("контраст: 7:1 для основного текста и орг
     ["тёмная", dark],
   ] as const)("%s тема: мягкая заливка отделяется от поверхности", (_name, palette) => {
     const surface = palette.get("--surface");
-    expect(surface).toBeDefined();
+    if (surface === undefined) throw new Error("В палитре нет --surface");
     const слабые: string[] = [];
     for (const [token, value] of palette) {
       if (!token.endsWith("-soft")) continue;
-      const ratio = contrast(value, surface ?? "#FFFFFF");
+      const ratio = contrast(value, surface);
       if (ratio < SURFACE_SEPARATION) слабые.push(`${token}: ${ratio.toFixed(3)}`);
     }
     expect(слабые).toEqual([]);
