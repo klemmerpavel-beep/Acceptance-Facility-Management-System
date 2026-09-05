@@ -107,8 +107,23 @@ ${js}
 </script>
 `;
 
-const target = join(root, "design/demo.artifact.html");
-writeFileSync(target, page, "utf8");
-console.log(`Страница собрана: ${target}`);
+/**
+ * Два файла, как у витрины дизайн-системы. Публикуемый фрагмент идёт без
+ * обёртки `html/head/body` — её ставит служба публикации. Самостоятельная
+ * страница нужна затем, чтобы демонстрацию можно было просто открыть
+ * файлом: браузер разберёт и фрагмент, но отдавать человеку документ без
+ * объявления кодировки и языка — значит перекладывать на него угадывание.
+ */
+const standalone = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${page}</html>
+`;
+
+writeFileSync(join(root, "design/demo.artifact.html"), page, "utf8");
+writeFileSync(join(root, "design/demo.html"), standalone, "utf8");
+console.log("Демонстрация собрана: design/demo.html и design/demo.artifact.html");
 console.log(`  стили ${Math.round(css.length / 1024)} КБ, код ${Math.round(js.length / 1024)} КБ`);
 console.log(`  гарнитуры вынесены ссылкой: ${fontUrls.length}`);

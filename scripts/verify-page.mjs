@@ -23,6 +23,36 @@ const environment = [];
 const note = (kind, detail) => problems.push(`${kind}: ${detail}`);
 
 /**
+ * Шкала скруглений: 4 / 6 / 8 / 12 px и капсула. Прежняя проверка стерегла
+ * только верхний предел, и значение ниже ступени — 3 px, 1 px, 2 px — она
+ * пропускала. Ровно так снятая шкала 3 / 4 / 6 px пережила свою отмену.
+ * Ноль разрешён: прямой угол у панели, штампа и таблицы назначен намеренно.
+ */
+const ШКАЛА = [0, 4, 6, 8, 12];
+const геометрия = async (page, где) => {
+  const чужие = await page.evaluate((шкала) => {
+    const найдено = new Map();
+    for (const node of document.querySelectorAll("body *")) {
+      const style = getComputedStyle(node);
+      for (const угол of ["borderTopLeftRadius", "borderTopRightRadius",
+                          "borderBottomLeftRadius", "borderBottomRightRadius"]) {
+        const value = Number.parseFloat(style[угол]);
+        if (!Number.isFinite(value)) continue;
+        // Капсула объявляется как 999 px и браузером обрезается по высоте;
+        // вычисленное значение остаётся исходным, поэтому её видно по нему.
+        if (value >= 100) continue;
+        if (шкала.includes(value)) continue;
+        const имя = node.className.toString().slice(0, 40) || node.tagName;
+        if (!найдено.has(value)) найдено.set(value, имя);
+      }
+    }
+    return [...найдено].map(([value, имя]) => `${value} px у «${имя}»`);
+  }, ШКАЛА);
+  for (const дефект of чужие) note("скругления", `${где}: ${дефект} — значение мимо шкалы`);
+  return чужие.length;
+};
+
+/**
  * Ожидаемые события, не являющиеся дефектами страницы:
  *   401 на /auth/me до входа — так проверяется наличие сессии;
  *   недоступность fonts.googleapis.com — исходящая сеть песочницы закрыта,
@@ -135,6 +165,8 @@ if (labels.join("|") !== ожидаемые.join("|")) {
   note("главная", `подписи карточек: ${labels.join(" · ")}`);
 }
 
+await геометрия(page, "главная");
+
 /**
  * Полоса плана. Отрезки, деления шкалы и вертикаль текущего дня — три
  * вещи, без любой из которых блок перестаёт быть графиком: без отрезков
@@ -150,6 +182,71 @@ if ((await page.locator(".plan__today").count()) === 0) {
 }
 if ((await page.locator(".plan__grid").count()) === 0) {
   note("план работ", "у шкалы нет делений: длина отрезка не переводится в срок");
+}
+
+/**
+ * Масштаб плана. Окно строится вокруг текущего дня, и переключение обязано
+ * менять число делений шкалы: квартал — три месяца, год — двенадцать.
+ * Без этого полоса растянулась бы на весь диапазон этапов портфеля и
+ * отдала текущему месяцу одну двенадцатую ширины.
+ */
+const scales = page.locator('[aria-label="Масштаб плана"] .segmented__option');
+if ((await scales.count()) !== 3) note("план работ", "переключателя масштаба нет");
+const ticksQuarter = await page.locator(".plan__scale .plan__tick").count();
+await scales.nth(2).click();
+await page.waitForTimeout(300);
+const ticksYear = await page.locator(".plan__scale .plan__tick").count();
+if (ticksQuarter !== 3) note("план работ", `в квартале ${ticksQuarter} делений вместо трёх`);
+if (ticksYear !== 12) note("план работ", `в годе ${ticksYear} делений вместо двенадцати`);
+await scales.nth(0).click();
+await page.waitForTimeout(300);
+
+/**
+ * Подписей на отрезках нет намеренно: порог «отрезок шире стольких
+ * процентов» шириной текста не является, и подпись обрезалась посреди
+ * слова. Название несёт подсказка.
+ */
+if ((await page.locator(".plan__name").count()) > 0) {
+  note("план работ", "на отрезках появились подписи, которые нечем измерить");
+}
+
+/**
+ * Неделя, счётчики, сроки и события — блоки, вернувшиеся решением
+ * заказчика. Неделя ровно из семи дней, сегодня отмечено один раз.
+ */
+const week = await page.locator(".daycard").count();
+if (week !== 7) note("неделя", `в полосе ${week} дней вместо семи`);
+if ((await page.locator(".daycard--today").count()) !== 1) {
+  note("неделя", "сегодняшний день не отмечен ровно один раз");
+}
+const counters = await page.locator(".counterstrip__item").count();
+if (counters === 0) note("главная", "счётчики по статусам не показаны");
+if ((await page.locator(".deflist__row").count()) === 0) {
+  note("главная", "блок ближайших сроков пуст");
+}
+const homeFeed = await page.locator("main .feed__item").count();
+if (homeFeed === 0) note("главная", "лента событий на экране пуста");
+if (homeFeed > 9) note("лента событий", `строк ${homeFeed}: предел в восемь записей не работает`);
+
+/**
+ * Число, по которому нельзя перейти, бесполезно (норматив 07_IA, правило 4).
+ * Счётчик статуса ведёт в список с наложенным фильтром.
+ */
+const firstCounter = page.locator("button.counterstrip__item").first();
+if ((await firstCounter.count()) === 0) {
+  note("главная", "ни один счётчик статуса не ведёт в отфильтрованный список");
+} else {
+  await firstCounter.click();
+  await page.waitForSelector(".segmented");
+  const pressed = await page.locator('.segmented__option[aria-pressed="true"]').innerText();
+  if (pressed.trim() === "" || pressed.includes("Все")) {
+    note("главная", `счётчик статуса не наложил фильтр: выбрано «${pressed.trim()}»`);
+  }
+  // Фильтр снимается: проверка не должна менять состояние экрана для
+  // следующих сценариев.
+  await page.click('.segmented__option:has-text("Все")');
+  await page.click('.appbar__link:has-text("Главная")');
+  await page.waitForSelector(".datatable__table tbody tr");
 }
 
 /**
@@ -205,6 +302,25 @@ await overflow("объекты, 1440");
 
 const rows = await page.locator(".datatable__table tbody tr").count();
 console.log(`  объектов в списке: ${rows}`);
+
+await геометрия(page, "объекты");
+
+/**
+ * Отклик строки на наведение. Реестр — рабочий список из семи колонок, и
+ * без подсветки строки глаз теряет её между кодом и сроком ровно так же,
+ * как терял до чередования. Проверяется поведением: фон ячейки под
+ * курсором обязан отличаться от фона той же ячейки в покое.
+ */
+const ячейка = page.locator(".datatable__table tbody tr td").first();
+const фонДо = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
+await ячейка.hover();
+await page.waitForTimeout(200);
+const фонПосле = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
+if (фонДо === фонПосле) {
+  note("реестр", `строка не отвечает на наведение: фон остаётся ${фонПосле}`);
+}
+await page.mouse.move(0, 0);
+await page.waitForTimeout(200);
 
 // Фильтр по статусу: выбор сужает таблицу и снимается обратно.
 const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
@@ -396,6 +512,7 @@ const brigades = виды.filter((вид) => вид.trim() === "Бригада")
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
 if (brigades === 0) note("контакты", "бригады не показаны");
 if (clients === 0) note("контакты", "заказчики не показаны");
+await геометрия(page, "контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
 

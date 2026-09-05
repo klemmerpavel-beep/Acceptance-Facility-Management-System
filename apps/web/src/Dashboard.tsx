@@ -8,15 +8,25 @@ import type {
 import { fetchDashboard, errorMessage } from "./api.js";
 import { PlanStrip } from "./PlanStrip.js";
 import { ProjectTable } from "./ProjectTable.js";
-import { formatDay, formatTime, plural } from "./status.js";
+import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 
 /**
  * Главная — первый экран при запуске.
  *
  * Единственный пользователь продукта открывает его утром перед выездом на
- * две-три минуты и решает по первому экрану, никуда не кликая. Отсюда
- * состав, сверху вниз: четыре числа, отвечающих на вопрос «что горит
- * сегодня»; план работ во времени; объекты таблицей.
+ * две-три минуты и решает по первому экрану, никуда не кликая.
+ *
+ * Состав, сверху вниз, в порядке убывания срочности:
+ *
+ *   1. четыре числа — что горит сегодня;
+ *   2. неделя днями с чипами событий — что будет по дням;
+ *   3. план работ во времени — где стоит работа;
+ *   4. счётчики статусов, ближайшие сроки, последние события;
+ *   5. объекты таблицей.
+ *
+ * Блоки 2 и 4 вернулись решением заказчика от 05.09.2026: экран из трёх
+ * блоков отвечал на свой вопрос, но заставлял искать просрочку в таблице,
+ * а события — за колоколом. Плотность взята у эталона, порядок — свой.
  *
  * Чего здесь нет и почему
  * -----------------------
@@ -27,9 +37,6 @@ import { formatDay, formatTime, plural } from "./status.js";
  * Денежных величин портфеля нет. Они по-прежнему считаются и приходят в
  * ответе сводки, но экран отвечает на вопрос о работе, а не о деньгах, и
  * четыре денежных числа наверху сдвинули бы сроки под сгиб.
- *
- * Ленты событий нет: она переехала за колокол в шапке, туда, где её ищут
- * по эталону.
  */
 
 /** Порог ленты объектов в таблице главной: дальше — раздел «Проекты». */
@@ -134,6 +141,52 @@ export function EventFeed({
   );
 }
 
+const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+
+const EVENT_CLASS = {
+  neutral: "daycard__event",
+  ok: "daycard__event daycard__event--ok",
+  warn: "daycard__event daycard__event--warn",
+  danger: "daycard__event daycard__event--danger",
+} as const;
+
+const COUNTER_CLASS = {
+  plain: "counterstrip__count",
+  danger: "counterstrip__count counterstrip__count--danger",
+} as const;
+
+/**
+ * Строка полосы счётчиков: подпись слева, число справа.
+ *
+ * Строка, ведущая в отфильтрованный список, — кнопка целиком: число, по
+ * которому нельзя перейти, заставляет искать руками то, что система уже
+ * посчитала (норматив 07_IA, правило 4).
+ */
+function Counter({
+  value,
+  label,
+  tone,
+  onClick,
+}: {
+  value: number | string;
+  label: string;
+  tone?: "danger";
+  onClick?: () => void;
+}): React.JSX.Element {
+  const body = (
+    <>
+      <span>{label}</span>
+      <span className={tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger}>{value}</span>
+    </>
+  );
+  if (onClick === undefined) return <div className="counterstrip__item">{body}</div>;
+  return (
+    <button type="button" className="counterstrip__item" onClick={onClick}>
+      {body}
+    </button>
+  );
+}
+
 /** Статусы, при которых объект считается активным: работа по нему идёт или вот-вот пойдёт. */
 const ACTIVE: readonly ProjectStatus[] = ["NEW", "IN_PROGRESS", "WAITING_CLIENT"];
 
@@ -180,7 +233,7 @@ export function Dashboard({
       <main className="container stack stack--loose" aria-busy="true">
         <div className="statrow">
           {[0, 1, 2, 3].map((index) => (
-            <span className="skeleton statcard" key={index} />
+            <span className="skeleton skeleton--card" key={index} />
           ))}
         </div>
         <span className="skeleton skeleton--row" />
@@ -249,12 +302,113 @@ export function Dashboard({
 
       <section className="stack">
         <div className="section-head">
+          <h2 className="t-h2">Неделя</h2>
+          <p className="t-sm t-muted">сроки и импорт по дням · неделя от понедельника</p>
+        </div>
+        <div className="weekstrip">
+          {data.week.map((day) => {
+            const date = new Date(day.date);
+            const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
+            return (
+              <div
+                className={
+                  day.isToday
+                    ? "daycard daycard--today"
+                    : day.events.length === 0
+                      ? "daycard daycard--empty"
+                      : "daycard"
+                }
+                key={day.date}
+              >
+                <p className="daycard__head">
+                  <span className="daycard__date">{day.date.slice(8)}</span>
+                  <span className="daycard__weekday">{weekday}</span>
+                </p>
+                {day.events.map((event, index) => (
+                  <span className={EVENT_CLASS[event.tone]} key={`${event.kind}-${index}`}>
+                    {event.title}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        {/* Пустота названа один раз строкой под полосой, а не пять раз
+            повторённой фразой в пустых днях: повтор одной и той же подписи
+            читается как шум и мешает увидеть день, где событие есть. */}
+        {data.week.every((day) => day.events.length === 0) && (
+          <p className="t-sm t-muted">На этой неделе событий нет.</p>
+        )}
+      </section>
+
+      <section className="stack">
+        <div className="section-head">
           <h2 className="t-h2">План работ</h2>
           <p className="t-sm t-muted">
             этапы объектов во времени, текущий день отмечен · прогресс заявленный
           </p>
         </div>
         <PlanStrip projects={projects} today={today} onOpen={onOpen} />
+      </section>
+
+      <section className="split">
+        <div className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Объекты по статусам</h2>
+          </div>
+          <div className="counterstrip">
+            {data.statuses.map((row) => (
+              <Counter
+                key={row.status}
+                label={STATUS_LABEL[row.status]}
+                value={row.count}
+                onClick={() => { onOpenProjects(row.status); }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Ближайшие сроки</h2>
+          </div>
+          {data.deadlines.length === 0 ? (
+            <div className="empty">
+              <p className="empty__title">Сроков нет</p>
+              <p className="empty__text">Ни у одного действующего объекта не задан срок сдачи.</p>
+            </div>
+          ) : (
+            <dl className="deflist">
+              {data.deadlines.map((row) => (
+                <div className="deflist__row" key={row.code}>
+                  <dt className="deflist__term">
+                    <span className="code-badge">{row.code}</span> {row.address}
+                  </dt>
+                  <dd className={row.days < 0 ? "deflist__value num--danger" : "deflist__value"}>
+                    {row.days < 0
+                      ? `просрочен на ${Math.abs(row.days)} ${plural(row.days, "день", "дня", "дней")}`
+                      : `${row.days} ${plural(row.days, "день", "дня", "дней")}`}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      </section>
+
+      <section className="stack">
+        <div className="section-head">
+          <h2 className="t-h2">Последние события</h2>
+          <p className="t-sm t-muted">смена статуса, импорт сметы, правка обмера</p>
+        </div>
+        {data.feed.length === 0 ? (
+          <div className="empty">
+            <p className="empty__title">Событий пока нет</p>
+            <p className="empty__text">Здесь появятся смены статуса, импорт смет и правки обмера.</p>
+          </div>
+        ) : (
+          <EventFeed events={data.feed} />
+        )}
       </section>
 
       <section className="stack">

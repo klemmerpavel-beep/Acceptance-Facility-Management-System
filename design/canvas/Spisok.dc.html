@@ -21,6 +21,7 @@
       --band:#6C5CE7;--band-ink:#FFFFFF;--band-active:#FFFFFF;--band-active-ink:#4A3AB8;
       --on-band-fill:rgba(255,255,255,.16);--on-band-track:rgba(255,255,255,.24);
       --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#B7B0F6;
+      --radius-sm:4px; --radius-chip:6px; --radius-md:8px; --radius-lg:12px; --radius-pill:999px;
       --shadow-1:0 1px 2px rgba(14,26,40,.06); --shadow-2:0 4px 16px rgba(14,26,40,.10);
       --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
       --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -43,23 +44,23 @@
     .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
       font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
     .panel{border-block:1px solid var(--line)}
-    .panel--sheet{background:var(--surface);border:1px solid var(--line);border-radius:4px}
-    .pill{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:3px;
+    .panel--sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md)}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
       font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
     .pill--ok{background:var(--ok-soft);color:var(--ok)}
     .pill--warn{background:var(--warn-soft);color:var(--warn)}
     .pill--danger{background:var(--danger-soft);color:var(--danger)}
-    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:3px;
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
       background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
       font-size:13px;font-weight:600;letter-spacing:.02em}
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
-      padding:0 16px;border:1px solid transparent;border-radius:4px;font-size:15px;
+      padding:0 16px;border:1px solid transparent;border-radius:var(--radius-md);font-size:15px;
       font-weight:500;font-family:inherit;cursor:pointer}
     .btn--primary{background:var(--accent);color:var(--accent-ink)}
     .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
     .btn--text{background:transparent;color:var(--accent);padding:0 8px}
-    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:3px}
-    .segmented__option{min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:2px;
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:var(--radius-md)}
+    .segmented__option{min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:var(--radius-chip);
       font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
     .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
       font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
@@ -68,7 +69,7 @@
     .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
     .appbar__nav{display:flex;gap:4px;margin-inline:auto}
     .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
-      border-radius:3px;color:var(--band-ink);text-decoration:none;font-size:13px;font-weight:500}
+      border-radius:var(--radius-pill);color:var(--band-ink);text-decoration:none;font-size:13px;font-weight:500}
     .appbar__link[aria-current="page"]{background:var(--band-active);color:var(--band-active-ink)}
     .cover{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
     .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3)}
@@ -97,7 +98,7 @@
     .field{display:flex;flex-direction:column;gap:4px}
     .field__label{font-size:13px;color:var(--ink-2)}
     .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
-      border-radius:3px;color:var(--ink);font-family:inherit;font-size:15px}
+      border-radius:var(--radius-md);color:var(--ink);font-family:inherit;font-size:15px}
     .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
     .deflist__term{font-size:13px;color:var(--ink-2)}
     .deflist__value{font-size:13px;text-align:right}
@@ -114,9 +115,9 @@
     .spec--inv .spec__value{color:var(--accent-inv)}
     .toggle{display:inline-flex;align-items:center;gap:10px;padding:0;border:0;background:none;
       font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
-    .toggle__track{position:relative;width:44px;height:24px;flex:none;border-radius:999px;
+    .toggle__track{position:relative;width:44px;height:24px;flex:none;border-radius:var(--radius-pill);
       background:var(--line-strong)}
-    .toggle__knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+    .toggle__knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:var(--radius-pill);
       background:var(--surface);box-shadow:var(--shadow-1)}
     .toggle__name{font-weight:500;color:var(--ink)}
     .toggle[aria-checked="true"] .toggle__track{background:var(--accent)}
@@ -128,7 +129,7 @@
     .selectwrap .input{width:100%;padding-right:32px;appearance:none;-webkit-appearance:none}
     .selectwrap__chevron{position:absolute;right:8px;color:var(--ink-3);pointer-events:none}
     .iconbtn{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--line-strong);
-      border-radius:3px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+      border-radius:var(--radius-md);background:var(--surface);color:var(--ink-2);cursor:pointer}
     .iconbtn--inv{border-color:var(--line-inv);background:transparent;color:var(--ink-on-inv-2)}
     .figure{display:flex;flex-direction:column;gap:4px}
     .figure+.figure{padding-top:16px;border-top:1px solid var(--line)}
@@ -138,14 +139,14 @@
       line-height:1.15;font-weight:600}
     .figure__value--h2{font-size:19px;line-height:1.25}
     .figure__note{font-size:13px;color:var(--ink-3)}
-    .tile{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:12px 16px}
+    .tile{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 16px}
     .tile--accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
     .tile--accent .figure__label,.tile--accent .figure__note{color:var(--accent-ink);opacity:.78}
     .tile--accent .figure__value{color:var(--accent-ink)}
     .section-head{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;
       gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line-strong)}
     .metric{display:inline-flex;flex-direction:column;gap:2px;padding:8px 12px;
-      border:1px solid var(--line-strong);border-radius:3px}
+      border:1px solid var(--line-strong);border-radius:var(--radius-md)}
     .metric__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}
     .metric__label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
     .mail-gateway{display:inline-flex;align-items:center;flex-wrap:wrap;font-family:var(--font-mono);font-size:13px}
@@ -172,7 +173,7 @@
           <button class="segmented__option" aria-pressed="true">5 записей</button>
           <button class="segmented__option">30 записей</button>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1px solid var(--line);border-radius:6px;min-width:280px">
+        <label style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1px solid var(--line);border-radius:var(--radius-md);min-width:280px">
           <svg class="icon" style="color:var(--ink-3)" aria-hidden="true"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></svg>
           <input style="border:0;outline:none;flex:1 1 auto;font-family:inherit;font-size:15px;background:none" placeholder="Поиск по адресу и коду">
         </label>

@@ -88,6 +88,17 @@ for (const board of layout.artboards) {
   for (const [literal] of markup.matchAll(/\brgba?\([^)]*\)/g)) {
     note(board.file, `цвет мимо токена в разметке: ${literal}`);
   }
+  /**
+   * Скругление мимо токена. Проверки цвета хватало ровно до тех пор, пока
+   * шкалу не правили: артборды пережили отмену шкалы 3 / 4 / 6 px и
+   * показывали снятую геометрию, потому что на радиус не смотрел никто.
+   * Ноль разрешён — прямой угол назначается явно.
+   */
+  for (const [declaration] of source.matchAll(/border-radius:\s*[^;"']*/g)) {
+    if (declaration.includes("var(")) continue;
+    if (!/[1-9]/.test(declaration)) continue;
+    note(board.file, `скругление мимо токена: ${declaration.trim()}`);
+  }
 
   const page = await browser.newPage({
     viewport: { width: board.w, height: board.h },
