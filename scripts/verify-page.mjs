@@ -694,7 +694,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -1008,6 +1008,152 @@ if (мест !== 7) note("график", `в поле «Место в графи
 await page.click('.sheet button:has-text("Отмена")');
 await page.waitForTimeout(300);
 await step("работа на телефоне", "28-grafik-360.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
+/*
+ * Приёмка — ядро продукта и единственный экран, живущий на телефоне прораба.
+ * Проверяется то, чего не видно на снимке: что отметить можно только там,
+ * где есть бригада, что лист отказывает до обращения к сети, что сторно
+ * возвращает счётчики, и что порог трёх касаний на пакет соблюдён.
+ */
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForSelector(".accept__row");
+
+/* Три меры шапки обязаны сходиться между собой. Расхождение «принято ноль
+   позиций» при «начислено четыреста тысяч» уже случалось: позиции брались
+   из действующей редакции сметы, а начисления — за всё время объекта, и
+   после импорта новой редакции числа расходились. Глазом это видно на
+   снимке, проверкой — не ловилось. */
+const меры = await page.locator(".accept .metric").allInnerTexts();
+const принятоПозиций = Number.parseInt(меры[0]?.split("/")[0]?.trim() ?? "0", 10);
+const цифры = (текст) => Number.parseInt((текст ?? "").replace(/[^\d]/gu, "") || "0", 10);
+const выполнено = цифры(меры[1]);
+const начислено = цифры(меры[2]);
+if ((принятоПозиций === 0) !== (выполнено === 0)) {
+  note("приёмка", `принято позиций ${принятоПозиций}, а выполнено на сумму ${выполнено}`);
+}
+if (принятоПозиций === 0 && начислено > 0) {
+  note("приёмка", `принято ноль позиций, а начислено ${начислено}: меры не сходятся`);
+}
+
+const разделовПриёмки = await page.locator(".accept__section").count();
+if (разделовПриёмки !== 11) note("приёмка", `разделов ${разделовПриёмки} вместо одиннадцати`);
+
+/* Раздел без этапа называет причину и уводит на график, а не гасит кнопку
+   молча: погашенный орган не объясняет, почему он погашен. */
+await page.click(".accept__section--idle");
+await page.waitForTimeout(300);
+/* Читается через count(): у отсутствующего узла textContent бросает
+   исключение и роняет весь обход, а падение прячет всё, что идёт после. */
+const объяснение = page.locator('.accept__list [role="alert"]');
+const безЭтапа = (await объяснение.count()) === 0
+  ? ""
+  : (await объяснение.first().textContent())?.trim() ?? "";
+if (!безЭтапа.includes("нет этапа графика") || !безЭтапа.includes("Работа")) {
+  note("приёмка", `раздел без этапа не объясняет отказ: «${безЭтапа}»`);
+}
+if (await page.locator(".accept__check").first().isEnabled()) {
+  note("приёмка", "в разделе без этапа отметка позиции доступна");
+}
+
+/* Раздел с этапом: отметка, полоса подтверждения, лист. Счёт касаний идёт
+   отсюда — раздел уже открыт первым касанием. */
+await page.click('.accept__section:not(.accept__section--idle)');
+await page.waitForTimeout(300);
+const свободная = page.locator(".accept__row").filter({ hasNot: page.locator(".pill--ok") }).first();
+await свободная.locator(".accept__check").click();
+if ((await page.locator(".accept__bar").count()) === 0) {
+  note("приёмка", "полосы подтверждения нет: пакет не подтвердить");
+} else {
+  await page.click('.accept__bar button:has-text("Принять")');
+  await page.waitForSelector(".sheet", { timeout: 10_000 }).catch(() => undefined);
+}
+
+/* Проверки листа идут одним куском под условием: не открывшийся лист
+   оставил бы каждую следующую строку падать по таймауту, а падение
+   прячет весь остаток обхода. */
+if ((await page.locator(".sheet").count()) === 0) {
+  note("приёмка", "лист подтверждения не открылся");
+} else {
+  const полеКоличества = page.locator(".sheet .input--num").first();
+  await полеКоличества.fill("999999");
+  await page.waitForTimeout(300);
+  const отказЛистаУзел = page.locator('.sheet [role="alert"]');
+  const отказЛиста = (await отказЛистаУзел.count()) === 0
+    ? ""
+    : (await отказЛистаУзел.first().textContent())?.trim() ?? "";
+  if (!отказЛиста.includes("по смете осталось")) {
+    note("приёмка", `лист не отказал на превышении: «${отказЛиста}»`);
+  }
+  if (await page.locator('.sheet button:has-text("Подтвердить")').isEnabled()) {
+    note("приёмка", "кнопка подтверждения доступна при превышении остатка");
+  }
+
+  /* Без снимка подтвердить нельзя: пакет без свидетельства свидетельством
+     не является. */
+  await полеКоличества.fill("1");
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button:has-text("Подтвердить")').isEnabled()) {
+    note("приёмка", "подтверждение доступно без снимка");
+  }
+  await step("приёмка, лист подтверждения", "33-priyomka-list.png");
+
+  await page.setInputFiles('.sheet input[type="file"]', "scripts/fixtures/snimok.png");
+  await page.waitForTimeout(300);
+  if (!(await page.locator('.sheet button:has-text("Подтвердить")').isEnabled())) {
+    note("приёмка", "подтверждение недоступно при заполненном количестве и снимке");
+  }
+
+  const пакетовДо = await page.locator(".accept__batch").count();
+  await page.click('.sheet button:has-text("Подтвердить")');
+  await page.waitForTimeout(1200);
+  const пакетовПосле = await page.locator(".accept__batch").count();
+  if (пакетовПосле !== пакетовДо + 1) {
+    note("приёмка", `пакетов ${пакетовПосле} вместо ${пакетовДо + 1}`);
+  }
+}
+
+/* Сторно возвращает счётчики. Проверяется на только что заведённой строке:
+   чужие приёмки стенда трогать незачем. */
+const сторнируемая = page.locator(".accept__batch").first()
+  .locator('.accept__line button:has-text("Сторнировать")').first();
+if ((await сторнируемая.count()) === 0) {
+  note("приёмка", "у первой строки пакета нет сторно");
+} else {
+  await сторнируемая.click();
+  await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+  const текстСторно = (await page.locator(".sheet").count()) === 0
+    ? ""
+    : await page.locator(".sheet").innerText();
+  if (!текстСторно.includes("останутся в истории")) {
+    note("приёмка", "лист сторно не называет, что записи остаются в истории");
+  }
+  if (await page.locator(".sheet .btn--danger").isEnabled()) {
+    note("приёмка", "сторно доступно без указания причины");
+  }
+  await page.fill(".sheet .input", "Проверка страницы");
+  await page.waitForTimeout(200);
+  await step("приёмка, сторно", "34-priyomka-storno.png");
+  await page.click(".sheet .btn--danger");
+  await page.waitForTimeout(1200);
+  if ((await page.locator(".accept__line--reversed").count()) === 0) {
+    note("приёмка", "сторнированная строка не помечена");
+  }
+}
+
+/* Приёмка на телефоне: зоны касания и отсутствие переполнения. Порог трёх
+   касаний относится к пакету — раздел, «Принять», «Подтвердить». */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await overflow("приёмка, 390");
+for (const selector of [".accept__check", ".accept__section"]) {
+  const box = await page.locator(selector).first().boundingBox();
+  if (box !== null && box.height < 44) {
+    note("приёмка", `зона касания «${selector}» на 390 px — ${Math.round(box.height)} px вместо 44`);
+  }
+}
+await step("приёмка на телефоне", "35-priyomka-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
 

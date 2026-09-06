@@ -1832,6 +1832,126 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .plan__address { display: none; }
 }
 
+/* --- 5.9 Приёмка выполненных работ ----------------------------------------
+   Главный экран продукта и единственный, который живёт на телефоне прораба.
+   Проектируется от 390 px вверх: на объекте открывают его, а не таблицу.
+
+   Порог трёх касаний относится к пакету: раздел → «Принять» → «Подтвердить».
+   Обязательная фотофиксация требует спуска затвора и подтверждения снимка,
+   то есть ещё двух касаний, и при счёте по одной позиции требование
+   арифметически невыполнимо. */
+
+.accept { display: grid; gap: var(--space-4); }
+
+/* На широком экране разделы стоят колонкой слева, позиции справа: одиннадцать
+   разделов, выложенных поперёк, отодвинули бы позиции за нижний край, а
+   пришли на этот экран принимать, а не выбирать раздел. */
+.accept__work { display: grid; gap: var(--space-4); }
+@media (min-width: 768px) {
+  .accept__work { grid-template-columns: 280px minmax(0, 1fr); align-items: start; }
+}
+
+/* Лента разделов. Устроена как лента помещений замера — тот же орган, та же
+   зона нажатия; на узком экране становится горизонтальной. */
+.accept__sections { display: flex; flex-direction: column; gap: var(--space-1); }
+.accept__section {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-sm); color: var(--ink); text-align: start;
+}
+.accept__section:hover { background: var(--surface-2); }
+.accept__section[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+/* Раздел без этапа принять нельзя: начисление некому адресовать. Он не
+   гасится, а называет причину — гашение молча оставило бы человека гадать. */
+.accept__section--idle { color: var(--ink-3); }
+
+/* Карточка позиции. Наименование в две строки, под ним смета и принятое,
+   справа отметка — цель нажатия во всю высоту карточки. */
+.accept__list { display: grid; gap: var(--space-2); }
+.accept__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.accept__row--picked { border-color: var(--accent); }
+.accept__name {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: var(--fs-body); color: var(--ink);
+}
+.accept__figures {
+  margin-block-start: var(--space-1);
+  font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-2);
+}
+.accept__check {
+  display: grid; place-items: center;
+  inline-size: 48px; block-size: 48px; flex: none;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  background: none; color: var(--ink-3); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.accept__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.accept__check:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Полоса подтверждения. Прилипает к низу списка и появляется вместе с первой
+   отметкой: до неё она заняла бы место, ничего не сообщая. */
+.accept__bar {
+  position: sticky; inset-block-end: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface); box-shadow: var(--shadow-2);
+}
+
+/* Пакет в истории: снимок, состав, автор. Свидетельство и то, что им
+   подтверждено, стоят рядом — порознь они ничего не доказывают. */
+.accept__batch {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-3);
+  padding: var(--space-3); border-block-end: 1px solid var(--line);
+}
+.accept__batch:last-child { border-block-end: 0; }
+.accept__photo {
+  inline-size: 72px; block-size: 72px; border-radius: var(--radius-md);
+  object-fit: cover; background: var(--surface-2);
+}
+/* Колонки строки пакета стоят на одних вертикалях: количество и сумма
+   читаются столбцом, а разъехавшиеся числа приходится сравнивать глазом. */
+.accept__line {
+  display: grid; grid-template-columns: minmax(0, 1fr) 7rem 8rem auto;
+  align-items: baseline; gap: var(--space-3); padding-block: var(--space-1);
+  font-size: var(--fs-sm);
+}
+.accept__line .num { text-align: end; }
+@media (max-width: 767px) {
+  .accept__line { grid-template-columns: minmax(0, 1fr) auto; }
+}
+.accept__line--reversed { color: var(--ink-3); text-decoration: line-through; }
+.accept__reason { font-size: var(--fs-cap); color: var(--danger); text-decoration: none; }
+
+/* Свод начислений по бригадам. Только руководителю: сумма при известном
+   количестве выдаёт ставку, а ставка от прораба закрыта. */
+.accrual { display: grid; gap: var(--space-1); }
+.accrual__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline; gap: var(--space-3);
+  padding-block: var(--space-2); border-block-end: 1px solid var(--line);
+}
+.accrual__row:last-child { border-block-end: 0; }
+.accrual__sum { font-family: var(--font-mono); font-size: var(--fs-sm); white-space: nowrap; }
+
+/* На телефоне лента разделов ложится горизонтально: вертикальная съела бы
+   экран целиком, а прораб пришёл принимать, а не выбирать. */
+@media (max-width: 767px) {
+  .accept__sections { flex-direction: row; overflow-x: auto; gap: var(--space-2); scrollbar-width: thin; }
+  .accept__section { inline-size: auto; white-space: nowrap; }
+  .accept__batch { grid-template-columns: 56px minmax(0, 1fr); }
+  .accept__photo { inline-size: 56px; block-size: 56px; }
+}
+
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
    не входит в продукт: ритм разделов, рамка превью, образец цвета в таблице

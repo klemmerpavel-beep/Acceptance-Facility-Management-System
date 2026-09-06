@@ -121,8 +121,14 @@ export class AcceptanceService {
           brigade: { select: { id: true, name: true } },
         },
       }),
+      /* Приёмки берутся только по позициям действующей редакции сметы.
+         Приёмка привязана к своей редакции (Р11): после нового импорта
+         прежние относятся к позициям, которых в действующей смете уже нет.
+         Смешивать их с текущими нельзя — вид показывал бы «принято ноль
+         позиций» и «начислено четыреста тысяч» одновременно. Прежние
+         приёмки остаются в базе и в журнале объекта. */
       this.prisma.acceptance.findMany({
-        where: { batch: { projectId } },
+        where: { batch: { projectId }, item: { estimateId: estimate.id } },
         orderBy: { createdAt: "asc" },
         select: {
           id: true, batchId: true, itemId: true, qty: true, reason: true,
@@ -198,7 +204,7 @@ export class AcceptanceService {
       };
     });
 
-    const batches = await this.batches(projectId, acceptances, внутренние);
+    const batches = await this.batches(projectId, estimate.id, acceptances, внутренние);
 
     const начислено = внутренние
       ? sum(acceptances.map((row) => kopecks(row.accrual?.amount ?? 0n)))
@@ -244,6 +250,7 @@ export class AcceptanceService {
   /** Пакеты объекта с их строками. Новые сверху: смотрят на последнее. */
   private async batches(
     projectId: string,
+    estimateId: string,
     acceptances: readonly {
       id: string; batchId: string; itemId: string; qty: bigint; reason: string | null;
       reversesId: string | null; createdAt: Date;
@@ -253,7 +260,7 @@ export class AcceptanceService {
     внутренние: boolean,
   ): Promise<AcceptanceBatch[]> {
     const rows = await this.prisma.acceptanceBatch.findMany({
-      where: { projectId },
+      where: { projectId, section: { estimateId } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true, sectionId: true, createdAt: true, comment: true,
