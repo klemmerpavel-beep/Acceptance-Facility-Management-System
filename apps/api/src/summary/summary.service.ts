@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import type { Dashboard } from "@priyomka/contracts";
 import {
-  basisPoints, buildPortfolio, buildWeek, daysBetween,
-  type CalendarEvent, type PortfolioProject,
+  acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, kopecks, milliunits,
+  type CalendarEvent, type Kopecks, type Milliunits, type PortfolioProject,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
@@ -55,6 +55,34 @@ export class SummaryService {
       floorArea: rooms.reduce((total, room) => total + room.floorArea, 0n).toString(),
     };
 
+    /**
+     * Выполнено на сумму по каждому объекту. Одним запросом по всем видимым
+     * объектам — по той же причине, что и обмер: запрос на объект даёт N+1.
+     *
+     * Считается по записям приёмки: сторно приходит отрицательным
+     * количеством и вычитается тем же проходом, второй обход не нужен.
+     */
+    const принятое = await this.prisma.acceptance.findMany({
+      where: { batch: { projectId: { in: projects.map((project) => project.id) } } },
+      select: {
+        qty: true,
+        itemId: true,
+        batch: { select: { projectId: true } },
+        item: { select: { unitPrice: true } },
+      },
+    });
+    const выполнено = new Map<string, { qty: Milliunits; unitPrice: Kopecks }[]>();
+    /* Принятой считается позиция с положительным итогом по её записям:
+       полностью сторнированная в счётчик не входит — она снова ждёт приёмки. */
+    const поПозиции = new Map<string, bigint>();
+    for (const row of принятое) {
+      const список = выполнено.get(row.batch.projectId) ?? [];
+      список.push({ qty: milliunits(row.qty), unitPrice: kopecks(row.item.unitPrice) });
+      выполнено.set(row.batch.projectId, список);
+      поПозиции.set(row.itemId, (поПозиции.get(row.itemId) ?? 0n) + row.qty);
+    }
+    const принятыхПозиций = [...поПозиции.values()].filter((qty) => qty > 0n).length;
+
     const portfolioInput: PortfolioProject[] = projects.map((project) => {
       const own = facts.get(project.id);
       return {
@@ -68,6 +96,7 @@ export class SummaryService {
         positions: own?.positions ?? 0,
         discrepancy: own?.discrepancy ?? null,
         findings: own?.findings ?? 0,
+        acceptedTotal: acceptedTotal(выполнено.get(project.id) ?? []),
       };
     });
 
@@ -127,9 +156,15 @@ export class SummaryService {
         discrepancy: portfolio.estimate.discrepancy.toString(),
         projectsWithDiscrepancy: portfolio.estimate.projectsWithDiscrepancy,
       },
-      // Приёмки, акты и расходы появятся на своих этапах. До тех пор здесь
-      // нули, а не правдоподобные числа: сводка не выдумывает работу.
-      acceptance: { accepted: 0, pending: portfolio.estimate.positions, acts: 0, expenses: 0 },
+      /* Принятые позиции считаются по записям приёмки. Акты и расходы
+         появятся на этапе Э4; до тех пор здесь нули, а не правдоподобные
+         числа: сводка не выдумывает работу. */
+      acceptance: {
+        accepted: принятыхПозиций,
+        pending: portfolio.estimate.positions - принятыхПозиций,
+        acts: 0,
+        expenses: 0,
+      },
       measure,
       deadlines: portfolio.deadlines.slice(0, 5),
       week,

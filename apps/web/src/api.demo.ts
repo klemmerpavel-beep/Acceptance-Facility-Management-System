@@ -390,6 +390,10 @@ export async function createStage(_code: string, stage: CreateWorkStage): Promis
     startsOn: stage.startsOn,
     endsOn: stage.endsOn,
     progress: stage.progress,
+    // Раздел и бригада в демонстрации не назначаются: приёмка в ней ведётся
+    // по слепку, а не по связям.
+    sectionId: null,
+    brigade: null,
   }];
   return этапыR99();
 }

@@ -34,6 +34,8 @@ export interface PortfolioProject {
   deadline: string | null;
   /** Итог по работам действующей редакции сметы; пусто — сметы нет. */
   worksTotal: Kopecks | null;
+  /** Выполнено на сумму: Σ принятое × цена единицы. Ноль — приёмок нет. */
+  acceptedTotal: Kopecks;
   wageTotal: Kopecks | null;
   supervisionShare: BasisPoints;
   positions: number;
@@ -163,7 +165,7 @@ export function buildPortfolio(
       works,
       supervision,
       estimate,
-      accepted: kopecks(0),
+      accepted: sum(projects.map((p) => p.acceptedTotal)),
       ...(options.role === "OWNER" ? { wage } : {}),
     },
     statuses,

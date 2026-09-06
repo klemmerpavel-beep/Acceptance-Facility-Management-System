@@ -5,7 +5,7 @@ import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
-import { basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
+import { acceptedQty, basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -249,7 +249,13 @@ export class EstimatesService {
       orderBy: { version: "desc" },
       include: {
         sections: { orderBy: { order: "asc" } },
-        items: { orderBy: { order: "asc" }, include: { unit: true } },
+        /* Приёмки приходят вместе с позицией: принятое есть их сумма, и
+           отдельный запрос на каждую из ста тридцати двух позиций дал бы
+           сто тридцать два обращения на один экран сметы. */
+        items: {
+          orderBy: { order: "asc" },
+          include: { unit: true, acceptances: { select: { qty: true } } },
+        },
         otherExpenses: { orderBy: { order: "asc" }, include: { unit: true } },
         imports: { orderBy: { importedAt: "desc" }, take: 1 },
       },
@@ -277,7 +283,9 @@ export class EstimatesService {
         name: item.name,
         unit: item.unit.code,
         qty: milliunits(item.qty),
-        qtyAccepted: milliunits(0n),
+        // Принято — сумма записей приёмки по позиции, включая отрицательные
+        // у сторно. Пока приёмок нет, сумма пуста и даёт честный ноль.
+        qtyAccepted: acceptedQty(item.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
         unitPrice: kopecks(item.unitPrice),
         unitWage: kopecks(item.unitWage),
       })),

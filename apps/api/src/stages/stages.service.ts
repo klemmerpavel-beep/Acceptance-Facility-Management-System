@@ -23,6 +23,8 @@ interface StageRow {
   startsOn: Date;
   endsOn: Date;
   progress: number;
+  sectionId: string | null;
+  brigade: { id: string; name: string } | null;
 }
 
 const iso = (date: Date): string => date.toISOString().slice(0, 10);
@@ -34,6 +36,8 @@ const toStage = (row: StageRow): WorkStage => ({
   startsOn: iso(row.startsOn),
   endsOn: iso(row.endsOn),
   progress: row.progress,
+  sectionId: row.sectionId,
+  brigade: row.brigade,
 });
 
 @Injectable()
@@ -72,6 +76,7 @@ export class StagesService {
     const rows = await this.prisma.workStage.findMany({
       where: { projectId },
       orderBy: { order: "asc" },
+      include: { brigade: { select: { id: true, name: true } } },
     });
     return rows.map(toStage);
   }
@@ -111,6 +116,8 @@ export class StagesService {
         startsOn: new Date(input.startsOn),
         endsOn: new Date(input.endsOn),
         progress: input.progress,
+        ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
+        ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
       },
       select: { id: true },
     });
@@ -164,6 +171,8 @@ export class StagesService {
         startsOn: new Date(startsOn),
         endsOn: new Date(endsOn),
         ...(input.progress === undefined ? {} : { progress: input.progress }),
+        ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
+        ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
       },
     });
 
