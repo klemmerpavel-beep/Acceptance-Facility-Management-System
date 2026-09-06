@@ -59,6 +59,10 @@ const snapshot = {
   "estimate-owner": estimateOwner,
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
   measure: await owner("/projects/R-99/measure"),
+  // Приёмка снимается дважды: свод начислений виден только руководителю,
+  // и демонстрация обязана показывать оба вида, а не один с вырезанным полем.
+  "acceptance-owner": await owner("/projects/R-99/acceptance"),
+  "acceptance-foreman": await foreman("/projects/R-99/acceptance"),
   imports,
   preview,
   // Результат импорта — запись о том импорте, который действительно был:

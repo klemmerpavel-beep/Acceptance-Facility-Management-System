@@ -3,7 +3,8 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  workStageSchema,
+  workStageSchema, acceptanceViewSchema,
+  type AcceptanceView, type CreateAcceptance, type Reversal,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
@@ -161,6 +162,39 @@ export function uploadPlan(code: string, file: File): Promise<MeasureView> {
 
 export const deletePlan = (code: string): Promise<MeasureView> =>
   request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "DELETE" });
+
+/* --- приёмка выполненных работ --------------------------------------------
+   Пакет уходит одним запросом вместе со снимком: фотография обязательна, и
+   раздельная отправка допускала бы пакет без свидетельства. */
+
+export const fetchAcceptance = (code: string): Promise<AcceptanceView> =>
+  request(`/projects/${code}/acceptance`, acceptanceViewSchema);
+
+export function createAcceptance(
+  code: string,
+  batch: CreateAcceptance,
+  photo: File,
+): Promise<AcceptanceView> {
+  const form = new FormData();
+  form.append("batch", JSON.stringify(batch));
+  form.append("file", photo);
+  return request(`/projects/${code}/acceptance`, acceptanceViewSchema, { method: "POST", body: form });
+}
+
+export const reverseAcceptance = (
+  code: string,
+  id: string,
+  input: Reversal,
+): Promise<AcceptanceView> =>
+  request(`/projects/${code}/acceptance/${id}/reversal`, acceptanceViewSchema, json(input));
+
+/**
+ * Адрес снимка пакета. Не поле контракта по той же причине, что адрес плана
+ * объекта: демонстрационная сборка работает без сервера и подставляет сюда
+ * встроенное изображение.
+ */
+export const acceptancePhotoUrl = (code: string, id: string): string =>
+  `${BASE}/projects/${code}/acceptance/photo/${id}`;
 
 /* --- график производства работ ------------------------------------------
    Каждый пишущий вызов возвращает список этапов целиком: перестановка

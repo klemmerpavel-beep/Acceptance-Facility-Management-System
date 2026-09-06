@@ -10,6 +10,7 @@ import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
+import { Acceptance } from "./Acceptance.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -54,19 +55,20 @@ function ReadinessScale({ share }: { share: number }): React.JSX.Element {
  * «Документы», а не «Акты» — в акте документы не исчерпываются.
  */
 /**
- * Вкладки карточки. Здесь то, что работает: обзор, замер, смета, работа и
- * служебный импорт руководителю. Остальные вкладки целевого состава —
- * отчёт, приёмка, чеки, документы — перечислены в «Что дальше»: четыре
+ * Вкладки карточки. Здесь то, что работает: обзор, замер, смета, работа,
+ * приёмка и служебный импорт руководителю. Остальные вкладки целевого
+ * состава — отчёт, чеки, документы — перечислены в «Что дальше»: три
  * заглушки подряд не сообщают ничего, кроме того, что тыкать бесполезно.
  *
  * Порядок вкладок повторяет конвейер объекта: замер даёт площади, площади
- * идут в смету, смета — в график работ.
+ * идут в смету, смета — в график работ, график — в приёмку.
  */
 const TABS = [
   { key: "overview", label: "Обзор" },
   { key: "measure", label: "Замер" },
   { key: "estimate", label: "Смета" },
   { key: "work", label: "Работа" },
+  { key: "acceptance", label: "Приёмка" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -325,6 +327,12 @@ export function ProjectCard({
                   range={projectRange(project)}
                   onEvents={load}
                 />
+              )}
+            </div>
+
+            <div role="tabpanel" id="panel-acceptance" aria-labelledby="tab-acceptance" hidden={tab !== "acceptance"}>
+              {tab === "acceptance" && (
+                <Acceptance code={project.code} role={user.role} onEvents={load} />
               )}
             </div>
 

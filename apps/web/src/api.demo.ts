@@ -14,9 +14,11 @@ import type {
   ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
+  AcceptanceView, CreateAcceptance, Reversal,
 } from "@priyomka/contracts";
 import {
-  measureTotals, milliunits, projectRange, roomVolume, stageDateFault, wallArea,
+  acceptanceFault, accrualAmount, kopecks, measureTotals, milliunits, projectRange,
+  remainingQty, roomVolume, stageDateFault, wallArea,
   type ProjectRange,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
@@ -36,6 +38,8 @@ interface Snapshot {
   units: string[];
   organization: Organization;
   unitDirectory: Unit[];
+  "acceptance-owner": AcceptanceView;
+  "acceptance-foreman": AcceptanceView;
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
   imports: ImportRecord[];
@@ -342,6 +346,186 @@ export async function fetchImports(code: string): Promise<ImportRecord[]> {
   await pause(120);
   return code === "R-99" ? data.imports : [];
 }
+
+/* --- приёмка выполненных работ --------------------------------------------
+   Правки живут в памяти вкладки до перезагрузки. Снимок не разбирается:
+   демонстрация показывает заготовку вместо снятого файла — сервера, который
+   принял бы фотографию, здесь нет. */
+
+/** Заготовка снимка: приглушённый градиент 96×72, вшит в страницу. */
+const ЗАГОТОВКА_СНИМКА = "data:image/png;base64,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";
+
+let приёмка: AcceptanceView | null = null;
+
+const приёмкаR99 = (role: "OWNER" | "FOREMAN"): AcceptanceView => {
+  приёмка ??= structuredClone(data["acceptance-owner"]);
+  if (role === "OWNER") return приёмка;
+  /* Прорабу внутренние величины не отдаются. Ключи убираются, а не
+     обнуляются: в продукте их в ответе нет вовсе. */
+  return {
+    ...приёмка,
+    sections: приёмка.sections.map((section) => ({
+      ...section,
+      positions: section.positions.map((position) => ({
+        id: position.id,
+        name: position.name,
+        unit: position.unit,
+        order: position.order,
+        qty: position.qty,
+        accepted: position.accepted,
+        remaining: position.remaining,
+        unitPrice: position.unitPrice,
+      })),
+    })),
+    batches: приёмка.batches.map((batch) => ({
+      ...batch,
+      lines: batch.lines.map((line) => ({
+        id: line.id,
+        positionName: line.positionName,
+        unit: line.unit,
+        qty: line.qty,
+        reversedAt: line.reversedAt,
+        reason: line.reason,
+      })),
+    })),
+    totals: {
+      positions: приёмка.totals.positions,
+      acceptedPositions: приёмка.totals.acceptedPositions,
+      accepted: приёмка.totals.accepted,
+    },
+  };
+};
+
+export async function fetchAcceptance(code: string): Promise<AcceptanceView> {
+  await pause(220);
+  if (code !== "R-99") {
+    return { sections: [], batches: [], totals: { positions: 0, acceptedPositions: 0, accepted: "0" } };
+  }
+  return приёмкаR99(data["me-owner"].role === "OWNER" ? "OWNER" : "FOREMAN");
+}
+
+export async function createAcceptance(
+  _code: string,
+  batch: CreateAcceptance,
+  photo: File,
+): Promise<AcceptanceView> {
+  await pause(320);
+  /* Тип снимка проверяется и здесь: на сервере он определяется по содержимому
+     файла, а в демонстрации содержимое читать нечем — но отказ должен быть
+     тот же, иначе демонстрация примет то, что продукт отвергнет. */
+  if (!photo.type.startsWith("image/")) {
+    throw new Error("Снимок принимается изображением: image/jpeg, image/png, image/webp.");
+  }
+  const вид = приёмкаR99("OWNER");
+  const section = вид.sections.find((row) => row.id === batch.sectionId);
+  if (section === undefined) throw new Error("Раздел не найден в действующей смете объекта.");
+  const brigade = section.stage?.brigade;
+  if (brigade == null) {
+    throw new Error(`У раздела «${section.name}» нет этапа графика с бригадой. `
+      + "Свяжите раздел с этапом на вкладке «Работа»: начисление адресуется бригаде этапа.");
+  }
+
+  const lines = [];
+  for (const принято of batch.positions) {
+    const position = section.positions.find((row) => row.id === принято.itemId);
+    if (position === undefined) throw new Error("Позиция не найдена в действующей смете объекта.");
+    const fault = acceptanceFault({
+      requested: milliunits(принято.qty),
+      qty: milliunits(position.qty),
+      accepted: milliunits(position.accepted),
+      unit: position.unit,
+    });
+    if (fault !== null) throw new Error(`${position.name}. ${fault}`);
+
+    position.accepted = (milliunits(position.accepted) + milliunits(принято.qty)).toString();
+    position.remaining = remainingQty(milliunits(position.qty), milliunits(position.accepted)).toString();
+    lines.push({
+      id: новыйId(),
+      positionName: position.name,
+      unit: position.unit,
+      qty: принято.qty,
+      reversedAt: null,
+      reason: null,
+      amount: accrualAmount(kopecks(position.unitWage ?? "0"), milliunits(принято.qty)).toString(),
+    });
+  }
+
+  вид.batches = [{
+    id: новыйId(),
+    sectionId: section.id,
+    sectionName: section.name,
+    brigade,
+    createdAt: new Date().toISOString(),
+    author: data["me-owner"].name,
+    comment: batch.comment ?? null,
+    photos: [новыйId()],
+    lines,
+  }, ...вид.batches];
+  пересчитатьПриёмку(вид);
+  return приёмкаR99("OWNER");
+}
+
+export async function reverseAcceptance(
+  _code: string,
+  id: string,
+  input: Reversal,
+): Promise<AcceptanceView> {
+  await pause(280);
+  const вид = приёмкаR99("OWNER");
+  for (const batch of вид.batches) {
+    const line = batch.lines.find((row) => row.id === id);
+    if (line === undefined) continue;
+    if (line.reversedAt !== null) throw new Error("Эта приёмка уже сторнирована.");
+    line.reversedAt = new Date().toISOString();
+    line.reason = input.reason;
+    const position = вид.sections
+      .find((section) => section.id === batch.sectionId)?.positions
+      .find((row) => row.name === line.positionName);
+    if (position !== undefined) {
+      position.accepted = (milliunits(position.accepted) - milliunits(line.qty)).toString();
+      position.remaining = remainingQty(milliunits(position.qty), milliunits(position.accepted)).toString();
+    }
+    пересчитатьПриёмку(вид);
+    return приёмкаR99("OWNER");
+  }
+  throw new Error("Приёмка не найдена на этом объекте.");
+}
+
+/** Итоги пересчитываются целиком: складывать разности значило бы завести
+    вторую копию правил, которая разойдётся с первой. */
+function пересчитатьПриёмку(вид: AcceptanceView): void {
+  const строки = вид.batches.flatMap((batch) =>
+    batch.lines.filter((line) => line.reversedAt === null).map((line) => ({ batch, line })));
+  вид.totals.acceptedPositions = вид.sections
+    .flatMap((section) => section.positions)
+    .filter((position) => milliunits(position.accepted) > 0n).length;
+  вид.totals.accepted = строки.reduce((всего, { batch, line }) => {
+    const position = вид.sections
+      .find((section) => section.id === batch.sectionId)?.positions
+      .find((row) => row.name === line.positionName);
+    return всего + accrualAmount(kopecks(position?.unitPrice ?? "0"), milliunits(line.qty));
+  }, 0n).toString();
+  вид.totals.accrued = строки
+    .reduce((всего, { line }) => всего + kopecks(line.amount ?? "0"), 0n).toString();
+
+  const своды = new Map<string, { name: string; сумма: bigint }>();
+  for (const { batch, line } of строки) {
+    const прежнее = своды.get(batch.brigade.id);
+    своды.set(batch.brigade.id, {
+      name: batch.brigade.name,
+      сумма: (прежнее?.сумма ?? 0n) + kopecks(line.amount ?? "0"),
+    });
+  }
+  вид.accruals = [...своды].map(([brigadeId, свод]) => ({
+    brigadeId,
+    brigadeName: свод.name,
+    week: свод.сумма.toString(),
+    total: свод.сумма.toString(),
+  }));
+}
+
+/** Снимок пакета: в демонстрации это вшитая заготовка, а не файл на сервере. */
+export const acceptancePhotoUrl = (): string => ЗАГОТОВКА_СНИМКА;
 
 /* --- график производства работ ------------------------------------------
    Сервера в демонстрации нет, но правка графика обязана работать: именно
