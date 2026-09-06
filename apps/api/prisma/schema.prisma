@@ -94,12 +94,15 @@ model User {
   phone     String?
   createdAt DateTime @default(now())
 
-  organization      Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   authTokens        AuthToken[]
   sessions          Session[]
-  projectsAsForeman Project[]     @relation("ProjectForeman")
+  projectsAsForeman Project[]         @relation("ProjectForeman")
   auditEntries      AuditLog[]
   measurePlans      MeasurePlan[]
+  acceptanceBatches AcceptanceBatch[]
+  acceptances       Acceptance[]
+  acceptancePhotos  AcceptancePhoto[]
 
   @@unique([orgId, email])
   @@index([orgId, role])
@@ -140,13 +143,14 @@ model Project {
   supervisionShare Int           @default(1200)
   createdAt        DateTime      @default(now())
 
-  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  client       Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  foreman      User?         @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
-  estimates    Estimate[]
-  measureRooms MeasureRoom[]
-  measurePlan  MeasurePlan?
-  workStages   WorkStage[]
+  organization      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client            Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  foreman           User?             @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
+  estimates         Estimate[]
+  measureRooms      MeasureRoom[]
+  measurePlan       MeasurePlan?
+  workStages        WorkStage[]
+  acceptanceBatches AcceptanceBatch[]
 
   @@unique([orgId, code])
   @@index([orgId, status])
@@ -207,6 +211,8 @@ model EstimateSection {
   parent   EstimateSection?  @relation("SectionTree", fields: [parentId], references: [id], onDelete: Cascade)
   children EstimateSection[] @relation("SectionTree")
   items    EstimateItem[]
+  stage    WorkStage?
+  batches  AcceptanceBatch[]
 
   @@index([estimateId, order])
   @@map("estimate_sections")
@@ -227,9 +233,10 @@ model EstimateItem {
   unitWage   BigInt @default(0)
   sourceRow  Int?
 
-  estimate Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
-  section  EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  unit     Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  estimate    Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  section     EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  unit        Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  acceptances Acceptance[]
 
   @@index([estimateId, order])
   @@index([sectionId, order])
@@ -285,7 +292,10 @@ model Worker {
   /// начисление всегда идёт по ставке позиции сметы, а не по этой.
   defaultRate BigInt?
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workStages   WorkStage[]
+  batches      AcceptanceBatch[]
+  accruals     WageAccrual[]
 
   @@unique([orgId, name])
   @@map("workers")
@@ -434,8 +444,12 @@ model MeasurePlan {
 /// заявленная: приёмки в продукте ещё нет (стадия D), и до неё прогресс
 /// вносит руководитель. Экран обязан называть её заявленной.
 ///
-/// Мастера у этапа нет намеренно: назначения и чужие задачи в объём не
-/// входят, а поле, которое некому заполнять, — это будущая пустая колонка.
+/// Мастера у этапа нет: назначения и чужие задачи в объём не входят.
+/// Бригада есть — но не как исполнитель задачи, а как получатель сдельного
+/// начисления: приёмка раздела адресует оплату бригаде его этапа (Р2).
+/// Раздел сметы связан с этапом по той же причине: без этой связи вывести
+/// бригаду из принимаемого раздела нечем — этапы объекта перекрываются по
+/// датам, и «этап, идущий сегодня» не определён однозначно.
 model WorkStage {
   id        String   @id @default(uuid()) @db.Uuid
   projectId String   @db.Uuid
@@ -446,12 +460,134 @@ model WorkStage {
   startsOn  DateTime @db.Date
   endsOn    DateTime @db.Date
   progress  Int      @default(0)
+  /// Раздел сметы, работы которого ведёт этап. Необязателен: этап может
+  /// стоять в графике раньше, чем смета разбита на разделы.
+  sectionId String?  @db.Uuid
+  /// Бригада-получатель начисления по работам этапа. Необязательна:
+  /// график заводится раньше, чем известен исполнитель.
+  brigadeId String?  @db.Uuid
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section EstimateSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  /// Restrict, а не SetNull: бригада, на которую уже начислено, не должна
+  /// исчезать из графика молча.
+  brigade Worker?          @relation(fields: [brigadeId], references: [id], onDelete: Restrict)
 
   /// Имя этапа — то, чем его называют на объекте; два «Электромонтажа» в
   /// одном объекте это ошибка ввода, а не данные.
   @@unique([projectId, name])
+  /// Раздел ведёт не более одного этапа: иначе приёмка раздела не знала бы,
+  /// чью бригаду брать.
+  @@unique([sectionId])
   @@index([projectId, startsOn])
   @@map("work_stages")
+}
+
+/// Пакет приёмки — единица работы прораба.
+///
+/// Прораб принимает не позицию, а помещение: одна фотография комнаты есть
+/// свидетельство по всем позициям этой комнаты. Подчинение фотографии
+/// отдельной приёмке потребовало бы дублировать ссылку на файл в каждой
+/// записи, что лишает свидетельство доказательной силы — нельзя отличить
+/// одно свидетельство от двенадцати — и ломает сторно: отмена одной позиции
+/// не должна затрагивать фото остальных.
+///
+/// Бригада хранится снимком, а не читается у этапа при выводе: смена
+/// бригады у этапа не должна переписывать то, кому уже начислено.
+model AcceptanceBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @db.Uuid
+  sectionId   String   @db.Uuid
+  brigadeId   String   @db.Uuid
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  comment     String?
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section     EstimateSection   @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  brigade     Worker            @relation(fields: [brigadeId], references: [id], onDelete: Restrict)
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  acceptances Acceptance[]
+  photos      AcceptancePhoto[]
+
+  @@index([projectId, createdAt])
+  @@map("acceptance_batches")
+}
+
+/// Приёмка одной позиции.
+///
+/// Отмена — сторно, а не удаление (БП-04): создаётся запись того же вида с
+/// отрицательным количеством, ссылкой на сторнируемую и обязательной
+/// причиной. Принятое по позиции есть сумма количеств, поэтому пара
+/// «приёмка + сторно» сама себя обнуляет, а история остаётся целой.
+///
+/// Сторно живёт в том же пакете, что и сторнируемая приёмка: свидетельство
+/// остаётся при своей фотографии, и второго фото сторно не требует.
+model Acceptance {
+  id          String   @id @default(uuid()) @db.Uuid
+  batchId     String   @db.Uuid
+  itemId      String   @db.Uuid
+  /// Тысячные доли единицы измерения. У сторно отрицательное.
+  qty         BigInt
+  /// Заполнена у сторно и только у него.
+  reason      String?
+  reversesId  String?  @unique @db.Uuid
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  batch     AcceptanceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  item      EstimateItem    @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  createdBy User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  /// Самоссылка: одна приёмка сторнируется не более одного раза — это
+  /// закреплено уникальностью reversesId, а не проверкой в коде.
+  reverses  Acceptance?     @relation("Storno", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversal  Acceptance?     @relation("Storno")
+  accrual   WageAccrual?
+
+  @@index([itemId])
+  @@map("acceptances")
+}
+
+/// Начисление сдельной оплаты, порождённое приёмкой (БП-03).
+///
+/// Ставка хранится снимком: последующее изменение ставки в смете не
+/// переписывает уже начисленное. Сумма считается один раз при записи и
+/// не пересчитывается при выводе — пересчёт по действующей ставке и был бы
+/// тем самым переписыванием.
+model WageAccrual {
+  id           String   @id @default(uuid()) @db.Uuid
+  acceptanceId String   @unique @db.Uuid
+  brigadeId    String   @db.Uuid
+  /// Снимок ставки позиции на момент приёмки, копейки за единицу.
+  unitWage     BigInt
+  /// Копейки. Знак следует за количеством: у сторно отрицательная, и пара
+  /// складывается в ноль.
+  amount       BigInt
+  createdAt    DateTime @default(now())
+
+  acceptance Acceptance @relation(fields: [acceptanceId], references: [id], onDelete: Cascade)
+  brigade    Worker     @relation(fields: [brigadeId], references: [id], onDelete: Restrict)
+
+  @@index([brigadeId, createdAt])
+  @@map("wage_accruals")
+}
+
+/// Фотография пакета приёмки. Обязательна: пакет без снимка свидетельством
+/// не является. Хранится тем же порядком, что снимок обмерного плана —
+/// файл в хранилище, ключ собирает сервер.
+model AcceptancePhoto {
+  id           String   @id @default(uuid()) @db.Uuid
+  batchId      String   @db.Uuid
+  storageKey   String   @unique
+  fileName     String
+  contentType  String
+  byteSize     Int
+  uploadedById String?  @db.Uuid
+  uploadedAt   DateTime @default(now())
+
+  batch      AcceptanceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  uploadedBy User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([batchId])
+  @@map("acceptance_photos")
 }

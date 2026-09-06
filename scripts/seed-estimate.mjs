@@ -52,3 +52,19 @@ console.log(
   `разделов ${result.report.sectionsTopLevel} + ${result.report.sectionsNested},`,
   `сопоставлено написаний ${Object.keys(overrides).length}`,
 );
+
+/* Связь этапов графика с разделами проставляется здесь: до импорта разделов
+   не существует, и наполнение стенда оставило бы этапы без раздела — то есть
+   приёмку без бригады-получателя. */
+const { PrismaClient } = await import("@prisma/client");
+const { связатьЭтапыСРазделами } = await import("../apps/api/prisma/stage-sections.mjs");
+const prisma = new PrismaClient();
+try {
+  const объект = await prisma.project.findFirst({ where: { code: CODE }, select: { id: true } });
+  if (объект !== null) {
+    const связано = await связатьЭтапыСРазделами(prisma, объект.id);
+    console.log(`  этапов связано с разделами: ${связано}`);
+  }
+} finally {
+  await prisma.$disconnect();
+}
