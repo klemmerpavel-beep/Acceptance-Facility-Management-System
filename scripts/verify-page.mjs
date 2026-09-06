@@ -221,8 +221,33 @@ if ((await page.locator(".daycard--today").count()) !== 1) {
 }
 const counters = await page.locator(".counterstrip__item").count();
 if (counters === 0) note("главная", "счётчики по статусам не показаны");
-if ((await page.locator(".deflist__row").count()) === 0) {
+if ((await page.locator(".deadline").count()) === 0) {
   note("главная", "блок ближайших сроков пуст");
+}
+/**
+ * Инфографика блоков главной. Числа без доли отвечают «сколько», но не
+ * «много ли»: мера в карточке, столбик у статуса, расходящаяся шкала у
+ * срока и загрузка дня — четыре места, где величина показана, а не только
+ * названа. Проверяется наличием заливки, а не наличием разметки: пустая
+ * дорожка выглядит так же, как отсутствующая.
+ */
+const заливки = await page.evaluate(() =>
+  [...document.querySelectorAll(".meter__fill, .deadline__bar")]
+    .map((el) => Number.parseFloat(getComputedStyle(el).inlineSize))
+    .filter((width) => Number.isFinite(width) && width > 0).length,
+);
+if (заливки < 8) note("инфографика главной", `заполненных полос ${заливки}: меры и шкалы пусты`);
+if ((await page.locator(".statcard__meter .meter").count()) !== 4) {
+  note("инфографика главной", "мера доли есть не у каждой числовой карточки");
+}
+if ((await page.locator(".counterstrip__bar .meter").count()) === 0) {
+  note("инфографика главной", "у счётчиков статусов нет столбиков доли");
+}
+if ((await page.locator(".daycard__load .meter").count()) !== 7) {
+  note("инфографика главной", "загрузка показана не во всех семи днях недели");
+}
+if ((await page.locator(".deadline__zero").count()) === 0) {
+  note("инфографика главной", "на шкале сроков нет отметки текущего дня");
 }
 const homeFeed = await page.locator("main .feed__item").count();
 if (homeFeed === 0) note("главная", "лента событий на экране пуста");
@@ -504,7 +529,7 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
  * Пока они жили разными разделами, «телефон Фархата» и «кто заказчик на
  * Никитинской» искались в разных местах.
  */
-await page.click('.appbar__link:has-text("Контакты")');
+await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector(".datatable__table tbody tr");
 const виды = await page.locator(".datatable__table tbody .pill").allTextContents();
 const clients = виды.filter((вид) => вид.trim() === "Заказчик").length;
@@ -546,16 +571,41 @@ await step("запись добавлена", "09d-zapis-dobavlena.png");
 await page.fill(".datatable__search input", "");
 
 /**
- * Состав навигации. Правило: в шапке только то, что открывает рабочий
- * экран. Разделов ровно три — «Главная», «Проекты», «Контакты». Настройки
- * и «Что дальше» открываются из блока пользователя: их правят раз в
- * квартал, и место в ряду разделов им не по частоте обращения.
+ * Состав навигации по эталону: пять разделов и «Ещё» в одной капсуле.
+ * Прежнее правило «в шапке только то, что открывает рабочий экран» отменено
+ * решением заказчика; взамен действует другое, и оно проверяется ниже:
+ * раздел без своего экрана ведёт на «Что дальше», а не в пустую заглушку.
  */
-const navLabels = (await page.locator(".appbar__nav .appbar__link").allTextContents())
+const navLabels = (await page.locator(".appbar__nav-scroll .appbar__link").allTextContents())
   .map((text) => text.trim());
-const navWanted = ["Главная", "Проекты", "Контакты"];
+const navWanted = ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"];
 if (navLabels.join("|") !== navWanted.join("|")) {
-  note("навигация", `в шапке «${navLabels.join(", ")}»`);
+  note("навигация", `в шапке «${navLabels.join(", ")}» вместо «${navWanted.join(", ")}»`);
+}
+if ((await page.locator(".appbar__nav .appbar__more").count()) !== 1) {
+  note("навигация", "в полосе разделов нет пункта «Ещё»");
+}
+if ((await page.locator(".appbar__brand .appbar__mark").count()) !== 1) {
+  note("навигация", "знак слева состоит только из слова, без символа");
+}
+
+/**
+ * «Ещё» — список служебных экранов. Раскрывается, содержит объявленные
+ * строки, ведёт в настройки и закрывается за собой.
+ */
+await page.click(".appbar__more > summary");
+await page.waitForTimeout(200);
+const menu = (await page.locator(".appbar__menu-item").allTextContents()).map((s) => s.trim());
+if (menu.join("|") !== ["Настройки", "Что дальше", "Выйти"].join("|")) {
+  note("навигация", `в списке «Ещё» «${menu.join(", ")}»`);
+}
+await page.click('.appbar__menu-item:has-text("Что дальше")');
+await page.waitForTimeout(400);
+if ((await page.locator(".roadmap__item").count()) === 0) {
+  note("навигация", "«Что дальше» из списка «Ещё» не открылся");
+}
+if (await page.locator(".appbar__menu").isVisible()) {
+  note("навигация", "список «Ещё» остался раскрытым после выбора");
 }
 if ((await page.locator(".appbar__action").count()) !== 0) {
   note("навигация", "в шапке осталась кнопка меню быстрых действий");
@@ -580,6 +630,21 @@ for (const label of navWanted) {
     note("навигация", `раздел «${label}» встречает пустым состоянием «${title?.trim() ?? ""}»`);
   }
 }
+
+/**
+ * Раздел без своего экрана ведёт на «Что дальше», где названа его стадия.
+ * Это правило пришло на смену прежнему запрету пунктов без содержания, и
+ * без проверки оно продержится ровно до первой правки навигации.
+ */
+for (const label of ["Заявки", "Бухгалтерия"]) {
+  await page.click(`.appbar__link:has-text("${label}")`);
+  await page.waitForTimeout(400);
+  if ((await page.locator(".roadmap__item").count()) === 0) {
+    note("навигация", `раздел «${label}» не ведёт на «Что дальше»`);
+  }
+}
+await page.click('.appbar__link:has-text("Главная")');
+await page.waitForSelector(".statcard");
 
 /**
  * Настройки организации: карточка и справочник единиц. Открываются из
@@ -629,7 +694,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -748,6 +813,350 @@ await step("замер на телефоне", "25-zamer-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
 
+/*
+ * График производства работ. Проверяется то, чего не видно на снимке:
+ * что сетка построена по календарю, что отрезок действительно двигается
+ * указателем, что валидатор дат стоит и на экране, и что заведённое
+ * снимается — стенд обязан вернуться в исходное состояние.
+ */
+await page.click('.tabs__item:has-text("Работа")');
+await page.waitForSelector(".gantt__row");
+
+const рядов = await page.locator(".gantt__row").count();
+if (рядов !== 7) note("график", `строк ${рядов} вместо семи этапов R-99`);
+
+/* График открывается там, где работа есть. Работы R-99 идут по 15 августа,
+   а «сегодня» стенда — 5 сентября: открытие на текущем месяце дало бы
+   пустое полотно. */
+const месяцОткрытия = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
+if (месяцОткрытия !== "Август 2026") {
+  note("график", `открылся месяц «${месяцОткрытия}» вместо августа, где стоят этапы`);
+}
+const клеток = await page.locator(".gantt__scale .gantt__day").count();
+if (клеток !== 31) note("график", `в августе ${клеток} клеток вместо тридцати одной`);
+const выходных = await page.locator(".gantt__scale .gantt__day--off").count();
+if (выходных !== 10) note("график", `выходных отмечено ${выходных} вместо десяти`);
+if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 0) {
+  note("график", "в августе отмечен текущий день, хотя сегодня сентябрь");
+}
+
+/* Колонки шапки и строк стоят на одних вертикалях. Проверяется числом:
+   дорожка строки не имеет собственной ширины (отрезок в ней позиционирован
+   абсолютно), и стоит забыть её задать, как готовность уезжает под
+   название, а шапка остаётся на месте. Глазом на снимке это заметно, а
+   проверкой раньше не ловилось. */
+const шапкаГотово = await page.locator(".gantt__scale .gantt__pct").boundingBox();
+const строкаГотово = await page.locator(".gantt__row .gantt__pct").first().boundingBox();
+if (шапкаГотово !== null && строкаГотово !== null
+    && Math.abs(шапкаГотово.x - строкаГотово.x) > 1) {
+  note("график", `колонка готовности в шапке на ${Math.round(шапкаГотово.x)} px, в строке на ${Math.round(строкаГотово.x)} px`);
+}
+const шапкаДень = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+const дорожка = await page.locator(".gantt__row .gantt__track").first().boundingBox();
+if (шапкаДень !== null && дорожка !== null && Math.abs(шапкаДень.x - дорожка.x) > 1) {
+  note("график", `шкала дней и дорожка расходятся: ${Math.round(шапкаДень.x)} против ${Math.round(дорожка.x)} px`);
+}
+
+/* Прокрутка по месяцам: подпись обязана смениться, а сетка — пересобраться. */
+await page.click('.segmented button:has-text("Вперёд")');
+await page.waitForTimeout(300);
+const сентябрь = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
+if (сентябрь === месяцОткрытия) note("график", `подпись месяца не сменилась: «${сентябрь}»`);
+if ((await page.locator(".gantt__scale .gantt__day").count()) !== 30) {
+  note("график", "в сентябре не тридцать дней");
+}
+if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 1) {
+  note("график", "текущий день в сентябре не отмечен");
+}
+await page.click('.segmented button:has-text("Назад")');
+await page.waitForTimeout(300);
+
+/* Масштаб меняет ширину дня, а не число дней. */
+const узкий = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+await page.click('.segmented button[aria-label="Крупнее"]');
+await page.waitForTimeout(300);
+const широкий = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+if (узкий !== null && широкий !== null && широкий.width <= узкий.width) {
+  note("график", `масштаб не расширил день: ${Math.round(узкий.width)} → ${Math.round(широкий.width)} px`);
+}
+await page.click('.segmented button[aria-label="Мельче"]');
+await page.waitForTimeout(300);
+
+await step("работа, график", "26-grafik.png");
+
+/* Перестановка строки стрелкой с клавиатуры: номера обязаны разойтись. */
+const доПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+await page.locator(".gantt__move").first().focus();
+await page.keyboard.press("ArrowDown");
+await page.waitForTimeout(700);
+const послеПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+if (доПерестановки[0] === послеПерестановки[0]) {
+  note("график", `перестановка не изменила порядок: первым остался «${послеПерестановки[0] ?? ""}»`);
+}
+await page.locator(".gantt__move").nth(1).focus();
+await page.keyboard.press("ArrowUp");
+await page.waitForTimeout(700);
+const возвращённый = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
+if (возвращённый.join("|") !== доПерестановки.join("|")) {
+  note("график", `порядок не вернулся: «${возвращённый.join(", ")}»`);
+}
+
+/* Метка увода: этап вне открытого месяца оставляет пустую дорожку и метку,
+   уводящую в его месяц. В августе таких этапов шесть из семи. */
+const меток = await page.locator(".gantt__away").count();
+if (меток !== 6) note("график", `меток увода ${меток} вместо шести`);
+
+/* Перетаскивание отрезка мышью: дата в подписи строки обязана сдвинуться.
+   Берётся строка с отрезком, а не первая: в августе идёт только последний
+   этап, остальные лежат весной. */
+const первый = page.locator(".gantt__row:has(.gantt__bar)").first();
+const подписьДо = await первый.locator(".gantt__title").getAttribute("title");
+const отрезок = await первый.locator(".gantt__bar").boundingBox();
+if (отрезок === null) {
+  note("график", "у первого этапа нет отрезка в открытом месяце");
+} else {
+  /* Ширина дня берётся на действующем масштабе, а не на том, что был
+     измерён при проверке масштаба: там она в полтора раза больше, и жест
+     считался бы в других единицах. */
+  const деньСейчас = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+  const деньШириной = деньСейчас?.width ?? 32;
+  await page.mouse.move(отрезок.x + отрезок.width / 2, отрезок.y + отрезок.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(отрезок.x + отрезок.width / 2 + деньШириной * 3, отрезок.y + отрезок.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+  const подписьПосле = await первый.locator(".gantt__title").getAttribute("title");
+  if (подписьДо === подписьПосле) {
+    note("график", `перетаскивание не сдвинуло сроки: «${подписьПосле ?? ""}»`);
+  } else {
+    /* Сдвиг возвращается тем же жестом в обратную сторону. */
+    const снова = await первый.locator(".gantt__bar").boundingBox();
+    if (снова !== null) {
+      await page.mouse.move(снова.x + снова.width / 2, снова.y + снова.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(снова.x + снова.width / 2 - деньШириной * 3, снова.y + снова.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(900);
+      const подписьВозврата = await первый.locator(".gantt__title").getAttribute("title");
+      if (подписьВозврата !== подписьДо) {
+        note("график", `сроки не вернулись: «${подписьВозврата ?? ""}» вместо «${подписьДо ?? ""}»`);
+      }
+    }
+  }
+}
+
+/* Лист правки: валидатор отказывает перевёрнутым датам до обращения к серверу. */
+await page.click('button:has-text("Добавить этап")');
+await page.waitForSelector(".sheet input");
+const поляЭтапа = page.locator(".sheet input");
+await поляЭтапа.nth(0).fill("Проверка страницы");
+await поляЭтапа.nth(1).fill("2026-08-20");
+await поляЭтапа.nth(2).fill("2026-08-08");
+await page.waitForTimeout(300);
+const отказ = (await page.locator(".sheet .field__error").first().textContent())?.trim() ?? "";
+if (!отказ.includes("раньше начала")) {
+  note("график", `лист не отказал перевёрнутым датам: «${отказ}»`);
+}
+if (await page.locator('.sheet button:has-text("Завести этап")').isEnabled()) {
+  note("график", "кнопка заведения доступна при перевёрнутых датах");
+}
+await step("работа, отказ валидатора", "27-grafik-otkaz.png");
+
+/* Исправленные даты — этап заводится и становится восьмым. */
+await поляЭтапа.nth(2).fill("2026-08-24");
+await page.waitForTimeout(200);
+await page.click('.sheet button:has-text("Завести этап")');
+await page.waitForTimeout(900);
+const послеЗаведения = await page.locator(".gantt__row").count();
+if (послеЗаведения !== 8) note("график", `после заведения строк ${послеЗаведения} вместо восьми`);
+
+/* Заведённое снимается: стенд возвращается к семи этапам. */
+await page.click('.gantt__title:has-text("Проверка страницы")');
+await page.waitForSelector('.sheet button:has-text("Снять этап")');
+await page.click('.sheet button:has-text("Снять этап")');
+await page.waitForSelector(".sheet .btn--danger");
+const текстСнятия = await page.locator(".sheet").innerText();
+if (!текстСнятия.includes("Готовность объекта пересчитается")) {
+  note("график", "подтверждение снятия не называет последствие");
+}
+await page.click(".sheet .btn--danger");
+await page.waitForTimeout(900);
+const послеСнятия = await page.locator(".gantt__row").count();
+if (послеСнятия !== 7) note("график", `после снятия строк ${послеСнятия} вместо семи`);
+
+/* График на телефоне: колонка названия уже, день той же ширины. */
+await page.setViewportSize({ width: 360, height: 780 });
+await page.waitForTimeout(400);
+const деньУзко = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
+if (узкий !== null && деньУзко !== null && Math.abs(деньУзко.width - узкий.width) > 1) {
+  note("график", `на 360 px день сжался до ${Math.round(деньУзко.width)} px`);
+}
+/* Ручка перестановки на телефоне не показывается: её работу делает поле
+   «Место в графике» в листе. Проверяется и то, что её нет, и то, что путь
+   к листу открыт целью нужного размера. */
+if (await page.locator(".gantt__move").first().isVisible()) {
+  note("график", "ручка перестановки показана на 360 px, где её тянуть нечем");
+}
+const названиеЭтапа = await page.locator(".gantt__title").first().boundingBox();
+if (названиеЭтапа !== null && названиеЭтапа.height < 48) {
+  note("график", `название этапа на 360 px — ${Math.round(названиеЭтапа.height)} px вместо 48`);
+}
+await page.click(".gantt__title");
+await page.waitForSelector(".sheet select");
+const мест = await page.locator(".sheet select option").count();
+if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
+await page.click('.sheet button:has-text("Отмена")');
+await page.waitForTimeout(300);
+await step("работа на телефоне", "28-grafik-360.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
+/*
+ * Приёмка — ядро продукта и единственный экран, живущий на телефоне прораба.
+ * Проверяется то, чего не видно на снимке: что отметить можно только там,
+ * где есть бригада, что лист отказывает до обращения к сети, что сторно
+ * возвращает счётчики, и что порог трёх касаний на пакет соблюдён.
+ */
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForSelector(".accept__row");
+
+/* Три меры шапки обязаны сходиться между собой. Расхождение «принято ноль
+   позиций» при «начислено четыреста тысяч» уже случалось: позиции брались
+   из действующей редакции сметы, а начисления — за всё время объекта, и
+   после импорта новой редакции числа расходились. Глазом это видно на
+   снимке, проверкой — не ловилось. */
+const меры = await page.locator(".accept .metric").allInnerTexts();
+const принятоПозиций = Number.parseInt(меры[0]?.split("/")[0]?.trim() ?? "0", 10);
+const цифры = (текст) => Number.parseInt((текст ?? "").replace(/[^\d]/gu, "") || "0", 10);
+const выполнено = цифры(меры[1]);
+const начислено = цифры(меры[2]);
+if ((принятоПозиций === 0) !== (выполнено === 0)) {
+  note("приёмка", `принято позиций ${принятоПозиций}, а выполнено на сумму ${выполнено}`);
+}
+if (принятоПозиций === 0 && начислено > 0) {
+  note("приёмка", `принято ноль позиций, а начислено ${начислено}: меры не сходятся`);
+}
+
+const разделовПриёмки = await page.locator(".accept__section").count();
+if (разделовПриёмки !== 11) note("приёмка", `разделов ${разделовПриёмки} вместо одиннадцати`);
+
+/* Раздел без этапа называет причину и уводит на график, а не гасит кнопку
+   молча: погашенный орган не объясняет, почему он погашен. */
+await page.click(".accept__section--idle");
+await page.waitForTimeout(300);
+/* Читается через count(): у отсутствующего узла textContent бросает
+   исключение и роняет весь обход, а падение прячет всё, что идёт после. */
+const объяснение = page.locator('.accept__list [role="alert"]');
+const безЭтапа = (await объяснение.count()) === 0
+  ? ""
+  : (await объяснение.first().textContent())?.trim() ?? "";
+if (!безЭтапа.includes("нет этапа графика") || !безЭтапа.includes("Работа")) {
+  note("приёмка", `раздел без этапа не объясняет отказ: «${безЭтапа}»`);
+}
+if (await page.locator(".accept__check").first().isEnabled()) {
+  note("приёмка", "в разделе без этапа отметка позиции доступна");
+}
+
+/* Раздел с этапом: отметка, полоса подтверждения, лист. Счёт касаний идёт
+   отсюда — раздел уже открыт первым касанием. */
+await page.click('.accept__section:not(.accept__section--idle)');
+await page.waitForTimeout(300);
+const свободная = page.locator(".accept__row").filter({ hasNot: page.locator(".pill--ok") }).first();
+await свободная.locator(".accept__check").click();
+if ((await page.locator(".accept__bar").count()) === 0) {
+  note("приёмка", "полосы подтверждения нет: пакет не подтвердить");
+} else {
+  await page.click('.accept__bar button:has-text("Принять")');
+  await page.waitForSelector(".sheet", { timeout: 10_000 }).catch(() => undefined);
+}
+
+/* Проверки листа идут одним куском под условием: не открывшийся лист
+   оставил бы каждую следующую строку падать по таймауту, а падение
+   прячет весь остаток обхода. */
+if ((await page.locator(".sheet").count()) === 0) {
+  note("приёмка", "лист подтверждения не открылся");
+} else {
+  const полеКоличества = page.locator(".sheet .input--num").first();
+  await полеКоличества.fill("999999");
+  await page.waitForTimeout(300);
+  const отказЛистаУзел = page.locator('.sheet [role="alert"]');
+  const отказЛиста = (await отказЛистаУзел.count()) === 0
+    ? ""
+    : (await отказЛистаУзел.first().textContent())?.trim() ?? "";
+  if (!отказЛиста.includes("по смете осталось")) {
+    note("приёмка", `лист не отказал на превышении: «${отказЛиста}»`);
+  }
+  if (await page.locator('.sheet button:has-text("Подтвердить")').isEnabled()) {
+    note("приёмка", "кнопка подтверждения доступна при превышении остатка");
+  }
+
+  /* Без снимка подтвердить нельзя: пакет без свидетельства свидетельством
+     не является. */
+  await полеКоличества.fill("1");
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button:has-text("Подтвердить")').isEnabled()) {
+    note("приёмка", "подтверждение доступно без снимка");
+  }
+  await step("приёмка, лист подтверждения", "33-priyomka-list.png");
+
+  await page.setInputFiles('.sheet input[type="file"]', "scripts/fixtures/snimok.png");
+  await page.waitForTimeout(300);
+  if (!(await page.locator('.sheet button:has-text("Подтвердить")').isEnabled())) {
+    note("приёмка", "подтверждение недоступно при заполненном количестве и снимке");
+  }
+
+  const пакетовДо = await page.locator(".accept__batch").count();
+  await page.click('.sheet button:has-text("Подтвердить")');
+  await page.waitForTimeout(1200);
+  const пакетовПосле = await page.locator(".accept__batch").count();
+  if (пакетовПосле !== пакетовДо + 1) {
+    note("приёмка", `пакетов ${пакетовПосле} вместо ${пакетовДо + 1}`);
+  }
+}
+
+/* Сторно возвращает счётчики. Проверяется на только что заведённой строке:
+   чужие приёмки стенда трогать незачем. */
+const сторнируемая = page.locator(".accept__batch").first()
+  .locator('.accept__line button:has-text("Сторнировать")').first();
+if ((await сторнируемая.count()) === 0) {
+  note("приёмка", "у первой строки пакета нет сторно");
+} else {
+  await сторнируемая.click();
+  await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+  const текстСторно = (await page.locator(".sheet").count()) === 0
+    ? ""
+    : await page.locator(".sheet").innerText();
+  if (!текстСторно.includes("останутся в истории")) {
+    note("приёмка", "лист сторно не называет, что записи остаются в истории");
+  }
+  if (await page.locator(".sheet .btn--danger").isEnabled()) {
+    note("приёмка", "сторно доступно без указания причины");
+  }
+  await page.fill(".sheet .input", "Проверка страницы");
+  await page.waitForTimeout(200);
+  await step("приёмка, сторно", "34-priyomka-storno.png");
+  await page.click(".sheet .btn--danger");
+  await page.waitForTimeout(1200);
+  if ((await page.locator(".accept__line--reversed").count()) === 0) {
+    note("приёмка", "сторнированная строка не помечена");
+  }
+}
+
+/* Приёмка на телефоне: зоны касания и отсутствие переполнения. Порог трёх
+   касаний относится к пакету — раздел, «Принять», «Подтвердить». */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await overflow("приёмка, 390");
+for (const selector of [".accept__check", ".accept__section"]) {
+  const box = await page.locator(selector).first().boundingBox();
+  if (box !== null && box.height < 44) {
+    note("приёмка", `зона касания «${selector}» на 390 px — ${Math.round(box.height)} px вместо 44`);
+  }
+}
+await step("приёмка на телефоне", "35-priyomka-390.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
 await page.click('.tabs__item:has-text("Обзор")');
 
 /*
@@ -850,9 +1259,18 @@ await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
 await step("тёмная тема", "12-dark.png");
 
-// Переключатель темы переехал в настройки, к блоку «Рабочее место».
+/**
+ * Переключатель темы есть в двух местах: в шапке — чтобы выйти из темы, в
+ * которой ничего не видно, одним нажатием, — и в настройках, где он
+ * остаётся единственным на ширине до 768 px. Обе копии читают одно
+ * состояние: собственное у каждой расходилось бы при нажатии в шапке.
+ */
+const шапкаТемы = page.locator(".appbar .themeswitch");
+if ((await шапкаТемы.count()) !== 1) note("тема", "в шапке нет переключателя темы");
+if (!(await шапкаТемы.isVisible())) note("тема", "переключатель темы в шапке скрыт на 1440 px");
+
 await page.click(".appbar__user");
-await page.waitForSelector(".themeswitch");
+await page.waitForSelector(".settings__panel .themeswitch");
 
 /**
  * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
@@ -869,7 +1287,7 @@ const themeState = async () =>
 const systemDark = await themeState();
 if (systemDark.attribute !== null) note("тема", `в системном режиме признак не снят: ${systemDark.attribute}`);
 
-await page.click('.themeswitch__option[title="Светлая тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Светлая тема"]');
 await page.waitForTimeout(200);
 const forcedLight = await themeState();
 if (forcedLight.attribute !== "light") note("тема", "выбор светлой не выставил data-theme");
@@ -882,7 +1300,7 @@ if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")
 await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
 
 await page.emulateMedia({ colorScheme: "light" });
-await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
 await page.waitForTimeout(200);
 const forcedDark = await themeState();
 if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной не выставил data-theme");
@@ -891,7 +1309,7 @@ if (forcedDark.background === forcedLight.background) {
 }
 await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
-await page.click('.themeswitch__option[title="Как в системе"]');
+await page.click('.settings__panel .themeswitch__option[title="Как в системе"]');
 await page.waitForTimeout(200);
 const backToSystem = await themeState();
 if (backToSystem.attribute !== null) note("тема", "возврат к системной не снял признак");
@@ -899,8 +1317,24 @@ if (backToSystem.background !== forcedLight.background) {
   note("тема", "возврат к системной не вернул системный фон");
 }
 
+/**
+ * Копии синхронны. Нажатие в шапке обязано отразиться в настройках: две
+ * независимые копии показывали бы разный выбор на одном экране.
+ */
+await page.click('.appbar .themeswitch__option[title="Светлая тема"]');
+await page.waitForTimeout(200);
+const вНастройках = await page
+  .locator('.settings__panel .themeswitch__option[title="Светлая тема"]')
+  .getAttribute("aria-pressed");
+if (вНастройках !== "true") {
+  note("тема", "выбор в шапке не отразился в настройках: копии переключателя разошлись");
+}
+if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "light") {
+  note("тема", "переключатель в шапке не сменил тему");
+}
+
 // Выбор обязан пережить перезагрузку: иначе переключатель бесполезен.
-await page.click('.themeswitch__option[title="Тёмная тема"]');
+await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
 await page.reload({ waitUntil: "networkidle" });
 await page.waitForTimeout(300);
 const afterReload = await themeState();
@@ -911,9 +1345,12 @@ if (afterReload.attribute !== "dark") note("тема", "выбор не пере
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(300);
 await page.click(".appbar__user");
-await page.waitForSelector(".themeswitch");
+await page.waitForSelector(".settings__panel .themeswitch");
 await overflow("настройки с переключателем темы, 360");
-const tap = await page.locator(".themeswitch__option").first().boundingBox();
+if (await page.locator(".appbar .themeswitch").isVisible()) {
+  note("тема", "переключатель в шапке не скрыт на 360 px: шапке не хватает места на четвёртый орган");
+}
+const tap = await page.locator(".settings__panel .themeswitch__option").first().boundingBox();
 if (tap === null || tap.width < 44 || tap.height < 44) {
   note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
 }

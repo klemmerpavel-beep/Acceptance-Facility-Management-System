@@ -135,8 +135,50 @@ export const workStageSchema = z.object({
   endsOn: z.string().date(),
   /** Заявленный прогресс в сотых долях процента: 5000 = 50,00 %. */
   progress: z.number().int().min(0).max(10_000),
+  /**
+   * Раздел сметы, работы которого ведёт этап, и бригада-получатель
+   * начисления. Через эту пару приёмка раздела узнаёт, кому начислять:
+   * раздел → этап → бригада. Пусто — связи нет, и раздел принять нельзя.
+   */
+  sectionId: z.string().uuid().nullable(),
+  brigade: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
 });
 export type WorkStage = z.infer<typeof workStageSchema>;
+
+/**
+ * Тело запроса на заведение и правку этапа.
+ *
+ * Соотношение дат и год в диапазоне договора схема не проверяет: ей
+ * неизвестны сроки объекта. Это делает сервис через `stageDateFault` из
+ * `@priyomka/domain` — тем же кодом, которым экран показывает подсказку до
+ * обращения к сети. Два независимых свода правил разошлись бы на третьей
+ * правке.
+ */
+export const createWorkStageSchema = z.object({
+  name: z.string().trim().min(1, "Назовите этап").max(60, "Слишком длинное название этапа"),
+  startsOn: z.string().date("Начало этапа: дата в формате ГГГГ-ММ-ДД."),
+  endsOn: z.string().date("Окончание этапа: дата в формате ГГГГ-ММ-ДД."),
+  /** Заявленный прогресс в сотых долях процента. По умолчанию этап не начат. */
+  progress: z.number().int().min(0).max(10_000).default(0),
+  /** Раздел сметы и бригада — необязательны: график заводится раньше сметы. */
+  sectionId: z.string().uuid().nullable().optional(),
+  brigadeId: z.string().uuid().nullable().optional(),
+});
+export type CreateWorkStage = z.infer<typeof createWorkStageSchema>;
+
+export const updateWorkStageSchema = createWorkStageSchema.partial();
+export type UpdateWorkStage = z.infer<typeof updateWorkStageSchema>;
+
+/**
+ * Перестановка этапов: полный порядок, а не пара «этап и новое место».
+ * Частичный порядок оставляет вопрос, что делать с остальными строками, и
+ * два одновременных перемещения дают разный результат в зависимости от
+ * того, чьё пришло первым.
+ */
+export const reorderWorkStagesSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "Порядок этапов пуст."),
+});
+export type ReorderWorkStages = z.infer<typeof reorderWorkStagesSchema>;
 
 export const projectSummarySchema = z.object({
   id: z.string().uuid(),
@@ -146,6 +188,13 @@ export const projectSummarySchema = z.object({
   /** Дата начала работ. Отличается от даты заведения объекта в системе. */
   startedAt: z.string().date().nullable(),
   deadline: z.string().date().nullable(),
+  /**
+   * Дата заведения объекта. Нужна затем, что из неё выводится диапазон
+   * допустимых дат этапа, когда ни начала работ, ни срока сдачи нет
+   * (`projectRange` в домене). Без неё экран считал бы диапазон своим
+   * правилом и расходился бы с сервером на объекте без сроков.
+   */
+  createdAt: z.string().date(),
   keysCount: z.number().int().nonnegative(),
   supervisionShare: z.number().int().nonnegative(),
   client: z.object({
@@ -555,3 +604,134 @@ export type CreateMeasureRoom = z.infer<typeof createMeasureRoomSchema>;
 
 export const updateMeasureRoomSchema = createMeasureRoomSchema.partial();
 export type UpdateMeasureRoom = z.infer<typeof updateMeasureRoomSchema>;
+
+/* --- приёмка выполненных работ --------------------------------------------
+   Внутренние величины (ставка, начисленное, свод по бригадам) объявлены
+   необязательными и приходят только роли OWNER — тем же приёмом, что
+   `unitWage` и `wage` в смете: ключа нет в ответе, а не значение `null`.
+
+   Сумма начисления прорабу не отдаётся. Начисление есть ставка, умноженная
+   на количество, и при известном количестве сумма выдаёт ставку
+   арифметически — то есть обходит разграничение на уровне полей. Норматив
+   дизайн-системы обещал показывать её в подтверждении; обещание снято,
+   причина записана в редакции 2.8. */
+
+/** Позиция сметы в приёмке: сколько по смете, сколько принято, сколько осталось. */
+export const acceptancePositionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  unit: z.string(),
+  order: z.number().int(),
+  qty: milliunitsString,
+  /** Принято с учётом сторно. Может быть нулём — это честный ноль. */
+  accepted: milliunitsString,
+  remaining: milliunitsString,
+  unitPrice: kopecksString,
+  /** Ставка сдельной оплаты за единицу. Только OWNER. */
+  unitWage: kopecksString.optional(),
+});
+export type AcceptancePosition = z.infer<typeof acceptancePositionSchema>;
+
+/** Бригада-получатель начисления. */
+export const brigadeSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export type Brigade = z.infer<typeof brigadeSchema>;
+
+/**
+ * Раздел сметы в приёмке.
+ *
+ * `stage` пуст, когда раздел не ведёт ни один этап графика. Принять такой
+ * раздел нельзя: начисление некому адресовать. Экран обязан сказать это
+ * словами и увести на вкладку «Работа», а не гасить кнопку молча.
+ */
+export const acceptanceSectionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  order: z.number().int(),
+  stage: z.object({ id: z.string().uuid(), name: z.string(), brigade: brigadeSchema.nullable() })
+    .nullable(),
+  positions: z.array(acceptancePositionSchema),
+});
+export type AcceptanceSection = z.infer<typeof acceptanceSectionSchema>;
+
+/** Строка пакета: что именно принято по одной позиции. */
+export const acceptanceLineSchema = z.object({
+  id: z.string().uuid(),
+  positionName: z.string(),
+  unit: z.string(),
+  qty: milliunitsString,
+  /** Заполнено у сторно: причина и время обратной записи. */
+  reversedAt: z.string().nullable(),
+  reason: z.string().nullable(),
+  /** Начислено по этой строке. Только OWNER. */
+  amount: kopecksString.optional(),
+});
+export type AcceptanceLine = z.infer<typeof acceptanceLineSchema>;
+
+/** Пакет приёмки: то, что прораб подтвердил одним действием. */
+export const acceptanceBatchSchema = z.object({
+  id: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  sectionName: z.string(),
+  brigade: brigadeSchema,
+  createdAt: z.string(),
+  author: z.string().nullable(),
+  comment: z.string().nullable(),
+  /** Опознаватели фотографий пакета. Адрес файла выводится клиентом. */
+  photos: z.array(z.string().uuid()),
+  lines: z.array(acceptanceLineSchema),
+});
+export type AcceptanceBatch = z.infer<typeof acceptanceBatchSchema>;
+
+/** Строка свода начислений по бригаде. Только OWNER. */
+export const accrualRowSchema = z.object({
+  brigadeId: z.string().uuid(),
+  brigadeName: z.string(),
+  /** За последние семь дней и за всё время по объекту. */
+  week: kopecksString,
+  total: kopecksString,
+});
+export type AccrualRow = z.infer<typeof accrualRowSchema>;
+
+export const acceptanceViewSchema = z.object({
+  sections: z.array(acceptanceSectionSchema),
+  batches: z.array(acceptanceBatchSchema),
+  totals: z.object({
+    positions: z.number().int().nonnegative(),
+    acceptedPositions: z.number().int().nonnegative(),
+    /** Выполнено на сумму: Σ принятое × цена единицы. Величина клиентская. */
+    accepted: kopecksString,
+    /** Начислено бригадам. Только OWNER. */
+    accrued: kopecksString.optional(),
+  }),
+  /** Свод начислений по бригадам. Только OWNER. */
+  accruals: z.array(accrualRowSchema).optional(),
+});
+export type AcceptanceView = z.infer<typeof acceptanceViewSchema>;
+
+/**
+ * Заведение пакета. Раздел, отмеченные позиции с количествами и
+ * необязательный комментарий; фотография приходит тем же запросом отдельной
+ * частью, поэтому в схеме её нет.
+ */
+export const createAcceptanceSchema = z.object({
+  sectionId: z.string().uuid(),
+  comment: z.string().trim().max(280, "Комментарий длиннее 280 знаков").optional(),
+  positions: z.array(z.object({
+    itemId: z.string().uuid(),
+    qty: milliunitsString,
+  })).min(1, "Отметьте хотя бы одну позицию."),
+});
+export type CreateAcceptance = z.infer<typeof createAcceptanceSchema>;
+
+/**
+ * Сторно приёмки. Причина обязательна: обратная запись без причины
+ * неотличима от ошибки ввода, а история не переписывается — значит,
+ * объяснить её задним числом будет нечем.
+ */
+export const reversalSchema = z.object({
+  reason: z.string().trim().min(1, "Назовите причину сторно.").max(280, "Причина длиннее 280 знаков"),
+});
+export type Reversal = z.infer<typeof reversalSchema>;

@@ -53,7 +53,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
     <main className="signin">
       <div className="signin__brand">
         <svg className="icon" aria-hidden="true"><use href="#i-acceptance" /></svg>
-        <span className="t-h3">Приёмка</span>
+        <span className="t-h3">DOLSTUDIO</span>
       </div>
 
       {step === null ? (

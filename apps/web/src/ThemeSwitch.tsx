@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { applyThemeMode, readThemeMode, type ThemeMode } from "./theme.js";
+import { useSyncExternalStore } from "react";
+import { applyThemeMode, readThemeMode, subscribeThemeMode, type ThemeMode } from "./theme.js";
 
 /**
  * Порядок значим: слева направо — от «решает система» к «решаю я»,
@@ -13,12 +13,9 @@ const MODES: readonly { mode: ThemeMode; label: string; icon: string }[] = [
 ];
 
 export function ThemeSwitch(): React.JSX.Element {
-  const [mode, setMode] = useState<ThemeMode>(readThemeMode);
-
-  const choose = (next: ThemeMode): void => {
-    applyThemeMode(next);
-    setMode(next);
-  };
+  // Состояние общее для всех копий переключателя: выбор в шапке обязан
+  // отражаться и в настройках, где обе копии видны сразу.
+  const mode = useSyncExternalStore<ThemeMode>(subscribeThemeMode, readThemeMode, () => "system");
 
   return (
     <div className="themeswitch" role="group" aria-label="Тема оформления">
@@ -29,7 +26,7 @@ export function ThemeSwitch(): React.JSX.Element {
           className="themeswitch__option"
           aria-pressed={mode === option.mode}
           title={option.label}
-          onClick={() => choose(option.mode)}
+          onClick={() => { applyThemeMode(option.mode); }}
         >
           <svg className="icon" aria-hidden="true">
             <use href={option.icon} />

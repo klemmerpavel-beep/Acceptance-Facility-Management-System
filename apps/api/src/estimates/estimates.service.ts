@@ -5,7 +5,7 @@ import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
-import { basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
+import { acceptedQty, basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -94,6 +94,9 @@ export class EstimatesService {
 
       // Разделы записываются деревом: сначала верхний уровень, затем вложенные.
       const sectionIds = new Map<string, string>();
+      /* Разделы верхнего уровня по имени: к ним привязаны этапы графика, и
+         связи предстоит перенести на новую редакцию. */
+      const topLevel = new Map<string, string>();
       let order = 0;
       for (const section of parsed.sections) {
         const parentKey = section.path.slice(0, -1).join("·");
@@ -108,6 +111,44 @@ export class EstimatesService {
           },
         });
         sectionIds.set(section.path.join("·"), created.id);
+        if (section.level === 1) topLevel.set(section.name, created.id);
+      }
+
+      /* Связи этапов графика с разделами переносятся на новую редакцию по
+         имени раздела. Разделы у каждой редакции свои, и без переноса первый
+         же импорт оставил бы все этапы без раздела — то есть приёмку без
+         бригады-получателя, а прораба с отказом «у раздела нет этапа» на
+         каждом разделе объекта.
+
+         Имя выбрано ключом переноса, потому что оно и есть то, чем раздел
+         называют: правка количеств и наименований идёт на месте (Р11), а
+         новая редакция рождается правкой цен и ставок, имён не трогающей. */
+      const linked = await tx.workStage.findMany({
+        where: { projectId: project.id, NOT: { sectionId: null } },
+        select: { id: true, sectionId: true },
+      });
+      /* Имена прежних разделов берутся отдельным запросом, а не связью:
+         связь Prisma объявляет необязательной независимо от условия выборки,
+         и разбор её пустоты пришлось бы писать там, где её быть не может. */
+      const прежние = await tx.estimateSection.findMany({
+        where: { id: { in: linked.flatMap((stage) => stage.sectionId ?? []) } },
+        select: { id: true, name: true },
+      });
+      const имяПрежнего = new Map(прежние.map((section) => [section.id, section.name]));
+
+      const занятые = new Set<string>();
+      for (const stage of linked) {
+        const имя = stage.sectionId === null ? undefined : имяПрежнего.get(stage.sectionId);
+        const следующий = имя === undefined ? undefined : topLevel.get(имя);
+        /* Раздел ведёт не более одного этапа. Если два прежних раздела
+           слились в новой редакции в один, второй этап остаётся без раздела,
+           а не роняет импорт: смету важнее принять, чем сохранить связь. */
+        const свободен = следующий !== undefined && !занятые.has(следующий);
+        if (свободен) занятые.add(следующий);
+        await tx.workStage.update({
+          where: { id: stage.id },
+          data: { sectionId: свободен ? следующий : null },
+        });
       }
 
       let itemOrder = 0;
@@ -208,7 +249,13 @@ export class EstimatesService {
       orderBy: { version: "desc" },
       include: {
         sections: { orderBy: { order: "asc" } },
-        items: { orderBy: { order: "asc" }, include: { unit: true } },
+        /* Приёмки приходят вместе с позицией: принятое есть их сумма, и
+           отдельный запрос на каждую из ста тридцати двух позиций дал бы
+           сто тридцать два обращения на один экран сметы. */
+        items: {
+          orderBy: { order: "asc" },
+          include: { unit: true, acceptances: { select: { qty: true } } },
+        },
         otherExpenses: { orderBy: { order: "asc" }, include: { unit: true } },
         imports: { orderBy: { importedAt: "desc" }, take: 1 },
       },
@@ -236,7 +283,9 @@ export class EstimatesService {
         name: item.name,
         unit: item.unit.code,
         qty: milliunits(item.qty),
-        qtyAccepted: milliunits(0n),
+        // Принято — сумма записей приёмки по позиции, включая отрицательные
+        // у сторно. Пока приёмок нет, сумма пуста и даёт честный ноль.
+        qtyAccepted: acceptedQty(item.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
         unitPrice: kopecks(item.unitPrice),
         unitWage: kopecks(item.unitWage),
       })),

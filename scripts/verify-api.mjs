@@ -7,6 +7,8 @@
  * ответа. Здесь это делается на настоящем сервере и настоящей смете из
  * 132 позиций, а не на выдуманном объекте.
  */
+import { readFileSync } from "node:fs";
+
 const BASE = process.env.API ?? "http://127.0.0.1:3000";
 const INTERNAL = ["unitWage", "wageTotal", "profit", "profitShare", "subtotalWage", "wage"];
 
@@ -323,11 +325,337 @@ const мусорВТеле = await создать(owner, "/projects", {
 });
 check(мусорВТеле.status === 400, `тело мимо схемы принято с кодом ${мусорВТеле.status}`);
 
+/**
+ * Правка графика. Маршрутов пишущих пять; проверяется и то, что они
+ * работают, и то, что валидатор дат стоит на сервере, а не только на
+ * экране: подсказку в разметке обойти нечего не стоит, отказ сервера — нет.
+ *
+ * Стенд возвращается в исходное состояние: заведённый этап удаляется, и
+ * следующий прогон видит те же семь этапов R-99.
+ */
+const этап = (who, path, method, body) =>
+  who(path, {
+    method,
+    /* Заголовок ставится только вместе с телом. Fastify разбирает тело
+       прежде охраны и на пустом «application/json» отвечает 400 — отказ
+       пришёл бы раньше проверки прав, и проверка стерегла бы не то.
+       Клиент шлёт снятие так же (apps/web/src/api.ts:152). */
+    ...(body === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
+
+const проба = `Проверочный этап ${String(Date.now())}`;
+
+const заведён = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: проба, startsOn: "2026-04-01", endsOn: "2026-04-20", progress: 2500,
+});
+check(заведён.ok, `этап не заведён: код ${заведён.status}`);
+const послеЗаведения = заведён.ok ? await заведён.json() : [];
+check(послеЗаведения.length === 8, `после заведения этапов ${послеЗаведения.length} вместо восьми`);
+const новый = послеЗаведения.find((row) => row.name === проба);
+check(новый !== undefined, "заведённый этап не вернулся в списке");
+check(новый?.order === 7, `новый этап встал на место ${новый?.order} вместо последнего`);
+
+const перевёрнутые = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Перевёрнутый", startsOn: "2026-03-31", endsOn: "2026-03-07", progress: 0,
+});
+check(перевёрнутые.status === 400, `перевёрнутый отрезок принят с кодом ${перевёрнутые.status}`);
+const текстПеревёрнутого = перевёрнутые.status === 400 ? (await перевёрнутые.json()).message : "";
+check(
+  текстПеревёрнутого.includes("раньше начала"),
+  `отказ на перевёрнутом отрезке не называет причину: «${текстПеревёрнутого}»`,
+);
+
+/* Существование даты в календаре стерегут два слоя: «z.string().date()» в
+   договоре и «stageDateFault» в домене. Откат это показал — проверка
+   краснеет только когда снят и тот и другой. Слои оставлены оба: договор
+   отсекает мусор на границе, домен нужен экрану, где договора нет. */
+const несуществующая = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Тридцатое февраля", startsOn: "2026-04-01", endsOn: "2026-02-30", progress: 0,
+});
+check(несуществующая.status === 400, `30 февраля принято с кодом ${несуществующая.status}`);
+
+const чужойГод = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Далёкий год", startsOn: "2026-04-01", endsOn: "2029-07-24", progress: 0,
+});
+check(чужойГод.status === 400, `год за пределами проекта принят с кодом ${чужойГод.status}`);
+
+const дубльЭтапа = await этап(owner, "/projects/R-99/stages", "POST", {
+  name: "Демонтаж", startsOn: "2026-04-01", endsOn: "2026-04-10", progress: 0,
+});
+check(дубльЭтапа.status === 400, `дубль названия этапа принят с кодом ${дубльЭтапа.status}`);
+
+const прорабПравитГрафик = await этап(foreman, "/projects/R-99/stages", "POST", {
+  name: "Нельзя", startsOn: "2026-04-01", endsOn: "2026-04-10", progress: 0,
+});
+check(прорабПравитГрафик.status === 403, `прораб завёл этап с кодом ${прорабПравитГрафик.status}`);
+
+const сдвинут = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "PATCH", {
+  startsOn: "2026-04-05", endsOn: "2026-04-25",
+});
+check(сдвинут.ok, `сдвиг этапа не прошёл: код ${сдвинут.status}`);
+const послеСдвига = сдвинут.ok ? await сдвинут.json() : [];
+check(
+  послеСдвига.find((row) => row.id === новый?.id)?.startsOn === "2026-04-05",
+  "сдвиг этапа не изменил дату начала",
+);
+
+const частичныйПорядок = await этап(owner, "/projects/R-99/stages/order", "PATCH", {
+  ids: [новый?.id],
+});
+check(частичныйПорядок.status === 400, `частичный порядок принят с кодом ${частичныйПорядок.status}`);
+
+const обратныйПорядок = послеСдвига.map((row) => row.id).reverse();
+const переставлен = await этап(owner, "/projects/R-99/stages/order", "PATCH", { ids: обратныйПорядок });
+check(переставлен.ok, `перестановка не прошла: код ${переставлен.status}`);
+const послеПерестановки = переставлен.ok ? await переставлен.json() : [];
+check(
+  послеПерестановки[0]?.id === обратныйПорядок[0],
+  "перестановка не поставила присланный этап первым",
+);
+
+const вернули = await этап(owner, "/projects/R-99/stages/order", "PATCH", {
+  ids: обратныйПорядок.slice().reverse(),
+});
+check(вернули.ok, `возврат порядка не прошёл: код ${вернули.status}`);
+
+const снят = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "DELETE");
+check(снят.ok, `этап не снят: код ${снят.status}`);
+const послеСнятия = снят.ok ? await снят.json() : [];
+check(послеСнятия.length === 7, `после снятия этапов ${послеСнятия.length} вместо семи`);
+check(
+  послеСнятия.every((row) => row.name !== проба),
+  "снятый этап остался в списке",
+);
+
+const anonymousStages = await fetch(`${BASE}/projects/R-99/stages`);
+check(anonymousStages.status === 401, `график отдан без сессии с кодом ${anonymousStages.status}`);
+
 const anonymousMeasure = await fetch(`${BASE}/projects/R-99/measure`);
 check(anonymousMeasure.status === 401, `обмер отдан без сессии с кодом ${anonymousMeasure.status}`);
 
 const anonymous = await fetch(`${BASE}/projects/R-99/estimate`);
 check(anonymous.status === 401, `смета отдана без сессии с кодом ${anonymous.status}`);
+
+/**
+ * Приёмка — ядро продукта. Проверяется то, чего не видно на снимке: что
+ * начисление считается по снимку ставки, что сторно возвращает остаток
+ * ровно, что прораб не получает ни ставки, ни суммы начисления, и что
+ * раздел без этапа отказывает внятно.
+ *
+ * Стенд не возвращается удалением: история приёмки не переписывается по
+ * БП-04, и пакет остаётся в списке. Поэтому проверки написаны на разностях,
+ * а не на absolute-числах — прогон второй раз даёт тот же результат.
+ */
+const снимок = readFileSync(new URL("./fixtures/snimok.png", import.meta.url));
+
+const пакет = (тело) => {
+  const form = new FormData();
+  form.append("batch", JSON.stringify(тело));
+  form.append("file", new Blob([снимок]), "snimok.png");
+  return form;
+};
+
+const доПриёмки = await owner("/projects/R-99/acceptance").then((r) => r.json());
+check(доПриёмки.sections.length === 11, `разделов приёмки ${доПриёмки.sections.length} вместо одиннадцати`);
+const сЭтапом = доПриёмки.sections.filter((section) => section.stage !== null);
+check(сЭтапом.length === 7, `разделов с этапом ${сЭтапом.length} вместо семи`);
+check(
+  доПриёмки.sections.reduce((всего, section) => всего + section.positions.length, 0) === 132,
+  "позиции разделов не сходятся со сметой в 132 строки",
+);
+
+const разделПриёмки = сЭтапом[0];
+const позицияПриёмки = разделПриёмки.positions.find((position) => BigInt(position.remaining) >= 2n);
+check(позицияПриёмки !== undefined, "в первом разделе нет позиции с остатком хотя бы в две тысячных");
+check(
+  разделПриёмки.stage?.brigade?.name !== undefined,
+  `у этапа «${разделПриёмки.stage?.name}» нет бригады: начислять некому`,
+);
+
+const былоПакетов = доПриёмки.batches.length;
+const былоПринято = BigInt(позицияПриёмки?.accepted ?? "0");
+const былоВыполнено = BigInt(доПриёмки.totals.accepted);
+const былоНачислено = BigInt(доПриёмки.totals.accrued);
+const половина = BigInt(позицияПриёмки?.remaining ?? "0") / 2n;
+
+/* Принимает прораб: это его ежедневная работа и единственный источник факта
+   выполнения (БП-01). */
+const пакетЗаведён = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({
+    sectionId: разделПриёмки.id,
+    comment: "Проверка API",
+    positions: [{ itemId: позицияПриёмки?.id, qty: половина.toString() }],
+  }),
+});
+check(пакетЗаведён.ok, `пакет не пакетЗаведён: код ${пакетЗаведён.status}`);
+const послеПриёмки = пакетЗаведён.ok ? await пакетЗаведён.json() : доПриёмки;
+check(
+  послеПриёмки.batches.length === былоПакетов + 1,
+  `пакетов ${послеПриёмки.batches.length} вместо ${былоПакетов + 1}`,
+);
+
+const принятая = послеПриёмки.sections
+  .find((section) => section.id === разделПриёмки.id)?.positions
+  .find((position) => position.id === позицияПриёмки?.id);
+check(
+  BigInt(принятая?.accepted ?? "0") === былоПринято + половина,
+  `принято ${принятая?.accepted} вместо ${(былоПринято + половина).toString()}`,
+);
+check(
+  BigInt(принятая?.remaining ?? "0") === BigInt(позицияПриёмки?.remaining ?? "0") - половина,
+  "остаток по позиции не уменьшился на принятое",
+);
+
+/* Начисление считается по снимку ставки: ставка × количество, тем же
+   правилом округления, что и вся арифметика денег. */
+const глазамиРуководителя = await owner("/projects/R-99/acceptance").then((r) => r.json());
+const ожидаемоеНачисление = (BigInt(позицияПриёмки?.unitWage ?? "0") * половина + 500n) / 1000n;
+check(
+  BigInt(глазамиРуководителя.totals.accrued) - былоНачислено === ожидаемоеНачисление,
+  `начислено ${(BigInt(глазамиРуководителя.totals.accrued) - былоНачислено).toString()} вместо `
+    + `${ожидаемоеНачисление.toString()} копеек`,
+);
+const ожидаемоеВыполнение = (BigInt(позицияПриёмки?.unitPrice ?? "0") * половина + 500n) / 1000n;
+check(
+  BigInt(глазамиРуководителя.totals.accepted) - былоВыполнено === ожидаемоеВыполнение,
+  "выполнено на сумму не сошлось с ручным расчётом",
+);
+check(
+  глазамиРуководителя.accruals?.some((row) => row.brigadeName === разделПриёмки.stage?.brigade?.name),
+  "бригада принявшего этапа не попала в свод начислений",
+);
+
+/* Разграничение на уровне полей: прораб не получает ни ставки, ни суммы
+   начисления, ни свода. Сумма при известном количестве выдала бы ставку. */
+const глазамиПрораба = await foreman("/projects/R-99/acceptance").then((r) => r.json());
+check(глазамиПрораба.totals.accrued === undefined, "прораб получил сумму начисления");
+check(глазамиПрораба.accruals === undefined, "прораб получил свод начислений");
+const утечкиПриёмки = findInternal(глазамиПрораба);
+check(
+  утечкиПриёмки.length === 0,
+  `внутренних полей в приёмке у прораба: ${утечкиПриёмки.length}, первое — ${утечкиПриёмки[0]}`,
+);
+check(
+  глазамиПрораба.batches[0]?.lines?.[0]?.amount === undefined,
+  "прораб получил сумму начисления в строке пакета",
+);
+
+/* Отказы. Тексты сверяются по существу, а не дословно: важно, что причина
+   названа и сказано, что делать. */
+const превышение = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({
+    sectionId: разделПриёмки.id,
+    positions: [{ itemId: позицияПриёмки?.id, qty: позицияПриёмки?.qty }],
+  }),
+});
+check(превышение.status === 400, `превышение остатка принято с кодом ${превышение.status}`);
+const текстПревышения = превышение.status === 400 ? (await превышение.json()).message : "";
+check(
+  текстПревышения.includes("по смете осталось") && текстПревышения.includes("Уменьшите количество"),
+  `отказ на превышении не называет остаток и работу: «${текстПревышения}»`,
+);
+
+const безЭтапа = доПриёмки.sections.find((section) => section.stage === null);
+const чужойРаздел = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({
+    sectionId: безЭтапа?.id,
+    positions: [{ itemId: безЭтапа?.positions[0]?.id, qty: "1000" }],
+  }),
+});
+check(чужойРаздел.status === 400, `раздел без этапа принят с кодом ${чужойРаздел.status}`);
+const текстБезЭтапа = чужойРаздел.status === 400 ? (await чужойРаздел.json()).message : "";
+check(
+  текстБезЭтапа.includes("нет этапа графика") && текстБезЭтапа.includes("Работа"),
+  `отказ без этапа не уводит на вкладку графика: «${текстБезЭтапа}»`,
+);
+
+const безСнимка = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: (() => {
+    const form = new FormData();
+    form.append("batch", JSON.stringify({
+      sectionId: разделПриёмки.id,
+      positions: [{ itemId: позицияПриёмки?.id, qty: "1000" }],
+    }));
+    return form;
+  })(),
+});
+check(безСнимка.status === 400, `пакет без снимка принят с кодом ${безСнимка.status}`);
+
+const неКартинка = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: (() => {
+    const form = new FormData();
+    form.append("batch", JSON.stringify({
+      sectionId: разделПриёмки.id,
+      positions: [{ itemId: позицияПриёмки?.id, qty: "1000" }],
+    }));
+    form.append("file", new Blob(["<svg xmlns=\"http://www.w3.org/2000/svg\"/>"]), "snimok.png");
+    return form;
+  })(),
+});
+check(неКартинка.status === 400, `файл, назвавшийся снимком, принят с кодом ${неКартинка.status}`);
+
+/* Сторно — право руководителя, и только с причиной. */
+const строкаПакета = послеПриёмки.batches[0]?.lines?.[0];
+const отменаПрорабом = await создать(foreman, `/projects/R-99/acceptance/${строкаПакета?.id}/reversal`, {
+  reason: "прораб не вправе",
+});
+check(отменаПрорабом.status === 403, `прораб сторнировал с кодом ${отменаПрорабом.status}`);
+
+const безПричины = await создать(owner, `/projects/R-99/acceptance/${строкаПакета?.id}/reversal`, {
+  reason: "   ",
+});
+check(безПричины.status === 400, `отмена без причины принято с кодом ${безПричины.status}`);
+
+const отмена = await создать(owner, `/projects/R-99/acceptance/${строкаПакета?.id}/reversal`, {
+  reason: "Проверка API: приёмка отменена",
+});
+check(отмена.ok, `сторно не прошло: код ${отмена.status}`);
+const послеСторно = отмена.ok ? await отмена.json() : послеПриёмки;
+
+/* Пара «приёмка и её отмена» возвращает всё ровно: количество, выполненное
+   и начисленное. Расхождение хотя бы в копейку означает, что округление
+   несимметрично, — то, ради чего правило половины вверх по модулю и выбрано. */
+const послеОтмены = послеСторно.sections
+  .find((section) => section.id === разделПриёмки.id)?.positions
+  .find((position) => position.id === позицияПриёмки?.id);
+check(
+  BigInt(послеОтмены?.accepted ?? "-1") === былоПринято,
+  `после сторно принято ${послеОтмены?.accepted} вместо ${былоПринято.toString()}`,
+);
+check(
+  BigInt(послеСторно.totals.accepted) === былоВыполнено,
+  "после сторно выполнено на сумму не вернулось к прежнему",
+);
+check(
+  BigInt(послеСторно.totals.accrued) === былоНачислено,
+  "после сторно начисленное не вернулось к прежнему: округление несимметрично",
+);
+check(
+  послеСторно.batches[0]?.lines?.[0]?.reversedAt !== null,
+  "сторнированная строка не помечена временем отмены",
+);
+check(
+  послеСторно.batches[0]?.lines?.[0]?.reason === "Проверка API: приёмка отменена",
+  "сторнированная строка не называет причину",
+);
+
+const повторноеСторно = await создать(owner, `/projects/R-99/acceptance/${строкаПакета?.id}/reversal`, {
+  reason: "второй раз",
+});
+check(повторноеСторно.status === 400, `повторное сторно принято с кодом ${повторноеСторно.status}`);
+
+const приёмкаБезСессии = await fetch(`${BASE}/projects/R-99/acceptance`);
+check(приёмкаБезСессии.status === 401, `приёмка отдана без сессии с кодом ${приёмкаБезСессии.status}`);
+
+const чужаяПриёмка = await foreman("/projects/R-31/acceptance");
+check(чужаяПриёмка.status === 404, `чужой объект отдал приёмку с кодом ${чужаяПриёмка.status}`);
 
 console.log(`Позиций в ответе: ${foremanEstimate.positions}, разделов ${foremanEstimate.sectionsTopLevel} + ${foremanEstimate.sectionsNested}`);
 console.log(`Внутренних полей у руководителя: ${findInternal(ownerEstimate).length}, у прораба: ${leaks.length}`);
@@ -337,5 +665,8 @@ console.log(`Обмер R-99: ${measure.rooms.length} помещений, пло
   `стены ${measure.totals.wallArea}, объём ${measure.totals.volume} тысячных`);
 console.log(`График R-99: ${R99строка?.stages?.length} этапов, готовность ${R99строка?.readiness} сотых процента;`,
   `объектов без графика ${списокОбъектов.filter((project) => project.stages.length === 0).length}`);
+console.log(`Приёмка R-99: ${доПриёмки.sections.length} разделов, ${сЭтапом.length} с этапом;`,
+  `принято ${послеСторно.totals.acceptedPositions} позиций, начислено ${послеСторно.totals.accrued} копеек;`,
+  `пакетов ${послеСторно.batches.length}`);
 console.log(problems.length === 0 ? "\nРазграничение на уровне полей: замечаний нет" : "\nЗамечания:\n  " + problems.join("\n  "));
 process.exit(problems.length === 0 ? 0 : 1);

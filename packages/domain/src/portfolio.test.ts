@@ -16,6 +16,7 @@ const R99: PortfolioProject = {
   positions: 132,
   discrepancy: kopecks(43_880_000),
   findings: 6,
+  acceptedTotal: kopecks(0),
 };
 
 const R31: PortfolioProject = {
@@ -29,6 +30,7 @@ const R31: PortfolioProject = {
   positions: 40,
   discrepancy: null,
   findings: 0,
+  acceptedTotal: kopecks(0),
 };
 
 const R42: PortfolioProject = {
@@ -42,6 +44,7 @@ const R42: PortfolioProject = {
   positions: 0,
   discrepancy: null,
   findings: 0,
+  acceptedTotal: kopecks(0),
 };
 
 const TODAY = "2026-09-02";

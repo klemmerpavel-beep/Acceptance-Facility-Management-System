@@ -5,6 +5,7 @@ import type {
   ProjectStatus,
   ProjectSummary,
 } from "@priyomka/contracts";
+import { coversDay } from "@priyomka/domain";
 import { fetchDashboard, errorMessage } from "./api.js";
 import { PlanStrip } from "./PlanStrip.js";
 import { ProjectTable } from "./ProjectTable.js";
@@ -43,6 +44,44 @@ import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 const TABLE_LIMIT = 25;
 
 /**
+ * Мера: доля величины к своему пределу одной дорожкой.
+ *
+ * Форма выбрана по задаче, а не по вкусу: «одно значение к пределу» —
+ * это мера, а не диаграмма. Круговая из двух долей на 180 пикселях
+ * читается медленнее и занимает вчетверо больше места.
+ *
+ * Предел нулевой означает, что делить не на что: дорожка остаётся пустой,
+ * а не заполняется на сто процентов.
+ */
+const METER_CLASS = {
+  plain: "meter",
+  danger: "meter meter--danger",
+  quiet: "meter meter--quiet",
+} as const;
+
+function Meter({
+  value,
+  limit,
+  tone,
+  label,
+}: {
+  value: number;
+  limit: number;
+  tone?: "danger" | "quiet";
+  label: string;
+}): React.JSX.Element {
+  const share = limit > 0 ? Math.min(100, Math.max(0, (value / limit) * 100)) : 0;
+  // Классы перечислены целиком, а не собираются строкой: проверка мёртвых
+  // правил ищет имя в разметке, и собранное имя она не видит.
+  const className = METER_CLASS[tone ?? "plain"];
+  return (
+    <div className={className} role="img" aria-label={label}>
+      <span className="meter__fill" style={{ inlineSize: `${share.toFixed(1)}%` }} />
+    </div>
+  );
+}
+
+/**
  * Числовая карточка эталона: линейная иконка, надзаголовок капсом, крупное
  * число, подпись под ним.
  *
@@ -54,6 +93,7 @@ function StatCard({
   icon,
   label,
   value,
+  limit,
   note,
   tone,
   onOpen,
@@ -61,6 +101,8 @@ function StatCard({
   icon: string;
   label: string;
   value: number;
+  /** Предел меры: размер портфеля. Число без него отвечает «сколько», но не «много ли». */
+  limit: number;
   note: string;
   tone?: "danger";
   onOpen?: () => void;
@@ -72,6 +114,14 @@ function StatCard({
       <span className={`statcard__value${tone === undefined ? "" : " statcard__value--danger"}`}>
         {value}
       </span>
+      <div className="statcard__meter">
+        <Meter
+          value={value}
+          limit={limit}
+          label={`${String(value)} из ${String(limit)}`}
+          {...(tone === undefined ? {} : { tone: "danger" as const })}
+        />
+      </div>
       <span className="statcard__note">{note}</span>
     </>
   );
@@ -122,6 +172,9 @@ export function EventFeed({
               <span className="feed__time">{formatTime(event.at)}</span>
               <span>
                 <span className="feed__title">
+                  <svg className={FEED_MARK[event.kind].className} aria-hidden="true">
+                    <use href={FEED_MARK[event.kind].icon} />
+                  </svg>
                   {showCode && event.projectCode !== null ? `${event.projectCode} · ` : ""}
                   {event.title}
                 </span>
@@ -140,6 +193,17 @@ export function EventFeed({
     </div>
   );
 }
+
+/**
+ * Вид события значком. Диаграммы здесь нет намеренно: сводка отдаёт восемь
+ * последних записей, и распределение по дням, построенное на восьми, врёт
+ * о том, когда шла работа. Значок различает вид, ничего не выдумывая.
+ */
+const FEED_MARK: Record<ProjectEvent["kind"], { icon: string; className: string }> = {
+  status: { icon: "#i-badge", className: "icon icon--sm feed__mark feed__mark--status" },
+  import: { icon: "#i-estimate", className: "icon icon--sm feed__mark feed__mark--import" },
+  field: { icon: "#i-document", className: "icon icon--sm feed__mark" },
+};
 
 const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
@@ -166,17 +230,30 @@ function Counter({
   value,
   label,
   tone,
+  bar,
   onClick,
 }: {
   value: number | string;
   label: string;
   tone?: "danger";
+  /** Столбик доли. Предел — наибольший счётчик ряда, а не размер портфеля. */
+  bar?: { value: number; limit: number };
   onClick?: () => void;
 }): React.JSX.Element {
   const body = (
     <>
       <span>{label}</span>
       <span className={tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger}>{value}</span>
+      {bar !== undefined && (
+        <div className="counterstrip__bar">
+          <Meter
+            value={bar.value}
+            limit={bar.limit}
+            tone="quiet"
+            label={`${label}: ${String(bar.value)}`}
+          />
+        </div>
+      )}
     </>
   );
   if (onClick === undefined) return <div className="counterstrip__item">{body}</div>;
@@ -269,12 +346,35 @@ export function Dashboard({
     .filter((row) => ACTIVE.includes(row.status))
     .reduce((total, row) => total + row.count, 0);
 
+  /* Предел столбиков ряда статусов. От размера портфеля доли вышли бы по
+     12-50 % и читались как четыре обрубка одной длины. */
+  const наибольшийСтатус = data.statuses.reduce((max, row) => Math.max(max, row.count), 0);
+
+  /* Загрузка недели: сколько объектов в работе в каждый день. День без
+     событий сам по себе не сообщает ничего; «в работе четыре» сообщает.
+     Величина берётся из тех же этапов, что и план работ ниже, — считать её
+     вторым способом значило бы завести два расходящихся числа.
+
+     Предел дорожки — размер портфеля, а не пик недели: от пика ровная
+     неделя дала бы семь полных дорожек и сообщила бы «максимум» там, где
+     работает половина объектов. От портфеля тот же день читается как
+     «четыре из восьми», и знаменатель у недели общий с карточками. */
+  const загрузка = data.week.map((day) =>
+    projects.filter((project) => project.stages.some((stage) => coversDay(stage, day.date))).length,
+  );
+
+  /* Предел расходящейся шкалы сроков: наибольший модуль дней. Одна шкала на
+     все строки — иначе «просрочен на 21 день» и «86 дней» дали бы отрезки
+     одинаковой длины, и блок сообщал бы порядок, но не величину. */
+  const пределСрока = data.deadlines.reduce((max, row) => Math.max(max, Math.abs(row.days)), 1);
+
   return (
     <main className="container stack stack--loose">
       <section className="statrow">
         <StatCard
           icon="#i-object"
           label="Активные объекты"
+          limit={data.projects.total}
           value={активные}
           note={`всего в портфеле ${String(data.projects.total)}`}
           onOpen={() => { onOpenProjects(null); }}
@@ -282,6 +382,7 @@ export function Dashboard({
         <StatCard
           icon="#i-alert"
           label="Просрочены"
+          limit={data.projects.total}
           value={data.projects.overdue}
           note={data.projects.overdue === 0 ? "срок не нарушен ни на одном" : "срок сдачи прошёл"}
           {...(data.projects.overdue > 0 ? { tone: "danger" as const } : {})}
@@ -289,12 +390,14 @@ export function Dashboard({
         <StatCard
           icon="#i-schedule"
           label="Срок сегодня"
+          limit={data.projects.total}
           value={data.projects.dueToday}
           note={data.projects.dueToday === 0 ? "на сегодня сроков нет" : "сдать до конца дня"}
         />
         <StatCard
           icon="#i-calendar"
           label="Срок на неделе"
+          limit={data.projects.total}
           value={data.projects.dueWeek}
           note="ближайшие семь дней"
         />
@@ -306,18 +409,12 @@ export function Dashboard({
           <p className="t-sm t-muted">сроки и импорт по дням · неделя от понедельника</p>
         </div>
         <div className="weekstrip">
-          {data.week.map((day) => {
+          {data.week.map((day, индекс) => {
             const date = new Date(day.date);
             const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
             return (
               <div
-                className={
-                  day.isToday
-                    ? "daycard daycard--today"
-                    : day.events.length === 0
-                      ? "daycard daycard--empty"
-                      : "daycard"
-                }
+                className={day.isToday ? "daycard daycard--today" : "daycard"}
                 key={day.date}
               >
                 <p className="daycard__head">
@@ -329,6 +426,17 @@ export function Dashboard({
                     {event.title}
                   </span>
                 ))}
+                <div className="daycard__load">
+                  <span className="daycard__count">
+                    {загрузка[индекс] === 0 ? "работ нет" : `в работе ${String(загрузка[индекс])}`}
+                  </span>
+                  <Meter
+                    value={загрузка[индекс] ?? 0}
+                    limit={data.projects.total}
+                    tone="quiet"
+                    label={`объектов в работе: ${String(загрузка[индекс] ?? 0)} из ${String(data.projects.total)}`}
+                  />
+                </div>
               </div>
             );
           })}
@@ -362,6 +470,7 @@ export function Dashboard({
                 key={row.status}
                 label={STATUS_LABEL[row.status]}
                 value={row.count}
+                bar={{ value: row.count, limit: наибольшийСтатус }}
                 onClick={() => { onOpenProjects(row.status); }}
               />
             ))}
@@ -379,18 +488,33 @@ export function Dashboard({
             </div>
           ) : (
             <dl className="deflist">
-              {data.deadlines.map((row) => (
-                <div className="deflist__row" key={row.code}>
-                  <dt className="deflist__term">
-                    <span className="code-badge">{row.code}</span> {row.address}
-                  </dt>
-                  <dd className={row.days < 0 ? "deflist__value num--danger" : "deflist__value"}>
-                    {row.days < 0
-                      ? `просрочен на ${Math.abs(row.days)} ${plural(row.days, "день", "дня", "дней")}`
-                      : `${row.days} ${plural(row.days, "день", "дня", "дней")}`}
-                  </dd>
-                </div>
-              ))}
+              {data.deadlines.map((row) => {
+                const доля = (Math.abs(row.days) / пределСрока) * 50;
+                const просрочен = row.days < 0;
+                return (
+                  <div className="deadline" key={row.code}>
+                    <dt className="deadline__term">
+                      <span className="code-badge">{row.code}</span> {row.address}
+                    </dt>
+                    <dd className={просрочен ? "deadline__value num--danger" : "deadline__value"}>
+                      {просрочен
+                        ? `просрочен на ${Math.abs(row.days)} ${plural(row.days, "день", "дня", "дней")}`
+                        : `${row.days} ${plural(row.days, "день", "дня", "дней")}`}
+                    </dd>
+                    <div className="deadline__scale">
+                      <span className="deadline__zero" style={{ insetInlineStart: "50%" }} />
+                      <span
+                        className={просрочен ? "deadline__bar deadline__bar--late" : "deadline__bar"}
+                        style={
+                          просрочен
+                            ? { insetInlineStart: `${(50 - доля).toFixed(1)}%`, inlineSize: `${доля.toFixed(1)}%` }
+                            : { insetInlineStart: "50%", inlineSize: `${доля.toFixed(1)}%` }
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </dl>
           )}
         </div>

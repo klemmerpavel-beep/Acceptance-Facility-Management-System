@@ -113,7 +113,12 @@ describe("значение мимо токена — дефект", () => {
     }
     // Локальные свойства компонентов объявляются через var(--x, запасное)
     // и определяются в разметке, а не в стилях: они исключены.
-    const componentLocal = new Set(["--stack-gap", "--row-gap", "--level"]);
+    const componentLocal = new Set([
+      "--stack-gap", "--row-gap", "--level",
+      // Положение и длина отрезка графика — данные строки, а не оформление:
+      // их подставляет разметка в днях от начала окна.
+      "--gantt-from", "--gantt-span", "--gantt-days",
+    ]);
     const missing = [...referenced].filter((n) => !defined.has(n) && !componentLocal.has(n));
     expect(missing).toEqual([]);
   });
@@ -261,6 +266,31 @@ describe("контраст: 7:1 для основного текста и орг
     ["--accent-inv", "--surface-inv", "числа обмера на инвертированной плашке", AAA],
     ["--ink-on-inv-2", "--surface-inv", "подписи на инвертированной плашке", AA],
   ];
+
+  /**
+   * Отделение мягкой заливки от поверхности. Проверка контраста смотрит на
+   * пару «текст на фоне» и слепа к паре «заливка на заливке»: в тёмной теме
+   * --accent-soft давал 1,02 к --surface, и незакрашенная часть отрезка
+   * графика, подсветка строки реестра и карточка «сегодня» пропадали
+   * целиком, хотя текст на них проходил 7:1. Порог 1,10 — ниже самой
+   * слабой действующей пары (1,128) и выше того, что различить нельзя.
+   */
+  const SURFACE_SEPARATION = 1.1;
+
+  it.each([
+    ["светлая", light],
+    ["тёмная", dark],
+  ] as const)("%s тема: мягкая заливка отделяется от поверхности", (_name, palette) => {
+    const surface = palette.get("--surface");
+    if (surface === undefined) throw new Error("В палитре нет --surface");
+    const слабые: string[] = [];
+    for (const [token, value] of palette) {
+      if (!token.endsWith("-soft")) continue;
+      const ratio = contrast(value, surface);
+      if (ratio < SURFACE_SEPARATION) слабые.push(`${token}: ${ratio.toFixed(3)}`);
+    }
+    expect(слабые).toEqual([]);
+  });
 
   const themes: readonly (readonly [string, Map<string, string>])[] = [
     ["светлая", light],

@@ -52,3 +52,34 @@ console.log(
   `разделов ${result.report.sectionsTopLevel} + ${result.report.sectionsNested},`,
   `сопоставлено написаний ${Object.keys(overrides).length}`,
 );
+
+/* Связь этапов графика с разделами проставляется здесь: до импорта разделов
+   не существует, и наполнение стенда оставило бы этапы без раздела — то есть
+   приёмку без бригады-получателя.
+
+   Через API, а не через Prisma: этот скрипт лежит в корне репозитория, а
+   `@prisma/client` — зависимость `apps/api`, и при строгой раскладке pnpm в
+   корень она не поднимается. Обращение к базе отсюда падает на сборке с
+   чистыми зависимостями, хотя на машине разработчика может пройти. Заодно
+   связь проставляется тем же путём, каким её проставит человек. */
+const { РАЗДЕЛ_ЭТАПА } = await import("../apps/api/prisma/stage-sections.mjs");
+
+const этапы = await fetch(`${BASE}/projects/${CODE}/stages`, { headers: { cookie } })
+  .then((response) => response.json());
+const приёмка = await fetch(`${BASE}/projects/${CODE}/acceptance`, { headers: { cookie } })
+  .then((response) => response.json());
+const разделПоИмени = new Map(приёмка.sections.map((раздел) => [раздел.name, раздел.id]));
+
+let связано = 0;
+for (const этап of этапы) {
+  const sectionId = разделПоИмени.get(РАЗДЕЛ_ЭТАПА[этап.name] ?? "");
+  if (sectionId === undefined) continue;
+  const ответ = await fetch(`${BASE}/projects/${CODE}/stages/${этап.id}`, {
+    method: "PATCH",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ sectionId }),
+  });
+  if (ответ.ok) связано += 1;
+  else console.error(`  этап «${этап.name}» не связан: код ${ответ.status}`);
+}
+console.log(`  этапов связано с разделами: ${связано}`);

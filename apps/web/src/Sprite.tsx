@@ -15,6 +15,7 @@ export function Sprite(): React.JSX.Element {
   return (
     <svg className="icon-sprite" aria-hidden="true" focusable="false">
       <defs>
+        <symbol id="i-mark" viewBox="0 0 20 20"><path d="M4 3h7l5 5v4l-5 5H4z"/><path d="M8 7h4"/></symbol>
         <symbol id="i-object" viewBox="0 0 20 20"><path d="M3 3h14v14H3z" /><path d="M3 11h6V3" /></symbol>
         <symbol id="i-estimate" viewBox="0 0 20 20"><path d="M3 5h9M3 10h9M3 15h9" /><path d="M15 5h2M15 10h2M15 15h2" /></symbol>
         <symbol id="i-acceptance" viewBox="0 0 20 20"><path d="M3 3h14v14H3z" /><path d="M6.5 10.5 9 13l4.5-4.5" /></symbol>
@@ -24,6 +25,13 @@ export function Sprite(): React.JSX.Element {
         <symbol id="i-crumb" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5" /></symbol>
         <symbol id="i-chevron" viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" /></symbol>
         <symbol id="i-copy" viewBox="0 0 20 20"><path d="M7 7h10v10H7z" /><path d="M4 13V4h9" /></symbol>
+
+        {/* График производства работ. Ручка перестановки — двусторонняя
+            вертикальная стрелка: она называет доступное движение, а не
+            текущее положение. */}
+        <symbol id="i-move" viewBox="0 0 20 20"><path d="M10 3v14" /><path d="m6.5 6.5 3.5-3.5 3.5 3.5" /><path d="m6.5 13.5 3.5 3.5 3.5-3.5" /></symbol>
+        <symbol id="i-expand" viewBox="0 0 20 20"><path d="M4 8V4h4M16 12v4h-4M16 8V4h-4M4 12v4h4" /></symbol>
+        <symbol id="i-minus" viewBox="0 0 20 20"><path d="M4 10h12" /></symbol>
 
         {/* Разделы шапки. Рисунок тот же чертёжный: прямые и прямые углы. */}
         <symbol id="i-home" viewBox="0 0 20 20"><path d="M3 9 10 3l7 6v8H3z" /><path d="M8 17v-5h4v5" /></symbol>

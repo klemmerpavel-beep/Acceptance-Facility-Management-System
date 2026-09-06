@@ -92,11 +92,16 @@
 
       <div class="screen">
         <header class="appbar">
-          <span class="appbar__brand">Приёмка</span>
+          <span class="appbar__brand"><svg class="icon appbar__mark" aria-hidden="true"><use href="#i-mark"/></svg>DOLSTUDIO</span>
           <nav class="appbar__nav" aria-label="Разделы">
-            <a class="appbar__link" href="#s1" aria-current="page">Главная</a>
-            <a class="appbar__link" href="#s2">Проекты</a>
-            <a class="appbar__link" href="#s3">Контакты</a>
+            <div class="appbar__nav-scroll">
+              <a class="appbar__link" href="#" aria-current="page">Главная</a>
+              <a class="appbar__link" href="#">Заявки</a>
+              <a class="appbar__link" href="#">Проекты</a>
+              <a class="appbar__link" href="#">Контрагенты</a>
+              <a class="appbar__link" href="#">Бухгалтерия</a>
+            </div>
+            <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
           </nav>
           <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
           <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
@@ -112,36 +117,36 @@
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-object"/></svg>
               <span class="statcard__label">Активные объекты</span>
               <span class="statcard__value">7</span>
-              <span class="statcard__note">всего в портфеле 8</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:87.5%"></span></div></div><span class="statcard__note">всего в портфеле 8</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-alert"/></svg>
               <span class="statcard__label">Просрочены</span>
               <span class="statcard__value statcard__value--danger">2</span>
-              <span class="statcard__note">срок сдачи прошёл</span>
+              <div class="statcard__meter"><div class="meter meter--danger"><span class="meter__fill" style="inline-size:25.0%"></span></div></div><span class="statcard__note">срок сдачи прошёл</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-schedule"/></svg>
               <span class="statcard__label">Срок сегодня</span>
               <span class="statcard__value">0</span>
-              <span class="statcard__note">на сегодня сроков нет</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:0.0%"></span></div></div><span class="statcard__note">на сегодня сроков нет</span>
             </div>
             <div class="statcard">
               <svg class="icon statcard__icon" aria-hidden="true"><use href="#i-calendar"/></svg>
               <span class="statcard__label">Срок на неделе</span>
               <span class="statcard__value">1</span>
-              <span class="statcard__note">ближайшие семь дней</span>
+              <div class="statcard__meter"><div class="meter"><span class="meter__fill" style="inline-size:12.5%"></span></div></div><span class="statcard__note">ближайшие семь дней</span>
             </div>
           </div>
 
           <div class="weekstrip">
-            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p></div>
-            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p></div>
-            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p></div>
-            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p></div>
-            <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span></div>
-            <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span></div>
-            <div class="daycard daycard--empty"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">31</span><span class="daycard__weekday">ПН</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">01</span><span class="daycard__weekday">ВТ</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">02</span><span class="daycard__weekday">СР</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">03</span><span class="daycard__weekday">ЧТ</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">04</span><span class="daycard__weekday">ПТ</span></p><span class="daycard__event daycard__event--danger">Дедлайн R-38</span><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard daycard--today"><p class="daycard__head"><span class="daycard__date">05</span><span class="daycard__weekday">СБ</span></p><span class="daycard__event daycard__event--ok">Импорт сметы R-99</span><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
+            <div class="daycard"><p class="daycard__head"><span class="daycard__date">06</span><span class="daycard__weekday">ВС</span></p><div class="daycard__load"><span class="daycard__count">в работе 4</span><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></div>
           </div>
 
           <div class="stack">
@@ -213,19 +218,19 @@
             <div class="stack">
                     <div class="section-head"><h2 class="t-h2">Объекты по статусам</h2></div>
                     <div class="counterstrip">
-                      <button type="button" class="counterstrip__item"><span>Новый</span><span class="counterstrip__count">2</span></button>
-                      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span></button>
-                      <button type="button" class="counterstrip__item"><span>Ждёт ответа</span><span class="counterstrip__count">1</span></button>
-                      <button type="button" class="counterstrip__item"><span>Завершён</span><span class="counterstrip__count">1</span></button>
+                      <button type="button" class="counterstrip__item"><span>Новый</span><span class="counterstrip__count">2</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:50%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>В работе</span><span class="counterstrip__count">4</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:100%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>Ждёт ответа</span><span class="counterstrip__count">1</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:25%"></span></div></div></button>
+                      <button type="button" class="counterstrip__item"><span>Завершён</span><span class="counterstrip__count">1</span><div class="counterstrip__bar"><div class="meter meter--quiet"><span class="meter__fill" style="inline-size:25%"></span></div></div></button>
                     </div>
             </div>
             <div class="stack">
                     <div class="section-head"><h2 class="t-h2">Ближайшие сроки</h2></div>
                     <dl class="deflist">
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-99</span> Московский проспект 116</dt><dd class="deflist__value num--danger">просрочен на 21 день</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-38</span> Владимира Невского 15, кв. 61</dt><dd class="deflist__value num--danger">просрочен на 1 день</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-72</span> Никитинская 42, кв. 7</dt><dd class="deflist__value">7 дней</dd></div>
-                      <div class="deflist__row"><dt class="deflist__term"><span class="code-badge">R-27</span> Ленинский проспект 174п</dt><dd class="deflist__value">40 дней</dd></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-99</span> Московский проспект 116</dt><dd class="deadline__value num--danger">просрочен на 21 день</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar deadline__bar--late" style="inset-inline-start:37.8%;inline-size:12.2%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-38</span> Владимира Невского 15, кв. 61</dt><dd class="deadline__value num--danger">просрочен на 1 день</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar deadline__bar--late" style="inset-inline-start:49.4%;inline-size:0.6%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-72</span> Никитинская 42, кв. 7</dt><dd class="deadline__value">7 дней</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar" style="inset-inline-start:50%;inline-size:4.1%"></span></div></div>
+                      <div class="deadline"><dt class="deadline__term"><span class="code-badge">R-27</span> Ленинский проспект 174п</dt><dd class="deadline__value">40 дней</dd><div class="deadline__scale"><span class="deadline__zero" style="inset-inline-start:50%"></span><span class="deadline__bar" style="inset-inline-start:50%;inline-size:23.3%"></span></div></div>
                     </dl>
             </div>
           </div>
@@ -342,11 +347,16 @@
 
       <div class="screen screen--short">
         <header class="appbar">
-          <span class="appbar__brand">Приёмка</span>
+          <span class="appbar__brand"><svg class="icon appbar__mark" aria-hidden="true"><use href="#i-mark"/></svg>DOLSTUDIO</span>
           <nav class="appbar__nav" aria-label="Разделы">
-            <a class="appbar__link" href="#s1">Главная</a>
-            <a class="appbar__link" href="#s2" aria-current="page">Проекты</a>
-            <a class="appbar__link" href="#s3">Контакты</a>
+            <div class="appbar__nav-scroll">
+              <a class="appbar__link" href="#">Главная</a>
+              <a class="appbar__link" href="#">Заявки</a>
+              <a class="appbar__link" href="#" aria-current="page">Проекты</a>
+              <a class="appbar__link" href="#">Контрагенты</a>
+              <a class="appbar__link" href="#">Бухгалтерия</a>
+            </div>
+            <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
           </nav>
           <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
           <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>
@@ -404,11 +414,16 @@
 
       <div class="screen screen--short">
         <header class="appbar">
-          <span class="appbar__brand">Приёмка</span>
+          <span class="appbar__brand"><svg class="icon appbar__mark" aria-hidden="true"><use href="#i-mark"/></svg>DOLSTUDIO</span>
           <nav class="appbar__nav" aria-label="Разделы">
-            <a class="appbar__link" href="#s1">Главная</a>
-            <a class="appbar__link" href="#s2">Проекты</a>
-            <a class="appbar__link" href="#s3" aria-current="page">Контакты</a>
+            <div class="appbar__nav-scroll">
+              <a class="appbar__link" href="#">Главная</a>
+              <a class="appbar__link" href="#">Заявки</a>
+              <a class="appbar__link" href="#">Проекты</a>
+              <a class="appbar__link" href="#" aria-current="page">Контрагенты</a>
+              <a class="appbar__link" href="#">Бухгалтерия</a>
+            </div>
+            <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
           </nav>
           <span class="appbar__user"><span class="appbar__name">Роман Дементьев</span><svg class="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar"/></svg></span>
           <span class="appbar__bell"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></span>

@@ -237,6 +237,7 @@ interface ProjectRow {
   status: ProjectSummary["status"];
   startedAt: Date | null;
   deadline: Date | null;
+  createdAt: Date;
   keysCount: number;
   supervisionShare: number;
   client: { code: string; name: string; isCompany: boolean; requisites: string | null };
@@ -251,6 +252,8 @@ interface StageRow {
   startsOn: Date;
   endsOn: Date;
   progress: number;
+  sectionId: string | null;
+  brigade: { id: string; name: string } | null;
 }
 
 /**
@@ -258,7 +261,13 @@ interface StageRow {
  * Отдельным обращением на объект полоса плана стоила бы сотни запросов на
  * один экран — ровно то, чем оборачивается ленивая связь в списке.
  */
-const STAGES = { orderBy: { order: "asc" } } as const;
+/* Бригада приходит вместе с этапом: через неё приёмка узнаёт получателя
+   начисления, и второй запрос за именем бригады на каждый этап дал бы
+   семь обращений на один экран объекта. */
+const STAGES = {
+  orderBy: { order: "asc" },
+  include: { brigade: { select: { id: true, name: true } } },
+} as const;
 
 const asDate = (value: Date | null): string | null =>
   value === null ? null : value.toISOString().slice(0, 10);
@@ -284,6 +293,7 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
     status: project.status,
     startedAt: asDate(project.startedAt),
     deadline: asDate(project.deadline),
+    createdAt: project.createdAt.toISOString().slice(0, 10),
     keysCount: project.keysCount,
     supervisionShare: project.supervisionShare,
     client: {
@@ -308,6 +318,8 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
       startsOn: stage.startsOn.toISOString().slice(0, 10),
       endsOn: stage.endsOn.toISOString().slice(0, 10),
       progress: stage.progress,
+      sectionId: stage.sectionId,
+      brigade: stage.brigade === null ? null : { id: stage.brigade.id, name: stage.brigade.name },
     })),
   };
 }
