@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, parseQuantity, parseRubles } from "./money.js";
-import { buildEstimateView, type BuildEstimateInput, type SectionNode } from "./estimate.js";
+import {
+  buildEstimateView, estimateItemFault, estimateItemWarning, measureSourcesFor,
+  MEASURE_LABEL, MEASURE_SOURCES,
+  type BuildEstimateInput, type SectionNode,
+} from "./estimate.js";
 import { findInternalFields, INTERNAL_FIELDS } from "./projection.js";
 
 /**
@@ -97,3 +101,130 @@ describe("БП-09 и раздел 4 промта: разграничение н�
 
 const нетВнутренних = (node: SectionNode): boolean =>
   node.subtotalWage === undefined && node.children.every(нетВнутренних);
+
+/* Правка позиции. Числа взяты из действующей сметы: «Штукатурка стен» —
+   240,00 м² по 1 150,00 ₽ за м² при ставке 460,00 ₽ за м². */
+const ПОЗИЦИЯ = {
+  unit: "м²",
+  unitPrice: parseRubles("1 150,00"),
+  unitWage: parseRubles("460,00"),
+};
+
+describe("отказ при правке позиции", () => {
+  it("позиция без приёмок уменьшается до любого положительного", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("0,001"), accepted: parseQuantity("0"),
+    })).toBeNull();
+  });
+
+  it("нулевое количество отклоняется и называет, что делать вместо", () => {
+    expect(estimateItemFault({ ...ПОЗИЦИЯ, qty: parseQuantity("0"), accepted: parseQuantity("0") }))
+      .toBe("Количество должно быть больше нуля. Ненужная позиция удаляется, а не обнуляется.");
+  });
+
+  it("отрицательное количество отклоняется", () => {
+    expect(estimateItemFault({ ...ПОЗИЦИЯ, qty: parseQuantity("-1"), accepted: parseQuantity("0") }))
+      .not.toBeNull();
+  });
+
+  it("уменьшение ровно до принятого допускается", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("12"), accepted: parseQuantity("12"),
+    })).toBeNull();
+  });
+
+  it("уменьшение на тысячную ниже принятого отклоняется с эталонным текстом", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("11,999"), accepted: parseQuantity("12"),
+    })).toBe(
+      // \u00A0 — неразрывный пробел между числом и единицей: домен ставит его
+      // намеренно, и обычный пробел в ожидании даёт ложное расхождение.
+      "По этой позиции уже принято 12,00\u00A0м². Уменьшить количество ниже принятого "
+      + "нельзя: сторнируйте приёмку или оставьте количество не ниже принятого.",
+    );
+  });
+
+  it("отказ не называет запрошенное количество: в тысячных оно печатается так же", () => {
+    /* 11,999 и 12,000 в двух знаках дают одно и то же «12,00». Текст, который
+       называл бы оба числа, читался бы как «нельзя уменьшить до 12,00, потому
+       что принято 12,00». Дефект найден собственным тестом до экрана. */
+    const отказ = estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("11,999"), accepted: parseQuantity("12"),
+    });
+    expect(отказ?.indexOf("12,00")).toBe(отказ?.lastIndexOf("12,00"));
+  });
+
+  it("увеличение поверх принятого допускается", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("300"), accepted: parseQuantity("12"),
+    })).toBeNull();
+  });
+
+  it("отрицательная цена отклоняется", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("240"), accepted: parseQuantity("0"),
+      unitPrice: parseRubles("-1,00"),
+    })).toBe("Цена единицы не может быть отрицательной.");
+  });
+
+  it("отрицательная ставка отклоняется", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("240"), accepted: parseQuantity("0"),
+      unitWage: parseRubles("-1,00"),
+    })).toBe("Ставка оплаты труда не может быть отрицательной.");
+  });
+
+  it("нулевая ставка законна: у части позиций сметы маржа сто процентов", () => {
+    expect(estimateItemFault({
+      ...ПОЗИЦИЯ, qty: parseQuantity("240"), accepted: parseQuantity("0"),
+      unitWage: parseRubles("0,00"),
+    })).toBeNull();
+  });
+});
+
+describe("предупреждение при правке позиции", () => {
+  const основа = { qty: parseQuantity("240"), accepted: parseQuantity("0"), unit: "м²" };
+
+  it("ставка ниже цены предупреждения не даёт", () => {
+    expect(estimateItemWarning({ ...основа, ...ПОЗИЦИЯ })).toBeNull();
+  });
+
+  it("ставка вровень с ценой предупреждения не даёт: маржа ноль — законна", () => {
+    expect(estimateItemWarning({
+      ...основа, unitPrice: parseRubles("460,00"), unitWage: parseRubles("460,00"),
+    })).toBeNull();
+  });
+
+  it("ставка выше цены предупреждает, но не отказывает", () => {
+    const убыточная = {
+      ...основа, unitPrice: parseRubles("460,00"), unitWage: parseRubles("1 150,00"),
+    };
+    expect(estimateItemWarning(убыточная)).toBe(
+      "Ставка выше цены единицы: позиция уйдёт в убыток. Проверьте, не опечатка ли это.",
+    );
+    expect(estimateItemFault(убыточная)).toBeNull();
+  });
+});
+
+describe("перенос величин обмера", () => {
+  it("позиции в квадратных метрах предлагаются две площади", () => {
+    expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea"]);
+  });
+
+  it("позиции в погонных метрах предлагаются два периметра", () => {
+    expect(measureSourcesFor("м.п.")).toEqual(["floorPerimeter", "ceilingPerimeter"]);
+  });
+
+  it("единице, которой в карте нет, не предлагается ничего", () => {
+    expect(measureSourcesFor("шт")).toEqual([]);
+    expect(measureSourcesFor("рейс")).toEqual([]);
+  });
+
+  it("у каждой предлагаемой величины есть подпись", () => {
+    for (const unit of Object.keys(MEASURE_SOURCES)) {
+      for (const source of measureSourcesFor(unit)) {
+        expect(MEASURE_LABEL[source]).toBeTruthy();
+      }
+    }
+  });
+});

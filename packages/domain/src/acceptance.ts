@@ -65,8 +65,15 @@ export function remainingQty(qty: Milliunits, accepted: Milliunits): Milliunits 
    обычного пробела, и расхождение находится только падением проверки. */
 const NBSP = "\u00A0";
 
-/** «12,00 м²» — количество, названное человеку. */
-const количество = (value: Milliunits, unit: string): string => {
+/**
+ * «12,00 м²» — количество, названное человеку.
+ *
+ * Вынесено наружу ради правки сметы (`estimate.ts`): её отказы называют те
+ * же величины теми же словами, и второе написание разошлось бы с первым —
+ * человек получил бы одно число в двух видах. Только для текстов отказа:
+ * оформление величин на экране живёт в `packages/ui`.
+ */
+export const количествоТекстом = (value: Milliunits, unit: string): string => {
   const отрицательное = value < 0n;
   const сотые = divideRoundHalfUp(отрицательное ? -(value as bigint) : value, 10n);
   const целое = сотые / 100n;
@@ -112,8 +119,8 @@ export function acceptanceFault(request: AcceptanceRequest): string | null {
 
   const остаток = remainingQty(request.qty, request.accepted);
   if (request.requested > остаток) {
-    return `Нельзя принять ${количество(request.requested, request.unit)} — `
-      + `по смете осталось ${количество(остаток, request.unit)}. `
+    return `Нельзя принять ${количествоТекстом(request.requested, request.unit)} — `
+      + `по смете осталось ${количествоТекстом(остаток, request.unit)}. `
       + "Уменьшите количество или измените смету.";
   }
 
