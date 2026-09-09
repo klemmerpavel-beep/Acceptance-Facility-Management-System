@@ -218,6 +218,14 @@ export const projectSummarySchema = z.object({
    * верить и остальным числам экрана.
    */
   readiness: z.number().int().min(0).max(10_000).nullable(),
+  /**
+   * Остаток текущего транша. `null` — открытого транша нет.
+   *
+   * Ноль здесь означал бы «транш выработан ровно до копейки», а это иное
+   * утверждение, чем «транша нет»; по тому же правилу, что и `readiness`.
+   * Отрицательная величина — перевыработка, законное состояние.
+   */
+  trancheRemainder: kopecksString.nullable(),
   /** Этапы графика в порядке ведения. Пусто — график не заведён. */
   stages: z.array(workStageSchema),
 });
@@ -692,6 +700,13 @@ export const accrualRowSchema = z.object({
   /** За последние семь дней и за всё время по объекту. */
   week: kopecksString,
   total: kopecksString,
+  /**
+   * За текущий транш. `null` — открытого транша нет, и разрезать нечем.
+   * Ключ остаётся: строка свода существует, отсутствует лишь основание
+   * разреза. Отсутствие ключа означало бы «не положено по роли» — весь
+   * свод и так отдаётся одному руководителю.
+   */
+  tranche: kopecksString.nullable(),
 });
 export type AccrualRow = z.infer<typeof accrualRowSchema>;
 
@@ -735,3 +750,76 @@ export const reversalSchema = z.object({
   reason: z.string().trim().min(1, "Назовите причину сторно.").max(280, "Причина длиннее 280 знаков"),
 });
 export type Reversal = z.infer<typeof reversalSchema>;
+
+/* Транш — сумма платежа клиента, в счёт которой идёт выработка (пункты
+   плана 4.2–4.4). Величины транша клиентские: клиент платит смету с
+   надбавкой «сопровождение объекта», и остаток, посчитанный по стоимости
+   работ без надбавки, расходится с экономикой объекта (БП-05).
+
+   Разграничения по ролям здесь нет ни одного поля: транш есть сумма,
+   которую платит клиент, а цены сметы прораб и так видит. Внутренними
+   остаются ставка и прибыль, и в траншах их нет. */
+
+export const trancheStatusSchema = z.enum(["OPEN", "CLOSED", "PAID"]);
+export type TrancheStatus = z.infer<typeof trancheStatusSchema>;
+
+/** Транш с выведенными величинами: выработка, её клиентская сумма, остаток. */
+export const trancheSchema = z.object({
+  id: z.string().uuid(),
+  /** Ноль — предоплата (Р12). */
+  number: z.number().int().nonnegative(),
+  amount: kopecksString,
+  status: trancheStatusSchema,
+  openedAt: z.string(),
+  closedAt: z.string().nullable(),
+  paidAt: z.string().nullable(),
+  comment: z.string().nullable(),
+  /** Выработано по траншу: Σ принятое × цена единицы, без надбавки. */
+  produced: kopecksString,
+  /** Клиентская сумма выработки: надбавка одним умножением к итогу. */
+  client: kopecksString,
+  /** Остаток. Отрицательный при перевыработке — законное состояние. */
+  remainder: kopecksString,
+  /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
+  fill: z.number().int(),
+});
+export type Tranche = z.infer<typeof trancheSchema>;
+
+/**
+ * Вид вкладки «Транши».
+ *
+ * `outside` — выработка пакетов приёмки, записанных до появления траншей.
+ * Приписать их первому траншу значило бы переписать историю (БП-04),
+ * поэтому они показываются отдельной строкой. Ноль в ней — честный ноль.
+ */
+export const trancheViewSchema = z.object({
+  /** Надбавка действующей сметы в сотых долях процента: 1200 = 12,00 %. */
+  supervisionShare: z.number().int().nonnegative(),
+  tranches: z.array(trancheSchema),
+  /** Открытый транш объекта. `null` — открытого нет. */
+  current: trancheSchema.nullable(),
+  outside: z.object({
+    batches: z.number().int().nonnegative(),
+    produced: kopecksString,
+    client: kopecksString,
+  }),
+});
+export type TrancheView = z.infer<typeof trancheViewSchema>;
+
+/**
+ * Заведение транша. Номер не приходит от клиента: он выводится из уже
+ * заведённых, иначе два открытых окна завели бы транш с одним номером.
+ */
+export const createTrancheSchema = z.object({
+  amount: kopecksString,
+  /** Предоплата: транш № 0, заводится сразу оплаченным (Р12). */
+  prepayment: z.boolean().optional(),
+  comment: z.string().trim().max(280, "Комментарий длиннее 280 знаков").optional(),
+});
+export type CreateTranche = z.infer<typeof createTrancheSchema>;
+
+/** Закрытие транша. Комментарий необязателен: закрытие само по себе — факт. */
+export const closeTrancheSchema = z.object({
+  comment: z.string().trim().max(280, "Комментарий длиннее 280 знаков").optional(),
+});
+export type CloseTranche = z.infer<typeof closeTrancheSchema>;

@@ -4,8 +4,8 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
-  kopecks, milliunits, negateQuantity, remainingQty, sum,
-  type AccrualRecord, type Kopecks, type Milliunits,
+  accrualsByTranche, kopecks, milliunits, negateQuantity, remainingQty, sum,
+  type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma.service";
@@ -99,7 +99,7 @@ export class AcceptanceService {
       };
     }
 
-    const [sections, items, stages, acceptances] = await Promise.all([
+    const [sections, items, stages, acceptances, открытыйТранш] = await Promise.all([
       this.prisma.estimateSection.findMany({
         where: { estimateId: estimate.id, parentId: null },
         orderBy: { order: "asc" },
@@ -135,7 +135,14 @@ export class AcceptanceService {
           reversesId: true, createdAt: true,
           createdBy: { select: { name: true } },
           accrual: { select: { amount: true, brigadeId: true, createdAt: true } },
+          /* Транш берётся у пакета, а не у начисления: пакет есть единица
+             приёмки, и все его строки зачтены в один и тот же транш. */
+          batch: { select: { trancheId: true } },
         },
+      }),
+      this.prisma.tranche.findFirst({
+        where: { projectId, status: "OPEN" },
+        select: { id: true },
       }),
     ]);
 
@@ -221,12 +228,13 @@ export class AcceptanceService {
 
     const бригады = new Map(stages.flatMap((stage) =>
       stage.brigade === null ? [] : [[stage.brigade.id, stage.brigade.name] as const]));
-    const записи: AccrualRecord[] = acceptances.flatMap((row) =>
+    const записи: TrancheAccrualRecord[] = acceptances.flatMap((row) =>
       row.accrual === null ? [] : [{
         brigadeId: row.accrual.brigadeId,
         brigadeName: бригады.get(row.accrual.brigadeId) ?? "Бригада снята",
         amount: kopecks(row.accrual.amount),
         at: iso(row.accrual.createdAt),
+        trancheId: row.batch.trancheId,
       }]);
 
     const сегодня = new Date();
@@ -237,11 +245,21 @@ export class AcceptanceService {
         .map((row) => [row.brigadeId, row.amount]),
     );
 
+    /* Разрез «за транш» (пункт плана 3.10). Отбор по траншу, а не по датам
+       его открытия и закрытия: приёмка привязывается к траншу в момент
+       записи, и отбор по датам разошёлся бы с этой привязкой на любом
+       переносе закрытия. Открытого транша нет — разрезать нечем, и строка
+       получает null, а не ноль: ноль означал бы «за транш не начислено». */
+    const заТранш = открытыйТранш === null
+      ? null
+      : new Map(accrualsByTranche(записи, открытыйТранш.id).map((row) => [row.brigadeId, row.amount]));
+
     const accruals = accrualSummary(записи).map((row) => ({
       brigadeId: row.brigadeId,
       brigadeName: row.brigadeName,
       week: (заНеделю.get(row.brigadeId) ?? kopecks(0)).toString(),
       total: row.amount.toString(),
+      tranche: заТранш === null ? null : (заТранш.get(row.brigadeId) ?? kopecks(0)).toString(),
     }));
 
     return { sections: виды, batches, totals, accruals };
@@ -381,12 +399,23 @@ export class AcceptanceService {
     const key = `projects/${project.id}/acceptance/${randomUUID()}.${IMAGE_EXTENSION[photo.contentType]}`;
     await this.storage.put(key, photo.buffer, photo.contentType);
 
+    /* Транш проставляется снимком, как и бригада: открытие транша задним
+       числом не должно переписывать уже принятое (БП-04). Открытого транша
+       нет — пакет остаётся без него и попадает в разрез «вне транша».
+       Отсутствие транша приёмку не запрещает: прораб не заводит транши, и
+       отказать ему за то, чего он не делает, значило бы остановить работу. */
+    const транш = await this.prisma.tranche.findFirst({
+      where: { projectId: project.id, status: "OPEN" },
+      select: { id: true },
+    });
+
     await this.prisma.$transaction(async (tx) => {
       const batch = await tx.acceptanceBatch.create({
         data: {
           projectId: project.id,
           sectionId: section.id,
           brigadeId,
+          trancheId: транш?.id ?? null,
           createdById: user.id,
           ...(input.comment === undefined ? {} : { comment: input.comment }),
         },

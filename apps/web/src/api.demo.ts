@@ -231,6 +231,8 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     positions: 0,
     // Графика у нового объекта нет, и готовность не задана, а не равна нулю.
     readiness: null,
+    // Транша у нового объекта нет: остаток отсутствует, а не равен нулю.
+    trancheRemainder: null,
     stages: [],
   };
   заведённые.projects.push(created);
@@ -521,6 +523,9 @@ function пересчитатьПриёмку(вид: AcceptanceView): void {
     brigadeName: свод.name,
     week: свод.сумма.toString(),
     total: свод.сумма.toString(),
+    /* Разрез за транш подставляется вместе с траншами демонстрации: пока
+       открытого транша у двойника нет, разрезать нечем, и это null. */
+    tranche: null,
   }));
 }
 

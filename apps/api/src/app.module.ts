@@ -17,21 +17,24 @@ import { MeasureService } from "./measure/measure.service";
 import { MeasureController } from "./measure/measure.controller";
 import { StagesService } from "./stages/stages.service";
 import { AcceptanceService } from "./acceptance/acceptance.service";
+import { TranchesService } from "./tranches/tranches.service";
 import { StagesController } from "./stages/stages.controller";
 import { AcceptanceController } from "./acceptance/acceptance.controller";
+import { TranchesController } from "./tranches/tranches.controller";
 import { FileStorage, LocalFileStorage } from "./common/file-storage";
 
 @Module({
   controllers: [
     AuthController, ProjectsController, EstimatesController,
     SummaryController, DirectoryController, MeasureController, StagesController,
-    AcceptanceController,
+    AcceptanceController, TranchesController,
   ],
   providers: [
     PrismaService, AuthService, SessionGuard, RolesGuard, AuditService,
     ProjectsService, EstimatesService, SummaryService, DirectoryService, MeasureService,
     StagesService,
     AcceptanceService,
+    TranchesService,
     // Хранилище файлов подключается портом: смена реализации на S3 при
     // переезде в облако (план 6.1) — правка этой одной строки.
     { provide: FileStorage, useClass: LocalFileStorage },
