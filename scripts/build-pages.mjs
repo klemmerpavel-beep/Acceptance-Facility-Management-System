@@ -122,7 +122,12 @@ function buildCanvas() {
         + `<div class="frame" style="height:${Math.round(board.h * scale)}px">`
         + `<iframe src="canvas/${file}" title="${board.title}" loading="lazy"`
         + ` width="${board.w}" height="${board.h}"`
-        + ` style="transform:scale(${scale.toFixed(4)})"></iframe></div>\n</figure>`,
+        + ` style="transform:scale(${scale.toFixed(4)})"></iframe></div>`
+        /* Отступление артборда от продукта показывается рядом с артбордом.
+           Запись, которую видит только тот, кто откроет canvas.json,
+           смотрящего на макет не предупреждает ни о чём. */
+        + (board.note === undefined ? "" : `\n<p class="note">${board.note}</p>`)
+        + `\n</figure>`,
       );
     }
   }
@@ -159,6 +164,8 @@ figcaption { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: b
   margin-block-end: var(--space-2); font-weight: var(--fw-h3); }
 figcaption span { font: var(--fw-sm) var(--fs-sm)/1 var(--font-mono); color: var(--ink-3); }
 figcaption a { font-weight: var(--fw-body); font-size: var(--fs-sm); color: var(--ink); }
+p.note { margin: var(--space-2) 0 0; max-width: ${COLUMN}px;
+  font-size: var(--fs-sm); color: var(--ink-3); }
 .frame { inline-size: ${COLUMN}px; max-inline-size: 100%; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 iframe { border: 0; transform-origin: top left; display: block; }
