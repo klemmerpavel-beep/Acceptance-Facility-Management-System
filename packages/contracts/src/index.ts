@@ -498,6 +498,39 @@ export const estimateViewSchema = z.object({
 });
 export type EstimateView = z.infer<typeof estimateViewSchema>;
 
+/* --- правка сметы (пункты плана 2.5, 2.6 и 3.9) ---------------------------
+
+   Правка идёт на месте и новой редакции не порождает: редакция растёт только
+   при импорте (Р11 в редакции от 09.09.2026). Каждое поле необязательно —
+   лист правит те, которые человек тронул, и присылает только их: полное тело
+   заставило бы клиента пересылать неизменённые деньги и открыло бы гонку
+   двух окон на полях, которых никто не касался. */
+
+export const updateEstimateItemSchema = z.object({
+  name: z.string().trim().min(1, "Наименование не может быть пустым.").max(300).optional(),
+  /** Код канонической единицы: м², м.п., шт, точка, ед, рейс, ч/ч, этаж, %. */
+  unit: z.string().trim().min(1, "Единица измерения не может быть пустой.").optional(),
+  qty: milliunitsString.optional(),
+  unitPrice: kopecksString.optional(),
+  unitWage: kopecksString.optional(),
+});
+export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
+
+/**
+ * Надбавка «сопровождение объекта» — сотые доли процента: 1200 = 12,00 %.
+ *
+ * Правится у сметы, а не у объекта: смета есть источник цен, по которым
+ * считаются итог для клиента и остаток транша (установлено стадией E).
+ * Верхняя граница — 100,00 %: надбавка выше удваивает счёт клиенту и почти
+ * наверняка означает, что человек ввёл рубли вместо процентов.
+ */
+export const updateSupervisionSchema = z.object({
+  supervisionShare: z.number().int()
+    .min(0, "Надбавка не может быть отрицательной.")
+    .max(10_000, "Надбавка выше 100 % — проверьте, не введены ли рубли вместо процентов."),
+});
+export type UpdateSupervision = z.infer<typeof updateSupervisionSchema>;
+
 export const importRecordSchema = z.object({
   id: z.string().uuid(),
   estimateId: z.string().uuid(),

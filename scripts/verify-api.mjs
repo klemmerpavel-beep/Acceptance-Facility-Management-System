@@ -863,6 +863,178 @@ check(
   "после проверки у объекта не один открытый транш",
 );
 
+
+/* ПРАВКА СМЕТЫ (пункты плана 2.5, 2.6 и 3.9).
+ *
+ * Блок ставит стенд обратно каждой правкой: смета — не история, и обратная
+ * правка здесь законна, в отличие от приёмки, где отмена есть сторно.
+ * Сверка в конце подтверждает, что стенд вернулся: итог по работам и
+ * надбавка совпадают с теми, что были до блока.
+ */
+const правка = (path, body) => owner(path, {
+  method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+});
+
+const сметаДо = await owner("/projects/R-99/estimate").then((r) => r.json());
+const всеПозиции = сметаДо.sections.flatMap((раздел) =>
+  [...раздел.items, ...раздел.children.flatMap((вложенный) => вложенный.items)]);
+const свободная = всеПозиции.find((позиция) => BigInt(позиция.qtyAccepted) === 0n);
+const сПриёмкой = всеПозиции.find((позиция) => BigInt(позиция.qtyAccepted) > 0n);
+check(свободная !== undefined, "в смете нет ни одной позиции без приёмок");
+check(сПриёмкой !== undefined, "в смете нет ни одной принятой позиции: правило 3.9 не проверить");
+
+/* Правка количества: итог по работам растёт ровно на цену единицы,
+   помноженную на приращение. Сверка с ручным расчётом до копейки. */
+const приращение = 1000n;
+const послеКоличества = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, {
+  qty: (BigInt(свободная?.qty ?? "0") + приращение).toString(),
+}).then((r) => r.json());
+const ожидаемыйПрирост = (BigInt(свободная?.unitPrice ?? "0") * приращение + 500n) / 1000n;
+check(
+  BigInt(послеКоличества.totals?.works ?? "0") - BigInt(сметаДо.totals.works) === ожидаемыйПрирост,
+  `итог работ вырос на ${(BigInt(послеКоличества.totals?.works ?? "0") - BigInt(сметаДо.totals.works)).toString()}`
+    + ` вместо ${ожидаемыйПрирост.toString()}`,
+);
+
+/* Главная проверка решения о правке на месте: новая редакция не порождается.
+   Прежняя формулировка Р11 создавала бы версию на каждой правке цены. */
+check(
+  послеКоличества.version === сметаДо.version,
+  `правка количества подняла редакцию с ${сметаДо.version} до ${послеКоличества.version}`,
+);
+
+await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { qty: свободная?.qty });
+
+/* Правка цены: тот же счёт, но приращение на стороне цены. Редакция снова
+   не растёт — это и есть содержание решения. */
+const надбавкаЦены = 10_000n;
+const послеЦены = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, {
+  unitPrice: (BigInt(свободная?.unitPrice ?? "0") + надбавкаЦены).toString(),
+}).then((r) => r.json());
+const ожидаемоеОтЦены = (надбавкаЦены * BigInt(свободная?.qty ?? "0") + 500n) / 1000n;
+check(
+  BigInt(послеЦены.totals?.works ?? "0") - BigInt(сметаДо.totals.works) === ожидаемоеОтЦены,
+  `правка цены дала прирост ${(BigInt(послеЦены.totals?.works ?? "0") - BigInt(сметаДо.totals.works)).toString()}`
+    + ` вместо ${ожидаемоеОтЦены.toString()}`,
+);
+check(
+  послеЦены.version === сметаДо.version,
+  `правка цены подняла редакцию с ${сметаДо.version} до ${послеЦены.version}`,
+);
+await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { unitPrice: свободная?.unitPrice });
+
+/* Правка наименования: позиция найдена по новому имени, затем возвращена. */
+const новоеИмя = "Проверка API: наименование";
+const послеИмени = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { name: новоеИмя })
+  .then((r) => r.json());
+check(
+  послеИмени.sections?.flatMap((раздел) =>
+    [...раздел.items, ...раздел.children.flatMap((в) => в.items)])
+    .some((позиция) => позиция.name === новоеИмя),
+  "позиция не переименовалась",
+);
+await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { name: свободная?.name });
+
+/* Правило 3.9: уменьшить ниже принятого нельзя, ровно до принятого — можно. */
+const нижеПринятого = await правка(`/projects/R-99/estimate/items/${сПриёмкой?.id}`, { qty: "1" });
+check(нижеПринятого.status === 400, `уменьшение ниже принятого прошло с кодом ${нижеПринятого.status}`);
+const текстНиже = нижеПринятого.status === 400 ? (await нижеПринятого.json()).message : "";
+check(
+  текстНиже.includes("уже принято") && текстНиже.includes("сторнируйте"),
+  `отказ на уменьшении не называет принятое и что делать: «${текстНиже}»`,
+);
+
+const ровноДоПринятого = await правка(`/projects/R-99/estimate/items/${сПриёмкой?.id}`, {
+  qty: сПриёмкой?.qtyAccepted,
+});
+check(ровноДоПринятого.ok, `уменьшение ровно до принятого отклонено с кодом ${ровноДоПринятого.status}`);
+await правка(`/projects/R-99/estimate/items/${сПриёмкой?.id}`, { qty: сПриёмкой?.qty });
+
+/* Отказы на величинах. */
+const нольКоличества = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { qty: "0" });
+check(нольКоличества.status === 400, `нулевое количество принято с кодом ${нольКоличества.status}`);
+const минусЦена = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { unitPrice: "-1" });
+check(минусЦена.status === 400, `отрицательная цена принята с кодом ${минусЦена.status}`);
+const чужаяЕдиница = await правка(`/projects/R-99/estimate/items/${свободная?.id}`, { unit: "погонаж" });
+check(чужаяЕдиница.status === 400, `неканоническая единица принята с кодом ${чужаяЕдиница.status}`);
+const текстЕдиницы = чужаяЕдиница.status === 400 ? (await чужаяЕдиница.json()).message : "";
+check(
+  текстЕдиницы.includes("Допустимы"),
+  `отказ на единице не перечисляет допустимые: «${текстЕдиницы}»`,
+);
+
+/* Пробы отказов восстанавливаются явно, а не полагаются на сам отказ. Иначе
+   откат проверяемого правила портит стенд необратимо: количество остаётся
+   нулевым, и следующий прогон падает уже не на том, что проверял. Найдено
+   первым же откатом этого блока. */
+await правка(`/projects/R-99/estimate/items/${свободная?.id}`, {
+  qty: свободная?.qty, unitPrice: свободная?.unitPrice, unit: свободная?.unit,
+});
+
+/* Надбавка: сопровождение и итог для клиента пересчитываются ровно. */
+const надбавкаБыла = сметаДо.totals.supervisionShare;
+const послеНадбавки = await правка("/projects/R-99/estimate/supervision", { supervisionShare: 1500 })
+  .then((r) => r.json());
+const ожидаемоеСопровождение =
+  (BigInt(послеНадбавки.totals?.works ?? "0") * 1500n + 5000n) / 10_000n;
+check(
+  BigInt(послеНадбавки.totals?.supervision ?? "0") === ожидаемоеСопровождение,
+  `сопровождение ${послеНадбавки.totals?.supervision} вместо ${ожидаемоеСопровождение.toString()}`,
+);
+check(
+  BigInt(послеНадбавки.totals?.estimate ?? "0")
+    === BigInt(послеНадбавки.totals?.works ?? "0") + ожидаемоеСопровождение,
+  "итог для клиента не равен итогу работ плюс сопровождение",
+);
+await правка("/projects/R-99/estimate/supervision", { supervisionShare: надбавкаБыла });
+
+const надбавкаВыше100 = await правка("/projects/R-99/estimate/supervision", { supervisionShare: 10_001 });
+check(надбавкаВыше100.status === 400, `надбавка выше 100 % принята с кодом ${надбавкаВыше100.status}`);
+const надбавкаМинус = await правка("/projects/R-99/estimate/supervision", { supervisionShare: -1 });
+check(надбавкаМинус.status === 400, `отрицательная надбавка принята с кодом ${надбавкаМинус.status}`);
+
+/* Правит руководитель. Прораб не правит ничего и внутренних полей не видит. */
+const правкаПрорабом = await foreman(`/projects/R-99/estimate/items/${свободная?.id}`, {
+  method: "PATCH", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ qty: "1000" }),
+});
+check(правкаПрорабом.status === 403, `прораб правил позицию с кодом ${правкаПрорабом.status}`);
+const надбавкаПрорабом = await foreman("/projects/R-99/estimate/supervision", {
+  method: "PATCH", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ supervisionShare: 1500 }),
+});
+check(надбавкаПрорабом.status === 403, `прораб правил надбавку с кодом ${надбавкаПрорабом.status}`);
+
+/* Несуществующая позиция даёт 404, а не 500. Границу «своя редакция своего
+   объекта» этим не проверить: на стенде смета одна и редакция одна, а завести
+   вторую значило бы импортировать смету ещё раз и оставить объект в другом
+   состоянии. Граница стережётся условием запроса; проверка откатом её не
+   ловит, и это сказано здесь, а не умолчано. */
+const чужойОпознаватель = await правка(
+  "/projects/R-99/estimate/items/00000000-0000-4000-8000-000000000000", { qty: "1000" },
+);
+check(
+  чужойОпознаватель.status === 404,
+  `чужойОпознаватель позиция принята с кодом ${чужойОпознаватель.status}`,
+);
+
+const правкаБезСессии = await fetch(`${BASE}/projects/R-99/estimate/items/${свободная?.id}`, {
+  method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ qty: "1000" }),
+});
+check(правкаБезСессии.status === 401, `правка без сессии прошла с кодом ${правкаБезСессии.status}`);
+
+/* Стенд вернулся: величины совпадают с теми, что были до блока. */
+const сметаПосле = await owner("/projects/R-99/estimate").then((r) => r.json());
+check(
+  сметаПосле.totals.works === сметаДо.totals.works,
+  `итог работ после блока ${сметаПосле.totals.works} вместо ${сметаДо.totals.works}`,
+);
+check(
+  сметаПосле.totals.supervisionShare === сметаДо.totals.supervisionShare,
+  "надбавка после блока не вернулась к исходной",
+);
+check(сметаПосле.version === сметаДо.version, "редакция сметы изменилась за блок правки");
+
 console.log(`Позиций в ответе: ${foremanEstimate.positions}, разделов ${foremanEstimate.sectionsTopLevel} + ${foremanEstimate.sectionsNested}`);
 console.log(`Внутренних полей у руководителя: ${findInternal(ownerEstimate).length}, у прораба: ${leaks.length}`);
 console.log(`Сводка: объектов у руководителя ${ownerSummary.projects.total}, у прораба ${foremanSummary.projects.total};`,
@@ -874,6 +1046,8 @@ console.log(`График R-99: ${R99строка?.stages?.length} этапов,
 console.log(`Приёмка R-99: ${доПриёмки.sections.length} разделов, ${сЭтапом.length} с этапом;`,
   `принято ${послеСторно.totals.acceptedPositions} позиций, начислено ${послеСторно.totals.accrued} копеек;`,
   `пакетов ${послеСторно.batches.length}`);
+console.log(`Смета R-99: редакция ${сметаПосле.version}, итог работ ${сметаПосле.totals.works} копеек,`
+  + ` надбавка ${сметаПосле.totals.supervisionShare} сотых процента; правок откачено`);
 console.log(`Транши R-99: ${траншиИтог.tranches.length} всего, открытых `
   + `${траншиИтог.tranches.filter((транш) => транш.status === "OPEN").length};`
   + ` остаток текущего ${траншиИтог.current?.remainder} копеек, заполнение ${траншиИтог.current?.fill}`);

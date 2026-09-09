@@ -1,7 +1,9 @@
-import { BadRequestException, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import {
+  BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, Res, UseGuards,
+} from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { EstimateView, ImportRecord, ImportReport, ImportResult } from "@priyomka/contracts";
-import { unitOverridesSchema } from "@priyomka/contracts";
+import { unitOverridesSchema, updateEstimateItemSchema, updateSupervisionSchema } from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
 import { normalizeSpelling } from "@priyomka/importer";
 import { EstimatesService } from "./estimates.service";
@@ -77,6 +79,39 @@ export class EstimatesController {
   ): Promise<ImportResult> {
     const upload = await readUpload(request);
     return this.estimates.import(user, code, upload.fileName, upload.buffer, upload.overrides);
+  }
+
+  /**
+   * Правка позиции действующей редакции (пункты плана 2.5, 2.6 и 3.9).
+   *
+   * Правит руководитель — то же правило, что у графика и смены статуса:
+   * смета есть основание расчётов и с заказчиком, и с бригадой, и менять её
+   * в поле, между делом, нельзя.
+   *
+   * Возвращается вид сметы целиком: правка одной позиции меняет подытог её
+   * раздела, итог по работам, надбавку и итог для клиента. Частичный ответ
+   * заставил бы экран пересчитывать подвал вторым сводом правил.
+   */
+  @Patch("items/:id")
+  @Roles("OWNER")
+  updateItem(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.updateItem(user, code, id, updateEstimateItemSchema.parse(body));
+  }
+
+  /** Надбавка «сопровождение объекта» действующей редакции. */
+  @Patch("supervision")
+  @Roles("OWNER")
+  updateSupervision(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.updateSupervision(user, code, updateSupervisionSchema.parse(body));
   }
 }
 
