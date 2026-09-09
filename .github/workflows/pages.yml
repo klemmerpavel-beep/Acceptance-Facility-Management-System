@@ -1,0 +1,96 @@
+# Публикация демонстрации на GitHub Pages.
+#
+# Отдельным файлом, а не работой внутри `ci.yml`: у публикации другие
+# триггеры, другие разрешения и другая цена. Проверки ветку стерегут через
+# запрос на слияние, публикация же обязана обновлять адрес на каждом push —
+# заказчик смотрит результат итерации до слияния, по постоянной ссылке.
+#
+# Цена: один дополнительный прогон на push — установка зависимостей, клиент
+# Prisma и сборка Vite. Ни браузера, ни базы; около полутора минут.
+#
+# Сайт раздаётся из подкаталога `<пользователь>.github.io/<репозиторий>/`,
+# поэтому демонстрация собрана с `base: "./"`, а состав каталога `site/`
+# проверяется `verify-pages.mjs` до отправки артефакта.
+
+name: Публикация
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+
+# Разрешения ровно те, что нужны развёртыванию Pages через OIDC.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# У Pages одно живое размещение: одновременные публикации конфликтуют, и
+# побеждает не последняя, а завершившаяся последней. Очередь — одна.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  build:
+    name: Сборка сайта
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Порядок обязателен: setup-node с кешем pnpm требует уже
+      # установленного pnpm, иначе шаг падает на поиске хранилища.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `build:demo` начинается с `tsc --noEmit`, а контракты типизируются
+      # от клиента Prisma: без генерации проверка типов падает десятками
+      # ошибок, не имеющих отношения к демонстрации.
+      - name: Клиент Prisma
+        run: pnpm --filter @priyomka/api exec prisma generate
+
+      - name: Сборка демонстрации
+        run: pnpm --filter @priyomka/web run build:demo
+
+      - name: Сборка каталога публикации
+        run: node scripts/build-pages.mjs
+
+      - name: Проверка публикации
+        run: node scripts/verify-pages.mjs
+
+      # enablement: true включает Pages при первой сборке, если источником
+      # ещё не выбрано «GitHub Actions». На приватном репозитории без
+      # платного тарифа шаг откажет — отказ внятный, и это лучше, чем
+      # молчаливо зелёная сборка без сайта.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Развёртывание
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -6,6 +6,23 @@
 начисляется сдельная оплата по ставке позиции, уменьшается остаток текущего транша,
 позиция попадает в акт выполненных работ.
 
+## Посмотреть
+
+Демонстрация продукта работает без сервера: экраны настоящие, подменён только слой
+доступа к сети, данные берутся из встроенного слепка стенда.
+
+| Страница | Адрес |
+|---|---|
+| Демонстрация продукта | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/ |
+| Витрина дизайн-системы | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/showcase.html |
+| Три экрана эталона | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/screens.html |
+| Дизайн-канва, 15 артбордов | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/canvas.html |
+| Коммит и дата сборки | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/version.txt |
+
+Сайт пересобирается на каждый push в `main` и в ветки `claude/**` работой
+`.github/workflows/pages.yml`. Метка коммита в адресе (`…/?v=<коммит>`) отвечает на
+вопрос, какая именно итерация открыта.
+
 ## Документация
 
 | Файл | Содержание |

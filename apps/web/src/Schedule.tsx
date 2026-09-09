@@ -249,7 +249,11 @@ export function Schedule({
   const head = (
     <div className="section-head">
       <h3 className="t-h3">График производства работ</h3>
-      <div className="row">
+      {/* Перенос обязателен: в ряду четыре органа управления — два
+          переключателя и две кнопки, — и на 390 px они занимают 717 px.
+          Переполнялся при этом сам документ, а не дорожка графика: страница
+          уезжала вбок целиком, вместе с шапкой и вкладками. */}
+      <div className="row row--wrap">
         <div className="segmented" role="group" aria-label="Месяц">
           <button type="button" className="segmented__option" onClick={() => { setAnchor(shiftMonth(месяц, -1)); }}>
             <svg className="icon icon--sm" aria-hidden="true"><use href="#i-back" /></svg>

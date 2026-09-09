@@ -12,6 +12,7 @@
  */
 import { chromium } from "playwright-core";
 import { launchOptions, browserSource } from "./browser.mjs";
+import { artboardPage } from "./canvas-page.mjs";
 import { readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,15 +35,6 @@ const GLYPH_ONLY = /^[\s‹›→←↑↓×✓✔✗✕−–—•▶◀▲▼
 const files = layout.artboards.map((board) => board.file);
 for (const name of readdirSync(canvasDir).filter((n) => n.endsWith(".dc.html"))) {
   if (!files.includes(name)) note(name, "артборд не объявлен в canvas.json");
-}
-
-/** Собирает из артборда обычную страницу — так же, как это делает канва. */
-function toPage(source) {
-  const helmet = source.match(/<helmet>([\s\S]*?)<\/helmet>/);
-  const body = source.slice(source.indexOf("</helmet>") + "</helmet>".length)
-    .replace(/<\/?x-dc>/g, "")
-    .replace(/<\/body>[\s\S]*$/, "");
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8">${helmet ? helmet[1] : ""}</head><body>${body}</body></html>`;
 }
 
 const browser = await chromium.launch(launchOptions());
@@ -109,7 +101,7 @@ for (const board of layout.artboards) {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(String(e)));
 
-  await page.setContent(toPage(source), { waitUntil: "domcontentloaded" });
+  await page.setContent(artboardPage(source), { waitUntil: "domcontentloaded" });
 
   const measured = await page.evaluate(() => {
     const out = { scrollWidth: document.documentElement.scrollWidth,
