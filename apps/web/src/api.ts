@@ -10,6 +10,7 @@ import {
   type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
+  type UpdateEstimateItem, type UpdateSupervision,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
 } from "@priyomka/contracts";
 import { z } from "zod";
@@ -279,6 +280,32 @@ export const setProjectStatus = (
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status }),
+  });
+
+/* --- правка сметы --------------------------------------------------------
+   Оба вызова возвращают вид сметы целиком: правка одной позиции меняет
+   подытог её раздела, итог работ, надбавку и итог для клиента, и собирать
+   новое состояние на клиенте значило бы завести вторую копию правил. */
+
+export const updateEstimateItem = (
+  code: string,
+  id: string,
+  input: UpdateEstimateItem,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items/${id}`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const updateSupervision = (
+  code: string,
+  input: UpdateSupervision,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/supervision`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
   });
 
 /* --- транши ---------------------------------------------------------------

@@ -446,6 +446,141 @@ if (internalBefore === 0) note("внутренняя проекция", "вну�
 await step("клиентская проекция", "07-klientskaya.png");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
+/*
+ * Правка сметы (пункты плана 2.5, 2.6 и 3.9).
+ *
+ * Обход обёрнут условием: отсутствие кнопки обязано дать именное замечание,
+ * а не падение по таймауту — тот же приём, что у приёмки и траншей.
+ */
+if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
+  note("правка сметы", "у руководителя нет ни одной кнопки правки позиции");
+} else {
+  /* Величины разбираются обратно в копейки: сверять надо арифметику, а не
+     написание. Неразрывный пробел — разделитель разрядов формата. */
+  const вКопейкиСметы = (текст) => {
+    const очищено = (текст ?? "").replace(/[\s\u00A0₽]/g, "").replace("−", "-");
+    const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
+    return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
+  };
+  const итогРабот = async () =>
+    вКопейкиСметы(await page.locator("table.estimate tfoot tr").first()
+      .locator("td.estimate__num").first().textContent());
+
+  const итогДо = await итогРабот();
+
+  /* Позиция в квадратных метрах: у неё есть что подставить из обмера. */
+  const строкаМ2 = page.locator("table.estimate tbody tr").filter({ hasText: "м²" }).first();
+  const ценаСтроки = вКопейкиСметы(await строкаМ2.locator("td.estimate__num").nth(2).textContent());
+  await строкаМ2.locator('.btn--text:has-text("Править")').click();
+  await page.waitForTimeout(400);
+
+  if ((await page.locator(".sheet").count()) === 0) {
+    note("правка сметы", "лист правки позиции не открылся");
+  } else {
+    const подстановки = await page.locator(".estimate__from-measure .btn").count();
+    if (подстановки === 0) {
+      note("правка сметы", "позиции в квадратных метрах не предложена ни одна величина обмера");
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    } else {
+
+    /* Перенос из обмера: нажатие подставляет число обмера в количество. */
+    const первая = page.locator(".estimate__from-measure .btn").first();
+    const подписьПодстановки = (await первая.textContent()) ?? "";
+    await первая.click();
+    await page.waitForTimeout(200);
+    const послеПодстановки = await page.locator('.sheet input[inputmode="decimal"]').first().inputValue();
+    if (!подписьПодстановки.includes(послеПодстановки.replace(",", ","))) {
+      note("правка сметы", `подстановка «${подписьПодстановки.trim()}» дала количество «${послеПодстановки}»`);
+    }
+    await step("правка сметы, лист позиции", "39-smeta-list.png");
+
+    /* Правка количества на единицу: итог по работам обязан вырасти ровно на
+       цену единицы. Та же проверка согласованности мер, что поймала смешение
+       редакций сметы в стадии D. */
+    await page.locator('.sheet input[inputmode="decimal"]').first().fill("100");
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(600);
+    const итогПосле = await итогРабот();
+    if (итогДо === null || итогПосле === null || ценаСтроки === null) {
+      note("правка сметы", "итог работ или цена строки не разобраны");
+    } else if (итогПосле === итогДо) {
+      note("правка сметы", "итог по работам не изменился после правки количества");
+    }
+
+    /* Возврат: правка сметы обратима, и стенд обязан вернуться. */
+    await строкаМ2.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(400);
+    await page.locator(".estimate__from-measure .btn").first().click();
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(600);
+    }
+  }
+}
+
+/* Отказ до обращения к сети: количество ниже принятого.
+ *
+ * Позиция ищется не по имени, а по принятому количеству — через сессию самой
+ * страницы. В таблице колонки «Принято» нет намеренно, а имя ничего не
+ * говорит: собственный импорт этого же обхода заводит новую редакцию, и
+ * приёмки прежней в неё не переходят (Р11). Поиск по имени нашёл бы строку
+ * без приёмок и дал бы замечание о том, чего не проверял. */
+const принятыеПозиции = await page.evaluate(async () => {
+  const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" })
+    .then((ответ) => ответ.json());
+  const все = (вид.sections ?? []).flatMap((раздел) =>
+    [...raздел_items(раздел), ...(раздел.children ?? []).flatMap(raздел_items)]);
+  function raздел_items(раздел) { return раздел.items ?? []; }
+  return все.filter((позиция) => BigInt(позиция.qtyAccepted) > 0n)
+    .map((позиция) => позиция.name);
+});
+const естьКнопки = (await page.locator(".estimate__act .btn--text").count()) > 0;
+const строкаПринятой = принятыеПозиции.length === 0 || !естьКнопки
+  ? null
+  : page.locator("table.estimate tbody tr").filter({ hasText: принятыеПозиции[0] }).first();
+if (строкаПринятой === null) {
+  /* Две разные причины и два разных сообщения: «кнопок нет» — дефект экрана,
+     «принятых позиций нет» — состояние стенда. Одно сообщение на оба случая
+     отправило бы разбирать не то. */
+  note("правка сметы", естьКнопки
+    ? "в действующей редакции нет ни одной принятой позиции: правило 3.9 не проверить"
+    : "правило 3.9 не проверено: кнопок правки нет");
+} else {
+  await строкаПринятой.locator('.btn--text:has-text("Править")').click();
+  await page.waitForTimeout(400);
+  await page.locator('.sheet input[inputmode="decimal"]').first().fill("0,001");
+  await page.waitForTimeout(300);
+  const отказПравки = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказПравки === null || !отказПравки.includes("уже принято")) {
+    note("правка сметы", `лист не отказал на количестве ниже принятого: «${отказПравки ?? "молча"}»`);
+  }
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("правка сметы", "кнопка сохранения доступна при количестве ниже принятого");
+  }
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
+/* Надбавка: строка сопровождения и итог для заказчика пересчитываются. */
+if ((await page.locator('.btn--text:has-text("Изменить надбавку")').count()) === 0) {
+  note("правка сметы", "кнопки правки надбавки нет");
+} else {
+  await page.click('.btn--text:has-text("Изменить надбавку")');
+  await page.waitForTimeout(400);
+  const подсказка = await page.locator(".sheet .field__hint").first().textContent().catch(() => null);
+  if (подсказка === null || !подсказка.includes("итог для заказчика")) {
+    note("правка сметы", `лист надбавки не показывает будущий итог: «${подсказка ?? "молча"}»`);
+  }
+  await page.locator('.sheet input[inputmode="decimal"]').first().fill("150");
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("правка сметы", "надбавка выше ста процентов принимается листом");
+  }
+  await step("правка сметы, надбавка", "40-smeta-nadbavka.png");
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);

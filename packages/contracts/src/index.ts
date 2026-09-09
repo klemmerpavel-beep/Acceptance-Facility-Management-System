@@ -442,6 +442,7 @@ export const estimateItemSchema = z.object({
   profit: kopecksString.optional(),
   profitShare: z.number().int().optional(),
 });
+export type EstimateItem = z.infer<typeof estimateItemSchema>;
 
 export interface EstimateSectionNode {
   id: string;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { EstimateSectionNode, EstimateView } from "@priyomka/contracts";
+import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
 import { plural } from "./status.js";
 
@@ -26,16 +26,28 @@ const money = (value: string | undefined): string =>
  * место занято, сведений ноль. Колонка вернётся вместе с действием, которое
  * её меняет.
  */
-export function EstimateTable({ estimate }: { estimate: EstimateView }): React.JSX.Element {
+export function EstimateTable({
+  estimate,
+  onEditItem,
+  onEditSupervision,
+}: {
+  estimate: EstimateView;
+  /* Правит руководитель. Обработчиков нет — колонки правки нет: у прораба
+     во внутренней проекции и так ничего нет, и гасить кнопку было бы
+     обещанием действия, которого ему не дадут. */
+  onEditItem?: (item: EstimateItem) => void;
+  onEditSupervision?: () => void;
+}): React.JSX.Element {
   const hasInternal = estimate.totals.wage !== undefined;
   const [projection, setProjection] = useState<Projection>(hasInternal ? "internal" : "client");
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   const showInternal = hasInternal && projection === "internal";
+  const editable = onEditItem !== undefined;
   const sections = estimate.sectionsTopLevel + estimate.sectionsNested;
   /* Заголовок и подытог на раздел плюс позиции — столько строк уходит в DOM. */
   const rendered = estimate.positions + sections * 2;
-  const columns = showInternal ? 9 : 6;
+  const columns = (showInternal ? 9 : 6) + (editable ? 1 : 0);
 
   const toggle = (id: string): void =>
     setCollapsed((current) => {
@@ -87,6 +99,17 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
               <td className="estimate__num estimate__internal">{money(item.wageTotal)}</td>
               <td className="estimate__num estimate__internal">{money(item.profit)}</td>
             </>
+          )}
+          {editable && (
+            <td className="estimate__act">
+              <button
+                type="button"
+                className="btn btn--text"
+                onClick={() => { onEditItem(item); }}
+              >
+                Править
+              </button>
+            </td>
           )}
         </tr>
       ));
@@ -158,6 +181,7 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
                 <th colSpan={3} className="estimate__internal estimate__internal-group">
                   Внутреннее
                 </th>
+                {editable && <th />}
               </tr>
             )}
             <tr>
@@ -174,6 +198,7 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
                   <th className="estimate__num estimate__internal">Прибыль</th>
                 </>
               )}
+              {editable && <th><span className="visually-hidden">Правка</span></th>}
             </tr>
           </thead>
           <tbody>{rows(estimate.sections)}</tbody>
@@ -197,18 +222,26 @@ export function EstimateTable({ estimate }: { estimate: EstimateView }): React.J
                   <td className="estimate__num estimate__internal">{money(estimate.totals.profit)}</td>
                 </>
               )}
+              {editable && <td className="estimate__act" />}
             </tr>
             <tr>
               <td colSpan={5}>
                 Сопровождение объекта {formatPercent(BigInt(estimate.totals.supervisionShare))}
+                {onEditSupervision !== undefined && (
+                  <button type="button" className="btn btn--text" onClick={onEditSupervision}>
+                    Изменить надбавку
+                  </button>
+                )}
               </td>
               <td className="estimate__num">{money(estimate.totals.supervision)}</td>
               {showInternal && <td className="estimate__internal" colSpan={3} />}
+              {editable && <td className="estimate__act" />}
             </tr>
             <tr>
               <td colSpan={5}>Итого для заказчика</td>
               <td className="estimate__num">{money(estimate.totals.estimate)}</td>
               {showInternal && <td className="estimate__internal" colSpan={3} />}
+              {editable && <td className="estimate__act" />}
             </tr>
           </tfoot>
         </table>

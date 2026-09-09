@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import type {
-  CurrentUser, EstimateView, ImportRecord, ProjectEvent, ProjectStatus, ProjectSummary,
+  CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
+  ProjectEvent, ProjectStatus, ProjectSummary,
 } from "@priyomka/contracts";
 import { daysBetween, projectRange, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
-import { fetchEstimate, fetchEvents, fetchImports, setProjectStatus, errorMessage } from "./api.js";
+import {
+  fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
+  setProjectStatus, updateEstimateItem, updateSupervision, errorMessage,
+} from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
@@ -12,6 +16,8 @@ import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
 import { Acceptance } from "./Acceptance.js";
 import { Tranches } from "./Tranches.js";
+import { EstimateItemSheet } from "./EstimateItemSheet.js";
+import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -98,10 +104,19 @@ export function ProjectCard({
   const [loading, setLoading] = useState(true);
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  /* Правка сметы. Обмер и справочник единиц грузятся вместе со сметой:
+     лист правки подставляет площади обмера в количество позиции, а единицу
+     выбирают из канонического набора, а не пишут свободно. */
+  const [editing, setEditing] = useState<EstimateItem | null>(null);
+  const [supervisionOpen, setSupervisionOpen] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [measure, setMeasure] = useState<MeasureView | null>(null);
 
   const load = (): void => {
     setLoading(true);
     void fetchEvents(project.code).then(setEvents).catch(() => setEvents([]));
+    void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
     void fetchEstimate(project.code)
       .then(async (view) => {
         setEstimate(view);
@@ -116,6 +131,23 @@ export function ProjectCard({
   };
 
   useEffect(load, [project.code]);
+
+  /* Сохранение правки. Ответ — вид сметы целиком, и он кладётся как есть:
+     собирать новое состояние из частей значило бы завести вторую копию
+     правил подсчёта подытогов. Приём тот же, что в обмере и графике. */
+  const сохранить = (action: Promise<EstimateView>): void => {
+    setEditBusy(true);
+    action
+      .then((view) => {
+        setEstimate(view);
+        setEditing(null);
+        setSupervisionOpen(false);
+        setEditError(null);
+        void fetchEvents(project.code).then(setEvents).catch(() => setEvents([]));
+      })
+      .catch((cause: unknown) => { setEditError(errorMessage(cause)); })
+      .finally(() => { setEditBusy(false); });
+  };
 
   const chooseStatus = (status: ProjectStatus): void => {
     setStatusBusy(true);
@@ -390,7 +422,23 @@ export function ProjectCard({
                     )}
                   </div>
                 )}
-                {estimate !== null && <EstimateTable estimate={estimate} />}
+                {estimate !== null && (
+                  <EstimateTable
+                    estimate={estimate}
+                    {...(user.role === "OWNER"
+                      ? {
+                          onEditItem: (item: EstimateItem) => {
+                            setEditing(item);
+                            setEditError(null);
+                          },
+                          onEditSupervision: () => {
+                            setSupervisionOpen(true);
+                            setEditError(null);
+                          },
+                        }
+                      : {})}
+                  />
+                )}
                 {estimate !== null && estimate.otherExpenses.length > 0 && (
                   <div className="panel panel--pad stack stack--tight">
                     <p className="figure__label">Прочие расходы · цена без объёма, приёмке не подлежат</p>
@@ -436,6 +484,31 @@ export function ProjectCard({
           busy={statusBusy}
           onChoose={chooseStatus}
           onClose={() => setStatusOpen(false)}
+        />
+      )}
+
+      {editing !== null && (
+        <EstimateItemSheet
+          item={editing}
+          units={units}
+          measure={measure}
+          busy={editBusy}
+          error={editError}
+          onSave={(input) => { сохранить(updateEstimateItem(project.code, editing.id, input)); }}
+          onClose={() => { setEditing(null); setEditError(null); }}
+        />
+      )}
+
+      {supervisionOpen && estimate !== null && (
+        <SupervisionSheet
+          share={estimate.totals.supervisionShare}
+          works={estimate.totals.works}
+          busy={editBusy}
+          error={editError}
+          onSave={(share) => {
+            сохранить(updateSupervision(project.code, { supervisionShare: share }));
+          }}
+          onClose={() => { setSupervisionOpen(false); setEditError(null); }}
         />
       )}
     </>

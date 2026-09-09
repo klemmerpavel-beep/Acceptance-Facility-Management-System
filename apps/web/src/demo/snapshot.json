@@ -1,6 +1,6 @@
 {
  "me-owner": {
-  "id": "40a7b6d5-81d5-4d29-8583-2d1626d7141b",
+  "id": "8904e84a-295b-42e0-955e-3f8cb183f7cf",
   "role": "OWNER",
   "name": "Роман Дементьев",
   "organization": {
@@ -9,7 +9,7 @@
   }
  },
  "me-foreman": {
-  "id": "cab2f759-3724-47eb-8d60-2fa40bfa88db",
+  "id": "5d28c961-fcd5-4ec6-9b3c-1cab6d7837fa",
   "role": "FOREMAN",
   "name": "Фархат Юсупов",
   "organization": {
@@ -19,7 +19,7 @@
  },
  "projects-owner": [
   {
-   "id": "e9070d3e-c31a-4c12-96bf-1c9c0ddd2e9a",
+   "id": "2abc1939-a3d3-4a12-a2c3-b4f7553a08a5",
    "code": "R-19",
    "address": "Революции 9а, офис 3",
    "status": "DONE",
@@ -42,7 +42,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "9328199b-1b0e-43a3-b662-b00d3e470f48",
+     "id": "02b8dad0-7c2a-4656-b4c6-3175684d307c",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2025-11-10",
@@ -52,7 +52,7 @@
      "brigade": null
     },
     {
-     "id": "0a798d5e-7ed7-4973-b509-bd7da0082e9f",
+     "id": "83783293-ae73-4e63-acad-a3a6361e4502",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2025-12-01",
@@ -62,7 +62,7 @@
      "brigade": null
     },
     {
-     "id": "b8f5820a-c125-4ef5-89fc-290cd9a6b8e6",
+     "id": "7369678d-fe31-48af-bcd3-c1a591b413e3",
      "name": "Штукатурка стен",
      "order": 2,
      "startsOn": "2026-01-15",
@@ -72,7 +72,7 @@
      "brigade": null
     },
     {
-     "id": "829cc3da-fcdf-4a5d-bb3b-5770e5e3acb7",
+     "id": "ebf393d2-851c-4682-b9c8-0f76ac133f8f",
      "name": "Чистовая отделка",
      "order": 3,
      "startsOn": "2026-03-10",
@@ -84,7 +84,7 @@
    ]
   },
   {
-   "id": "3660267e-3f02-4858-a01d-d9b552d5a952",
+   "id": "6e4b4d03-a30a-449e-aa0a-209738535181",
    "code": "R-27",
    "address": "Ленинский проспект 174п",
    "status": "WAITING_CLIENT",
@@ -107,7 +107,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "7f16104d-fa13-4b28-8aed-20e657226d22",
+     "id": "15c73664-a75e-479d-a01b-f6c6ec5d5573",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-04-20",
@@ -117,7 +117,7 @@
      "brigade": null
     },
     {
-     "id": "d61fc011-d139-4788-9f03-e7fdaf0c3abd",
+     "id": "2b1cf19e-107e-4815-8a9d-cb7998f9c68f",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-05-10",
@@ -127,7 +127,7 @@
      "brigade": null
     },
     {
-     "id": "58e9e705-9e3d-487f-bff2-da3e4e504342",
+     "id": "78e0a362-021f-48e8-b9eb-1a51a927c9e7",
      "name": "Штукатурка стен",
      "order": 2,
      "startsOn": "2026-06-15",
@@ -137,7 +137,7 @@
      "brigade": null
     },
     {
-     "id": "5800f00a-dc0a-4d5e-b14d-7d351d3d2f9a",
+     "id": "940d3adf-9dac-457a-bfdc-ae652b1c1e83",
      "name": "Чистовая отделка",
      "order": 3,
      "startsOn": "2026-07-25",
@@ -149,7 +149,7 @@
    ]
   },
   {
-   "id": "5f3b44e9-afba-4f62-9841-a573b20eb7c6",
+   "id": "552585f0-4881-4c8a-a918-cc14b05c0059",
    "code": "R-31",
    "address": "Кольцовская 24б, кв. 118",
    "status": "IN_PROGRESS",
@@ -172,7 +172,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "448a740e-2a88-49a1-bc0c-02c813f63c16",
+     "id": "59dfbf27-54ff-4c3f-a4fc-8788f0d594b3",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-05-12",
@@ -182,7 +182,7 @@
      "brigade": null
     },
     {
-     "id": "79568097-4f5c-49ca-a654-55b6e19ff746",
+     "id": "6d2b898e-0d49-4d4b-ae36-23125d6fdd31",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-06-01",
@@ -192,7 +192,7 @@
      "brigade": null
     },
     {
-     "id": "0c5488cd-831a-4e4b-85e5-d4003799b5c6",
+     "id": "a3bbb02f-efb2-464c-8d16-3e8d29718cea",
      "name": "Штукатурка стен",
      "order": 2,
      "startsOn": "2026-07-05",
@@ -202,7 +202,7 @@
      "brigade": null
     },
     {
-     "id": "bcff7524-fb9b-4120-9d0a-e8b71f6eaf96",
+     "id": "3a1e1b64-059a-4bc5-b346-d75dc84c6068",
      "name": "Плиточные работы",
      "order": 3,
      "startsOn": "2026-08-20",
@@ -212,7 +212,7 @@
      "brigade": null
     },
     {
-     "id": "084dab46-653f-4bb4-87ec-e7dad02a7818",
+     "id": "7792ae0f-8992-4e31-a741-4b4a8b94fb82",
      "name": "Чистовая отделка",
      "order": 4,
      "startsOn": "2026-10-01",
@@ -224,7 +224,7 @@
    ]
   },
   {
-   "id": "76f3db94-4963-444b-9c85-2c20ccc3ddab",
+   "id": "c5bb0c53-68b7-4f96-a9ba-82488783cafc",
    "code": "R-38",
    "address": "Владимира Невского 15, кв. 61",
    "status": "NEW",
@@ -248,7 +248,7 @@
    "stages": []
   },
   {
-   "id": "5bdf717c-a0e4-415f-ae07-c423046ad880",
+   "id": "1027fdd4-4700-437d-b14b-35fc2a1cdf94",
    "code": "R-42",
    "address": "Плехановская 22",
    "status": "NEW",
@@ -272,7 +272,7 @@
    "stages": []
   },
   {
-   "id": "8256b7f4-af7e-45f7-8da2-2936066a5b98",
+   "id": "5a1c1747-ad37-456a-94ce-691f228e9c25",
    "code": "R-64",
    "address": "Бульвар Победы 23б, кв. 204",
    "status": "IN_PROGRESS",
@@ -295,7 +295,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "baf5cbbd-c52c-4e69-9d91-c45f7dcec75c",
+     "id": "d1069631-8867-4da7-83ed-8b5d391e7f81",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-07-01",
@@ -305,7 +305,7 @@
      "brigade": null
     },
     {
-     "id": "264bd4f2-9766-4723-bfce-329256a13728",
+     "id": "e084f082-821e-4103-884c-b56d2fe4f360",
      "name": "Перепланировка",
      "order": 1,
      "startsOn": "2026-07-20",
@@ -315,7 +315,7 @@
      "brigade": null
     },
     {
-     "id": "b340ab26-0eae-488a-aa7f-d80aedaa8b7e",
+     "id": "c98dbe79-65fd-4f5d-af5c-7c489d29fff7",
      "name": "Черновая электрика",
      "order": 2,
      "startsOn": "2026-08-25",
@@ -325,7 +325,7 @@
      "brigade": null
     },
     {
-     "id": "628d013b-f020-4259-b7d3-080d0807271e",
+     "id": "6d836f43-5de4-446b-810d-bfbade73eb78",
      "name": "Разводка воды",
      "order": 3,
      "startsOn": "2026-09-15",
@@ -335,7 +335,7 @@
      "brigade": null
     },
     {
-     "id": "8ba40af8-452c-460b-8939-76a47ea5544e",
+     "id": "49d6d0bb-fd5b-478a-9dff-d0268ec650c3",
      "name": "Штукатурка стен",
      "order": 4,
      "startsOn": "2026-10-05",
@@ -345,7 +345,7 @@
      "brigade": null
     },
     {
-     "id": "783ab782-b847-4cb9-bf81-915607adb9a8",
+     "id": "da86a9ca-392e-4524-a9e9-a0fd7f2fab98",
      "name": "Чистовая отделка",
      "order": 5,
      "startsOn": "2026-11-10",
@@ -357,7 +357,7 @@
    ]
   },
   {
-   "id": "514d44d0-bb17-4c51-9caf-729357235ff5",
+   "id": "34195533-8bad-4ec3-8581-ad91577ced30",
    "code": "R-72",
    "address": "Никитинская 42, кв. 7",
    "status": "IN_PROGRESS",
@@ -373,7 +373,7 @@
     "requisites": "Физическое лицо"
    },
    "foreman": {
-    "id": "cab2f759-3724-47eb-8d60-2fa40bfa88db",
+    "id": "5d28c961-fcd5-4ec6-9b3c-1cab6d7837fa",
     "name": "Фархат Юсупов"
    },
    "estimateTotal": null,
@@ -383,7 +383,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "2b8cafa0-0559-4c36-bf53-143e8a7baf58",
+     "id": "d1232881-fb7e-4e99-8228-00ac8303a1a3",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-06-15",
@@ -393,7 +393,7 @@
      "brigade": null
     },
     {
-     "id": "485517ca-f3bd-4ba8-b6dd-35a9f77b5cdd",
+     "id": "1e659744-441e-4d16-aadd-0749821df147",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-06-29",
@@ -403,7 +403,7 @@
      "brigade": null
     },
     {
-     "id": "3301c949-2172-439b-b6e7-485e300de8c3",
+     "id": "7dcf3290-f22d-44be-a5d5-de1f7f18e936",
      "name": "Штукатурка стен",
      "order": 2,
      "startsOn": "2026-07-15",
@@ -413,7 +413,7 @@
      "brigade": null
     },
     {
-     "id": "c7498810-7759-483f-a594-352f391cebfc",
+     "id": "19c07791-5c0e-46c0-b60f-a44a63f86b65",
      "name": "Стяжка пола",
      "order": 3,
      "startsOn": "2026-08-05",
@@ -423,7 +423,7 @@
      "brigade": null
     },
     {
-     "id": "fbdb682b-a2a5-4054-9b7d-10d8b8660486",
+     "id": "2303db4a-0214-4795-99e9-4d66ef2081a6",
      "name": "Чистовая отделка",
      "order": 4,
      "startsOn": "2026-08-20",
@@ -435,7 +435,7 @@
    ]
   },
   {
-   "id": "8bd60d8a-7dd2-4cb3-b5e4-7c88ff30cb29",
+   "id": "c189cf2e-0359-493b-be26-d12558d02601",
    "code": "R-99",
    "address": "Московский проспект 116",
    "status": "IN_PROGRESS",
@@ -451,103 +451,103 @@
     "requisites": "Физическое лицо"
    },
    "foreman": {
-    "id": "cab2f759-3724-47eb-8d60-2fa40bfa88db",
+    "id": "5d28c961-fcd5-4ec6-9b3c-1cab6d7837fa",
     "name": "Фархат Юсупов"
    },
    "estimateTotal": "425023435",
    "estimateVersion": 1,
    "positions": 132,
    "readiness": 8557,
-   "trancheRemainder": "44440000",
+   "trancheRemainder": "45000000",
    "stages": [
     {
-     "id": "c8f7c1fb-070c-45f9-8c79-3229904b4c87",
+     "id": "106339ad-b8c5-4cd0-a64c-bb0ee1b7a6aa",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-03-02",
      "endsOn": "2026-03-20",
      "progress": 10000,
-     "sectionId": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+     "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "84a2a4c8-2ebd-4994-b291-912eb07e7901",
+     "id": "9ccb2852-f414-4c45-a979-fe1bc8d9c1bd",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-03-21",
      "endsOn": "2026-04-15",
      "progress": 10000,
-     "sectionId": "1e46597f-700e-4172-a75f-8a44ea186800",
+     "sectionId": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
      "brigade": {
-      "id": "a425e9a4-a76b-4b23-95c1-5b1cb1afb932",
+      "id": "a4347d75-3c4b-4526-a598-47a9daa90084",
       "name": "Электрики Евгения"
      }
     },
     {
-     "id": "bfb1d57f-c9c4-4f12-8700-9f7cad099619",
+     "id": "ea0bd70d-acdf-44c6-be13-7b0c73b93f7e",
      "name": "Разводка воды",
      "order": 2,
      "startsOn": "2026-04-06",
      "endsOn": "2026-04-25",
      "progress": 10000,
-     "sectionId": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+     "sectionId": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     {
-     "id": "4641eee6-f806-464a-a6db-0c90ed5cb191",
+     "id": "7190a730-f744-48c8-aef2-89530377b705",
      "name": "Штукатурка стен",
      "order": 3,
      "startsOn": "2026-04-20",
      "endsOn": "2026-05-30",
      "progress": 10000,
-     "sectionId": "b47733dd-142c-408d-b777-1f1b3d812170",
+     "sectionId": "683dae95-138c-4625-9210-6b8a222e5231",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "f99fb587-736c-4311-9ff9-d28a7a9612b2",
+     "id": "e0c62eb0-bfae-4cfe-aa50-c38b61e9a3b5",
      "name": "Стяжка пола",
      "order": 4,
      "startsOn": "2026-05-25",
      "endsOn": "2026-06-15",
      "progress": 10000,
-     "sectionId": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+     "sectionId": "133f3e76-ce71-480a-b017-10bdd2c256fc",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "aa31fefd-e3fd-408d-8478-a7d671544bc1",
+     "id": "c5e364ae-a262-4bc9-9b81-96b85b26899d",
      "name": "Плиточные работы",
      "order": 5,
      "startsOn": "2026-06-10",
      "endsOn": "2026-07-20",
      "progress": 8000,
-     "sectionId": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+     "sectionId": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
      "brigade": {
-      "id": "22e3a67a-450d-457b-979f-89b3381b789a",
+      "id": "f94e5cb5-23e0-4111-88fb-1a6679d4b4e1",
       "name": "Плиточники Алексея"
      }
     },
     {
-     "id": "b81b78bf-87ff-4535-a5c4-7279e34feb50",
+     "id": "e0adc03b-bddc-4448-aeb7-717c6547779f",
      "name": "Чистовая отделка",
      "order": 6,
      "startsOn": "2026-07-15",
      "endsOn": "2026-08-15",
      "progress": 3500,
-     "sectionId": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+     "sectionId": "febf85b7-b46e-48af-86bf-2e2eb8012112",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     }
@@ -556,7 +556,7 @@
  ],
  "projects-foreman": [
   {
-   "id": "514d44d0-bb17-4c51-9caf-729357235ff5",
+   "id": "34195533-8bad-4ec3-8581-ad91577ced30",
    "code": "R-72",
    "address": "Никитинская 42, кв. 7",
    "status": "IN_PROGRESS",
@@ -572,7 +572,7 @@
     "requisites": "Физическое лицо"
    },
    "foreman": {
-    "id": "cab2f759-3724-47eb-8d60-2fa40bfa88db",
+    "id": "5d28c961-fcd5-4ec6-9b3c-1cab6d7837fa",
     "name": "Фархат Юсупов"
    },
    "estimateTotal": null,
@@ -582,7 +582,7 @@
    "trancheRemainder": null,
    "stages": [
     {
-     "id": "2b8cafa0-0559-4c36-bf53-143e8a7baf58",
+     "id": "d1232881-fb7e-4e99-8228-00ac8303a1a3",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-06-15",
@@ -592,7 +592,7 @@
      "brigade": null
     },
     {
-     "id": "485517ca-f3bd-4ba8-b6dd-35a9f77b5cdd",
+     "id": "1e659744-441e-4d16-aadd-0749821df147",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-06-29",
@@ -602,7 +602,7 @@
      "brigade": null
     },
     {
-     "id": "3301c949-2172-439b-b6e7-485e300de8c3",
+     "id": "7dcf3290-f22d-44be-a5d5-de1f7f18e936",
      "name": "Штукатурка стен",
      "order": 2,
      "startsOn": "2026-07-15",
@@ -612,7 +612,7 @@
      "brigade": null
     },
     {
-     "id": "c7498810-7759-483f-a594-352f391cebfc",
+     "id": "19c07791-5c0e-46c0-b60f-a44a63f86b65",
      "name": "Стяжка пола",
      "order": 3,
      "startsOn": "2026-08-05",
@@ -622,7 +622,7 @@
      "brigade": null
     },
     {
-     "id": "fbdb682b-a2a5-4054-9b7d-10d8b8660486",
+     "id": "2303db4a-0214-4795-99e9-4d66ef2081a6",
      "name": "Чистовая отделка",
      "order": 4,
      "startsOn": "2026-08-20",
@@ -634,7 +634,7 @@
    ]
   },
   {
-   "id": "8bd60d8a-7dd2-4cb3-b5e4-7c88ff30cb29",
+   "id": "c189cf2e-0359-493b-be26-d12558d02601",
    "code": "R-99",
    "address": "Московский проспект 116",
    "status": "IN_PROGRESS",
@@ -650,103 +650,103 @@
     "requisites": "Физическое лицо"
    },
    "foreman": {
-    "id": "cab2f759-3724-47eb-8d60-2fa40bfa88db",
+    "id": "5d28c961-fcd5-4ec6-9b3c-1cab6d7837fa",
     "name": "Фархат Юсупов"
    },
    "estimateTotal": "425023435",
    "estimateVersion": 1,
    "positions": 132,
    "readiness": 8557,
-   "trancheRemainder": "44440000",
+   "trancheRemainder": "45000000",
    "stages": [
     {
-     "id": "c8f7c1fb-070c-45f9-8c79-3229904b4c87",
+     "id": "106339ad-b8c5-4cd0-a64c-bb0ee1b7a6aa",
      "name": "Демонтаж",
      "order": 0,
      "startsOn": "2026-03-02",
      "endsOn": "2026-03-20",
      "progress": 10000,
-     "sectionId": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+     "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "84a2a4c8-2ebd-4994-b291-912eb07e7901",
+     "id": "9ccb2852-f414-4c45-a979-fe1bc8d9c1bd",
      "name": "Черновая электрика",
      "order": 1,
      "startsOn": "2026-03-21",
      "endsOn": "2026-04-15",
      "progress": 10000,
-     "sectionId": "1e46597f-700e-4172-a75f-8a44ea186800",
+     "sectionId": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
      "brigade": {
-      "id": "a425e9a4-a76b-4b23-95c1-5b1cb1afb932",
+      "id": "a4347d75-3c4b-4526-a598-47a9daa90084",
       "name": "Электрики Евгения"
      }
     },
     {
-     "id": "bfb1d57f-c9c4-4f12-8700-9f7cad099619",
+     "id": "ea0bd70d-acdf-44c6-be13-7b0c73b93f7e",
      "name": "Разводка воды",
      "order": 2,
      "startsOn": "2026-04-06",
      "endsOn": "2026-04-25",
      "progress": 10000,
-     "sectionId": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+     "sectionId": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     {
-     "id": "4641eee6-f806-464a-a6db-0c90ed5cb191",
+     "id": "7190a730-f744-48c8-aef2-89530377b705",
      "name": "Штукатурка стен",
      "order": 3,
      "startsOn": "2026-04-20",
      "endsOn": "2026-05-30",
      "progress": 10000,
-     "sectionId": "b47733dd-142c-408d-b777-1f1b3d812170",
+     "sectionId": "683dae95-138c-4625-9210-6b8a222e5231",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "f99fb587-736c-4311-9ff9-d28a7a9612b2",
+     "id": "e0c62eb0-bfae-4cfe-aa50-c38b61e9a3b5",
      "name": "Стяжка пола",
      "order": 4,
      "startsOn": "2026-05-25",
      "endsOn": "2026-06-15",
      "progress": 10000,
-     "sectionId": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+     "sectionId": "133f3e76-ce71-480a-b017-10bdd2c256fc",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     {
-     "id": "aa31fefd-e3fd-408d-8478-a7d671544bc1",
+     "id": "c5e364ae-a262-4bc9-9b81-96b85b26899d",
      "name": "Плиточные работы",
      "order": 5,
      "startsOn": "2026-06-10",
      "endsOn": "2026-07-20",
      "progress": 8000,
-     "sectionId": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+     "sectionId": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
      "brigade": {
-      "id": "22e3a67a-450d-457b-979f-89b3381b789a",
+      "id": "f94e5cb5-23e0-4111-88fb-1a6679d4b4e1",
       "name": "Плиточники Алексея"
      }
     },
     {
-     "id": "b81b78bf-87ff-4535-a5c4-7279e34feb50",
+     "id": "e0adc03b-bddc-4448-aeb7-717c6547779f",
      "name": "Чистовая отделка",
      "order": 6,
      "startsOn": "2026-07-15",
      "endsOn": "2026-08-15",
      "progress": 3500,
-     "sectionId": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+     "sectionId": "febf85b7-b46e-48af-86bf-2e2eb8012112",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     }
@@ -892,7 +892,23 @@
   ],
   "feed": [
    {
-    "at": "2026-09-09T17:36:56.562Z",
+    "at": "2026-09-09T18:43:54.242Z",
+    "kind": "field",
+    "title": "Правка поля «Проверочное помещение — помещение удалено»",
+    "detail": "1000 тысячных м², высота 2700 → —",
+    "projectCode": "R-99",
+    "actor": "Роман Дементьев"
+   },
+   {
+    "at": "2026-09-09T18:43:54.204Z",
+    "kind": "field",
+    "title": "Правка поля «Проверочное помещение — помещение внесено»",
+    "detail": "— → 1000 тысячных м², высота 2700",
+    "projectCode": "R-99",
+    "actor": "Фархат Юсупов"
+   },
+   {
+    "at": "2026-09-09T18:43:53.513Z",
     "kind": "import",
     "title": "Импорт сметы: редакция 1, позиций 132",
     "detail": "smeta-obezlichennaya.xlsx",
@@ -1009,7 +1025,23 @@
   ],
   "feed": [
    {
-    "at": "2026-09-09T17:36:56.562Z",
+    "at": "2026-09-09T18:43:54.242Z",
+    "kind": "field",
+    "title": "Правка поля «Проверочное помещение — помещение удалено»",
+    "detail": "1000 тысячных м², высота 2700 → —",
+    "projectCode": "R-99",
+    "actor": "Роман Дементьев"
+   },
+   {
+    "at": "2026-09-09T18:43:54.204Z",
+    "kind": "field",
+    "title": "Правка поля «Проверочное помещение — помещение внесено»",
+    "detail": "— → 1000 тысячных м², высота 2700",
+    "projectCode": "R-99",
+    "actor": "Фархат Юсупов"
+   },
+   {
+    "at": "2026-09-09T18:43:53.513Z",
     "kind": "import",
     "title": "Импорт сметы: редакция 1, позиций 132",
     "detail": "smeta-obezlichennaya.xlsx",
@@ -1020,7 +1052,7 @@
  },
  "clients-owner": [
   {
-   "id": "623b98b9-47da-494e-80d4-abb51701fce6",
+   "id": "4dd99a5d-ce39-45a8-a6cc-2c68e9d54a25",
    "code": "118",
    "name": "Сергей Балашов",
    "isCompany": false,
@@ -1029,7 +1061,7 @@
    "estimateTotal": "0"
   },
   {
-   "id": "41e4f6d6-afe9-4749-8811-81b8fe1fd485",
+   "id": "b0aeb67c-c3d1-4cf1-9064-60f44d7fcd46",
    "code": "204",
    "name": "ООО «Гранит-Строй»",
    "isCompany": true,
@@ -1038,7 +1070,7 @@
    "estimateTotal": "0"
   },
   {
-   "id": "ec1c3ce2-11ef-4339-94c0-068b938ae19c",
+   "id": "a05babdd-1a6e-4ef1-ad9d-ecb4728db951",
    "code": "300",
    "name": "Ирина Ковалёва",
    "isCompany": false,
@@ -1047,7 +1079,7 @@
    "estimateTotal": "425023435"
   },
   {
-   "id": "1dc9ac7a-a8e6-49f7-b10a-36818111d36b",
+   "id": "e4b4a5c9-1e61-4ced-9c17-5237829d55e7",
    "code": "412",
    "name": "Анна Мещерякова",
    "isCompany": false,
@@ -1058,7 +1090,7 @@
  ],
  "clients-foreman": [
   {
-   "id": "623b98b9-47da-494e-80d4-abb51701fce6",
+   "id": "4dd99a5d-ce39-45a8-a6cc-2c68e9d54a25",
    "code": "118",
    "name": "Сергей Балашов",
    "isCompany": false,
@@ -1067,7 +1099,7 @@
    "estimateTotal": "0"
   },
   {
-   "id": "ec1c3ce2-11ef-4339-94c0-068b938ae19c",
+   "id": "a05babdd-1a6e-4ef1-ad9d-ecb4728db951",
    "code": "300",
    "name": "Ирина Ковалёва",
    "isCompany": false,
@@ -1078,29 +1110,45 @@
  ],
  "workers": [
   {
-   "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+   "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
    "name": "Бригада Рашида",
    "kind": "BRIGADE"
   },
   {
-   "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+   "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
    "name": "Бригада Фархата",
    "kind": "BRIGADE"
   },
   {
-   "id": "22e3a67a-450d-457b-979f-89b3381b789a",
+   "id": "f94e5cb5-23e0-4111-88fb-1a6679d4b4e1",
    "name": "Плиточники Алексея",
    "kind": "BRIGADE"
   },
   {
-   "id": "a425e9a4-a76b-4b23-95c1-5b1cb1afb932",
+   "id": "a4347d75-3c4b-4526-a598-47a9daa90084",
    "name": "Электрики Евгения",
    "kind": "BRIGADE"
   }
  ],
  "events-owner": [
   {
-   "at": "2026-09-09T17:36:56.562Z",
+   "at": "2026-09-09T18:43:54.242Z",
+   "kind": "field",
+   "title": "Правка поля «Проверочное помещение — помещение удалено»",
+   "detail": "1000 тысячных м², высота 2700 → —",
+   "projectCode": "R-99",
+   "actor": "Роман Дементьев"
+  },
+  {
+   "at": "2026-09-09T18:43:54.204Z",
+   "kind": "field",
+   "title": "Правка поля «Проверочное помещение — помещение внесено»",
+   "detail": "— → 1000 тысячных м², высота 2700",
+   "projectCode": "R-99",
+   "actor": "Фархат Юсупов"
+  },
+  {
+   "at": "2026-09-09T18:43:53.513Z",
    "kind": "import",
    "title": "Импорт сметы: редакция 1, позиций 132",
    "detail": "smeta-obezlichennaya.xlsx",
@@ -1110,7 +1158,23 @@
  ],
  "events-foreman": [
   {
-   "at": "2026-09-09T17:36:56.562Z",
+   "at": "2026-09-09T18:43:54.242Z",
+   "kind": "field",
+   "title": "Правка поля «Проверочное помещение — помещение удалено»",
+   "detail": "1000 тысячных м², высота 2700 → —",
+   "projectCode": "R-99",
+   "actor": "Роман Дементьев"
+  },
+  {
+   "at": "2026-09-09T18:43:54.204Z",
+   "kind": "field",
+   "title": "Правка поля «Проверочное помещение — помещение внесено»",
+   "detail": "— → 1000 тысячных м², высота 2700",
+   "projectCode": "R-99",
+   "actor": "Фархат Юсупов"
+  },
+  {
+   "at": "2026-09-09T18:43:53.513Z",
    "kind": "import",
    "title": "Импорт сметы: редакция 1, позиций 132",
    "detail": "smeta-obezlichennaya.xlsx",
@@ -1140,7 +1204,7 @@
  },
  "unitDirectory": [
   {
-   "id": "6206aa1a-bf36-4c7a-8848-869cfd404571",
+   "id": "aa267740-2616-44d7-81f3-ccc4c364608b",
    "name": "м²",
    "aliases": [
     "м2",
@@ -1151,7 +1215,7 @@
    ]
   },
   {
-   "id": "e1caedde-7637-40d9-8bf1-c6c4b8858e94",
+   "id": "45306e0c-6294-4d24-b044-0c9c660279c0",
    "name": "м.п.",
    "aliases": [
     "мп",
@@ -1162,7 +1226,7 @@
    ]
   },
   {
-   "id": "b5327718-889d-4741-b54e-e5e585629964",
+   "id": "70bc42ea-4957-4da1-98c6-59c833d347ed",
    "name": "шт",
    "aliases": [
     "шт",
@@ -1170,14 +1234,14 @@
    ]
   },
   {
-   "id": "bcf6dc45-33df-48ad-83de-e0fc173bbe58",
+   "id": "0cb34182-a71d-429d-b42c-8abd90540f60",
    "name": "точка",
    "aliases": [
     "точка"
    ]
   },
   {
-   "id": "7e25c3f8-cb05-45fd-98e4-4a1e1e8d698d",
+   "id": "8ddb1f18-8b16-43a4-a6ed-8e152066dff6",
    "name": "ед",
    "aliases": [
     "ед",
@@ -1185,14 +1249,14 @@
    ]
   },
   {
-   "id": "195c3a04-24d5-4df3-a3d6-5f26ddf219a1",
+   "id": "17665847-ae75-4b07-918f-d4916dc32912",
    "name": "рейс",
    "aliases": [
     "рейс"
    ]
   },
   {
-   "id": "f6d69d2b-70d3-4773-bf09-3fc08a662c4e",
+   "id": "4008dc90-4d7a-442c-a12c-a15a959c61f2",
    "name": "ч/ч",
    "aliases": [
     "ч/ч",
@@ -1201,7 +1265,7 @@
    ]
   },
   {
-   "id": "abd9fde8-b7a1-4506-a56c-96ef6a45562d",
+   "id": "42b069d7-ce30-4c22-932e-1615607ae9af",
    "name": "этаж",
    "aliases": [
     "этаж"
@@ -1217,19 +1281,19 @@
  ],
  "estimate-owner": {
   "version": 1,
-  "importedAt": "2026-09-09T17:36:56.562Z",
+  "importedAt": "2026-09-09T18:43:53.513Z",
   "positions": 132,
   "sectionsTopLevel": 11,
   "sectionsNested": 11,
   "sections": [
    {
-    "id": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "name": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "level": 1,
     "sourceRow": 5,
     "items": [
      {
-      "id": "3428452c-96f3-4116-aa39-dbaa6393ac30",
+      "id": "07241d3d-9166-4b56-a9ce-3932c42ed734",
       "order": 1,
       "name": "Окрывные работы",
       "unit": "шт",
@@ -1243,7 +1307,7 @@
       "profitShare": 5000
      },
      {
-      "id": "7d6fc99b-4d2a-4e1c-b2de-753996ee1113",
+      "id": "d552e32c-84fe-46b8-b33a-6e10c0d7f888",
       "order": 2,
       "name": "Полусухая стяжка",
       "unit": "м²",
@@ -1257,7 +1321,7 @@
       "profitShare": 3000
      },
      {
-      "id": "694d3758-6b67-4490-9f55-f6d7db0a2ce2",
+      "id": "93d9d33d-a454-469a-a803-67458dc0127e",
       "order": 3,
       "name": "Штукатурка стен по маякам (до 2,5 см)",
       "unit": "м²",
@@ -1271,7 +1335,7 @@
       "profitShare": 6111
      },
      {
-      "id": "211ef367-8bb4-4a9e-b215-250693f00a99",
+      "id": "4d4a599e-914f-43b4-a32d-1d3f179e9853",
       "order": 4,
       "name": "Установка перфорированного уголка и планки примыкания к окну (окна, двери, стены)",
       "unit": "м.п.",
@@ -1285,7 +1349,7 @@
       "profitShare": 4000
      },
      {
-      "id": "68167f8c-4902-4817-b0b9-0b3d3abd4aca",
+      "id": "a8c82a3b-c824-44f2-858b-8e73175cee23",
       "order": 5,
       "name": "Грунтование стен ( перед штукутуркой)",
       "unit": "м²",
@@ -1299,7 +1363,7 @@
       "profitShare": 4167
      },
      {
-      "id": "a5ec61c9-af91-4773-af57-a21cb8dbe006",
+      "id": "507371d2-21e5-4c77-8e05-790af1807e9f",
       "order": 6,
       "name": "Стык плитки ламината без порога",
       "unit": "шт",
@@ -1313,7 +1377,7 @@
       "profitShare": 5000
      },
      {
-      "id": "647cd89d-67a7-4cfd-8ac3-d9f7ec8213a9",
+      "id": "a2718cd9-252a-4929-8554-8fb3c77e723b",
       "order": 7,
       "name": "Фартук на кухню",
       "unit": "м²",
@@ -1327,7 +1391,7 @@
       "profitShare": 3571
      },
      {
-      "id": "c65fd724-6223-4102-b8fb-53d373de0960",
+      "id": "6ed13135-4ddd-4286-aef5-6897978cf83f",
       "order": 8,
       "name": "Технические отверстия в плитке",
       "unit": "шт",
@@ -1341,7 +1405,7 @@
       "profitShare": 6154
      },
      {
-      "id": "94c2d962-8301-4acb-babb-5379dfaa5dc8",
+      "id": "b83634e7-3d22-4647-ae3e-f267f6cb0045",
       "order": 9,
       "name": "Затирка цементная",
       "unit": "м²",
@@ -1360,13 +1424,13 @@
     "subtotalWage": "27909270"
    },
    {
-    "id": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+    "id": "133f3e76-ce71-480a-b017-10bdd2c256fc",
     "name": "ГИПСОКАРТОН, ВОЗВЕДЕНИЕ ПЕРЕГОРОДОК",
     "level": 1,
     "sourceRow": 16,
     "items": [
      {
-      "id": "79279e26-0cc8-4e6b-9ab4-e20452dfef22",
+      "id": "67880802-3cee-4913-862f-0e3479374d44",
       "order": 10,
       "name": "Возведение перегородок ( Керпич)",
       "unit": "шт",
@@ -1380,7 +1444,7 @@
       "profitShare": 4400
      },
      {
-      "id": "f3185db8-1b8b-4739-828b-71224e294900",
+      "id": "f2b881ad-594d-463f-a455-86f8f31c5c09",
       "order": 11,
       "name": "Перемычка",
       "unit": "шт",
@@ -1394,7 +1458,7 @@
       "profitShare": 4286
      },
      {
-      "id": "d0c27c9b-01a6-44e0-b1f9-772c7c344d9a",
+      "id": "ab78cb0c-c754-4619-a16e-cff0d30d9e53",
       "order": 12,
       "name": "Монтаж отверстий в ГКЛ (по факту)",
       "unit": "шт",
@@ -1408,7 +1472,7 @@
       "profitShare": 4000
      },
      {
-      "id": "2da39bd0-67f3-4590-a63f-8680033afdfe",
+      "id": "e24b078b-da7c-4f10-a500-43079505c65d",
       "order": 13,
       "name": "Монтаж ГКЛ стена",
       "unit": "м²",
@@ -1422,7 +1486,7 @@
       "profitShare": 4286
      },
      {
-      "id": "88cd0e65-b611-4396-a6ab-e005e8d94a12",
+      "id": "b2e053ae-16b8-40d7-9f4d-4c2768cc8ebb",
       "order": 14,
       "name": "Зашив инстоляций ГКЛ 2 (слоя)",
       "unit": "шт",
@@ -1441,13 +1505,13 @@
     "subtotalWage": "15387200"
    },
    {
-    "id": "1e46597f-700e-4172-a75f-8a44ea186800",
+    "id": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
     "name": "ЧЕРНОВОЙ ЭЛЕКТРОМОНТАЖ ( ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 23,
     "items": [
      {
-      "id": "6a317ccc-57c4-48f4-801e-f7608c2eaefa",
+      "id": "1996f1c2-6049-4342-b645-6cce51f711a0",
       "order": 15,
       "name": "Установка подрозетников",
       "unit": "шт",
@@ -1461,7 +1525,7 @@
       "profitShare": 3158
      },
      {
-      "id": "d69dd0ea-040f-4151-9247-2c916d59234e",
+      "id": "ebf521f9-2f64-41c0-a047-4f44a660a7d5",
       "order": 16,
       "name": "Сверление отверстий под подрозетники (кирпич)",
       "unit": "шт",
@@ -1475,7 +1539,7 @@
       "profitShare": 5556
      },
      {
-      "id": "8127fc89-a7ad-4547-ae4d-b44ca00feba9",
+      "id": "806da024-dcb7-45f6-a1b8-65787d3a848b",
       "order": 17,
       "name": "Сверление отверстий под подрозетники (Бетон)",
       "unit": "шт",
@@ -1489,7 +1553,7 @@
       "profitShare": 3966
      },
      {
-      "id": "44f6a8e1-f39e-49ec-9cd4-3618aa1d5fee",
+      "id": "a59a39a5-6054-4bf8-ad3f-66f55c20c079",
       "order": 18,
       "name": "Укладка провода 3х1.5",
       "unit": "м.п.",
@@ -1503,7 +1567,7 @@
       "profitShare": 2857
      },
      {
-      "id": "67acf61d-6df2-4c65-a1fc-c51d637a8993",
+      "id": "bbff1aca-992f-4857-b7ec-24eabb301932",
       "order": 19,
       "name": "Укладка провода 3х2.5",
       "unit": "м.п.",
@@ -1517,7 +1581,7 @@
       "profitShare": 2857
      },
      {
-      "id": "049871e0-70bc-4b8f-b4aa-c0bd5188fa49",
+      "id": "75c1ab9b-dbff-49ca-8031-752ec2e20cda",
       "order": 20,
       "name": "Укладка провода в открытую (витая пара, антенна)",
       "unit": "м.п.",
@@ -1531,7 +1595,7 @@
       "profitShare": 2000
      },
      {
-      "id": "0ba18d10-15ba-4c01-97a1-55eb61b04190",
+      "id": "07deba5d-d958-452e-9358-04e88262aff3",
       "order": 21,
       "name": "Укладка кабеля 3*6",
       "unit": "м.п.",
@@ -1545,7 +1609,7 @@
       "profitShare": 3824
      },
      {
-      "id": "29b80596-c07f-4f6a-8310-04dedbf14d1d",
+      "id": "35e9e603-87a0-431e-a549-dc0391a83f0c",
       "order": 22,
       "name": "Установка эл.щита 3бМ",
       "unit": "шт",
@@ -1559,7 +1623,7 @@
       "profitShare": 2857
      },
      {
-      "id": "57c90925-d9c8-4411-9f91-97a40d03676a",
+      "id": "78ea705a-59c2-4c55-8e0d-0df37b0f86cb",
       "order": 23,
       "name": "Установка автомат выключателя 1 фазного",
       "unit": "шт",
@@ -1573,7 +1637,7 @@
       "profitShare": 3243
      },
      {
-      "id": "f0f1d5f4-c7d5-4147-bc26-ffb475a9d8a4",
+      "id": "77412a7c-7267-43d0-b017-ff3bbb3cbc66",
       "order": 24,
       "name": "Комантор ( мастер выключатель)",
       "unit": "шт",
@@ -1587,7 +1651,7 @@
       "profitShare": 3333
      },
      {
-      "id": "e3be8dd9-dfef-42cb-97ab-e29349ede1aa",
+      "id": "be90a0fa-56d9-45be-b8ef-56d0539292fe",
       "order": 25,
       "name": "Монтаж расключение шины",
       "unit": "шт",
@@ -1601,7 +1665,7 @@
       "profitShare": 3000
      },
      {
-      "id": "50816893-73db-40d7-80db-fb342f40c851",
+      "id": "0bfba8c2-1905-4524-9c10-86cbf4135bd8",
       "order": 26,
       "name": "Установка УЗО 2-полюсного",
       "unit": "шт",
@@ -1615,7 +1679,7 @@
       "profitShare": 4667
      },
      {
-      "id": "aad490ae-c78f-473a-b1b9-9d7c304575de",
+      "id": "67837cf2-c874-408a-8e4b-9515a64247a6",
       "order": 27,
       "name": "Установка контактора 220",
       "unit": "шт",
@@ -1629,7 +1693,7 @@
       "profitShare": 4375
      },
      {
-      "id": "a5719dcd-b58b-45d5-a752-72e02c78ead5",
+      "id": "e6363a8e-c6a0-4f30-86c5-f44582da0ec1",
       "order": 28,
       "name": "Установка счетчика э-э 1-фазного",
       "unit": "шт",
@@ -1643,7 +1707,7 @@
       "profitShare": 3077
      },
      {
-      "id": "597ee6ab-d1bc-4816-90fd-9c254be97b4b",
+      "id": "ee1b996b-30fd-46e1-aba4-ddb03503c56c",
       "order": 29,
       "name": "Демонтаж щетка квартирного",
       "unit": "шт",
@@ -1657,7 +1721,7 @@
       "profitShare": 3333
      },
      {
-      "id": "4ba35672-c520-4dc7-b3a7-daece0d86bd2",
+      "id": "3fc37b68-0a5d-42a5-9f34-d2d88cf8741f",
       "order": 30,
       "name": "Монтаж и распайка распределительных коробок",
       "unit": "шт",
@@ -1671,7 +1735,7 @@
       "profitShare": 4000
      },
      {
-      "id": "91e6dfb5-046d-4dc2-a855-2dbab8fb2241",
+      "id": "34da2397-a728-4e6f-9849-271c5a857ce4",
       "order": 31,
       "name": "Монтаж временого света",
       "unit": "ед",
@@ -1685,7 +1749,7 @@
       "profitShare": 5000
      },
      {
-      "id": "1211d226-9c62-4c99-8052-3671c6b97cfd",
+      "id": "12098085-b53f-4876-b48d-e611bcb89c7c",
       "order": 32,
       "name": "Сверление сквозных отверстий в кирпичной стене д16L до 250 мм",
       "unit": "шт",
@@ -1699,7 +1763,7 @@
       "profitShare": 4000
      },
      {
-      "id": "9ffee6fa-55aa-48a5-b41e-0501f8e81956",
+      "id": "9b468fcb-9670-4676-96a8-c2033ad27f3d",
       "order": 33,
       "name": "Монтаж временного разетки",
       "unit": "ед",
@@ -1718,13 +1782,13 @@
     "subtotalWage": "18979500"
    },
    {
-    "id": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+    "id": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
     "name": "САНТЕХНИКА И ОТОПЛЕНИЕ (ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 45,
     "items": [
      {
-      "id": "6693e409-c152-4a06-90bc-5977e836d1f9",
+      "id": "469fed9d-e662-4d8c-9e83-855ac2ffadfa",
       "order": 34,
       "name": "Прокладка труб ( с теплоизоляцией) и вывод точек водоснабжения",
       "unit": "точка",
@@ -1738,7 +1802,7 @@
       "profitShare": 4444
      },
      {
-      "id": "627b12b1-b224-4ef6-a3ca-77cd39e48bf2",
+      "id": "d8a47b25-3fd5-47c6-b5c0-cf2f08c75eac",
       "order": 35,
       "name": "Прокладка труб и вывод точек канализации",
       "unit": "точка",
@@ -1752,7 +1816,7 @@
       "profitShare": 2500
      },
      {
-      "id": "a97dbfc4-540c-4434-8b4f-abd162936e59",
+      "id": "10f01e60-69a6-4b2d-9c43-55e6f26e4650",
       "order": 36,
       "name": "Штробление стены под трубы водоснабжения (кирпич) по факту",
       "unit": "м.п.",
@@ -1766,7 +1830,7 @@
       "profitShare": 2857
      },
      {
-      "id": "686c4f93-7cf4-4fd2-8e0e-a4db5780012f",
+      "id": "dfa5e171-6881-4f82-a19f-c2b8ea6aabd6",
       "order": 37,
       "name": "Установка отопительного прибора с переносом труб",
       "unit": "шт",
@@ -1780,7 +1844,7 @@
       "profitShare": 2857
      },
      {
-      "id": "c4337d87-d9b3-4e6c-b98e-95580f58318c",
+      "id": "7b137507-067a-45d6-93ca-2af9bfd8c5f9",
       "order": 38,
       "name": "Перенос счетчиков водоснабжения",
       "unit": "шт",
@@ -1794,7 +1858,7 @@
       "profitShare": 2857
      },
      {
-      "id": "66c95d9f-b73c-489d-848d-2bf0735122c8",
+      "id": "47dc5e4c-384c-4349-b490-2060ad312863",
       "order": 39,
       "name": "Установка монтаж аквастопа",
       "unit": "шт",
@@ -1808,7 +1872,7 @@
       "profitShare": 4366
      },
      {
-      "id": "0e1de243-12ee-4e4d-937b-9d2245e1ae54",
+      "id": "524a47e5-8912-4ba1-a928-d0a5d7a31f17",
       "order": 40,
       "name": "Монтаж отвода/тройника канализации",
       "unit": "шт",
@@ -1822,7 +1886,7 @@
       "profitShare": 2857
      },
      {
-      "id": "ff617434-4b2f-4556-ba7a-eec640ed0c69",
+      "id": "08eda9f9-f311-49e1-91fc-d536712786ac",
       "order": 41,
       "name": "Смена отвода/ тройника на стояке канализации",
       "unit": "шт",
@@ -1836,7 +1900,7 @@
       "profitShare": 2857
      },
      {
-      "id": "9ff9bd43-5573-4c1f-bfdb-da419ce22572",
+      "id": "94630fd0-2fe0-4253-92d8-52dd0cefe3ac",
       "order": 42,
       "name": "Монтаж гигиенического душа встроеного",
       "unit": "м.п.",
@@ -1850,7 +1914,7 @@
       "profitShare": 2857
      },
      {
-      "id": "37cef32a-7109-480c-9ce7-70caa0f44525",
+      "id": "ec5cb056-8a51-4e84-bde5-1e1041e1d618",
       "order": 43,
       "name": "Установка/ монтаж Инстоляции",
       "unit": "шт",
@@ -1869,20 +1933,20 @@
     "subtotalWage": "15120000"
    },
    {
-    "id": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+    "id": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
     "name": "ВАННАЯ/САН УЗЕЛ",
     "level": 1,
     "sourceRow": 57,
     "items": [],
     "children": [
      {
-      "id": "c34a338b-1b34-48a4-a93b-711b69c89657",
+      "id": "233d646f-a6d5-4a49-9a4f-d5ffc17db038",
       "name": "Мастер ванная",
       "level": 2,
       "sourceRow": 58,
       "items": [
        {
-        "id": "f8fec3c3-ceb2-43bf-bdf4-0eccb90c3269",
+        "id": "cd106dc5-0f88-4cdf-8e7c-0a25996efc47",
         "order": 44,
         "name": "Облицовка плиткой стен",
         "unit": "м²",
@@ -1896,7 +1960,7 @@
         "profitShare": 3571
        },
        {
-        "id": "6dd726d8-c86d-41ce-87b1-6bdce7ecec88",
+        "id": "42894a8d-0a10-481c-97f1-7c6323219873",
         "order": 45,
         "name": "Технические отверстия в плитке",
         "unit": "шт",
@@ -1910,7 +1974,7 @@
         "profitShare": 6154
        },
        {
-        "id": "7dad0fdb-278c-4aa8-b49e-14114f2e6759",
+        "id": "55d15233-792e-439c-a8b1-40fdb9127b05",
         "order": 46,
         "name": "Запил плитки под 45гр. (каждая сторона)",
         "unit": "м.п.",
@@ -1924,7 +1988,7 @@
         "profitShare": 2857
        },
        {
-        "id": "ccf0d6da-75d4-4e7d-b08f-b0fdfe54363e",
+        "id": "94ed4bc3-cf21-4ba2-be5c-c163302b7de9",
         "order": 47,
         "name": "Затирка цементная",
         "unit": "м.п.",
@@ -1938,7 +2002,7 @@
         "profitShare": 10000
        },
        {
-        "id": "95a87e6e-802f-4589-9e8a-3e7e1b7e1b30",
+        "id": "82661521-56bc-4fed-bd63-de8c42713f14",
         "order": 48,
         "name": "Просиликонивание примыканий",
         "unit": "м.п.",
@@ -1952,7 +2016,7 @@
         "profitShare": 3333
        },
        {
-        "id": "103701d4-85ec-4cd5-af48-1e12608d73d4",
+        "id": "599d670b-f159-4b98-b8c3-368d16cd6ac2",
         "order": 49,
         "name": "Чистый рез",
         "unit": "м.п.",
@@ -1966,7 +2030,7 @@
         "profitShare": 2857
        },
        {
-        "id": "d9b7fec2-cfe3-4d5f-955d-774b65ee2d2a",
+        "id": "2dd94f47-5d90-42f4-aef4-bcb992600fb9",
         "order": 50,
         "name": "Установка ванной (экран облицованный плиткой) пеноблок",
         "unit": "шт",
@@ -1980,7 +2044,7 @@
         "profitShare": 6000
        },
        {
-        "id": "ea68f22e-72f3-4832-887f-acb810c994f5",
+        "id": "0719af63-787b-4bbf-b0c5-9220ede001e7",
         "order": 51,
         "name": "Грунтовка",
         "unit": "м²",
@@ -1994,7 +2058,7 @@
         "profitShare": 5833
        },
        {
-        "id": "e518e932-a2bc-47da-84c1-3384b0fa1493",
+        "id": "aec83931-e370-4cb6-ba46-b80085678362",
         "order": 52,
         "name": "Монтаж скрытого люка",
         "unit": "шт",
@@ -2013,13 +2077,13 @@
       "subtotalWage": "7954200"
      },
      {
-      "id": "a0b88b44-2ebc-457e-86d4-84647297ceaa",
+      "id": "b3031a47-c352-4c72-ad50-9600da94bba4",
       "name": "Ванная",
       "level": 2,
       "sourceRow": 69,
       "items": [
        {
-        "id": "824ea335-0841-4a8e-bba3-623494876b4d",
+        "id": "df52cd64-f380-4f7f-9963-085b59d18103",
         "order": 53,
         "name": "Облицовка плиткой ( 600х1200)",
         "unit": "м²",
@@ -2033,7 +2097,7 @@
         "profitShare": 3571
        },
        {
-        "id": "852ebae2-e31b-4751-84b7-3d52c221dbe4",
+        "id": "ead6e9ff-46b3-4ed1-a90a-f601aad3c0c2",
         "order": 54,
         "name": "Затирка цементная",
         "unit": "м²",
@@ -2047,7 +2111,7 @@
         "profitShare": 10000
        },
        {
-        "id": "a2154817-a26d-4128-885f-fddd2499582c",
+        "id": "5c977709-ae24-488c-98bf-44ca0d062dba",
         "order": 55,
         "name": "Чистый рез",
         "unit": "м.п.",
@@ -2061,7 +2125,7 @@
         "profitShare": 2857
        },
        {
-        "id": "6ce2ad0e-cc74-44a8-8c77-1e32037ce043",
+        "id": "0f7f3a7e-7848-4c63-9af5-39fd13dee28a",
         "order": 56,
         "name": "Запил плитки под 45гр. (каждая сторона)",
         "unit": "м.п.",
@@ -2075,7 +2139,7 @@
         "profitShare": 2857
        },
        {
-        "id": "45f87435-66ef-4b61-b13e-2d70bab28a7d",
+        "id": "48763571-8d45-4ab4-95b2-3fc6c7e25c00",
         "order": 57,
         "name": "Технические отверстия в плитке",
         "unit": "шт",
@@ -2089,7 +2153,7 @@
         "profitShare": 6154
        },
        {
-        "id": "3b321bae-35df-454f-877f-a4bee646b7a2",
+        "id": "aa60a7f6-4e1d-45a1-9cbe-29c560037dce",
         "order": 58,
         "name": "Установка ванной (экран облицованный плиткой) пеноблок",
         "unit": "шт",
@@ -2103,7 +2167,7 @@
         "profitShare": 6000
        },
        {
-        "id": "32197a44-a8e2-4eb0-8da4-6d02d51c42da",
+        "id": "30b7dbbc-98d2-407b-8df3-796458b4eb86",
         "order": 59,
         "name": "Грунтовка",
         "unit": "м²",
@@ -2117,7 +2181,7 @@
         "profitShare": 2857
        },
        {
-        "id": "5b18c56a-ac6b-415f-82b8-4bb3c79e2c0c",
+        "id": "022e86b6-3bd7-44a2-938e-f094e62995f3",
         "order": 60,
         "name": "Просиликонивание примыканий (по факту)",
         "unit": "м.п.",
@@ -2131,7 +2195,7 @@
         "profitShare": 3333
        },
        {
-        "id": "f99ad500-ad0f-4701-80e8-607cf1bbe29f",
+        "id": "79b527f1-9d8c-43a3-8e0e-fca855166579",
         "order": 61,
         "name": "Монтаж скрытого люка",
         "unit": "шт",
@@ -2154,20 +2218,20 @@
     "subtotalWage": "20377000"
    },
    {
-    "id": "b47733dd-142c-408d-b777-1f1b3d812170",
+    "id": "683dae95-138c-4625-9210-6b8a222e5231",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОКРАСКУ)",
     "level": 1,
     "sourceRow": 80,
     "items": [],
     "children": [
      {
-      "id": "37ae94b5-d5dd-4626-970b-0fd57293b36c",
+      "id": "900a1d61-76e0-4eae-962c-c73bc72091e1",
       "name": "Сан узел 1 этаж ( малярные работы)",
       "level": 2,
       "sourceRow": 81,
       "items": [
        {
-        "id": "7ed7ecf7-ff82-4fc1-9c94-44e4f2e70e8b",
+        "id": "bcfc9cb9-d9d1-402d-9e26-e765141c16bd",
         "order": 62,
         "name": "Штукатурка",
         "unit": "м²",
@@ -2181,7 +2245,7 @@
         "profitShare": 2857
        },
        {
-        "id": "d7f2bfda-938a-46e2-99d3-c54533d2cc94",
+        "id": "b5f82292-207a-487f-a924-336d3631bf23",
         "order": 63,
         "name": "Шпаклевка ( 3 слоя)",
         "unit": "м²",
@@ -2195,7 +2259,7 @@
         "profitShare": 4000
        },
        {
-        "id": "7c62240f-3d82-4e0f-a5a7-5de26c51a107",
+        "id": "cda5fe4f-97be-42c0-9e49-97ed739e4956",
         "order": 64,
         "name": "Грунтовка ( 2 раза)",
         "unit": "м.п.",
@@ -2209,7 +2273,7 @@
         "profitShare": 4000
        },
        {
-        "id": "8704fbfe-f3d3-4fca-95cb-7630fbe5d71f",
+        "id": "4f3935f3-7447-47ea-bb19-fd8a3ca61236",
         "order": 65,
         "name": "Шкурка ( 2 раза)",
         "unit": "м.п.",
@@ -2223,7 +2287,7 @@
         "profitShare": 4000
        },
        {
-        "id": "77a623de-f1c4-4466-b7c1-be7f94be8e38",
+        "id": "d03b8f25-cda9-4bc7-b81f-717e87dc0bfa",
         "order": 66,
         "name": "Стеклохолст",
         "unit": "м²",
@@ -2242,13 +2306,13 @@
       "subtotalWage": "1656750"
      },
      {
-      "id": "41bdbbf4-48ff-4d6e-b376-e4cc39275328",
+      "id": "68ebc0cf-8749-47e5-b28c-605ce08713fd",
       "name": "Сан узел 2 этаж (детский и супружеский)",
       "level": 2,
       "sourceRow": 88,
       "items": [
        {
-        "id": "5cde8400-f804-45ee-aa9f-e2a85d0505e6",
+        "id": "73171e61-8ef0-42d4-aae1-672bfd56b185",
         "order": 67,
         "name": "Штукатурка",
         "unit": "м²",
@@ -2262,7 +2326,7 @@
         "profitShare": 2857
        },
        {
-        "id": "74d20683-6611-4a3e-b0cf-cbf67b7e0f40",
+        "id": "d3678903-573a-4909-9504-79a12a6ebaf6",
         "order": 68,
         "name": "Шпаклевка ( 3 слоя)",
         "unit": "м²",
@@ -2276,7 +2340,7 @@
         "profitShare": 4000
        },
        {
-        "id": "0e9954ff-899a-4a69-a915-2d94682a6b04",
+        "id": "da8835d5-f7b1-420e-86c4-1235b9cb2e98",
         "order": 69,
         "name": "Грунтовка ( 2 раза)",
         "unit": "м²",
@@ -2290,7 +2354,7 @@
         "profitShare": 4000
        },
        {
-        "id": "493bec5c-452a-41cb-b67a-761e68ffb7b0",
+        "id": "ba24b209-cb1f-47cb-87b5-4a39ecc062ae",
         "order": 70,
         "name": "Шкурка ( 2 раза)",
         "unit": "м²",
@@ -2304,7 +2368,7 @@
         "profitShare": 4000
        },
        {
-        "id": "7c06623c-2741-45f1-af58-3404c513d48c",
+        "id": "5f3a8a79-9efd-48a5-b3ff-29b876eb0725",
         "order": 71,
         "name": "откосы",
         "unit": "м²",
@@ -2318,7 +2382,7 @@
         "profitShare": 4444
        },
        {
-        "id": "ac14ba27-3006-4614-a49e-0800ac667e87",
+        "id": "8d3b6e76-09fe-42da-9cee-e04672a5cd8f",
         "order": 72,
         "name": "Перфорированый уголок",
         "unit": "м.п.",
@@ -2332,7 +2396,7 @@
         "profitShare": 5000
        },
        {
-        "id": "1af12d83-549a-476b-b48d-2f5579a4f9bd",
+        "id": "1f01096d-c988-40e6-9d0a-b414ee6eeec8",
         "order": 73,
         "name": "Бумажный уголок",
         "unit": "м.п.",
@@ -2346,7 +2410,7 @@
         "profitShare": 5000
        },
        {
-        "id": "8e32d30f-10b1-417a-afcd-d7d02b2d44b6",
+        "id": "be21fa30-b17e-439f-9b46-7bb7eda1ac82",
         "order": 74,
         "name": "Стеклохолст",
         "unit": "м²",
@@ -2369,20 +2433,20 @@
     "subtotalWage": "14736750"
    },
    {
-    "id": "230af879-026b-4b71-9b05-5c33de91eeed",
+    "id": "70cc14fe-fea6-42c1-b2d8-ae5067d994be",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОБОИ)",
     "level": 1,
     "sourceRow": 98,
     "items": [],
     "children": [
      {
-      "id": "ee07fc2b-22a0-4733-afed-416184ad86d9",
+      "id": "9dc0e2ab-424a-4740-9ef3-b59e1b943db0",
       "name": "Стены",
       "level": 2,
       "sourceRow": 99,
       "items": [
        {
-        "id": "b8e2c011-d98b-4885-b936-fed46093daed",
+        "id": "790f0787-01c6-4981-9e5c-6d445fe720f5",
         "order": 75,
         "name": "Грунтование (2 слоя)",
         "unit": "м²",
@@ -2396,7 +2460,7 @@
         "profitShare": 5833
        },
        {
-        "id": "6e88db95-f735-421f-b526-c050bab7931a",
+        "id": "6abe8d6f-2383-4ffc-9620-5530c5c4dfc3",
         "order": 76,
         "name": "Шпатлевание (2 слоя)",
         "unit": "м²",
@@ -2410,7 +2474,7 @@
         "profitShare": 4000
        },
        {
-        "id": "b08a2f12-472c-48ae-8a64-5bb91d6ec38b",
+        "id": "c95aa9a4-1d02-400a-94a2-08d549580928",
         "order": 77,
         "name": "Шкурка ( 2 слоя)",
         "unit": "м²",
@@ -2424,7 +2488,7 @@
         "profitShare": 4000
        },
        {
-        "id": "9425d603-16ad-40c3-8b83-243726c19f45",
+        "id": "89f3f91f-044a-4eab-998b-d9174c6ec8d9",
         "order": 78,
         "name": "Обои (по факту)",
         "unit": "м²",
@@ -2438,7 +2502,7 @@
         "profitShare": 3636
        },
        {
-        "id": "0e8bb044-5ea6-4e7c-b2ed-9a3e58314042",
+        "id": "ae8d3fd0-95eb-4c78-b759-b87ecfbd94a1",
         "order": 79,
         "name": "Грунтовка (1 слой) Перед обоями",
         "unit": "м²",
@@ -2457,13 +2521,13 @@
       "subtotalWage": "33726000"
      },
      {
-      "id": "052587ae-e7f9-4aa7-8517-811e3b3683dc",
+      "id": "4f3b671f-dc53-429a-8f0c-fd99c567d6c0",
       "name": "Плинтуса ( Алюминевые)",
       "level": 2,
       "sourceRow": 106,
       "items": [
        {
-        "id": "5c192809-0e9c-468e-8257-cc1499b003bc",
+        "id": "78954e05-fa2c-4ad5-b371-7b66a2239d26",
         "order": 80,
         "name": "Монтаж",
         "unit": "м.п.",
@@ -2482,13 +2546,13 @@
       "subtotalWage": "2275000"
      },
      {
-      "id": "758a9248-5358-4976-a108-af1dac61f9e6",
+      "id": "09f97ffe-dfe9-491a-a462-9afd5351a3b7",
       "name": "Откосы",
       "level": 2,
       "sourceRow": 109,
       "items": [
        {
-        "id": "dc42cc9b-50b9-409d-a1a9-aceae2a5f59d",
+        "id": "c76fd121-fe63-4a8e-bd17-949a639d74e6",
         "order": 81,
         "name": "Грунтование (2 слоя)",
         "unit": "м.п.",
@@ -2502,7 +2566,7 @@
         "profitShare": 5833
        },
        {
-        "id": "d9977398-f508-425f-b7f9-bf36d2e5cce4",
+        "id": "093bab19-2259-4b13-a4e5-3590743b5148",
         "order": 82,
         "name": "Шпаклевание откосов (3 слоя)",
         "unit": "м.п.",
@@ -2516,7 +2580,7 @@
         "profitShare": 4000
        },
        {
-        "id": "e6b73b02-1dc8-48a7-87ea-e034022629d5",
+        "id": "34b0b87a-26f0-4f21-a01f-46c31633f9de",
         "order": 83,
         "name": "Наклейка стеклохолста",
         "unit": "м.п.",
@@ -2530,7 +2594,7 @@
         "profitShare": 5833
        },
        {
-        "id": "11c10aba-59bb-4ecb-831a-7ffe7fc2e357",
+        "id": "0820420e-089c-4183-872f-d291a90dc82e",
         "order": 84,
         "name": "Зачистка (3 раза)",
         "unit": "м.п.",
@@ -2544,7 +2608,7 @@
         "profitShare": 3333
        },
        {
-        "id": "2185c663-342c-429e-9f47-a9cc09428be5",
+        "id": "556ba971-65ad-4fe6-97ff-6415e202c77a",
         "order": 85,
         "name": "Загермечивание примыкания откоса с окном",
         "unit": "м.п.",
@@ -2558,7 +2622,7 @@
         "profitShare": 5000
        },
        {
-        "id": "5ce81079-7fbe-40ac-a574-95d62314adf8",
+        "id": "3797db68-87eb-47ab-88ed-23dcb1786b17",
         "order": 86,
         "name": "Покраска простой не фактурной краской (стандарт) - валиком ( 2 слоя)",
         "unit": "м.п.",
@@ -2577,13 +2641,13 @@
       "subtotalWage": "6641900"
      },
      {
-      "id": "912b1ab8-ad0f-47b4-9fd8-14f51b20e82f",
+      "id": "23dab66a-0909-4402-9ad8-70d4713ab9c1",
       "name": "Пол 1 этаж",
       "level": 2,
       "sourceRow": 117,
       "items": [
        {
-        "id": "e6143d76-3343-4084-9486-3c49a5aeb07a",
+        "id": "11be724b-4321-4c96-9194-518a861a6b73",
         "order": 87,
         "name": "Обеспыливание и грунтование пола",
         "unit": "м²",
@@ -2597,7 +2661,7 @@
         "profitShare": 7500
        },
        {
-        "id": "036ebf0e-c967-4160-b047-d73239b1a2da",
+        "id": "71a8400d-bb56-4ca2-8601-f8cd388ba951",
         "order": 88,
         "name": "Облицовка пола плиткой (600*600мм)",
         "unit": "м²",
@@ -2611,7 +2675,7 @@
         "profitShare": 3571
        },
        {
-        "id": "ceedf19b-bba0-4e2d-a9fb-145368b2f9f3",
+        "id": "382d5ac4-2d23-4056-8a97-fa0974207dfa",
         "order": 89,
         "name": "Затирка швов цементная",
         "unit": "м.п.",
@@ -2625,7 +2689,7 @@
         "profitShare": 3333
        },
        {
-        "id": "77679abe-bc57-466d-9636-6f4f640a5c75",
+        "id": "91f134a2-b959-4655-ab81-8b15873719b0",
         "order": 90,
         "name": "Подрезка керамогранита (сторона)",
         "unit": "м.п.",
@@ -2639,7 +2703,7 @@
         "profitShare": 10000
        },
        {
-        "id": "06459f92-c19b-437e-9603-8727f3356c47",
+        "id": "a2610306-79f9-458b-a4f2-9317338c2c23",
         "order": 91,
         "name": "Защита напольного покрытия гофрокартоном",
         "unit": "м²",
@@ -2653,7 +2717,7 @@
         "profitShare": 5000
        },
        {
-        "id": "83c640b7-f4be-4413-90b7-525521010b18",
+        "id": "4b5ab347-8725-4f0a-8da6-d58be677cb63",
         "order": 92,
         "name": "Монтаж подложки",
         "unit": "м²",
@@ -2667,7 +2731,7 @@
         "profitShare": 3333
        },
        {
-        "id": "bb15febc-7532-4b83-9ee6-2e333223f321",
+        "id": "f3c80bef-d0f3-41d4-b4f1-ac1ea0250535",
         "order": 93,
         "name": "Настил ламината на подложку (от вида укладки цена может меняться)",
         "unit": "м²",
@@ -2681,7 +2745,7 @@
         "profitShare": 4444
        },
        {
-        "id": "98aad504-bc71-40d6-89aa-c039784591f3",
+        "id": "45351998-9b77-45fd-a47f-ffd62d0916e9",
         "order": 94,
         "name": "Чистовой рез ламината",
         "unit": "м.п.",
@@ -2700,13 +2764,13 @@
       "subtotalWage": "12442000"
      },
      {
-      "id": "bfc81dc4-4375-4d69-b70d-b55d09103c44",
+      "id": "32465d9d-a2c1-41e1-9993-8c26bc0fa8ef",
       "name": "Натяжные потолки( по факту)",
       "level": 2,
       "sourceRow": 127,
       "items": [
        {
-        "id": "51d483f4-33fc-4f5d-bdbc-e98c8c481491",
+        "id": "7eb7e21f-9448-4bfb-8185-4901ee26fc09",
         "order": 95,
         "name": "Полотно и натяжка",
         "unit": "м²",
@@ -2720,7 +2784,7 @@
         "profitShare": 3590
        },
        {
-        "id": "5e4e405a-583a-4d18-a922-f176471374ca",
+        "id": "e9ef933e-bcf9-4c7d-ac43-51041880447d",
         "order": 96,
         "name": "Теневой профиль (Еврокраб)",
         "unit": "м.п.",
@@ -2734,7 +2798,7 @@
         "profitShare": 571
        },
        {
-        "id": "de2c5ad0-d9e8-4922-b1cd-1a7617315e7c",
+        "id": "d4271db0-07fd-4439-960c-553f36242b7c",
         "order": 97,
         "name": "Запил под 45 градусов",
         "unit": "шт",
@@ -2748,7 +2812,7 @@
         "profitShare": 0
        },
        {
-        "id": "d5796ad0-7987-424c-8ead-807dfe2cb55a",
+        "id": "338d7e96-a073-4ea7-bb7c-c149e51243f8",
         "order": 98,
         "name": "Стандартный профиль",
         "unit": "м.п.",
@@ -2762,7 +2826,7 @@
         "profitShare": 1111
        },
        {
-        "id": "8e4b9aaa-13fb-4c50-b7b9-c4e3f11a2838",
+        "id": "655f5f8b-0bdc-4270-bee0-183a5b9f6092",
         "order": 99,
         "name": "Вставка",
         "unit": "м.п.",
@@ -2776,7 +2840,7 @@
         "profitShare": 833
        },
        {
-        "id": "a024f72a-53a2-49da-9cf7-73b09594502a",
+        "id": "fae508b9-4e2c-4bf6-b3e3-8bd24e4308d3",
         "order": 100,
         "name": "Закладная под люстру",
         "unit": "шт",
@@ -2790,7 +2854,7 @@
         "profitShare": 625
        },
        {
-        "id": "c98eeae5-6fba-47bd-adb8-6d375e941cd5",
+        "id": "93512295-ac53-4acf-b1ca-95579b318829",
         "order": 101,
         "name": "Скрытая ниша (ПК - 14)",
         "unit": "м.п.",
@@ -2804,7 +2868,7 @@
         "profitShare": 3714
        },
        {
-        "id": "3c89cf5a-c53d-4b41-89c1-34b60bdf152f",
+        "id": "90d35357-7a0c-4856-861d-08de61e5a133",
         "order": 102,
         "name": "Устаонвка светодиодной ленты",
         "unit": "м.п.",
@@ -2818,7 +2882,7 @@
         "profitShare": 6667
        },
        {
-        "id": "b28daff6-9766-4a7d-8860-ec2eb8af58d1",
+        "id": "d4d91d61-88ba-4e1d-b582-c0c45e0299eb",
         "order": 103,
         "name": "Установка блока питания",
         "unit": "шт",
@@ -2832,7 +2896,7 @@
         "profitShare": 5000
        },
        {
-        "id": "65203309-ffcd-4b3f-b605-0e5f49f6163d",
+        "id": "cbdb1976-5e95-4275-9fee-ba24bfbd9ba8",
         "order": 104,
         "name": "Световые линии",
         "unit": "м.п.",
@@ -2846,7 +2910,7 @@
         "profitShare": 357
        },
        {
-        "id": "53a9a060-25be-4475-8cbe-7a016fa53918",
+        "id": "7287fc86-246c-4fca-aeb4-fdd16dd7f65a",
         "order": 105,
         "name": "Установка светодиодной ленты",
         "unit": "м.п.",
@@ -2860,7 +2924,7 @@
         "profitShare": 10000
        },
        {
-        "id": "879153dc-bccd-4c29-afce-a5ec34414b37",
+        "id": "e57f68fc-a181-45a7-ab17-d1b6baec9463",
         "order": 106,
         "name": "Софты",
         "unit": "шт",
@@ -2874,7 +2938,7 @@
         "profitShare": 769
        },
        {
-        "id": "87d325b6-cdce-4748-b237-ae1169ea4d40",
+        "id": "fb2c9c18-6508-4746-83df-a85fad515d19",
         "order": 107,
         "name": "Доп углы",
         "unit": "м.п.",
@@ -2888,7 +2952,7 @@
         "profitShare": 10000
        },
        {
-        "id": "49e533f1-69a4-42c7-ad2b-ebde3d511962",
+        "id": "3a0b9c48-26b3-48b0-9380-82d9d39cf628",
         "order": 108,
         "name": "Магнитные треки",
         "unit": "м.п.",
@@ -2902,7 +2966,7 @@
         "profitShare": 1250
        },
        {
-        "id": "38852fb5-ee36-4228-9739-d28a17438d56",
+        "id": "1e38267e-5ee4-4c85-bedd-60811f2f5d50",
         "order": 109,
         "name": "Запил магнитный линий",
         "unit": "шт",
@@ -2916,7 +2980,7 @@
         "profitShare": 0
        },
        {
-        "id": "135ecc71-9047-487b-92b0-872da2659b4b",
+        "id": "8587b450-d80d-4517-89e3-fb105de54f14",
         "order": 110,
         "name": "Торец магнитной линии",
         "unit": "шт",
@@ -2930,7 +2994,7 @@
         "profitShare": 769
        },
        {
-        "id": "bdf4d86a-a6d6-4213-a898-a543f52b08aa",
+        "id": "e405a674-2daa-4c5a-bd9a-d5577419d806",
         "order": 111,
         "name": "Проход по керамограниту",
         "unit": "м.п.",
@@ -2944,7 +3008,7 @@
         "profitShare": 526
        },
        {
-        "id": "632c8736-ef4e-4369-824f-5a0e1b1b486e",
+        "id": "8a3ade11-f901-402a-ad4a-1e5cf264b4d3",
         "order": 112,
         "name": "Разделитель",
         "unit": "м.п.",
@@ -2967,13 +3031,13 @@
     "subtotalWage": "96798610"
    },
    {
-    "id": "16f7fc91-d43a-4609-a248-3092d609cfc0",
+    "id": "4ca5a361-20e0-4804-bbec-68e4818a34c9",
     "name": "ЧИСТОВОЙ ЭЛЕКТРОМОНТАЖ ( По факту)",
     "level": 1,
     "sourceRow": 147,
     "items": [
      {
-      "id": "a2cf61e1-ffbf-4a0d-8635-472dc087f063",
+      "id": "41f4a6b8-7aad-49ca-a60f-0ff263d4f8e0",
       "order": 113,
       "name": "Установка разеток, выключателей. (чистовое)",
       "unit": "шт",
@@ -2992,13 +3056,13 @@
     "subtotalWage": "3100000"
    },
    {
-    "id": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+    "id": "febf85b7-b46e-48af-86bf-2e2eb8012112",
     "name": "МОНТАЖНЫЕ РАБОТЫ",
     "level": 1,
     "sourceRow": 150,
     "items": [
      {
-      "id": "60d7887e-963c-4fc9-8783-011d7651d9de",
+      "id": "2ed08659-1310-4756-9f71-136b9db4480d",
       "order": 114,
       "name": "Монтаж полотенцесушителя ( стандарт), 4 точки крепежа",
       "unit": "шт",
@@ -3012,7 +3076,7 @@
       "profitShare": 8222
      },
      {
-      "id": "0aca5a64-be42-4c05-9a5b-1723f8dd12a9",
+      "id": "50f02e05-55b1-4381-a229-4bbe673c4131",
       "order": 115,
       "name": "Подключение сифона (стандарт)",
       "unit": "шт",
@@ -3026,7 +3090,7 @@
       "profitShare": 0
      },
      {
-      "id": "f9648933-8f3e-47f0-a37b-96b7f0b7bafc",
+      "id": "f10b6597-d361-49c4-b8f9-408f20e01eb4",
       "order": 116,
       "name": "Монтаж шкафа-зеркала (с подсветкой)",
       "unit": "шт",
@@ -3040,7 +3104,7 @@
       "profitShare": 0
      },
      {
-      "id": "db87d564-b124-40e0-8357-dafde40a55a5",
+      "id": "5e7ed100-7d8f-4f87-a8ec-5dc3dfbb9a6d",
       "order": 117,
       "name": "Установка смесителей",
       "unit": "шт",
@@ -3054,7 +3118,7 @@
       "profitShare": 0
      },
      {
-      "id": "de542fe7-cb13-4689-b3d2-2175edd87bd2",
+      "id": "355a0654-3fe3-4fa6-8a2d-4ac1f35252a9",
       "order": 118,
       "name": "Установка смесителя с лейкой (стандартный)",
       "unit": "шт",
@@ -3068,7 +3132,7 @@
       "profitShare": 0
      },
      {
-      "id": "1de9d3d6-375a-4355-b018-964f9a553fc4",
+      "id": "73897afc-b59e-419c-847c-8a1268adfdc1",
       "order": 119,
       "name": "Установка душевой штанги",
       "unit": "шт",
@@ -3082,7 +3146,7 @@
       "profitShare": 0
      },
      {
-      "id": "3f91b7b6-d01e-4a4b-a302-9ed7a4d3f73d",
+      "id": "7d155e9f-36e0-4c5b-a3bc-e0d685d9515b",
       "order": 120,
       "name": "Монтаж ванны (стандартная форма) (по факту)",
       "unit": "шт",
@@ -3096,7 +3160,7 @@
       "profitShare": 3333
      },
      {
-      "id": "d64bf599-ca05-4163-9c80-85b569477814",
+      "id": "dcd90318-a363-4fab-a00b-41caafd17bce",
       "order": 121,
       "name": "Монтаж навесного унитаза (стоимость от вида крепежа) (по факту)",
       "unit": "шт",
@@ -3110,7 +3174,7 @@
       "profitShare": 3333
      },
      {
-      "id": "4386d4ce-6812-48cb-a3c2-9f9805fbc627",
+      "id": "b3fc7f63-1667-457d-98b0-c14d6443d75d",
       "order": 122,
       "name": "Монтаж кнопки инсталляции",
       "unit": "шт",
@@ -3124,7 +3188,7 @@
       "profitShare": 2857
      },
      {
-      "id": "11eb8886-3a55-48b7-a100-9dc0a5652f44",
+      "id": "88a0fedd-fca2-4666-8346-2382bd33d73d",
       "order": 123,
       "name": "Монтаж дверей ( стандарт)",
       "unit": "шт",
@@ -3138,7 +3202,7 @@
       "profitShare": 2500
      },
      {
-      "id": "aa3328a2-9960-4af6-bd2f-ee5c8468dfe5",
+      "id": "4837278e-7b74-4b1b-8ce7-1d724825550d",
       "order": 124,
       "name": "Монтаж двойной двери",
       "unit": "шт",
@@ -3152,7 +3216,7 @@
       "profitShare": 10000
      },
      {
-      "id": "0ee86199-d2cb-4aed-aa30-3b6e06f671fa",
+      "id": "71d55aff-276f-4856-a139-ed3f58715c4b",
       "order": 125,
       "name": "Монтаж Откотной двери",
       "unit": "шт",
@@ -3166,7 +3230,7 @@
       "profitShare": 10000
      },
      {
-      "id": "b163b647-e296-4c38-bec2-7cc504ef6f4c",
+      "id": "f0c1068f-efc0-4fe3-805c-7b21cf63b207",
       "order": 126,
       "name": "Монтаж/Демонтаж радиаторов (стандарт)",
       "unit": "шт",
@@ -3185,20 +3249,20 @@
     "subtotalWage": "5510000"
    },
    {
-    "id": "61e977eb-d160-43ba-acda-39b20dc3444d",
+    "id": "1f8c6868-080a-4cd2-a4df-bcdcee73b80a",
     "name": "КОНДИЦИОНИРОВАНИЕ (ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 165,
     "items": [],
     "children": [
      {
-      "id": "b0ed2e5c-cad5-43ac-954a-81fedd7d283b",
+      "id": "809cb2d5-c580-440d-a15d-571f09566d15",
       "name": "Черной монтаж",
       "level": 2,
       "sourceRow": 166,
       "items": [
        {
-        "id": "807e1151-8225-479f-b86a-c0cbb70ed80c",
+        "id": "1ccd8cba-b509-4208-8b9c-e161d68d1178",
         "order": 127,
         "name": "Сквозное отверстие Ф52мм",
         "unit": "шт",
@@ -3212,7 +3276,7 @@
         "profitShare": 8387
        },
        {
-        "id": "bda75351-60a9-4fd4-99a8-b08761e8eef1",
+        "id": "88132934-63b0-4410-9339-6352b86da2d0",
         "order": 128,
         "name": "Штробление стен в Бетон (до 5*5см)",
         "unit": "м.п.",
@@ -3226,7 +3290,7 @@
         "profitShare": 9514
        },
        {
-        "id": "5b2a4309-5267-47e0-83ac-c40e50e7c6e8",
+        "id": "75cbdc69-c0b1-45f7-821e-6aa5606c5030",
         "order": 129,
         "name": "Кранштены",
         "unit": "шт",
@@ -3240,7 +3304,7 @@
         "profitShare": 2000
        },
        {
-        "id": "13df256d-61f0-43f0-a113-18c545f0db8a",
+        "id": "f968a591-8160-4a3f-993f-48457a17893d",
         "order": 130,
         "name": "Магистраль состоящая из медных труб, трубки конденсата, утеплителя медных труб, провода ВВГнГ 4*1,5 (цена от, обсуждение по факту)",
         "unit": "м.п.",
@@ -3259,13 +3323,13 @@
       "subtotalWage": "2416000"
      },
      {
-      "id": "84444de7-f42f-421f-ac5e-071f8e5a5675",
+      "id": "b308f459-d9a0-46c1-85c5-223c3d601df0",
       "name": "Чистовой монтаж",
       "level": 2,
       "sourceRow": 172,
       "items": [
        {
-        "id": "8598edb0-067f-43d7-a6b0-023a07ff87f4",
+        "id": "23bfa8d2-a07e-430d-8941-fdadc4faf790",
         "order": 131,
         "name": "Монтаж и подключение внутреннего блока (цена от, обсуждение по факту)",
         "unit": "шт",
@@ -3279,7 +3343,7 @@
         "profitShare": 2308
        },
        {
-        "id": "a040ca3a-d439-4cfe-a566-634a5e14f0aa",
+        "id": "ea6670b3-56cd-4cd6-97d1-69eab9130b2a",
         "order": 132,
         "name": "Монтаж и подключение наружного блока (цена от, обсуждение по факту)",
         "unit": "шт",
@@ -3302,7 +3366,7 @@
     "subtotalWage": "4516000"
    },
    {
-    "id": "3f13a2ce-b31f-4b5c-bef6-0c09f7416a33",
+    "id": "d88032ff-f8c7-4536-9ecb-6f3573525d0e",
     "name": "ДОПОЛНИТЕЛЬНЫЕ РАСХОДЫ ( ВХОДЕ РАБОТЫ)",
     "level": 1,
     "sourceRow": 177,
@@ -3314,49 +3378,49 @@
   ],
   "otherExpenses": [
    {
-    "id": "75855261-6e24-4aef-84c6-29ac8dce60e1",
+    "id": "1fe380fd-4f34-4bed-a544-a27545d1f921",
     "name": "Доставка материала (по городу) (газель, до 1,5 тонны)",
     "unit": "рейс",
     "unitPrice": "350000",
     "order": 1
    },
    {
-    "id": "27376f4a-c34f-41ab-b895-cf495e66f1bf",
+    "id": "12a07f61-d9f0-47c6-9ad0-92f3d14bf9a0",
     "name": "Доставка материала (по городу) (легковой транспорт)",
     "unit": "рейс",
     "unitPrice": "100000",
     "order": 2
    },
    {
-    "id": "e428b4d8-4c1c-4e5d-9b31-f96c6ed0fb72",
+    "id": "d6e9820c-2be2-410c-b169-47031165aecf",
     "name": "Вывоз мусора (по факту) Камаз ( по городу)",
     "unit": "рейс",
     "unitPrice": "1200000",
     "order": 3
    },
    {
-    "id": "665be409-5213-4940-ae9c-363c7b03a427",
+    "id": "eb855919-6b2a-4298-9cf4-ad4872e837c7",
     "name": "Вывоз мусора (по факту) газель до 1,5 тонны ( по городу)",
     "unit": "рейс",
     "unitPrice": "650000",
     "order": 4
    },
    {
-    "id": "1786b05e-4252-419a-8ba4-e73f93e9c3c2",
+    "id": "d46671c7-5f38-42c8-83bc-5fc658d53fd5",
     "name": "Подсобные работы (подъем материала, подготовка объекта) по факту",
     "unit": "ч/ч",
     "unitPrice": "70000",
     "order": 5
    },
    {
-    "id": "988a696e-4c13-4635-b177-e50d2a47ad1b",
+    "id": "9c8d9bd3-0a02-485e-93ee-2f774f0fb9f8",
     "name": "Подъем материала (без лифта) по факту",
     "unit": "этаж",
     "unitPrice": "30000",
     "order": 6
    },
    {
-    "id": "9786204e-cfbe-4973-8965-be55922c2fe7",
+    "id": "0f1d6fe7-dffb-4996-a111-0e7631cccc23",
     "name": "Укрывные работы (оклейка окон, дверей, примыканий) по факту",
     "unit": "ч/ч",
     "unitPrice": "70000",
@@ -3376,19 +3440,19 @@
  },
  "estimate-foreman": {
   "version": 1,
-  "importedAt": "2026-09-09T17:36:56.562Z",
+  "importedAt": "2026-09-09T18:43:53.513Z",
   "positions": 132,
   "sectionsTopLevel": 11,
   "sectionsNested": 11,
   "sections": [
    {
-    "id": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "name": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "level": 1,
     "sourceRow": 5,
     "items": [
      {
-      "id": "3428452c-96f3-4116-aa39-dbaa6393ac30",
+      "id": "07241d3d-9166-4b56-a9ce-3932c42ed734",
       "order": 1,
       "name": "Окрывные работы",
       "unit": "шт",
@@ -3398,7 +3462,7 @@
       "total": "2000000"
      },
      {
-      "id": "7d6fc99b-4d2a-4e1c-b2de-753996ee1113",
+      "id": "d552e32c-84fe-46b8-b33a-6e10c0d7f888",
       "order": 2,
       "name": "Полусухая стяжка",
       "unit": "м²",
@@ -3408,7 +3472,7 @@
       "total": "12020000"
      },
      {
-      "id": "694d3758-6b67-4490-9f55-f6d7db0a2ce2",
+      "id": "93d9d33d-a454-469a-a803-67458dc0127e",
       "order": 3,
       "name": "Штукатурка стен по маякам (до 2,5 см)",
       "unit": "м²",
@@ -3418,7 +3482,7 @@
       "total": "36621900"
      },
      {
-      "id": "211ef367-8bb4-4a9e-b215-250693f00a99",
+      "id": "4d4a599e-914f-43b4-a32d-1d3f179e9853",
       "order": 4,
       "name": "Установка перфорированного уголка и планки примыкания к окну (окна, двери, стены)",
       "unit": "м.п.",
@@ -3428,7 +3492,7 @@
       "total": "976750"
      },
      {
-      "id": "68167f8c-4902-4817-b0b9-0b3d3abd4aca",
+      "id": "a8c82a3b-c824-44f2-858b-8e73175cee23",
       "order": 5,
       "name": "Грунтование стен ( перед штукутуркой)",
       "unit": "м²",
@@ -3438,7 +3502,7 @@
       "total": "4882920"
      },
      {
-      "id": "a5ec61c9-af91-4773-af57-a21cb8dbe006",
+      "id": "507371d2-21e5-4c77-8e05-790af1807e9f",
       "order": 6,
       "name": "Стык плитки ламината без порога",
       "unit": "шт",
@@ -3448,7 +3512,7 @@
       "total": "100000"
      },
      {
-      "id": "647cd89d-67a7-4cfd-8ac3-d9f7ec8213a9",
+      "id": "a2718cd9-252a-4929-8554-8fb3c77e723b",
       "order": 7,
       "name": "Фартук на кухню",
       "unit": "м²",
@@ -3458,7 +3522,7 @@
       "total": "924000"
      },
      {
-      "id": "c65fd724-6223-4102-b8fb-53d373de0960",
+      "id": "6ed13135-4ddd-4286-aef5-6897978cf83f",
       "order": 8,
       "name": "Технические отверстия в плитке",
       "unit": "шт",
@@ -3468,7 +3532,7 @@
       "total": "455000"
      },
      {
-      "id": "94c2d962-8301-4acb-babb-5379dfaa5dc8",
+      "id": "b83634e7-3d22-4647-ae3e-f267f6cb0045",
       "order": 9,
       "name": "Затирка цементная",
       "unit": "м²",
@@ -3482,13 +3546,13 @@
     "subtotal": "58079570"
    },
    {
-    "id": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+    "id": "133f3e76-ce71-480a-b017-10bdd2c256fc",
     "name": "ГИПСОКАРТОН, ВОЗВЕДЕНИЕ ПЕРЕГОРОДОК",
     "level": 1,
     "sourceRow": 16,
     "items": [
      {
-      "id": "79279e26-0cc8-4e6b-9ab4-e20452dfef22",
+      "id": "67880802-3cee-4913-862f-0e3479374d44",
       "order": 10,
       "name": "Возведение перегородок ( Керпич)",
       "unit": "шт",
@@ -3498,7 +3562,7 @@
       "total": "23890000"
      },
      {
-      "id": "f3185db8-1b8b-4739-828b-71224e294900",
+      "id": "f2b881ad-594d-463f-a455-86f8f31c5c09",
       "order": 11,
       "name": "Перемычка",
       "unit": "шт",
@@ -3508,7 +3572,7 @@
       "total": "1400000"
      },
      {
-      "id": "d0c27c9b-01a6-44e0-b1f9-772c7c344d9a",
+      "id": "ab78cb0c-c754-4619-a16e-cff0d30d9e53",
       "order": 12,
       "name": "Монтаж отверстий в ГКЛ (по факту)",
       "unit": "шт",
@@ -3518,7 +3582,7 @@
       "total": "300000"
      },
      {
-      "id": "2da39bd0-67f3-4590-a63f-8680033afdfe",
+      "id": "e24b078b-da7c-4f10-a500-43079505c65d",
       "order": 13,
       "name": "Монтаж ГКЛ стена",
       "unit": "м²",
@@ -3528,7 +3592,7 @@
       "total": "750400"
      },
      {
-      "id": "88cd0e65-b611-4396-a6ab-e005e8d94a12",
+      "id": "b2e053ae-16b8-40d7-9f4d-4c2768cc8ebb",
       "order": 14,
       "name": "Зашив инстоляций ГКЛ 2 (слоя)",
       "unit": "шт",
@@ -3542,13 +3606,13 @@
     "subtotal": "27740400"
    },
    {
-    "id": "1e46597f-700e-4172-a75f-8a44ea186800",
+    "id": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
     "name": "ЧЕРНОВОЙ ЭЛЕКТРОМОНТАЖ ( ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 23,
     "items": [
      {
-      "id": "6a317ccc-57c4-48f4-801e-f7608c2eaefa",
+      "id": "1996f1c2-6049-4342-b645-6cce51f711a0",
       "order": 15,
       "name": "Установка подрозетников",
       "unit": "шт",
@@ -3558,7 +3622,7 @@
       "total": "2356000"
      },
      {
-      "id": "d69dd0ea-040f-4151-9247-2c916d59234e",
+      "id": "ebf521f9-2f64-41c0-a047-4f44a660a7d5",
       "order": 16,
       "name": "Сверление отверстий под подрозетники (кирпич)",
       "unit": "шт",
@@ -3568,7 +3632,7 @@
       "total": "2925000"
      },
      {
-      "id": "8127fc89-a7ad-4547-ae4d-b44ca00feba9",
+      "id": "806da024-dcb7-45f6-a1b8-65787d3a848b",
       "order": 17,
       "name": "Сверление отверстий под подрозетники (Бетон)",
       "unit": "шт",
@@ -3578,7 +3642,7 @@
       "total": "3422000"
      },
      {
-      "id": "44f6a8e1-f39e-49ec-9cd4-3618aa1d5fee",
+      "id": "a59a39a5-6054-4bf8-ad3f-66f55c20c079",
       "order": 18,
       "name": "Укладка провода 3х1.5",
       "unit": "м.п.",
@@ -3588,7 +3652,7 @@
       "total": "5355000"
      },
      {
-      "id": "67acf61d-6df2-4c65-a1fc-c51d637a8993",
+      "id": "bbff1aca-992f-4857-b7ec-24eabb301932",
       "order": 19,
       "name": "Укладка провода 3х2.5",
       "unit": "м.п.",
@@ -3598,7 +3662,7 @@
       "total": "5831000"
      },
      {
-      "id": "049871e0-70bc-4b8f-b4aa-c0bd5188fa49",
+      "id": "75c1ab9b-dbff-49ca-8031-752ec2e20cda",
       "order": 20,
       "name": "Укладка провода в открытую (витая пара, антенна)",
       "unit": "м.п.",
@@ -3608,7 +3672,7 @@
       "total": "950000"
      },
      {
-      "id": "0ba18d10-15ba-4c01-97a1-55eb61b04190",
+      "id": "07deba5d-d958-452e-9358-04e88262aff3",
       "order": 21,
       "name": "Укладка кабеля 3*6",
       "unit": "м.п.",
@@ -3618,7 +3682,7 @@
       "total": "935000"
      },
      {
-      "id": "29b80596-c07f-4f6a-8310-04dedbf14d1d",
+      "id": "35e9e603-87a0-431e-a549-dc0391a83f0c",
       "order": 22,
       "name": "Установка эл.щита 3бМ",
       "unit": "шт",
@@ -3628,7 +3692,7 @@
       "total": "140000"
      },
      {
-      "id": "57c90925-d9c8-4411-9f91-97a40d03676a",
+      "id": "78ea705a-59c2-4c55-8e0d-0df37b0f86cb",
       "order": 23,
       "name": "Установка автомат выключателя 1 фазного",
       "unit": "шт",
@@ -3638,7 +3702,7 @@
       "total": "481000"
      },
      {
-      "id": "f0f1d5f4-c7d5-4147-bc26-ffb475a9d8a4",
+      "id": "77412a7c-7267-43d0-b017-ff3bbb3cbc66",
       "order": 24,
       "name": "Комантор ( мастер выключатель)",
       "unit": "шт",
@@ -3648,7 +3712,7 @@
       "total": "150000"
      },
      {
-      "id": "e3be8dd9-dfef-42cb-97ab-e29349ede1aa",
+      "id": "be90a0fa-56d9-45be-b8ef-56d0539292fe",
       "order": 25,
       "name": "Монтаж расключение шины",
       "unit": "шт",
@@ -3658,7 +3722,7 @@
       "total": "200000"
      },
      {
-      "id": "50816893-73db-40d7-80db-fb342f40c851",
+      "id": "0bfba8c2-1905-4524-9c10-86cbf4135bd8",
       "order": 26,
       "name": "Установка УЗО 2-полюсного",
       "unit": "шт",
@@ -3668,7 +3732,7 @@
       "total": "450000"
      },
      {
-      "id": "aad490ae-c78f-473a-b1b9-9d7c304575de",
+      "id": "67837cf2-c874-408a-8e4b-9515a64247a6",
       "order": 27,
       "name": "Установка контактора 220",
       "unit": "шт",
@@ -3678,7 +3742,7 @@
       "total": "80000"
      },
      {
-      "id": "a5719dcd-b58b-45d5-a752-72e02c78ead5",
+      "id": "e6363a8e-c6a0-4f30-86c5-f44582da0ec1",
       "order": 28,
       "name": "Установка счетчика э-э 1-фазного",
       "unit": "шт",
@@ -3688,7 +3752,7 @@
       "total": "130000"
      },
      {
-      "id": "597ee6ab-d1bc-4816-90fd-9c254be97b4b",
+      "id": "ee1b996b-30fd-46e1-aba4-ddb03503c56c",
       "order": 29,
       "name": "Демонтаж щетка квартирного",
       "unit": "шт",
@@ -3698,7 +3762,7 @@
       "total": "150000"
      },
      {
-      "id": "4ba35672-c520-4dc7-b3a7-daece0d86bd2",
+      "id": "3fc37b68-0a5d-42a5-9f34-d2d88cf8741f",
       "order": 30,
       "name": "Монтаж и распайка распределительных коробок",
       "unit": "шт",
@@ -3708,7 +3772,7 @@
       "total": "4550000"
      },
      {
-      "id": "91e6dfb5-046d-4dc2-a855-2dbab8fb2241",
+      "id": "34da2397-a728-4e6f-9849-271c5a857ce4",
       "order": 31,
       "name": "Монтаж временого света",
       "unit": "ед",
@@ -3718,7 +3782,7 @@
       "total": "200000"
      },
      {
-      "id": "1211d226-9c62-4c99-8052-3671c6b97cfd",
+      "id": "12098085-b53f-4876-b48d-e611bcb89c7c",
       "order": 32,
       "name": "Сверление сквозных отверстий в кирпичной стене д16L до 250 мм",
       "unit": "шт",
@@ -3728,7 +3792,7 @@
       "total": "1075000"
      },
      {
-      "id": "9ffee6fa-55aa-48a5-b41e-0501f8e81956",
+      "id": "9b468fcb-9670-4676-96a8-c2033ad27f3d",
       "order": 33,
       "name": "Монтаж временного разетки",
       "unit": "ед",
@@ -3742,13 +3806,13 @@
     "subtotal": "29500000"
    },
    {
-    "id": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+    "id": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
     "name": "САНТЕХНИКА И ОТОПЛЕНИЕ (ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 45,
     "items": [
      {
-      "id": "6693e409-c152-4a06-90bc-5977e836d1f9",
+      "id": "469fed9d-e662-4d8c-9e83-855ac2ffadfa",
       "order": 34,
       "name": "Прокладка труб ( с теплоизоляцией) и вывод точек водоснабжения",
       "unit": "точка",
@@ -3758,7 +3822,7 @@
       "total": "10800000"
      },
      {
-      "id": "627b12b1-b224-4ef6-a3ca-77cd39e48bf2",
+      "id": "d8a47b25-3fd5-47c6-b5c0-cf2f08c75eac",
       "order": 35,
       "name": "Прокладка труб и вывод точек канализации",
       "unit": "точка",
@@ -3768,7 +3832,7 @@
       "total": "2400000"
      },
      {
-      "id": "a97dbfc4-540c-4434-8b4f-abd162936e59",
+      "id": "10f01e60-69a6-4b2d-9c43-55e6f26e4650",
       "order": 36,
       "name": "Штробление стены под трубы водоснабжения (кирпич) по факту",
       "unit": "м.п.",
@@ -3778,7 +3842,7 @@
       "total": "2240000"
      },
      {
-      "id": "686c4f93-7cf4-4fd2-8e0e-a4db5780012f",
+      "id": "dfa5e171-6881-4f82-a19f-c2b8ea6aabd6",
       "order": 37,
       "name": "Установка отопительного прибора с переносом труб",
       "unit": "шт",
@@ -3788,7 +3852,7 @@
       "total": "3780000"
      },
      {
-      "id": "c4337d87-d9b3-4e6c-b98e-95580f58318c",
+      "id": "7b137507-067a-45d6-93ca-2af9bfd8c5f9",
       "order": 38,
       "name": "Перенос счетчиков водоснабжения",
       "unit": "шт",
@@ -3798,7 +3862,7 @@
       "total": "1400000"
      },
      {
-      "id": "66c95d9f-b73c-489d-848d-2bf0735122c8",
+      "id": "47dc5e4c-384c-4349-b490-2060ad312863",
       "order": 39,
       "name": "Установка монтаж аквастопа",
       "unit": "шт",
@@ -3808,7 +3872,7 @@
       "total": "568000"
      },
      {
-      "id": "0e1de243-12ee-4e4d-937b-9d2245e1ae54",
+      "id": "524a47e5-8912-4ba1-a928-d0a5d7a31f17",
       "order": 40,
       "name": "Монтаж отвода/тройника канализации",
       "unit": "шт",
@@ -3818,7 +3882,7 @@
       "total": "672000"
      },
      {
-      "id": "ff617434-4b2f-4556-ba7a-eec640ed0c69",
+      "id": "08eda9f9-f311-49e1-91fc-d536712786ac",
       "order": 41,
       "name": "Смена отвода/ тройника на стояке канализации",
       "unit": "шт",
@@ -3828,7 +3892,7 @@
       "total": "364000"
      },
      {
-      "id": "9ff9bd43-5573-4c1f-bfdb-da419ce22572",
+      "id": "94630fd0-2fe0-4253-92d8-52dd0cefe3ac",
       "order": 42,
       "name": "Монтаж гигиенического душа встроеного",
       "unit": "м.п.",
@@ -3838,7 +3902,7 @@
       "total": "504000"
      },
      {
-      "id": "37cef32a-7109-480c-9ce7-70caa0f44525",
+      "id": "ec5cb056-8a51-4e84-bde5-1e1041e1d618",
       "order": 43,
       "name": "Установка/ монтаж Инстоляции",
       "unit": "шт",
@@ -3852,20 +3916,20 @@
     "subtotal": "23728000"
    },
    {
-    "id": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+    "id": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
     "name": "ВАННАЯ/САН УЗЕЛ",
     "level": 1,
     "sourceRow": 57,
     "items": [],
     "children": [
      {
-      "id": "c34a338b-1b34-48a4-a93b-711b69c89657",
+      "id": "233d646f-a6d5-4a49-9a4f-d5ffc17db038",
       "name": "Мастер ванная",
       "level": 2,
       "sourceRow": 58,
       "items": [
        {
-        "id": "f8fec3c3-ceb2-43bf-bdf4-0eccb90c3269",
+        "id": "cd106dc5-0f88-4cdf-8e7c-0a25996efc47",
         "order": 44,
         "name": "Облицовка плиткой стен",
         "unit": "м²",
@@ -3875,7 +3939,7 @@
         "total": "7378000"
        },
        {
-        "id": "6dd726d8-c86d-41ce-87b1-6bdce7ecec88",
+        "id": "42894a8d-0a10-481c-97f1-7c6323219873",
         "order": 45,
         "name": "Технические отверстия в плитке",
         "unit": "шт",
@@ -3885,7 +3949,7 @@
         "total": "1170000"
        },
        {
-        "id": "7dad0fdb-278c-4aa8-b49e-14114f2e6759",
+        "id": "55d15233-792e-439c-a8b1-40fdb9127b05",
         "order": 46,
         "name": "Запил плитки под 45гр. (каждая сторона)",
         "unit": "м.п.",
@@ -3895,7 +3959,7 @@
         "total": "593880"
        },
        {
-        "id": "ccf0d6da-75d4-4e7d-b08f-b0fdfe54363e",
+        "id": "94ed4bc3-cf21-4ba2-be5c-c163302b7de9",
         "order": 47,
         "name": "Затирка цементная",
         "unit": "м.п.",
@@ -3905,7 +3969,7 @@
         "total": "790500"
        },
        {
-        "id": "95a87e6e-802f-4589-9e8a-3e7e1b7e1b30",
+        "id": "82661521-56bc-4fed-bd63-de8c42713f14",
         "order": 48,
         "name": "Просиликонивание примыканий",
         "unit": "м.п.",
@@ -3915,7 +3979,7 @@
         "total": "373500"
        },
        {
-        "id": "103701d4-85ec-4cd5-af48-1e12608d73d4",
+        "id": "599d670b-f159-4b98-b8c3-368d16cd6ac2",
         "order": 49,
         "name": "Чистый рез",
         "unit": "м.п.",
@@ -3925,7 +3989,7 @@
         "total": "1058400"
        },
        {
-        "id": "d9b7fec2-cfe3-4d5f-955d-774b65ee2d2a",
+        "id": "2dd94f47-5d90-42f4-aef4-bcb992600fb9",
         "order": 50,
         "name": "Установка ванной (экран облицованный плиткой) пеноблок",
         "unit": "шт",
@@ -3935,7 +3999,7 @@
         "total": "2500000"
        },
        {
-        "id": "ea68f22e-72f3-4832-887f-acb810c994f5",
+        "id": "0719af63-787b-4bbf-b0c5-9220ede001e7",
         "order": 51,
         "name": "Грунтовка",
         "unit": "м²",
@@ -3945,7 +4009,7 @@
         "total": "316800"
        },
        {
-        "id": "e518e932-a2bc-47da-84c1-3384b0fa1493",
+        "id": "aec83931-e370-4cb6-ba46-b80085678362",
         "order": 52,
         "name": "Монтаж скрытого люка",
         "unit": "шт",
@@ -3959,13 +4023,13 @@
       "subtotal": "14681080"
      },
      {
-      "id": "a0b88b44-2ebc-457e-86d4-84647297ceaa",
+      "id": "b3031a47-c352-4c72-ad50-9600da94bba4",
       "name": "Ванная",
       "level": 2,
       "sourceRow": 69,
       "items": [
        {
-        "id": "824ea335-0841-4a8e-bba3-623494876b4d",
+        "id": "df52cd64-f380-4f7f-9963-085b59d18103",
         "order": 53,
         "name": "Облицовка плиткой ( 600х1200)",
         "unit": "м²",
@@ -3975,7 +4039,7 @@
         "total": "12264000"
        },
        {
-        "id": "852ebae2-e31b-4751-84b7-3d52c221dbe4",
+        "id": "ead6e9ff-46b3-4ed1-a90a-f601aad3c0c2",
         "order": 54,
         "name": "Затирка цементная",
         "unit": "м²",
@@ -3985,7 +4049,7 @@
         "total": "1314000"
        },
        {
-        "id": "a2154817-a26d-4128-885f-fddd2499582c",
+        "id": "5c977709-ae24-488c-98bf-44ca0d062dba",
         "order": 55,
         "name": "Чистый рез",
         "unit": "м.п.",
@@ -3995,7 +4059,7 @@
         "total": "1601600"
        },
        {
-        "id": "6ce2ad0e-cc74-44a8-8c77-1e32037ce043",
+        "id": "0f7f3a7e-7848-4c63-9af5-39fd13dee28a",
         "order": 56,
         "name": "Запил плитки под 45гр. (каждая сторона)",
         "unit": "м.п.",
@@ -4005,7 +4069,7 @@
         "total": "897120"
        },
        {
-        "id": "45f87435-66ef-4b61-b13e-2d70bab28a7d",
+        "id": "48763571-8d45-4ab4-95b2-3fc6c7e25c00",
         "order": 57,
         "name": "Технические отверстия в плитке",
         "unit": "шт",
@@ -4015,7 +4079,7 @@
         "total": "1430000"
        },
        {
-        "id": "3b321bae-35df-454f-877f-a4bee646b7a2",
+        "id": "aa60a7f6-4e1d-45a1-9cbe-29c560037dce",
         "order": 58,
         "name": "Установка ванной (экран облицованный плиткой) пеноблок",
         "unit": "шт",
@@ -4025,7 +4089,7 @@
         "total": "2500000"
        },
        {
-        "id": "32197a44-a8e2-4eb0-8da4-6d02d51c42da",
+        "id": "30b7dbbc-98d2-407b-8df3-796458b4eb86",
         "order": 59,
         "name": "Грунтовка",
         "unit": "м²",
@@ -4035,7 +4099,7 @@
         "total": "1226400"
        },
        {
-        "id": "5b18c56a-ac6b-415f-82b8-4bb3c79e2c0c",
+        "id": "022e86b6-3bd7-44a2-938e-f094e62995f3",
         "order": 60,
         "name": "Просиликонивание примыканий (по факту)",
         "unit": "м.п.",
@@ -4045,7 +4109,7 @@
         "total": "192000"
        },
        {
-        "id": "f99ad500-ad0f-4701-80e8-607cf1bbe29f",
+        "id": "79b527f1-9d8c-43a3-8e0e-fca855166579",
         "order": 61,
         "name": "Монтаж скрытого люка",
         "unit": "шт",
@@ -4062,20 +4126,20 @@
     "subtotal": "36606200"
    },
    {
-    "id": "b47733dd-142c-408d-b777-1f1b3d812170",
+    "id": "683dae95-138c-4625-9210-6b8a222e5231",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОКРАСКУ)",
     "level": 1,
     "sourceRow": 80,
     "items": [],
     "children": [
      {
-      "id": "37ae94b5-d5dd-4626-970b-0fd57293b36c",
+      "id": "900a1d61-76e0-4eae-962c-c73bc72091e1",
       "name": "Сан узел 1 этаж ( малярные работы)",
       "level": 2,
       "sourceRow": 81,
       "items": [
        {
-        "id": "7ed7ecf7-ff82-4fc1-9c94-44e4f2e70e8b",
+        "id": "bcfc9cb9-d9d1-402d-9e26-e765141c16bd",
         "order": 62,
         "name": "Штукатурка",
         "unit": "м²",
@@ -4085,7 +4149,7 @@
         "total": "751800"
        },
        {
-        "id": "d7f2bfda-938a-46e2-99d3-c54533d2cc94",
+        "id": "b5f82292-207a-487f-a924-336d3631bf23",
         "order": 63,
         "name": "Шпаклевка ( 3 слоя)",
         "unit": "м²",
@@ -4095,7 +4159,7 @@
         "total": "671250"
        },
        {
-        "id": "7c62240f-3d82-4e0f-a5a7-5de26c51a107",
+        "id": "cda5fe4f-97be-42c0-9e49-97ed739e4956",
         "order": 64,
         "name": "Грунтовка ( 2 раза)",
         "unit": "м.п.",
@@ -4105,7 +4169,7 @@
         "total": "447500"
        },
        {
-        "id": "8704fbfe-f3d3-4fca-95cb-7630fbe5d71f",
+        "id": "4f3935f3-7447-47ea-bb19-fd8a3ca61236",
         "order": 65,
         "name": "Шкурка ( 2 раза)",
         "unit": "м.п.",
@@ -4115,7 +4179,7 @@
         "total": "447500"
        },
        {
-        "id": "77a623de-f1c4-4466-b7c1-be7f94be8e38",
+        "id": "d03b8f25-cda9-4bc7-b81f-717e87dc0bfa",
         "order": 66,
         "name": "Стеклохолст",
         "unit": "м²",
@@ -4129,13 +4193,13 @@
       "subtotal": "2768050"
      },
      {
-      "id": "41bdbbf4-48ff-4d6e-b376-e4cc39275328",
+      "id": "68ebc0cf-8749-47e5-b28c-605ce08713fd",
       "name": "Сан узел 2 этаж (детский и супружеский)",
       "level": 2,
       "sourceRow": 88,
       "items": [
        {
-        "id": "5cde8400-f804-45ee-aa9f-e2a85d0505e6",
+        "id": "73171e61-8ef0-42d4-aae1-672bfd56b185",
         "order": 67,
         "name": "Штукатурка",
         "unit": "м²",
@@ -4145,7 +4209,7 @@
         "total": "4667040"
        },
        {
-        "id": "74d20683-6611-4a3e-b0cf-cbf67b7e0f40",
+        "id": "d3678903-573a-4909-9504-79a12a6ebaf6",
         "order": 68,
         "name": "Шпаклевка ( 3 слоя)",
         "unit": "м²",
@@ -4155,7 +4219,7 @@
         "total": "4167000"
        },
        {
-        "id": "0e9954ff-899a-4a69-a915-2d94682a6b04",
+        "id": "da8835d5-f7b1-420e-86c4-1235b9cb2e98",
         "order": 69,
         "name": "Грунтовка ( 2 раза)",
         "unit": "м²",
@@ -4165,7 +4229,7 @@
         "total": "2778000"
        },
        {
-        "id": "493bec5c-452a-41cb-b67a-761e68ffb7b0",
+        "id": "ba24b209-cb1f-47cb-87b5-4a39ecc062ae",
         "order": 70,
         "name": "Шкурка ( 2 раза)",
         "unit": "м²",
@@ -4175,7 +4239,7 @@
         "total": "2778000"
        },
        {
-        "id": "7c06623c-2741-45f1-af58-3404c513d48c",
+        "id": "5f3a8a79-9efd-48a5-b3ff-29b876eb0725",
         "order": 71,
         "name": "откосы",
         "unit": "м²",
@@ -4185,7 +4249,7 @@
         "total": "4662000"
        },
        {
-        "id": "ac14ba27-3006-4614-a49e-0800ac667e87",
+        "id": "8d3b6e76-09fe-42da-9cee-e04672a5cd8f",
         "order": 72,
         "name": "Перфорированый уголок",
         "unit": "м.п.",
@@ -4195,7 +4259,7 @@
         "total": "210600"
        },
        {
-        "id": "1af12d83-549a-476b-b48d-2f5579a4f9bd",
+        "id": "1f01096d-c988-40e6-9d0a-b414ee6eeec8",
         "order": 73,
         "name": "Бумажный уголок",
         "unit": "м.п.",
@@ -4205,7 +4269,7 @@
         "total": "210600"
        },
        {
-        "id": "8e32d30f-10b1-417a-afcd-d7d02b2d44b6",
+        "id": "be21fa30-b17e-439f-9b46-7bb7eda1ac82",
         "order": 74,
         "name": "Стеклохолст",
         "unit": "м²",
@@ -4222,20 +4286,20 @@
     "subtotal": "25021290"
    },
    {
-    "id": "230af879-026b-4b71-9b05-5c33de91eeed",
+    "id": "70cc14fe-fea6-42c1-b2d8-ae5067d994be",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОБОИ)",
     "level": 1,
     "sourceRow": 98,
     "items": [],
     "children": [
      {
-      "id": "ee07fc2b-22a0-4733-afed-416184ad86d9",
+      "id": "9dc0e2ab-424a-4740-9ef3-b59e1b943db0",
       "name": "Стены",
       "level": 2,
       "sourceRow": 99,
       "items": [
        {
-        "id": "b8e2c011-d98b-4885-b936-fed46093daed",
+        "id": "790f0787-01c6-4981-9e5c-6d445fe720f5",
         "order": 75,
         "name": "Грунтование (2 слоя)",
         "unit": "м²",
@@ -4245,7 +4309,7 @@
         "total": "7358400"
        },
        {
-        "id": "6e88db95-f735-421f-b526-c050bab7931a",
+        "id": "6abe8d6f-2383-4ffc-9620-5530c5c4dfc3",
         "order": 76,
         "name": "Шпатлевание (2 слоя)",
         "unit": "м²",
@@ -4255,7 +4319,7 @@
         "total": "15330000"
        },
        {
-        "id": "b08a2f12-472c-48ae-8a64-5bb91d6ec38b",
+        "id": "c95aa9a4-1d02-400a-94a2-08d549580928",
         "order": 77,
         "name": "Шкурка ( 2 слоя)",
         "unit": "м²",
@@ -4265,7 +4329,7 @@
         "total": "15330000"
        },
        {
-        "id": "9425d603-16ad-40c3-8b83-243726c19f45",
+        "id": "89f3f91f-044a-4eab-998b-d9174c6ec8d9",
         "order": 78,
         "name": "Обои (по факту)",
         "unit": "м²",
@@ -4275,7 +4339,7 @@
         "total": "16863000"
        },
        {
-        "id": "0e8bb044-5ea6-4e7c-b2ed-9a3e58314042",
+        "id": "ae8d3fd0-95eb-4c78-b759-b87ecfbd94a1",
         "order": 79,
         "name": "Грунтовка (1 слой) Перед обоями",
         "unit": "м²",
@@ -4289,13 +4353,13 @@
       "subtotal": "58560600"
      },
      {
-      "id": "052587ae-e7f9-4aa7-8517-811e3b3683dc",
+      "id": "4f3b671f-dc53-429a-8f0c-fd99c567d6c0",
       "name": "Плинтуса ( Алюминевые)",
       "level": 2,
       "sourceRow": 106,
       "items": [
        {
-        "id": "5c192809-0e9c-468e-8257-cc1499b003bc",
+        "id": "78954e05-fa2c-4ad5-b371-7b66a2239d26",
         "order": 80,
         "name": "Монтаж",
         "unit": "м.п.",
@@ -4309,13 +4373,13 @@
       "subtotal": "3900000"
      },
      {
-      "id": "758a9248-5358-4976-a108-af1dac61f9e6",
+      "id": "09f97ffe-dfe9-491a-a462-9afd5351a3b7",
       "name": "Откосы",
       "level": 2,
       "sourceRow": 109,
       "items": [
        {
-        "id": "dc42cc9b-50b9-409d-a1a9-aceae2a5f59d",
+        "id": "c76fd121-fe63-4a8e-bd17-949a639d74e6",
         "order": 81,
         "name": "Грунтование (2 слоя)",
         "unit": "м.п.",
@@ -4325,7 +4389,7 @@
         "total": "937680"
        },
        {
-        "id": "d9977398-f508-425f-b7f9-bf36d2e5cce4",
+        "id": "093bab19-2259-4b13-a4e5-3590743b5148",
         "order": 82,
         "name": "Шпаклевание откосов (3 слоя)",
         "unit": "м.п.",
@@ -4335,7 +4399,7 @@
         "total": "2930250"
        },
        {
-        "id": "e6b73b02-1dc8-48a7-87ea-e034022629d5",
+        "id": "34b0b87a-26f0-4f21-a01f-46c31633f9de",
         "order": 83,
         "name": "Наклейка стеклохолста",
         "unit": "м.п.",
@@ -4345,7 +4409,7 @@
         "total": "2344200"
        },
        {
-        "id": "11c10aba-59bb-4ecb-831a-7ffe7fc2e357",
+        "id": "0820420e-089c-4183-872f-d291a90dc82e",
         "order": 84,
         "name": "Зачистка (3 раза)",
         "unit": "м.п.",
@@ -4355,7 +4419,7 @@
         "total": "2930250"
        },
        {
-        "id": "2185c663-342c-429e-9f47-a9cc09428be5",
+        "id": "556ba971-65ad-4fe6-97ff-6415e202c77a",
         "order": 85,
         "name": "Загермечивание примыкания откоса с окном",
         "unit": "м.п.",
@@ -4365,7 +4429,7 @@
         "total": "781400"
        },
        {
-        "id": "5ce81079-7fbe-40ac-a574-95d62314adf8",
+        "id": "3797db68-87eb-47ab-88ed-23dcb1786b17",
         "order": 86,
         "name": "Покраска простой не фактурной краской (стандарт) - валиком ( 2 слоя)",
         "unit": "м.п.",
@@ -4379,13 +4443,13 @@
       "subtotal": "12267980"
      },
      {
-      "id": "912b1ab8-ad0f-47b4-9fd8-14f51b20e82f",
+      "id": "23dab66a-0909-4402-9ad8-70d4713ab9c1",
       "name": "Пол 1 этаж",
       "level": 2,
       "sourceRow": 117,
       "items": [
        {
-        "id": "e6143d76-3343-4084-9486-3c49a5aeb07a",
+        "id": "11be724b-4321-4c96-9194-518a861a6b73",
         "order": 87,
         "name": "Обеспыливание и грунтование пола",
         "unit": "м²",
@@ -4395,7 +4459,7 @@
         "total": "2404000"
        },
        {
-        "id": "036ebf0e-c967-4160-b047-d73239b1a2da",
+        "id": "71a8400d-bb56-4ca2-8601-f8cd388ba951",
         "order": 88,
         "name": "Облицовка пола плиткой (600*600мм)",
         "unit": "м²",
@@ -4405,7 +4469,7 @@
         "total": "5656000"
        },
        {
-        "id": "ceedf19b-bba0-4e2d-a9fb-145368b2f9f3",
+        "id": "382d5ac4-2d23-4056-8a97-fa0974207dfa",
         "order": 89,
         "name": "Затирка швов цементная",
         "unit": "м.п.",
@@ -4415,7 +4479,7 @@
         "total": "606000"
        },
        {
-        "id": "77679abe-bc57-466d-9636-6f4f640a5c75",
+        "id": "91f134a2-b959-4655-ab81-8b15873719b0",
         "order": 90,
         "name": "Подрезка керамогранита (сторона)",
         "unit": "м.п.",
@@ -4425,7 +4489,7 @@
         "total": "2365440"
        },
        {
-        "id": "06459f92-c19b-437e-9603-8727f3356c47",
+        "id": "a2610306-79f9-458b-a4f2-9317338c2c23",
         "order": 91,
         "name": "Защита напольного покрытия гофрокартоном",
         "unit": "м²",
@@ -4435,7 +4499,7 @@
         "total": "1202000"
        },
        {
-        "id": "83c640b7-f4be-4413-90b7-525521010b18",
+        "id": "4b5ab347-8725-4f0a-8da6-d58be677cb63",
         "order": 92,
         "name": "Монтаж подложки",
         "unit": "м²",
@@ -4445,7 +4509,7 @@
         "total": "1500000"
        },
        {
-        "id": "bb15febc-7532-4b83-9ee6-2e333223f321",
+        "id": "f3c80bef-d0f3-41d4-b4f1-ac1ea0250535",
         "order": 93,
         "name": "Настил ламината на подложку (от вида укладки цена может меняться)",
         "unit": "м²",
@@ -4455,7 +4519,7 @@
         "total": "6300000"
        },
        {
-        "id": "98aad504-bc71-40d6-89aa-c039784591f3",
+        "id": "45351998-9b77-45fd-a47f-ffd62d0916e9",
         "order": 94,
         "name": "Чистовой рез ламината",
         "unit": "м.п.",
@@ -4469,13 +4533,13 @@
       "subtotal": "24533440"
      },
      {
-      "id": "bfc81dc4-4375-4d69-b70d-b55d09103c44",
+      "id": "32465d9d-a2c1-41e1-9993-8c26bc0fa8ef",
       "name": "Натяжные потолки( по факту)",
       "level": 2,
       "sourceRow": 127,
       "items": [
        {
-        "id": "51d483f4-33fc-4f5d-bdbc-e98c8c481491",
+        "id": "7eb7e21f-9448-4bfb-8185-4901ee26fc09",
         "order": 95,
         "name": "Полотно и натяжка",
         "unit": "м²",
@@ -4485,7 +4549,7 @@
         "total": "4753710"
        },
        {
-        "id": "5e4e405a-583a-4d18-a922-f176471374ca",
+        "id": "e9ef933e-bcf9-4c7d-ac43-51041880447d",
         "order": 96,
         "name": "Теневой профиль (Еврокраб)",
         "unit": "м.п.",
@@ -4495,7 +4559,7 @@
         "total": "11950750"
        },
        {
-        "id": "de2c5ad0-d9e8-4922-b1cd-1a7617315e7c",
+        "id": "d4271db0-07fd-4439-960c-553f36242b7c",
         "order": 97,
         "name": "Запил под 45 градусов",
         "unit": "шт",
@@ -4505,7 +4569,7 @@
         "total": "2025000"
        },
        {
-        "id": "d5796ad0-7987-424c-8ead-807dfe2cb55a",
+        "id": "338d7e96-a073-4ea7-bb7c-c149e51243f8",
         "order": 98,
         "name": "Стандартный профиль",
         "unit": "м.п.",
@@ -4515,7 +4579,7 @@
         "total": "2412450"
        },
        {
-        "id": "8e4b9aaa-13fb-4c50-b7b9-c4e3f11a2838",
+        "id": "655f5f8b-0bdc-4270-bee0-183a5b9f6092",
         "order": 99,
         "name": "Вставка",
         "unit": "м.п.",
@@ -4525,7 +4589,7 @@
         "total": "643320"
        },
        {
-        "id": "a024f72a-53a2-49da-9cf7-73b09594502a",
+        "id": "fae508b9-4e2c-4bf6-b3e3-8bd24e4308d3",
         "order": 100,
         "name": "Закладная под люстру",
         "unit": "шт",
@@ -4535,7 +4599,7 @@
         "total": "160000"
        },
        {
-        "id": "c98eeae5-6fba-47bd-adb8-6d375e941cd5",
+        "id": "93512295-ac53-4acf-b1ca-95579b318829",
         "order": 101,
         "name": "Скрытая ниша (ПК - 14)",
         "unit": "м.п.",
@@ -4545,7 +4609,7 @@
         "total": "7910000"
        },
        {
-        "id": "3c89cf5a-c53d-4b41-89c1-34b60bdf152f",
+        "id": "90d35357-7a0c-4856-861d-08de61e5a133",
         "order": 102,
         "name": "Устаонвка светодиодной ленты",
         "unit": "м.п.",
@@ -4555,7 +4619,7 @@
         "total": "112500"
        },
        {
-        "id": "b28daff6-9766-4a7d-8860-ec2eb8af58d1",
+        "id": "d4d91d61-88ba-4e1d-b582-c0c45e0299eb",
         "order": 103,
         "name": "Установка блока питания",
         "unit": "шт",
@@ -4565,7 +4629,7 @@
         "total": "40000"
        },
        {
-        "id": "65203309-ffcd-4b3f-b605-0e5f49f6163d",
+        "id": "cbdb1976-5e95-4275-9fee-ba24bfbd9ba8",
         "order": 104,
         "name": "Световые линии",
         "unit": "м.п.",
@@ -4575,7 +4639,7 @@
         "total": "4200000"
        },
        {
-        "id": "53a9a060-25be-4475-8cbe-7a016fa53918",
+        "id": "7287fc86-246c-4fca-aeb4-fdd16dd7f65a",
         "order": 105,
         "name": "Установка светодиодной ленты",
         "unit": "м.п.",
@@ -4585,7 +4649,7 @@
         "total": "225000"
        },
        {
-        "id": "879153dc-bccd-4c29-afce-a5ec34414b37",
+        "id": "e57f68fc-a181-45a7-ab17-d1b6baec9463",
         "order": 106,
         "name": "Софты",
         "unit": "шт",
@@ -4595,7 +4659,7 @@
         "total": "1300000"
        },
        {
-        "id": "87d325b6-cdce-4748-b237-ae1169ea4d40",
+        "id": "fb2c9c18-6508-4746-83df-a85fad515d19",
         "order": 107,
         "name": "Доп углы",
         "unit": "м.п.",
@@ -4605,7 +4669,7 @@
         "total": "300000"
        },
        {
-        "id": "49e533f1-69a4-42c7-ad2b-ebde3d511962",
+        "id": "3a0b9c48-26b3-48b0-9380-82d9d39cf628",
         "order": 108,
         "name": "Магнитные треки",
         "unit": "м.п.",
@@ -4615,7 +4679,7 @@
         "total": "8400000"
        },
        {
-        "id": "38852fb5-ee36-4228-9739-d28a17438d56",
+        "id": "1e38267e-5ee4-4c85-bedd-60811f2f5d50",
         "order": 109,
         "name": "Запил магнитный линий",
         "unit": "шт",
@@ -4625,7 +4689,7 @@
         "total": "1650000"
        },
        {
-        "id": "135ecc71-9047-487b-92b0-872da2659b4b",
+        "id": "8587b450-d80d-4517-89e3-fb105de54f14",
         "order": 110,
         "name": "Торец магнитной линии",
         "unit": "шт",
@@ -4635,7 +4699,7 @@
         "total": "650000"
        },
        {
-        "id": "bdf4d86a-a6d6-4213-a898-a543f52b08aa",
+        "id": "e405a674-2daa-4c5a-bd9a-d5577419d806",
         "order": 111,
         "name": "Проход по керамограниту",
         "unit": "м.п.",
@@ -4645,7 +4709,7 @@
         "total": "2565000"
        },
        {
-        "id": "632c8736-ef4e-4369-824f-5a0e1b1b486e",
+        "id": "8a3ade11-f901-402a-ad4a-1e5cf264b4d3",
         "order": 112,
         "name": "Разделитель",
         "unit": "м.п.",
@@ -4662,13 +4726,13 @@
     "subtotal": "148739750"
    },
    {
-    "id": "16f7fc91-d43a-4609-a248-3092d609cfc0",
+    "id": "4ca5a361-20e0-4804-bbec-68e4818a34c9",
     "name": "ЧИСТОВОЙ ЭЛЕКТРОМОНТАЖ ( По факту)",
     "level": 1,
     "sourceRow": 147,
     "items": [
      {
-      "id": "a2cf61e1-ffbf-4a0d-8635-472dc087f063",
+      "id": "41f4a6b8-7aad-49ca-a60f-0ff263d4f8e0",
       "order": 113,
       "name": "Установка разеток, выключателей. (чистовое)",
       "unit": "шт",
@@ -4682,13 +4746,13 @@
     "subtotal": "6200000"
    },
    {
-    "id": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+    "id": "febf85b7-b46e-48af-86bf-2e2eb8012112",
     "name": "МОНТАЖНЫЕ РАБОТЫ",
     "level": 1,
     "sourceRow": 150,
     "items": [
      {
-      "id": "60d7887e-963c-4fc9-8783-011d7651d9de",
+      "id": "2ed08659-1310-4756-9f71-136b9db4480d",
       "order": 114,
       "name": "Монтаж полотенцесушителя ( стандарт), 4 точки крепежа",
       "unit": "шт",
@@ -4698,7 +4762,7 @@
       "total": "900000"
      },
      {
-      "id": "0aca5a64-be42-4c05-9a5b-1723f8dd12a9",
+      "id": "50f02e05-55b1-4381-a229-4bbe673c4131",
       "order": 115,
       "name": "Подключение сифона (стандарт)",
       "unit": "шт",
@@ -4708,7 +4772,7 @@
       "total": "0"
      },
      {
-      "id": "f9648933-8f3e-47f0-a37b-96b7f0b7bafc",
+      "id": "f10b6597-d361-49c4-b8f9-408f20e01eb4",
       "order": 116,
       "name": "Монтаж шкафа-зеркала (с подсветкой)",
       "unit": "шт",
@@ -4718,7 +4782,7 @@
       "total": "0"
      },
      {
-      "id": "db87d564-b124-40e0-8357-dafde40a55a5",
+      "id": "5e7ed100-7d8f-4f87-a8ec-5dc3dfbb9a6d",
       "order": 117,
       "name": "Установка смесителей",
       "unit": "шт",
@@ -4728,7 +4792,7 @@
       "total": "0"
      },
      {
-      "id": "de542fe7-cb13-4689-b3d2-2175edd87bd2",
+      "id": "355a0654-3fe3-4fa6-8a2d-4ac1f35252a9",
       "order": 118,
       "name": "Установка смесителя с лейкой (стандартный)",
       "unit": "шт",
@@ -4738,7 +4802,7 @@
       "total": "0"
      },
      {
-      "id": "1de9d3d6-375a-4355-b018-964f9a553fc4",
+      "id": "73897afc-b59e-419c-847c-8a1268adfdc1",
       "order": 119,
       "name": "Установка душевой штанги",
       "unit": "шт",
@@ -4748,7 +4812,7 @@
       "total": "0"
      },
      {
-      "id": "3f91b7b6-d01e-4a4b-a302-9ed7a4d3f73d",
+      "id": "7d155e9f-36e0-4c5b-a3bc-e0d685d9515b",
       "order": 120,
       "name": "Монтаж ванны (стандартная форма) (по факту)",
       "unit": "шт",
@@ -4758,7 +4822,7 @@
       "total": "600000"
      },
      {
-      "id": "d64bf599-ca05-4163-9c80-85b569477814",
+      "id": "dcd90318-a363-4fab-a00b-41caafd17bce",
       "order": 121,
       "name": "Монтаж навесного унитаза (стоимость от вида крепежа) (по факту)",
       "unit": "шт",
@@ -4768,7 +4832,7 @@
       "total": "1350000"
      },
      {
-      "id": "4386d4ce-6812-48cb-a3c2-9f9805fbc627",
+      "id": "b3fc7f63-1667-457d-98b0-c14d6443d75d",
       "order": 122,
       "name": "Монтаж кнопки инсталляции",
       "unit": "шт",
@@ -4778,7 +4842,7 @@
       "total": "630000"
      },
      {
-      "id": "11eb8886-3a55-48b7-a100-9dc0a5652f44",
+      "id": "88a0fedd-fca2-4666-8346-2382bd33d73d",
       "order": 123,
       "name": "Монтаж дверей ( стандарт)",
       "unit": "шт",
@@ -4788,7 +4852,7 @@
       "total": "4000000"
      },
      {
-      "id": "aa3328a2-9960-4af6-bd2f-ee5c8468dfe5",
+      "id": "4837278e-7b74-4b1b-8ce7-1d724825550d",
       "order": 124,
       "name": "Монтаж двойной двери",
       "unit": "шт",
@@ -4798,7 +4862,7 @@
       "total": "1100000"
      },
      {
-      "id": "0ee86199-d2cb-4aed-aa30-3b6e06f671fa",
+      "id": "71d55aff-276f-4856-a139-ed3f58715c4b",
       "order": 125,
       "name": "Монтаж Откотной двери",
       "unit": "шт",
@@ -4808,7 +4872,7 @@
       "total": "2200000"
      },
      {
-      "id": "b163b647-e296-4c38-bec2-7cc504ef6f4c",
+      "id": "f0c1068f-efc0-4fe3-805c-7b21cf63b207",
       "order": 126,
       "name": "Монтаж/Демонтаж радиаторов (стандарт)",
       "unit": "шт",
@@ -4822,20 +4886,20 @@
     "subtotal": "14380000"
    },
    {
-    "id": "61e977eb-d160-43ba-acda-39b20dc3444d",
+    "id": "1f8c6868-080a-4cd2-a4df-bcdcee73b80a",
     "name": "КОНДИЦИОНИРОВАНИЕ (ПО ФАКТУ)",
     "level": 1,
     "sourceRow": 165,
     "items": [],
     "children": [
      {
-      "id": "b0ed2e5c-cad5-43ac-954a-81fedd7d283b",
+      "id": "809cb2d5-c580-440d-a15d-571f09566d15",
       "name": "Черной монтаж",
       "level": 2,
       "sourceRow": 166,
       "items": [
        {
-        "id": "807e1151-8225-479f-b86a-c0cbb70ed80c",
+        "id": "1ccd8cba-b509-4208-8b9c-e161d68d1178",
         "order": 127,
         "name": "Сквозное отверстие Ф52мм",
         "unit": "шт",
@@ -4845,7 +4909,7 @@
         "total": "930000"
        },
        {
-        "id": "bda75351-60a9-4fd4-99a8-b08761e8eef1",
+        "id": "88132934-63b0-4410-9339-6352b86da2d0",
         "order": 128,
         "name": "Штробление стен в Бетон (до 5*5см)",
         "unit": "м.п.",
@@ -4855,7 +4919,7 @@
         "total": "2800000"
        },
        {
-        "id": "5b2a4309-5267-47e0-83ac-c40e50e7c6e8",
+        "id": "75cbdc69-c0b1-45f7-821e-6aa5606c5030",
         "order": 129,
         "name": "Кранштены",
         "unit": "шт",
@@ -4865,7 +4929,7 @@
         "total": "750000"
        },
        {
-        "id": "13df256d-61f0-43f0-a113-18c545f0db8a",
+        "id": "f968a591-8160-4a3f-993f-48457a17893d",
         "order": 130,
         "name": "Магистраль состоящая из медных труб, трубки конденсата, утеплителя медных труб, провода ВВГнГ 4*1,5 (цена от, обсуждение по факту)",
         "unit": "м.п.",
@@ -4879,13 +4943,13 @@
       "subtotal": "6820000"
      },
      {
-      "id": "84444de7-f42f-421f-ac5e-071f8e5a5675",
+      "id": "b308f459-d9a0-46c1-85c5-223c3d601df0",
       "name": "Чистовой монтаж",
       "level": 2,
       "sourceRow": 172,
       "items": [
        {
-        "id": "8598edb0-067f-43d7-a6b0-023a07ff87f4",
+        "id": "23bfa8d2-a07e-430d-8941-fdadc4faf790",
         "order": 131,
         "name": "Монтаж и подключение внутреннего блока (цена от, обсуждение по факту)",
         "unit": "шт",
@@ -4895,7 +4959,7 @@
         "total": "1170000"
        },
        {
-        "id": "a040ca3a-d439-4cfe-a566-634a5e14f0aa",
+        "id": "ea6670b3-56cd-4cd6-97d1-69eab9130b2a",
         "order": 132,
         "name": "Монтаж и подключение наружного блока (цена от, обсуждение по факту)",
         "unit": "шт",
@@ -4912,7 +4976,7 @@
     "subtotal": "9490000"
    },
    {
-    "id": "3f13a2ce-b31f-4b5c-bef6-0c09f7416a33",
+    "id": "d88032ff-f8c7-4536-9ecb-6f3573525d0e",
     "name": "ДОПОЛНИТЕЛЬНЫЕ РАСХОДЫ ( ВХОДЕ РАБОТЫ)",
     "level": 1,
     "sourceRow": 177,
@@ -4923,49 +4987,49 @@
   ],
   "otherExpenses": [
    {
-    "id": "75855261-6e24-4aef-84c6-29ac8dce60e1",
+    "id": "1fe380fd-4f34-4bed-a544-a27545d1f921",
     "name": "Доставка материала (по городу) (газель, до 1,5 тонны)",
     "unit": "рейс",
     "unitPrice": "350000",
     "order": 1
    },
    {
-    "id": "27376f4a-c34f-41ab-b895-cf495e66f1bf",
+    "id": "12a07f61-d9f0-47c6-9ad0-92f3d14bf9a0",
     "name": "Доставка материала (по городу) (легковой транспорт)",
     "unit": "рейс",
     "unitPrice": "100000",
     "order": 2
    },
    {
-    "id": "e428b4d8-4c1c-4e5d-9b31-f96c6ed0fb72",
+    "id": "d6e9820c-2be2-410c-b169-47031165aecf",
     "name": "Вывоз мусора (по факту) Камаз ( по городу)",
     "unit": "рейс",
     "unitPrice": "1200000",
     "order": 3
    },
    {
-    "id": "665be409-5213-4940-ae9c-363c7b03a427",
+    "id": "eb855919-6b2a-4298-9cf4-ad4872e837c7",
     "name": "Вывоз мусора (по факту) газель до 1,5 тонны ( по городу)",
     "unit": "рейс",
     "unitPrice": "650000",
     "order": 4
    },
    {
-    "id": "1786b05e-4252-419a-8ba4-e73f93e9c3c2",
+    "id": "d46671c7-5f38-42c8-83bc-5fc658d53fd5",
     "name": "Подсобные работы (подъем материала, подготовка объекта) по факту",
     "unit": "ч/ч",
     "unitPrice": "70000",
     "order": 5
    },
    {
-    "id": "988a696e-4c13-4635-b177-e50d2a47ad1b",
+    "id": "9c8d9bd3-0a02-485e-93ee-2f774f0fb9f8",
     "name": "Подъем материала (без лифта) по факту",
     "unit": "этаж",
     "unitPrice": "30000",
     "order": 6
    },
    {
-    "id": "9786204e-cfbe-4973-8965-be55922c2fe7",
+    "id": "0f1d6fe7-dffb-4996-a111-0e7631cccc23",
     "name": "Укрывные работы (оклейка окон, дверей, примыканий) по факту",
     "unit": "ч/ч",
     "unitPrice": "70000",
@@ -4984,7 +5048,7 @@
  "measure": {
   "rooms": [
    {
-    "id": "b4562619-d56d-4022-a9b5-83fef7ae8c1c",
+    "id": "def89de2-4a9c-49b0-bbb7-3a76906a57f4",
     "name": "Коридор",
     "order": 1,
     "floorArea": "12300",
@@ -5003,7 +5067,7 @@
     ]
    },
    {
-    "id": "95380883-2cf1-4b58-99a4-4a7c2336d66d",
+    "id": "20a16b68-9ab8-4211-9c52-62d703e639d5",
     "name": "Спальня",
     "order": 2,
     "floorArea": "18400",
@@ -5028,7 +5092,7 @@
     ]
    },
    {
-    "id": "a5a6c6d0-9b6f-4f42-b424-15e3ec7e71fd",
+    "id": "ebfd5ca5-d2c2-41ab-bb8f-cca2408624c3",
     "name": "Кухня",
     "order": 3,
     "floorArea": "12700",
@@ -5053,7 +5117,7 @@
     ]
    },
    {
-    "id": "4a79087b-b101-4539-8913-12887e47139e",
+    "id": "8eb6e12e-7ce2-479f-a608-be0ea868c069",
     "name": "Гостиная",
     "order": 4,
     "floorArea": "23630",
@@ -5078,7 +5142,7 @@
     ]
    },
    {
-    "id": "4592b2d1-8da8-49db-88cd-803b1b5900f7",
+    "id": "8a7f774b-7df0-4476-a5cf-ae8ceb227477",
     "name": "Санузел",
     "order": 5,
     "floorArea": "1800",
@@ -5097,7 +5161,7 @@
     ]
    },
    {
-    "id": "4badc9c1-c024-4e39-a3d5-c60ace0f8a05",
+    "id": "12150072-f4bf-4853-b4fc-b4b31258edcb",
     "name": "Ванная",
     "order": 6,
     "floorArea": "4400",
@@ -5116,7 +5180,7 @@
     ]
    },
    {
-    "id": "ce4782b2-999c-42d1-9275-1bcfc917b369",
+    "id": "530f3ab5-c927-45d3-9af7-b9eb7efbd2ca",
     "name": "Лоджия",
     "order": 7,
     "floorArea": "7300",
@@ -5148,20 +5212,20 @@
  "acceptance-owner": {
   "sections": [
    {
-    "id": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "name": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "order": 1,
     "stage": {
-     "id": "c8f7c1fb-070c-45f9-8c79-3229904b4c87",
+     "id": "106339ad-b8c5-4cd0-a64c-bb0ee1b7a6aa",
      "name": "Демонтаж",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "3428452c-96f3-4116-aa39-dbaa6393ac30",
+      "id": "07241d3d-9166-4b56-a9ce-3932c42ed734",
       "name": "Окрывные работы",
       "unit": "шт",
       "order": 1,
@@ -5172,7 +5236,7 @@
       "unitWage": "500000"
      },
      {
-      "id": "7d6fc99b-4d2a-4e1c-b2de-753996ee1113",
+      "id": "d552e32c-84fe-46b8-b33a-6e10c0d7f888",
       "name": "Полусухая стяжка",
       "unit": "м²",
       "order": 2,
@@ -5183,7 +5247,7 @@
       "unitWage": "70000"
      },
      {
-      "id": "694d3758-6b67-4490-9f55-f6d7db0a2ce2",
+      "id": "93d9d33d-a454-469a-a803-67458dc0127e",
       "name": "Штукатурка стен по маякам (до 2,5 см)",
       "unit": "м²",
       "order": 3,
@@ -5194,7 +5258,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "211ef367-8bb4-4a9e-b215-250693f00a99",
+      "id": "4d4a599e-914f-43b4-a32d-1d3f179e9853",
       "name": "Установка перфорированного уголка и планки примыкания к окну (окна, двери, стены)",
       "unit": "м.п.",
       "order": 4,
@@ -5205,7 +5269,7 @@
       "unitWage": "15000"
      },
      {
-      "id": "68167f8c-4902-4817-b0b9-0b3d3abd4aca",
+      "id": "a8c82a3b-c824-44f2-858b-8e73175cee23",
       "name": "Грунтование стен ( перед штукутуркой)",
       "unit": "м²",
       "order": 5,
@@ -5216,7 +5280,7 @@
       "unitWage": "7000"
      },
      {
-      "id": "a5ec61c9-af91-4773-af57-a21cb8dbe006",
+      "id": "507371d2-21e5-4c77-8e05-790af1807e9f",
       "name": "Стык плитки ламината без порога",
       "unit": "шт",
       "order": 6,
@@ -5227,7 +5291,7 @@
       "unitWage": "50000"
      },
      {
-      "id": "647cd89d-67a7-4cfd-8ac3-d9f7ec8213a9",
+      "id": "a2718cd9-252a-4929-8554-8fb3c77e723b",
       "name": "Фартук на кухню",
       "unit": "м²",
       "order": 7,
@@ -5238,7 +5302,7 @@
       "unitWage": "180000"
      },
      {
-      "id": "c65fd724-6223-4102-b8fb-53d373de0960",
+      "id": "6ed13135-4ddd-4286-aef5-6897978cf83f",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 8,
@@ -5249,7 +5313,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "94c2d962-8301-4acb-babb-5379dfaa5dc8",
+      "id": "b83634e7-3d22-4647-ae3e-f267f6cb0045",
       "name": "Затирка цементная",
       "unit": "м²",
       "order": 9,
@@ -5262,20 +5326,20 @@
     ]
    },
    {
-    "id": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+    "id": "133f3e76-ce71-480a-b017-10bdd2c256fc",
     "name": "ГИПСОКАРТОН, ВОЗВЕДЕНИЕ ПЕРЕГОРОДОК",
     "order": 2,
     "stage": {
-     "id": "f99fb587-736c-4311-9ff9-d28a7a9612b2",
+     "id": "e0c62eb0-bfae-4cfe-aa50-c38b61e9a3b5",
      "name": "Стяжка пола",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "79279e26-0cc8-4e6b-9ab4-e20452dfef22",
+      "id": "67880802-3cee-4913-862f-0e3479374d44",
       "name": "Возведение перегородок ( Керпич)",
       "unit": "шт",
       "order": 10,
@@ -5286,7 +5350,7 @@
       "unitWage": "2800"
      },
      {
-      "id": "f3185db8-1b8b-4739-828b-71224e294900",
+      "id": "f2b881ad-594d-463f-a455-86f8f31c5c09",
       "name": "Перемычка",
       "unit": "шт",
       "order": 11,
@@ -5297,7 +5361,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "d0c27c9b-01a6-44e0-b1f9-772c7c344d9a",
+      "id": "ab78cb0c-c754-4619-a16e-cff0d30d9e53",
       "name": "Монтаж отверстий в ГКЛ (по факту)",
       "unit": "шт",
       "order": 12,
@@ -5308,7 +5372,7 @@
       "unitWage": "15000"
      },
      {
-      "id": "2da39bd0-67f3-4590-a63f-8680033afdfe",
+      "id": "e24b078b-da7c-4f10-a500-43079505c65d",
       "name": "Монтаж ГКЛ стена",
       "unit": "м²",
       "order": 13,
@@ -5319,7 +5383,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "88cd0e65-b611-4396-a6ab-e005e8d94a12",
+      "id": "b2e053ae-16b8-40d7-9f4d-4c2768cc8ebb",
       "name": "Зашив инстоляций ГКЛ 2 (слоя)",
       "unit": "шт",
       "order": 14,
@@ -5332,20 +5396,20 @@
     ]
    },
    {
-    "id": "1e46597f-700e-4172-a75f-8a44ea186800",
+    "id": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
     "name": "ЧЕРНОВОЙ ЭЛЕКТРОМОНТАЖ ( ПО ФАКТУ)",
     "order": 3,
     "stage": {
-     "id": "84a2a4c8-2ebd-4994-b291-912eb07e7901",
+     "id": "9ccb2852-f414-4c45-a979-fe1bc8d9c1bd",
      "name": "Черновая электрика",
      "brigade": {
-      "id": "a425e9a4-a76b-4b23-95c1-5b1cb1afb932",
+      "id": "a4347d75-3c4b-4526-a598-47a9daa90084",
       "name": "Электрики Евгения"
      }
     },
     "positions": [
      {
-      "id": "6a317ccc-57c4-48f4-801e-f7608c2eaefa",
+      "id": "1996f1c2-6049-4342-b645-6cce51f711a0",
       "name": "Установка подрозетников",
       "unit": "шт",
       "order": 15,
@@ -5356,7 +5420,7 @@
       "unitWage": "13000"
      },
      {
-      "id": "d69dd0ea-040f-4151-9247-2c916d59234e",
+      "id": "ebf521f9-2f64-41c0-a047-4f44a660a7d5",
       "name": "Сверление отверстий под подрозетники (кирпич)",
       "unit": "шт",
       "order": 16,
@@ -5367,7 +5431,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "8127fc89-a7ad-4547-ae4d-b44ca00feba9",
+      "id": "806da024-dcb7-45f6-a1b8-65787d3a848b",
       "name": "Сверление отверстий под подрозетники (Бетон)",
       "unit": "шт",
       "order": 17,
@@ -5378,7 +5442,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "44f6a8e1-f39e-49ec-9cd4-3618aa1d5fee",
+      "id": "a59a39a5-6054-4bf8-ad3f-66f55c20c079",
       "name": "Укладка провода 3х1.5",
       "unit": "м.п.",
       "order": 18,
@@ -5389,7 +5453,7 @@
       "unitWage": "8500"
      },
      {
-      "id": "67acf61d-6df2-4c65-a1fc-c51d637a8993",
+      "id": "bbff1aca-992f-4857-b7ec-24eabb301932",
       "name": "Укладка провода 3х2.5",
       "unit": "м.п.",
       "order": 19,
@@ -5400,7 +5464,7 @@
       "unitWage": "8500"
      },
      {
-      "id": "049871e0-70bc-4b8f-b4aa-c0bd5188fa49",
+      "id": "75c1ab9b-dbff-49ca-8031-752ec2e20cda",
       "name": "Укладка провода в открытую (витая пара, антенна)",
       "unit": "м.п.",
       "order": 20,
@@ -5411,7 +5475,7 @@
       "unitWage": "8000"
      },
      {
-      "id": "0ba18d10-15ba-4c01-97a1-55eb61b04190",
+      "id": "07deba5d-d958-452e-9358-04e88262aff3",
       "name": "Укладка кабеля 3*6",
       "unit": "м.п.",
       "order": 21,
@@ -5422,7 +5486,7 @@
       "unitWage": "10500"
      },
      {
-      "id": "29b80596-c07f-4f6a-8310-04dedbf14d1d",
+      "id": "35e9e603-87a0-431e-a549-dc0391a83f0c",
       "name": "Установка эл.щита 3бМ",
       "unit": "шт",
       "order": 22,
@@ -5433,7 +5497,7 @@
       "unitWage": "100000"
      },
      {
-      "id": "57c90925-d9c8-4411-9f91-97a40d03676a",
+      "id": "78ea705a-59c2-4c55-8e0d-0df37b0f86cb",
       "name": "Установка автомат выключателя 1 фазного",
       "unit": "шт",
       "order": 23,
@@ -5444,7 +5508,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "f0f1d5f4-c7d5-4147-bc26-ffb475a9d8a4",
+      "id": "77412a7c-7267-43d0-b017-ff3bbb3cbc66",
       "name": "Комантор ( мастер выключатель)",
       "unit": "шт",
       "order": 24,
@@ -5455,7 +5519,7 @@
       "unitWage": "100000"
      },
      {
-      "id": "e3be8dd9-dfef-42cb-97ab-e29349ede1aa",
+      "id": "be90a0fa-56d9-45be-b8ef-56d0539292fe",
       "name": "Монтаж расключение шины",
       "unit": "шт",
       "order": 25,
@@ -5466,7 +5530,7 @@
       "unitWage": "70000"
      },
      {
-      "id": "50816893-73db-40d7-80db-fb342f40c851",
+      "id": "0bfba8c2-1905-4524-9c10-86cbf4135bd8",
       "name": "Установка УЗО 2-полюсного",
       "unit": "шт",
       "order": 26,
@@ -5477,7 +5541,7 @@
       "unitWage": "40000"
      },
      {
-      "id": "aad490ae-c78f-473a-b1b9-9d7c304575de",
+      "id": "67837cf2-c874-408a-8e4b-9515a64247a6",
       "name": "Установка контактора 220",
       "unit": "шт",
       "order": 27,
@@ -5488,7 +5552,7 @@
       "unitWage": "45000"
      },
      {
-      "id": "a5719dcd-b58b-45d5-a752-72e02c78ead5",
+      "id": "e6363a8e-c6a0-4f30-86c5-f44582da0ec1",
       "name": "Установка счетчика э-э 1-фазного",
       "unit": "шт",
       "order": 28,
@@ -5499,7 +5563,7 @@
       "unitWage": "90000"
      },
      {
-      "id": "597ee6ab-d1bc-4816-90fd-9c254be97b4b",
+      "id": "ee1b996b-30fd-46e1-aba4-ddb03503c56c",
       "name": "Демонтаж щетка квартирного",
       "unit": "шт",
       "order": 29,
@@ -5510,7 +5574,7 @@
       "unitWage": "100000"
      },
      {
-      "id": "4ba35672-c520-4dc7-b3a7-daece0d86bd2",
+      "id": "3fc37b68-0a5d-42a5-9f34-d2d88cf8741f",
       "name": "Монтаж и распайка распределительных коробок",
       "unit": "шт",
       "order": 30,
@@ -5521,7 +5585,7 @@
       "unitWage": "42000"
      },
      {
-      "id": "91e6dfb5-046d-4dc2-a855-2dbab8fb2241",
+      "id": "34da2397-a728-4e6f-9849-271c5a857ce4",
       "name": "Монтаж временого света",
       "unit": "ед",
       "order": 31,
@@ -5532,7 +5596,7 @@
       "unitWage": "10000"
      },
      {
-      "id": "1211d226-9c62-4c99-8052-3671c6b97cfd",
+      "id": "12098085-b53f-4876-b48d-e611bcb89c7c",
       "name": "Сверление сквозных отверстий в кирпичной стене д16L до 250 мм",
       "unit": "шт",
       "order": 32,
@@ -5543,7 +5607,7 @@
       "unitWage": "15000"
      },
      {
-      "id": "9ffee6fa-55aa-48a5-b41e-0501f8e81956",
+      "id": "9b468fcb-9670-4676-96a8-c2033ad27f3d",
       "name": "Монтаж временного разетки",
       "unit": "ед",
       "order": 33,
@@ -5556,20 +5620,20 @@
     ]
    },
    {
-    "id": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+    "id": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
     "name": "САНТЕХНИКА И ОТОПЛЕНИЕ (ПО ФАКТУ)",
     "order": 4,
     "stage": {
-     "id": "bfb1d57f-c9c4-4f12-8700-9f7cad099619",
+     "id": "ea0bd70d-acdf-44c6-be13-7b0c73b93f7e",
      "name": "Разводка воды",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     "positions": [
      {
-      "id": "6693e409-c152-4a06-90bc-5977e836d1f9",
+      "id": "469fed9d-e662-4d8c-9e83-855ac2ffadfa",
       "name": "Прокладка труб ( с теплоизоляцией) и вывод точек водоснабжения",
       "unit": "точка",
       "order": 34,
@@ -5580,7 +5644,7 @@
       "unitWage": "150000"
      },
      {
-      "id": "627b12b1-b224-4ef6-a3ca-77cd39e48bf2",
+      "id": "d8a47b25-3fd5-47c6-b5c0-cf2f08c75eac",
       "name": "Прокладка труб и вывод точек канализации",
       "unit": "точка",
       "order": 35,
@@ -5591,7 +5655,7 @@
       "unitWage": "150000"
      },
      {
-      "id": "a97dbfc4-540c-4434-8b4f-abd162936e59",
+      "id": "10f01e60-69a6-4b2d-9c43-55e6f26e4650",
       "name": "Штробление стены под трубы водоснабжения (кирпич) по факту",
       "unit": "м.п.",
       "order": 36,
@@ -5602,7 +5666,7 @@
       "unitWage": "100000"
      },
      {
-      "id": "686c4f93-7cf4-4fd2-8e0e-a4db5780012f",
+      "id": "dfa5e171-6881-4f82-a19f-c2b8ea6aabd6",
       "name": "Установка отопительного прибора с переносом труб",
       "unit": "шт",
       "order": 37,
@@ -5613,7 +5677,7 @@
       "unitWage": "450000"
      },
      {
-      "id": "c4337d87-d9b3-4e6c-b98e-95580f58318c",
+      "id": "7b137507-067a-45d6-93ca-2af9bfd8c5f9",
       "name": "Перенос счетчиков водоснабжения",
       "unit": "шт",
       "order": 38,
@@ -5624,7 +5688,7 @@
       "unitWage": "250000"
      },
      {
-      "id": "66c95d9f-b73c-489d-848d-2bf0735122c8",
+      "id": "47dc5e4c-384c-4349-b490-2060ad312863",
       "name": "Установка монтаж аквастопа",
       "unit": "шт",
       "order": 39,
@@ -5635,7 +5699,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "0e1de243-12ee-4e4d-937b-9d2245e1ae54",
+      "id": "524a47e5-8912-4ba1-a928-d0a5d7a31f17",
       "name": "Монтаж отвода/тройника канализации",
       "unit": "шт",
       "order": 40,
@@ -5646,7 +5710,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "ff617434-4b2f-4556-ba7a-eec640ed0c69",
+      "id": "08eda9f9-f311-49e1-91fc-d536712786ac",
       "name": "Смена отвода/ тройника на стояке канализации",
       "unit": "шт",
       "order": 41,
@@ -5657,7 +5721,7 @@
       "unitWage": "130000"
      },
      {
-      "id": "9ff9bd43-5573-4c1f-bfdb-da419ce22572",
+      "id": "94630fd0-2fe0-4253-92d8-52dd0cefe3ac",
       "name": "Монтаж гигиенического душа встроеного",
       "unit": "м.п.",
       "order": 42,
@@ -5668,7 +5732,7 @@
       "unitWage": "180000"
      },
      {
-      "id": "37cef32a-7109-480c-9ce7-70caa0f44525",
+      "id": "ec5cb056-8a51-4e84-bde5-1e1041e1d618",
       "name": "Установка/ монтаж Инстоляции",
       "unit": "шт",
       "order": 43,
@@ -5681,20 +5745,20 @@
     ]
    },
    {
-    "id": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+    "id": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
     "name": "ВАННАЯ/САН УЗЕЛ",
     "order": 5,
     "stage": {
-     "id": "aa31fefd-e3fd-408d-8478-a7d671544bc1",
+     "id": "c5e364ae-a262-4bc9-9b81-96b85b26899d",
      "name": "Плиточные работы",
      "brigade": {
-      "id": "22e3a67a-450d-457b-979f-89b3381b789a",
+      "id": "f94e5cb5-23e0-4111-88fb-1a6679d4b4e1",
       "name": "Плиточники Алексея"
      }
     },
     "positions": [
      {
-      "id": "f8fec3c3-ceb2-43bf-bdf4-0eccb90c3269",
+      "id": "cd106dc5-0f88-4cdf-8e7c-0a25996efc47",
       "name": "Облицовка плиткой стен",
       "unit": "м²",
       "order": 44,
@@ -5705,7 +5769,7 @@
       "unitWage": "180000"
      },
      {
-      "id": "6dd726d8-c86d-41ce-87b1-6bdce7ecec88",
+      "id": "42894a8d-0a10-481c-97f1-7c6323219873",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 45,
@@ -5716,7 +5780,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "7dad0fdb-278c-4aa8-b49e-14114f2e6759",
+      "id": "55d15233-792e-439c-a8b1-40fdb9127b05",
       "name": "Запил плитки под 45гр. (каждая сторона)",
       "unit": "м.п.",
       "order": 46,
@@ -5727,7 +5791,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "ccf0d6da-75d4-4e7d-b08f-b0fdfe54363e",
+      "id": "94ed4bc3-cf21-4ba2-be5c-c163302b7de9",
       "name": "Затирка цементная",
       "unit": "м.п.",
       "order": 47,
@@ -5738,7 +5802,7 @@
       "unitWage": "0"
      },
      {
-      "id": "95a87e6e-802f-4589-9e8a-3e7e1b7e1b30",
+      "id": "82661521-56bc-4fed-bd63-de8c42713f14",
       "name": "Просиликонивание примыканий",
       "unit": "м.п.",
       "order": 48,
@@ -5749,7 +5813,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "103701d4-85ec-4cd5-af48-1e12608d73d4",
+      "id": "599d670b-f159-4b98-b8c3-368d16cd6ac2",
       "name": "Чистый рез",
       "unit": "м.п.",
       "order": 49,
@@ -5760,7 +5824,7 @@
       "unitWage": "45000"
      },
      {
-      "id": "d9b7fec2-cfe3-4d5f-955d-774b65ee2d2a",
+      "id": "2dd94f47-5d90-42f4-aef4-bcb992600fb9",
       "name": "Установка ванной (экран облицованный плиткой) пеноблок",
       "unit": "шт",
       "order": 50,
@@ -5771,7 +5835,7 @@
       "unitWage": "1000000"
      },
      {
-      "id": "ea68f22e-72f3-4832-887f-acb810c994f5",
+      "id": "0719af63-787b-4bbf-b0c5-9220ede001e7",
       "name": "Грунтовка",
       "unit": "м²",
       "order": 51,
@@ -5782,7 +5846,7 @@
       "unitWage": "5000"
      },
      {
-      "id": "e518e932-a2bc-47da-84c1-3384b0fa1493",
+      "id": "aec83931-e370-4cb6-ba46-b80085678362",
       "name": "Монтаж скрытого люка",
       "unit": "шт",
       "order": 52,
@@ -5793,7 +5857,7 @@
       "unitWage": "200000"
      },
      {
-      "id": "824ea335-0841-4a8e-bba3-623494876b4d",
+      "id": "df52cd64-f380-4f7f-9963-085b59d18103",
       "name": "Облицовка плиткой ( 600х1200)",
       "unit": "м²",
       "order": 53,
@@ -5804,7 +5868,7 @@
       "unitWage": "180000"
      },
      {
-      "id": "852ebae2-e31b-4751-84b7-3d52c221dbe4",
+      "id": "ead6e9ff-46b3-4ed1-a90a-f601aad3c0c2",
       "name": "Затирка цементная",
       "unit": "м²",
       "order": 54,
@@ -5815,7 +5879,7 @@
       "unitWage": "0"
      },
      {
-      "id": "a2154817-a26d-4128-885f-fddd2499582c",
+      "id": "5c977709-ae24-488c-98bf-44ca0d062dba",
       "name": "Чистый рез",
       "unit": "м.п.",
       "order": 55,
@@ -5826,7 +5890,7 @@
       "unitWage": "40000"
      },
      {
-      "id": "6ce2ad0e-cc74-44a8-8c77-1e32037ce043",
+      "id": "0f7f3a7e-7848-4c63-9af5-39fd13dee28a",
       "name": "Запил плитки под 45гр. (каждая сторона)",
       "unit": "м.п.",
       "order": 56,
@@ -5837,7 +5901,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "45f87435-66ef-4b61-b13e-2d70bab28a7d",
+      "id": "48763571-8d45-4ab4-95b2-3fc6c7e25c00",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 57,
@@ -5848,7 +5912,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "3b321bae-35df-454f-877f-a4bee646b7a2",
+      "id": "aa60a7f6-4e1d-45a1-9cbe-29c560037dce",
       "name": "Установка ванной (экран облицованный плиткой) пеноблок",
       "unit": "шт",
       "order": 58,
@@ -5859,7 +5923,7 @@
       "unitWage": "1000000"
      },
      {
-      "id": "32197a44-a8e2-4eb0-8da4-6d02d51c42da",
+      "id": "30b7dbbc-98d2-407b-8df3-796458b4eb86",
       "name": "Грунтовка",
       "unit": "м²",
       "order": 59,
@@ -5870,7 +5934,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "5b18c56a-ac6b-415f-82b8-4bb3c79e2c0c",
+      "id": "022e86b6-3bd7-44a2-938e-f094e62995f3",
       "name": "Просиликонивание примыканий (по факту)",
       "unit": "м.п.",
       "order": 60,
@@ -5881,7 +5945,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "f99ad500-ad0f-4701-80e8-607cf1bbe29f",
+      "id": "79b527f1-9d8c-43a3-8e0e-fca855166579",
       "name": "Монтаж скрытого люка",
       "unit": "шт",
       "order": 61,
@@ -5894,20 +5958,20 @@
     ]
    },
    {
-    "id": "b47733dd-142c-408d-b777-1f1b3d812170",
+    "id": "683dae95-138c-4625-9210-6b8a222e5231",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОКРАСКУ)",
     "order": 8,
     "stage": {
-     "id": "4641eee6-f806-464a-a6db-0c90ed5cb191",
+     "id": "7190a730-f744-48c8-aef2-89530377b705",
      "name": "Штукатурка стен",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "7ed7ecf7-ff82-4fc1-9c94-44e4f2e70e8b",
+      "id": "bcfc9cb9-d9d1-402d-9e26-e765141c16bd",
       "name": "Штукатурка",
       "unit": "м²",
       "order": 62,
@@ -5918,7 +5982,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "d7f2bfda-938a-46e2-99d3-c54533d2cc94",
+      "id": "b5f82292-207a-487f-a924-336d3631bf23",
       "name": "Шпаклевка ( 3 слоя)",
       "unit": "м²",
       "order": 63,
@@ -5929,7 +5993,7 @@
       "unitWage": "45000"
      },
      {
-      "id": "7c62240f-3d82-4e0f-a5a7-5de26c51a107",
+      "id": "cda5fe4f-97be-42c0-9e49-97ed739e4956",
       "name": "Грунтовка ( 2 раза)",
       "unit": "м.п.",
       "order": 64,
@@ -5940,7 +6004,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "8704fbfe-f3d3-4fca-95cb-7630fbe5d71f",
+      "id": "4f3935f3-7447-47ea-bb19-fd8a3ca61236",
       "name": "Шкурка ( 2 раза)",
       "unit": "м.п.",
       "order": 65,
@@ -5951,7 +6015,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "77a623de-f1c4-4466-b7c1-be7f94be8e38",
+      "id": "d03b8f25-cda9-4bc7-b81f-717e87dc0bfa",
       "name": "Стеклохолст",
       "unit": "м²",
       "order": 66,
@@ -5962,7 +6026,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "5cde8400-f804-45ee-aa9f-e2a85d0505e6",
+      "id": "73171e61-8ef0-42d4-aae1-672bfd56b185",
       "name": "Штукатурка",
       "unit": "м²",
       "order": 67,
@@ -5973,7 +6037,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "74d20683-6611-4a3e-b0cf-cbf67b7e0f40",
+      "id": "d3678903-573a-4909-9504-79a12a6ebaf6",
       "name": "Шпаклевка ( 3 слоя)",
       "unit": "м²",
       "order": 68,
@@ -5984,7 +6048,7 @@
       "unitWage": "45000"
      },
      {
-      "id": "0e9954ff-899a-4a69-a915-2d94682a6b04",
+      "id": "da8835d5-f7b1-420e-86c4-1235b9cb2e98",
       "name": "Грунтовка ( 2 раза)",
       "unit": "м²",
       "order": 69,
@@ -5995,7 +6059,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "493bec5c-452a-41cb-b67a-761e68ffb7b0",
+      "id": "ba24b209-cb1f-47cb-87b5-4a39ecc062ae",
       "name": "Шкурка ( 2 раза)",
       "unit": "м²",
       "order": 70,
@@ -6006,7 +6070,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "7c06623c-2741-45f1-af58-3404c513d48c",
+      "id": "5f3a8a79-9efd-48a5-b3ff-29b876eb0725",
       "name": "откосы",
       "unit": "м²",
       "order": 71,
@@ -6017,7 +6081,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "ac14ba27-3006-4614-a49e-0800ac667e87",
+      "id": "8d3b6e76-09fe-42da-9cee-e04672a5cd8f",
       "name": "Перфорированый уголок",
       "unit": "м.п.",
       "order": 72,
@@ -6028,7 +6092,7 @@
       "unitWage": "15000"
      },
      {
-      "id": "1af12d83-549a-476b-b48d-2f5579a4f9bd",
+      "id": "1f01096d-c988-40e6-9d0a-b414ee6eeec8",
       "name": "Бумажный уголок",
       "unit": "м.п.",
       "order": 73,
@@ -6039,7 +6103,7 @@
       "unitWage": "15000"
      },
      {
-      "id": "8e32d30f-10b1-417a-afcd-d7d02b2d44b6",
+      "id": "be21fa30-b17e-439f-9b46-7bb7eda1ac82",
       "name": "Стеклохолст",
       "unit": "м²",
       "order": 74,
@@ -6052,13 +6116,13 @@
     ]
    },
    {
-    "id": "230af879-026b-4b71-9b05-5c33de91eeed",
+    "id": "70cc14fe-fea6-42c1-b2d8-ae5067d994be",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОБОИ)",
     "order": 11,
     "stage": null,
     "positions": [
      {
-      "id": "b8e2c011-d98b-4885-b936-fed46093daed",
+      "id": "790f0787-01c6-4981-9e5c-6d445fe720f5",
       "name": "Грунтование (2 слоя)",
       "unit": "м²",
       "order": 75,
@@ -6069,7 +6133,7 @@
       "unitWage": "10000"
      },
      {
-      "id": "6e88db95-f735-421f-b526-c050bab7931a",
+      "id": "6abe8d6f-2383-4ffc-9620-5530c5c4dfc3",
       "name": "Шпатлевание (2 слоя)",
       "unit": "м²",
       "order": 76,
@@ -6080,7 +6144,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "b08a2f12-472c-48ae-8a64-5bb91d6ec38b",
+      "id": "c95aa9a4-1d02-400a-94a2-08d549580928",
       "name": "Шкурка ( 2 слоя)",
       "unit": "м²",
       "order": 77,
@@ -6091,7 +6155,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "9425d603-16ad-40c3-8b83-243726c19f45",
+      "id": "89f3f91f-044a-4eab-998b-d9174c6ec8d9",
       "name": "Обои (по факту)",
       "unit": "м²",
       "order": 78,
@@ -6102,7 +6166,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "0e8bb044-5ea6-4e7c-b2ed-9a3e58314042",
+      "id": "ae8d3fd0-95eb-4c78-b759-b87ecfbd94a1",
       "name": "Грунтовка (1 слой) Перед обоями",
       "unit": "м²",
       "order": 79,
@@ -6113,7 +6177,7 @@
       "unitWage": "5000"
      },
      {
-      "id": "5c192809-0e9c-468e-8257-cc1499b003bc",
+      "id": "78954e05-fa2c-4ad5-b371-7b66a2239d26",
       "name": "Монтаж",
       "unit": "м.п.",
       "order": 80,
@@ -6124,7 +6188,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "dc42cc9b-50b9-409d-a1a9-aceae2a5f59d",
+      "id": "c76fd121-fe63-4a8e-bd17-949a639d74e6",
       "name": "Грунтование (2 слоя)",
       "unit": "м.п.",
       "order": 81,
@@ -6135,7 +6199,7 @@
       "unitWage": "10000"
      },
      {
-      "id": "d9977398-f508-425f-b7f9-bf36d2e5cce4",
+      "id": "093bab19-2259-4b13-a4e5-3590743b5148",
       "name": "Шпаклевание откосов (3 слоя)",
       "unit": "м.п.",
       "order": 82,
@@ -6146,7 +6210,7 @@
       "unitWage": "45000"
      },
      {
-      "id": "e6b73b02-1dc8-48a7-87ea-e034022629d5",
+      "id": "34b0b87a-26f0-4f21-a01f-46c31633f9de",
       "name": "Наклейка стеклохолста",
       "unit": "м.п.",
       "order": 83,
@@ -6157,7 +6221,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "11c10aba-59bb-4ecb-831a-7ffe7fc2e357",
+      "id": "0820420e-089c-4183-872f-d291a90dc82e",
       "name": "Зачистка (3 раза)",
       "unit": "м.п.",
       "order": 84,
@@ -6168,7 +6232,7 @@
       "unitWage": "50000"
      },
      {
-      "id": "2185c663-342c-429e-9f47-a9cc09428be5",
+      "id": "556ba971-65ad-4fe6-97ff-6415e202c77a",
       "name": "Загермечивание примыкания откоса с окном",
       "unit": "м.п.",
       "order": 85,
@@ -6179,7 +6243,7 @@
       "unitWage": "10000"
      },
      {
-      "id": "5ce81079-7fbe-40ac-a574-95d62314adf8",
+      "id": "3797db68-87eb-47ab-88ed-23dcb1786b17",
       "name": "Покраска простой не фактурной краской (стандарт) - валиком ( 2 слоя)",
       "unit": "м.п.",
       "order": 86,
@@ -6190,7 +6254,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "e6143d76-3343-4084-9486-3c49a5aeb07a",
+      "id": "11be724b-4321-4c96-9194-518a861a6b73",
       "name": "Обеспыливание и грунтование пола",
       "unit": "м²",
       "order": 87,
@@ -6201,7 +6265,7 @@
       "unitWage": "5000"
      },
      {
-      "id": "036ebf0e-c967-4160-b047-d73239b1a2da",
+      "id": "71a8400d-bb56-4ca2-8601-f8cd388ba951",
       "name": "Облицовка пола плиткой (600*600мм)",
       "unit": "м²",
       "order": 88,
@@ -6212,7 +6276,7 @@
       "unitWage": "180000"
      },
      {
-      "id": "ceedf19b-bba0-4e2d-a9fb-145368b2f9f3",
+      "id": "382d5ac4-2d23-4056-8a97-fa0974207dfa",
       "name": "Затирка швов цементная",
       "unit": "м.п.",
       "order": 89,
@@ -6223,7 +6287,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "77679abe-bc57-466d-9636-6f4f640a5c75",
+      "id": "91f134a2-b959-4655-ab81-8b15873719b0",
       "name": "Подрезка керамогранита (сторона)",
       "unit": "м.п.",
       "order": 90,
@@ -6234,7 +6298,7 @@
       "unitWage": "0"
      },
      {
-      "id": "06459f92-c19b-437e-9603-8727f3356c47",
+      "id": "a2610306-79f9-458b-a4f2-9317338c2c23",
       "name": "Защита напольного покрытия гофрокартоном",
       "unit": "м²",
       "order": 91,
@@ -6245,7 +6309,7 @@
       "unitWage": "5000"
      },
      {
-      "id": "83c640b7-f4be-4413-90b7-525521010b18",
+      "id": "4b5ab347-8725-4f0a-8da6-d58be677cb63",
       "name": "Монтаж подложки",
       "unit": "м²",
       "order": 92,
@@ -6256,7 +6320,7 @@
       "unitWage": "10000"
      },
      {
-      "id": "bb15febc-7532-4b83-9ee6-2e333223f321",
+      "id": "f3c80bef-d0f3-41d4-b4f1-ac1ea0250535",
       "name": "Настил ламината на подложку (от вида укладки цена может меняться)",
       "unit": "м²",
       "order": 93,
@@ -6267,7 +6331,7 @@
       "unitWage": "35000"
      },
      {
-      "id": "98aad504-bc71-40d6-89aa-c039784591f3",
+      "id": "45351998-9b77-45fd-a47f-ffd62d0916e9",
       "name": "Чистовой рез ламината",
       "unit": "м.п.",
       "order": 94,
@@ -6278,7 +6342,7 @@
       "unitWage": "30000"
      },
      {
-      "id": "51d483f4-33fc-4f5d-bdbc-e98c8c481491",
+      "id": "7eb7e21f-9448-4bfb-8185-4901ee26fc09",
       "name": "Полотно и натяжка",
       "unit": "м²",
       "order": 95,
@@ -6289,7 +6353,7 @@
       "unitWage": "25000"
      },
      {
-      "id": "5e4e405a-583a-4d18-a922-f176471374ca",
+      "id": "e9ef933e-bcf9-4c7d-ac43-51041880447d",
       "name": "Теневой профиль (Еврокраб)",
       "unit": "м.п.",
       "order": 96,
@@ -6300,7 +6364,7 @@
       "unitWage": "165000"
      },
      {
-      "id": "de2c5ad0-d9e8-4922-b1cd-1a7617315e7c",
+      "id": "d4271db0-07fd-4439-960c-553f36242b7c",
       "name": "Запил под 45 градусов",
       "unit": "шт",
       "order": 97,
@@ -6311,7 +6375,7 @@
       "unitWage": "75000"
      },
      {
-      "id": "d5796ad0-7987-424c-8ead-807dfe2cb55a",
+      "id": "338d7e96-a073-4ea7-bb7c-c149e51243f8",
       "name": "Стандартный профиль",
       "unit": "м.п.",
       "order": 98,
@@ -6322,7 +6386,7 @@
       "unitWage": "40000"
      },
      {
-      "id": "8e4b9aaa-13fb-4c50-b7b9-c4e3f11a2838",
+      "id": "655f5f8b-0bdc-4270-bee0-183a5b9f6092",
       "name": "Вставка",
       "unit": "м.п.",
       "order": 99,
@@ -6333,7 +6397,7 @@
       "unitWage": "11000"
      },
      {
-      "id": "a024f72a-53a2-49da-9cf7-73b09594502a",
+      "id": "fae508b9-4e2c-4bf6-b3e3-8bd24e4308d3",
       "name": "Закладная под люстру",
       "unit": "шт",
       "order": 100,
@@ -6344,7 +6408,7 @@
       "unitWage": "75000"
      },
      {
-      "id": "c98eeae5-6fba-47bd-adb8-6d375e941cd5",
+      "id": "93512295-ac53-4acf-b1ca-95579b318829",
       "name": "Скрытая ниша (ПК - 14)",
       "unit": "м.п.",
       "order": 101,
@@ -6355,7 +6419,7 @@
       "unitWage": "220000"
      },
      {
-      "id": "3c89cf5a-c53d-4b41-89c1-34b60bdf152f",
+      "id": "90d35357-7a0c-4856-861d-08de61e5a133",
       "name": "Устаонвка светодиодной ленты",
       "unit": "м.п.",
       "order": 102,
@@ -6366,7 +6430,7 @@
       "unitWage": "5000"
      },
      {
-      "id": "b28daff6-9766-4a7d-8860-ec2eb8af58d1",
+      "id": "d4d91d61-88ba-4e1d-b582-c0c45e0299eb",
       "name": "Установка блока питания",
       "unit": "шт",
       "order": 103,
@@ -6377,7 +6441,7 @@
       "unitWage": "20000"
      },
      {
-      "id": "65203309-ffcd-4b3f-b605-0e5f49f6163d",
+      "id": "cbdb1976-5e95-4275-9fee-ba24bfbd9ba8",
       "name": "Световые линии",
       "unit": "м.п.",
       "order": 104,
@@ -6388,7 +6452,7 @@
       "unitWage": "270000"
      },
      {
-      "id": "53a9a060-25be-4475-8cbe-7a016fa53918",
+      "id": "7287fc86-246c-4fca-aeb4-fdd16dd7f65a",
       "name": "Установка светодиодной ленты",
       "unit": "м.п.",
       "order": 105,
@@ -6399,7 +6463,7 @@
       "unitWage": "0"
      },
      {
-      "id": "879153dc-bccd-4c29-afce-a5ec34414b37",
+      "id": "e57f68fc-a181-45a7-ab17-d1b6baec9463",
       "name": "Софты",
       "unit": "шт",
       "order": 106,
@@ -6410,7 +6474,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "87d325b6-cdce-4748-b237-ae1169ea4d40",
+      "id": "fb2c9c18-6508-4746-83df-a85fad515d19",
       "name": "Доп углы",
       "unit": "м.п.",
       "order": 107,
@@ -6421,7 +6485,7 @@
       "unitWage": "0"
      },
      {
-      "id": "49e533f1-69a4-42c7-ad2b-ebde3d511962",
+      "id": "3a0b9c48-26b3-48b0-9380-82d9d39cf628",
       "name": "Магнитные треки",
       "unit": "м.п.",
       "order": 108,
@@ -6432,7 +6496,7 @@
       "unitWage": "350000"
      },
      {
-      "id": "38852fb5-ee36-4228-9739-d28a17438d56",
+      "id": "1e38267e-5ee4-4c85-bedd-60811f2f5d50",
       "name": "Запил магнитный линий",
       "unit": "шт",
       "order": 109,
@@ -6443,7 +6507,7 @@
       "unitWage": "150000"
      },
      {
-      "id": "135ecc71-9047-487b-92b0-872da2659b4b",
+      "id": "8587b450-d80d-4517-89e3-fb105de54f14",
       "name": "Торец магнитной линии",
       "unit": "шт",
       "order": 110,
@@ -6454,7 +6518,7 @@
       "unitWage": "60000"
      },
      {
-      "id": "bdf4d86a-a6d6-4213-a898-a543f52b08aa",
+      "id": "e405a674-2daa-4c5a-bd9a-d5577419d806",
       "name": "Проход по керамограниту",
       "unit": "м.п.",
       "order": 111,
@@ -6465,7 +6529,7 @@
       "unitWage": "90000"
      },
      {
-      "id": "632c8736-ef4e-4369-824f-5a0e1b1b486e",
+      "id": "8a3ade11-f901-402a-ad4a-1e5cf264b4d3",
       "name": "Разделитель",
       "unit": "м.п.",
       "order": 112,
@@ -6478,13 +6542,13 @@
     ]
    },
    {
-    "id": "16f7fc91-d43a-4609-a248-3092d609cfc0",
+    "id": "4ca5a361-20e0-4804-bbec-68e4818a34c9",
     "name": "ЧИСТОВОЙ ЭЛЕКТРОМОНТАЖ ( По факту)",
     "order": 17,
     "stage": null,
     "positions": [
      {
-      "id": "a2cf61e1-ffbf-4a0d-8635-472dc087f063",
+      "id": "41f4a6b8-7aad-49ca-a60f-0ff263d4f8e0",
       "name": "Установка разеток, выключателей. (чистовое)",
       "unit": "шт",
       "order": 113,
@@ -6497,20 +6561,20 @@
     ]
    },
    {
-    "id": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+    "id": "febf85b7-b46e-48af-86bf-2e2eb8012112",
     "name": "МОНТАЖНЫЕ РАБОТЫ",
     "order": 18,
     "stage": {
-     "id": "b81b78bf-87ff-4535-a5c4-7279e34feb50",
+     "id": "e0adc03b-bddc-4448-aeb7-717c6547779f",
      "name": "Чистовая отделка",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     "positions": [
      {
-      "id": "60d7887e-963c-4fc9-8783-011d7651d9de",
+      "id": "2ed08659-1310-4756-9f71-136b9db4480d",
       "name": "Монтаж полотенцесушителя ( стандарт), 4 точки крепежа",
       "unit": "шт",
       "order": 114,
@@ -6521,7 +6585,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "0aca5a64-be42-4c05-9a5b-1723f8dd12a9",
+      "id": "50f02e05-55b1-4381-a229-4bbe673c4131",
       "name": "Подключение сифона (стандарт)",
       "unit": "шт",
       "order": 115,
@@ -6532,7 +6596,7 @@
       "unitWage": "100000"
      },
      {
-      "id": "f9648933-8f3e-47f0-a37b-96b7f0b7bafc",
+      "id": "f10b6597-d361-49c4-b8f9-408f20e01eb4",
       "name": "Монтаж шкафа-зеркала (с подсветкой)",
       "unit": "шт",
       "order": 116,
@@ -6543,7 +6607,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "db87d564-b124-40e0-8357-dafde40a55a5",
+      "id": "5e7ed100-7d8f-4f87-a8ec-5dc3dfbb9a6d",
       "name": "Установка смесителей",
       "unit": "шт",
       "order": 117,
@@ -6554,7 +6618,7 @@
       "unitWage": "250000"
      },
      {
-      "id": "de542fe7-cb13-4689-b3d2-2175edd87bd2",
+      "id": "355a0654-3fe3-4fa6-8a2d-4ac1f35252a9",
       "name": "Установка смесителя с лейкой (стандартный)",
       "unit": "шт",
       "order": 118,
@@ -6565,7 +6629,7 @@
       "unitWage": "200000"
      },
      {
-      "id": "1de9d3d6-375a-4355-b018-964f9a553fc4",
+      "id": "73897afc-b59e-419c-847c-8a1268adfdc1",
       "name": "Установка душевой штанги",
       "unit": "шт",
       "order": 119,
@@ -6576,7 +6640,7 @@
       "unitWage": "80000"
      },
      {
-      "id": "3f91b7b6-d01e-4a4b-a302-9ed7a4d3f73d",
+      "id": "7d155e9f-36e0-4c5b-a3bc-e0d685d9515b",
       "name": "Монтаж ванны (стандартная форма) (по факту)",
       "unit": "шт",
       "order": 120,
@@ -6587,7 +6651,7 @@
       "unitWage": "400000"
      },
      {
-      "id": "d64bf599-ca05-4163-9c80-85b569477814",
+      "id": "dcd90318-a363-4fab-a00b-41caafd17bce",
       "name": "Монтаж навесного унитаза (стоимость от вида крепежа) (по факту)",
       "unit": "шт",
       "order": 121,
@@ -6598,7 +6662,7 @@
       "unitWage": "300000"
      },
      {
-      "id": "4386d4ce-6812-48cb-a3c2-9f9805fbc627",
+      "id": "b3fc7f63-1667-457d-98b0-c14d6443d75d",
       "name": "Монтаж кнопки инсталляции",
       "unit": "шт",
       "order": 122,
@@ -6609,7 +6673,7 @@
       "unitWage": "150000"
      },
      {
-      "id": "11eb8886-3a55-48b7-a100-9dc0a5652f44",
+      "id": "88a0fedd-fca2-4666-8346-2382bd33d73d",
       "name": "Монтаж дверей ( стандарт)",
       "unit": "шт",
       "order": 123,
@@ -6620,7 +6684,7 @@
       "unitWage": "600000"
      },
      {
-      "id": "aa3328a2-9960-4af6-bd2f-ee5c8468dfe5",
+      "id": "4837278e-7b74-4b1b-8ce7-1d724825550d",
       "name": "Монтаж двойной двери",
       "unit": "шт",
       "order": 124,
@@ -6631,7 +6695,7 @@
       "unitWage": "0"
      },
      {
-      "id": "0ee86199-d2cb-4aed-aa30-3b6e06f671fa",
+      "id": "71d55aff-276f-4856-a139-ed3f58715c4b",
       "name": "Монтаж Откотной двери",
       "unit": "шт",
       "order": 125,
@@ -6642,7 +6706,7 @@
       "unitWage": "0"
      },
      {
-      "id": "b163b647-e296-4c38-bec2-7cc504ef6f4c",
+      "id": "f0c1068f-efc0-4fe3-805c-7b21cf63b207",
       "name": "Монтаж/Демонтаж радиаторов (стандарт)",
       "unit": "шт",
       "order": 126,
@@ -6655,13 +6719,13 @@
     ]
    },
    {
-    "id": "61e977eb-d160-43ba-acda-39b20dc3444d",
+    "id": "1f8c6868-080a-4cd2-a4df-bcdcee73b80a",
     "name": "КОНДИЦИОНИРОВАНИЕ (ПО ФАКТУ)",
     "order": 19,
     "stage": null,
     "positions": [
      {
-      "id": "807e1151-8225-479f-b86a-c0cbb70ed80c",
+      "id": "1ccd8cba-b509-4208-8b9c-e161d68d1178",
       "name": "Сквозное отверстие Ф52мм",
       "unit": "шт",
       "order": 127,
@@ -6672,7 +6736,7 @@
       "unitWage": "50000"
      },
      {
-      "id": "bda75351-60a9-4fd4-99a8-b08761e8eef1",
+      "id": "88132934-63b0-4410-9339-6352b86da2d0",
       "name": "Штробление стен в Бетон (до 5*5см)",
       "unit": "м.п.",
       "order": 128,
@@ -6683,7 +6747,7 @@
       "unitWage": "17000"
      },
      {
-      "id": "5b2a4309-5267-47e0-83ac-c40e50e7c6e8",
+      "id": "75cbdc69-c0b1-45f7-821e-6aa5606c5030",
       "name": "Кранштены",
       "unit": "шт",
       "order": 129,
@@ -6694,7 +6758,7 @@
       "unitWage": "200000"
      },
      {
-      "id": "13df256d-61f0-43f0-a113-18c545f0db8a",
+      "id": "f968a591-8160-4a3f-993f-48457a17893d",
       "name": "Магистраль состоящая из медных труб, трубки конденсата, утеплителя медных труб, провода ВВГнГ 4*1,5 (цена от, обсуждение по факту)",
       "unit": "м.п.",
       "order": 130,
@@ -6705,7 +6769,7 @@
       "unitWage": "170000"
      },
      {
-      "id": "8598edb0-067f-43d7-a6b0-023a07ff87f4",
+      "id": "23bfa8d2-a07e-430d-8941-fdadc4faf790",
       "name": "Монтаж и подключение внутреннего блока (цена от, обсуждение по факту)",
       "unit": "шт",
       "order": 131,
@@ -6716,7 +6780,7 @@
       "unitWage": "300000"
      },
      {
-      "id": "a040ca3a-d439-4cfe-a566-634a5e14f0aa",
+      "id": "ea6670b3-56cd-4cd6-97d1-69eab9130b2a",
       "name": "Монтаж и подключение наружного блока (цена от, обсуждение по факту)",
       "unit": "шт",
       "order": 132,
@@ -6729,7 +6793,7 @@
     ]
    },
    {
-    "id": "3f13a2ce-b31f-4b5c-bef6-0c09f7416a33",
+    "id": "d88032ff-f8c7-4536-9ecb-6f3573525d0e",
     "name": "ДОПОЛНИТЕЛЬНЫЕ РАСХОДЫ ( ВХОДЕ РАБОТЫ)",
     "order": 22,
     "stage": null,
@@ -6738,22 +6802,100 @@
   ],
   "batches": [
    {
-    "id": "40d2197f-9047-4226-812d-f53ad93a4ff1",
-    "sectionId": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "914a051b-9d1b-4225-8317-429540a01f70",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "brigade": {
-     "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
      "name": "Бригада Фархата"
     },
-    "createdAt": "2026-09-09T17:36:56.770Z",
-    "author": "Роман Дементьев",
-    "comment": "Наполнение стенда",
+    "createdAt": "2026-09-09T18:43:54.784Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка перевыработки",
     "photos": [
-     "efd87bda-6219-48e8-989e-18ff17458203"
+     "af2bd4db-b42e-4071-b917-7d54d0feb711"
     ],
     "lines": [
      {
-      "id": "95fd5494-19ef-46e2-8062-26f7e91393af",
+      "id": "2a9b360e-4d17-4ec2-ba52-e1d37b5ebb47",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "375",
+      "reversedAt": "2026-09-09T18:43:54.851Z",
+      "reason": "Проверка транша: перевыработка отменена",
+      "amount": "187500"
+     }
+    ]
+   },
+   {
+    "id": "1ad274a2-7301-4c68-983c-f1148c892e04",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:54.605Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка транша",
+    "photos": [
+     "32e039a7-20f5-4e56-b0c0-612d6b73b7d3"
+    ],
+    "lines": [
+     {
+      "id": "a4437c21-5204-4653-92a8-b839659404b1",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "375",
+      "reversedAt": "2026-09-09T18:43:54.666Z",
+      "reason": "Проверка транша: приёмка отменена",
+      "amount": "187500"
+     }
+    ]
+   },
+   {
+    "id": "e8ef57ea-3339-4188-a280-6faf6abab553",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:54.432Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка API",
+    "photos": [
+     "838ef785-5ffc-44e8-9bf6-6533e864f2e3"
+    ],
+    "lines": [
+     {
+      "id": "a841f914-5227-4e5f-8375-0f0aef87d621",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "750",
+      "reversedAt": "2026-09-09T18:43:54.544Z",
+      "reason": "Проверка API: приёмка отменена",
+      "amount": "375000"
+     }
+    ]
+   },
+   {
+    "id": "90f31950-5e77-45a8-9383-4d03cf6ccdb0",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:53.750Z",
+    "author": "Роман Дементьев",
+    "comment": "Наполнение стенда",
+    "photos": [
+     "b4c36852-8c3e-4d91-9ebf-2b8fc179a09c"
+    ],
+    "lines": [
+     {
+      "id": "9fc63532-2bb9-4c6d-85cc-f2783fa097ce",
       "positionName": "Окрывные работы",
       "unit": "шт",
       "qty": "500",
@@ -6772,31 +6914,31 @@
   },
   "accruals": [
    {
-    "brigadeId": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+    "brigadeId": "1e6c96d9-3f38-46af-8079-5b77340011ae",
     "brigadeName": "Бригада Фархата",
     "week": "250000",
     "total": "250000",
-    "tranche": "250000"
+    "tranche": "0"
    }
   ]
  },
  "acceptance-foreman": {
   "sections": [
    {
-    "id": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "name": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "order": 1,
     "stage": {
-     "id": "c8f7c1fb-070c-45f9-8c79-3229904b4c87",
+     "id": "106339ad-b8c5-4cd0-a64c-bb0ee1b7a6aa",
      "name": "Демонтаж",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "3428452c-96f3-4116-aa39-dbaa6393ac30",
+      "id": "07241d3d-9166-4b56-a9ce-3932c42ed734",
       "name": "Окрывные работы",
       "unit": "шт",
       "order": 1,
@@ -6806,7 +6948,7 @@
       "unitPrice": "1000000"
      },
      {
-      "id": "7d6fc99b-4d2a-4e1c-b2de-753996ee1113",
+      "id": "d552e32c-84fe-46b8-b33a-6e10c0d7f888",
       "name": "Полусухая стяжка",
       "unit": "м²",
       "order": 2,
@@ -6816,7 +6958,7 @@
       "unitPrice": "100000"
      },
      {
-      "id": "694d3758-6b67-4490-9f55-f6d7db0a2ce2",
+      "id": "93d9d33d-a454-469a-a803-67458dc0127e",
       "name": "Штукатурка стен по маякам (до 2,5 см)",
       "unit": "м²",
       "order": 3,
@@ -6826,7 +6968,7 @@
       "unitPrice": "90000"
      },
      {
-      "id": "211ef367-8bb4-4a9e-b215-250693f00a99",
+      "id": "4d4a599e-914f-43b4-a32d-1d3f179e9853",
       "name": "Установка перфорированного уголка и планки примыкания к окну (окна, двери, стены)",
       "unit": "м.п.",
       "order": 4,
@@ -6836,7 +6978,7 @@
       "unitPrice": "25000"
      },
      {
-      "id": "68167f8c-4902-4817-b0b9-0b3d3abd4aca",
+      "id": "a8c82a3b-c824-44f2-858b-8e73175cee23",
       "name": "Грунтование стен ( перед штукутуркой)",
       "unit": "м²",
       "order": 5,
@@ -6846,7 +6988,7 @@
       "unitPrice": "12000"
      },
      {
-      "id": "a5ec61c9-af91-4773-af57-a21cb8dbe006",
+      "id": "507371d2-21e5-4c77-8e05-790af1807e9f",
       "name": "Стык плитки ламината без порога",
       "unit": "шт",
       "order": 6,
@@ -6856,7 +6998,7 @@
       "unitPrice": "100000"
      },
      {
-      "id": "647cd89d-67a7-4cfd-8ac3-d9f7ec8213a9",
+      "id": "a2718cd9-252a-4929-8554-8fb3c77e723b",
       "name": "Фартук на кухню",
       "unit": "м²",
       "order": 7,
@@ -6866,7 +7008,7 @@
       "unitPrice": "280000"
      },
      {
-      "id": "c65fd724-6223-4102-b8fb-53d373de0960",
+      "id": "6ed13135-4ddd-4286-aef5-6897978cf83f",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 8,
@@ -6876,7 +7018,7 @@
       "unitPrice": "65000"
      },
      {
-      "id": "94c2d962-8301-4acb-babb-5379dfaa5dc8",
+      "id": "b83634e7-3d22-4647-ae3e-f267f6cb0045",
       "name": "Затирка цементная",
       "unit": "м²",
       "order": 9,
@@ -6888,20 +7030,20 @@
     ]
    },
    {
-    "id": "83b97afc-1bb7-4651-83e9-a4c0073435e5",
+    "id": "133f3e76-ce71-480a-b017-10bdd2c256fc",
     "name": "ГИПСОКАРТОН, ВОЗВЕДЕНИЕ ПЕРЕГОРОДОК",
     "order": 2,
     "stage": {
-     "id": "f99fb587-736c-4311-9ff9-d28a7a9612b2",
+     "id": "e0c62eb0-bfae-4cfe-aa50-c38b61e9a3b5",
      "name": "Стяжка пола",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "79279e26-0cc8-4e6b-9ab4-e20452dfef22",
+      "id": "67880802-3cee-4913-862f-0e3479374d44",
       "name": "Возведение перегородок ( Керпич)",
       "unit": "шт",
       "order": 10,
@@ -6911,7 +7053,7 @@
       "unitPrice": "5000"
      },
      {
-      "id": "f3185db8-1b8b-4739-828b-71224e294900",
+      "id": "f2b881ad-594d-463f-a455-86f8f31c5c09",
       "name": "Перемычка",
       "unit": "шт",
       "order": 11,
@@ -6921,7 +7063,7 @@
       "unitPrice": "140000"
      },
      {
-      "id": "d0c27c9b-01a6-44e0-b1f9-772c7c344d9a",
+      "id": "ab78cb0c-c754-4619-a16e-cff0d30d9e53",
       "name": "Монтаж отверстий в ГКЛ (по факту)",
       "unit": "шт",
       "order": 12,
@@ -6931,7 +7073,7 @@
       "unitPrice": "25000"
      },
      {
-      "id": "2da39bd0-67f3-4590-a63f-8680033afdfe",
+      "id": "e24b078b-da7c-4f10-a500-43079505c65d",
       "name": "Монтаж ГКЛ стена",
       "unit": "м²",
       "order": 13,
@@ -6941,7 +7083,7 @@
       "unitPrice": "140000"
      },
      {
-      "id": "88cd0e65-b611-4396-a6ab-e005e8d94a12",
+      "id": "b2e053ae-16b8-40d7-9f4d-4c2768cc8ebb",
       "name": "Зашив инстоляций ГКЛ 2 (слоя)",
       "unit": "шт",
       "order": 14,
@@ -6953,20 +7095,20 @@
     ]
    },
    {
-    "id": "1e46597f-700e-4172-a75f-8a44ea186800",
+    "id": "d8ffddf2-f46e-4967-ac72-76f9734ba3cc",
     "name": "ЧЕРНОВОЙ ЭЛЕКТРОМОНТАЖ ( ПО ФАКТУ)",
     "order": 3,
     "stage": {
-     "id": "84a2a4c8-2ebd-4994-b291-912eb07e7901",
+     "id": "9ccb2852-f414-4c45-a979-fe1bc8d9c1bd",
      "name": "Черновая электрика",
      "brigade": {
-      "id": "a425e9a4-a76b-4b23-95c1-5b1cb1afb932",
+      "id": "a4347d75-3c4b-4526-a598-47a9daa90084",
       "name": "Электрики Евгения"
      }
     },
     "positions": [
      {
-      "id": "6a317ccc-57c4-48f4-801e-f7608c2eaefa",
+      "id": "1996f1c2-6049-4342-b645-6cce51f711a0",
       "name": "Установка подрозетников",
       "unit": "шт",
       "order": 15,
@@ -6976,7 +7118,7 @@
       "unitPrice": "19000"
      },
      {
-      "id": "d69dd0ea-040f-4151-9247-2c916d59234e",
+      "id": "ebf521f9-2f64-41c0-a047-4f44a660a7d5",
       "name": "Сверление отверстий под подрозетники (кирпич)",
       "unit": "шт",
       "order": 16,
@@ -6986,7 +7128,7 @@
       "unitPrice": "45000"
      },
      {
-      "id": "8127fc89-a7ad-4547-ae4d-b44ca00feba9",
+      "id": "806da024-dcb7-45f6-a1b8-65787d3a848b",
       "name": "Сверление отверстий под подрозетники (Бетон)",
       "unit": "шт",
       "order": 17,
@@ -6996,7 +7138,7 @@
       "unitPrice": "58000"
      },
      {
-      "id": "44f6a8e1-f39e-49ec-9cd4-3618aa1d5fee",
+      "id": "a59a39a5-6054-4bf8-ad3f-66f55c20c079",
       "name": "Укладка провода 3х1.5",
       "unit": "м.п.",
       "order": 18,
@@ -7006,7 +7148,7 @@
       "unitPrice": "11900"
      },
      {
-      "id": "67acf61d-6df2-4c65-a1fc-c51d637a8993",
+      "id": "bbff1aca-992f-4857-b7ec-24eabb301932",
       "name": "Укладка провода 3х2.5",
       "unit": "м.п.",
       "order": 19,
@@ -7016,7 +7158,7 @@
       "unitPrice": "11900"
      },
      {
-      "id": "049871e0-70bc-4b8f-b4aa-c0bd5188fa49",
+      "id": "75c1ab9b-dbff-49ca-8031-752ec2e20cda",
       "name": "Укладка провода в открытую (витая пара, антенна)",
       "unit": "м.п.",
       "order": 20,
@@ -7026,7 +7168,7 @@
       "unitPrice": "10000"
      },
      {
-      "id": "0ba18d10-15ba-4c01-97a1-55eb61b04190",
+      "id": "07deba5d-d958-452e-9358-04e88262aff3",
       "name": "Укладка кабеля 3*6",
       "unit": "м.п.",
       "order": 21,
@@ -7036,7 +7178,7 @@
       "unitPrice": "17000"
      },
      {
-      "id": "29b80596-c07f-4f6a-8310-04dedbf14d1d",
+      "id": "35e9e603-87a0-431e-a549-dc0391a83f0c",
       "name": "Установка эл.щита 3бМ",
       "unit": "шт",
       "order": 22,
@@ -7046,7 +7188,7 @@
       "unitPrice": "140000"
      },
      {
-      "id": "57c90925-d9c8-4411-9f91-97a40d03676a",
+      "id": "78ea705a-59c2-4c55-8e0d-0df37b0f86cb",
       "name": "Установка автомат выключателя 1 фазного",
       "unit": "шт",
       "order": 23,
@@ -7056,7 +7198,7 @@
       "unitPrice": "37000"
      },
      {
-      "id": "f0f1d5f4-c7d5-4147-bc26-ffb475a9d8a4",
+      "id": "77412a7c-7267-43d0-b017-ff3bbb3cbc66",
       "name": "Комантор ( мастер выключатель)",
       "unit": "шт",
       "order": 24,
@@ -7066,7 +7208,7 @@
       "unitPrice": "150000"
      },
      {
-      "id": "e3be8dd9-dfef-42cb-97ab-e29349ede1aa",
+      "id": "be90a0fa-56d9-45be-b8ef-56d0539292fe",
       "name": "Монтаж расключение шины",
       "unit": "шт",
       "order": 25,
@@ -7076,7 +7218,7 @@
       "unitPrice": "100000"
      },
      {
-      "id": "50816893-73db-40d7-80db-fb342f40c851",
+      "id": "0bfba8c2-1905-4524-9c10-86cbf4135bd8",
       "name": "Установка УЗО 2-полюсного",
       "unit": "шт",
       "order": 26,
@@ -7086,7 +7228,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "aad490ae-c78f-473a-b1b9-9d7c304575de",
+      "id": "67837cf2-c874-408a-8e4b-9515a64247a6",
       "name": "Установка контактора 220",
       "unit": "шт",
       "order": 27,
@@ -7096,7 +7238,7 @@
       "unitPrice": "80000"
      },
      {
-      "id": "a5719dcd-b58b-45d5-a752-72e02c78ead5",
+      "id": "e6363a8e-c6a0-4f30-86c5-f44582da0ec1",
       "name": "Установка счетчика э-э 1-фазного",
       "unit": "шт",
       "order": 28,
@@ -7106,7 +7248,7 @@
       "unitPrice": "130000"
      },
      {
-      "id": "597ee6ab-d1bc-4816-90fd-9c254be97b4b",
+      "id": "ee1b996b-30fd-46e1-aba4-ddb03503c56c",
       "name": "Демонтаж щетка квартирного",
       "unit": "шт",
       "order": 29,
@@ -7116,7 +7258,7 @@
       "unitPrice": "150000"
      },
      {
-      "id": "4ba35672-c520-4dc7-b3a7-daece0d86bd2",
+      "id": "3fc37b68-0a5d-42a5-9f34-d2d88cf8741f",
       "name": "Монтаж и распайка распределительных коробок",
       "unit": "шт",
       "order": 30,
@@ -7126,7 +7268,7 @@
       "unitPrice": "70000"
      },
      {
-      "id": "91e6dfb5-046d-4dc2-a855-2dbab8fb2241",
+      "id": "34da2397-a728-4e6f-9849-271c5a857ce4",
       "name": "Монтаж временого света",
       "unit": "ед",
       "order": 31,
@@ -7136,7 +7278,7 @@
       "unitPrice": "20000"
      },
      {
-      "id": "1211d226-9c62-4c99-8052-3671c6b97cfd",
+      "id": "12098085-b53f-4876-b48d-e611bcb89c7c",
       "name": "Сверление сквозных отверстий в кирпичной стене д16L до 250 мм",
       "unit": "шт",
       "order": 32,
@@ -7146,7 +7288,7 @@
       "unitPrice": "25000"
      },
      {
-      "id": "9ffee6fa-55aa-48a5-b41e-0501f8e81956",
+      "id": "9b468fcb-9670-4676-96a8-c2033ad27f3d",
       "name": "Монтаж временного разетки",
       "unit": "ед",
       "order": 33,
@@ -7158,20 +7300,20 @@
     ]
    },
    {
-    "id": "f2cd5b29-6ddc-49d4-9c9c-3ede916cfcb5",
+    "id": "3e12617d-ef68-48ff-b0b0-3ab85474e9e3",
     "name": "САНТЕХНИКА И ОТОПЛЕНИЕ (ПО ФАКТУ)",
     "order": 4,
     "stage": {
-     "id": "bfb1d57f-c9c4-4f12-8700-9f7cad099619",
+     "id": "ea0bd70d-acdf-44c6-be13-7b0c73b93f7e",
      "name": "Разводка воды",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     "positions": [
      {
-      "id": "6693e409-c152-4a06-90bc-5977e836d1f9",
+      "id": "469fed9d-e662-4d8c-9e83-855ac2ffadfa",
       "name": "Прокладка труб ( с теплоизоляцией) и вывод точек водоснабжения",
       "unit": "точка",
       "order": 34,
@@ -7181,7 +7323,7 @@
       "unitPrice": "270000"
      },
      {
-      "id": "627b12b1-b224-4ef6-a3ca-77cd39e48bf2",
+      "id": "d8a47b25-3fd5-47c6-b5c0-cf2f08c75eac",
       "name": "Прокладка труб и вывод точек канализации",
       "unit": "точка",
       "order": 35,
@@ -7191,7 +7333,7 @@
       "unitPrice": "200000"
      },
      {
-      "id": "a97dbfc4-540c-4434-8b4f-abd162936e59",
+      "id": "10f01e60-69a6-4b2d-9c43-55e6f26e4650",
       "name": "Штробление стены под трубы водоснабжения (кирпич) по факту",
       "unit": "м.п.",
       "order": 36,
@@ -7201,7 +7343,7 @@
       "unitPrice": "140000"
      },
      {
-      "id": "686c4f93-7cf4-4fd2-8e0e-a4db5780012f",
+      "id": "dfa5e171-6881-4f82-a19f-c2b8ea6aabd6",
       "name": "Установка отопительного прибора с переносом труб",
       "unit": "шт",
       "order": 37,
@@ -7211,7 +7353,7 @@
       "unitPrice": "630000"
      },
      {
-      "id": "c4337d87-d9b3-4e6c-b98e-95580f58318c",
+      "id": "7b137507-067a-45d6-93ca-2af9bfd8c5f9",
       "name": "Перенос счетчиков водоснабжения",
       "unit": "шт",
       "order": 38,
@@ -7221,7 +7363,7 @@
       "unitPrice": "350000"
      },
      {
-      "id": "66c95d9f-b73c-489d-848d-2bf0735122c8",
+      "id": "47dc5e4c-384c-4349-b490-2060ad312863",
       "name": "Установка монтаж аквастопа",
       "unit": "шт",
       "order": 39,
@@ -7231,7 +7373,7 @@
       "unitPrice": "142000"
      },
      {
-      "id": "0e1de243-12ee-4e4d-937b-9d2245e1ae54",
+      "id": "524a47e5-8912-4ba1-a928-d0a5d7a31f17",
       "name": "Монтаж отвода/тройника канализации",
       "unit": "шт",
       "order": 40,
@@ -7241,7 +7383,7 @@
       "unitPrice": "84000"
      },
      {
-      "id": "ff617434-4b2f-4556-ba7a-eec640ed0c69",
+      "id": "08eda9f9-f311-49e1-91fc-d536712786ac",
       "name": "Смена отвода/ тройника на стояке канализации",
       "unit": "шт",
       "order": 41,
@@ -7251,7 +7393,7 @@
       "unitPrice": "182000"
      },
      {
-      "id": "9ff9bd43-5573-4c1f-bfdb-da419ce22572",
+      "id": "94630fd0-2fe0-4253-92d8-52dd0cefe3ac",
       "name": "Монтаж гигиенического душа встроеного",
       "unit": "м.п.",
       "order": 42,
@@ -7261,7 +7403,7 @@
       "unitPrice": "252000"
      },
      {
-      "id": "37cef32a-7109-480c-9ce7-70caa0f44525",
+      "id": "ec5cb056-8a51-4e84-bde5-1e1041e1d618",
       "name": "Установка/ монтаж Инстоляции",
       "unit": "шт",
       "order": 43,
@@ -7273,20 +7415,20 @@
     ]
    },
    {
-    "id": "aa294fe2-92ac-4fe7-9131-7f235bf785c0",
+    "id": "3e104994-b6ec-4058-8fb5-8b170fa314e7",
     "name": "ВАННАЯ/САН УЗЕЛ",
     "order": 5,
     "stage": {
-     "id": "aa31fefd-e3fd-408d-8478-a7d671544bc1",
+     "id": "c5e364ae-a262-4bc9-9b81-96b85b26899d",
      "name": "Плиточные работы",
      "brigade": {
-      "id": "22e3a67a-450d-457b-979f-89b3381b789a",
+      "id": "f94e5cb5-23e0-4111-88fb-1a6679d4b4e1",
       "name": "Плиточники Алексея"
      }
     },
     "positions": [
      {
-      "id": "f8fec3c3-ceb2-43bf-bdf4-0eccb90c3269",
+      "id": "cd106dc5-0f88-4cdf-8e7c-0a25996efc47",
       "name": "Облицовка плиткой стен",
       "unit": "м²",
       "order": 44,
@@ -7296,7 +7438,7 @@
       "unitPrice": "280000"
      },
      {
-      "id": "6dd726d8-c86d-41ce-87b1-6bdce7ecec88",
+      "id": "42894a8d-0a10-481c-97f1-7c6323219873",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 45,
@@ -7306,7 +7448,7 @@
       "unitPrice": "65000"
      },
      {
-      "id": "7dad0fdb-278c-4aa8-b49e-14114f2e6759",
+      "id": "55d15233-792e-439c-a8b1-40fdb9127b05",
       "name": "Запил плитки под 45гр. (каждая сторона)",
       "unit": "м.п.",
       "order": 46,
@@ -7316,7 +7458,7 @@
       "unitPrice": "84000"
      },
      {
-      "id": "ccf0d6da-75d4-4e7d-b08f-b0fdfe54363e",
+      "id": "94ed4bc3-cf21-4ba2-be5c-c163302b7de9",
       "name": "Затирка цементная",
       "unit": "м.п.",
       "order": 47,
@@ -7326,7 +7468,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "95a87e6e-802f-4589-9e8a-3e7e1b7e1b30",
+      "id": "82661521-56bc-4fed-bd63-de8c42713f14",
       "name": "Просиликонивание примыканий",
       "unit": "м.п.",
       "order": 48,
@@ -7336,7 +7478,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "103701d4-85ec-4cd5-af48-1e12608d73d4",
+      "id": "599d670b-f159-4b98-b8c3-368d16cd6ac2",
       "name": "Чистый рез",
       "unit": "м.п.",
       "order": 49,
@@ -7346,7 +7488,7 @@
       "unitPrice": "63000"
      },
      {
-      "id": "d9b7fec2-cfe3-4d5f-955d-774b65ee2d2a",
+      "id": "2dd94f47-5d90-42f4-aef4-bcb992600fb9",
       "name": "Установка ванной (экран облицованный плиткой) пеноблок",
       "unit": "шт",
       "order": 50,
@@ -7356,7 +7498,7 @@
       "unitPrice": "2500000"
      },
      {
-      "id": "ea68f22e-72f3-4832-887f-acb810c994f5",
+      "id": "0719af63-787b-4bbf-b0c5-9220ede001e7",
       "name": "Грунтовка",
       "unit": "м²",
       "order": 51,
@@ -7366,7 +7508,7 @@
       "unitPrice": "12000"
      },
      {
-      "id": "e518e932-a2bc-47da-84c1-3384b0fa1493",
+      "id": "aec83931-e370-4cb6-ba46-b80085678362",
       "name": "Монтаж скрытого люка",
       "unit": "шт",
       "order": 52,
@@ -7376,7 +7518,7 @@
       "unitPrice": "500000"
      },
      {
-      "id": "824ea335-0841-4a8e-bba3-623494876b4d",
+      "id": "df52cd64-f380-4f7f-9963-085b59d18103",
       "name": "Облицовка плиткой ( 600х1200)",
       "unit": "м²",
       "order": 53,
@@ -7386,7 +7528,7 @@
       "unitPrice": "280000"
      },
      {
-      "id": "852ebae2-e31b-4751-84b7-3d52c221dbe4",
+      "id": "ead6e9ff-46b3-4ed1-a90a-f601aad3c0c2",
       "name": "Затирка цементная",
       "unit": "м²",
       "order": 54,
@@ -7396,7 +7538,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "a2154817-a26d-4128-885f-fddd2499582c",
+      "id": "5c977709-ae24-488c-98bf-44ca0d062dba",
       "name": "Чистый рез",
       "unit": "м.п.",
       "order": 55,
@@ -7406,7 +7548,7 @@
       "unitPrice": "56000"
      },
      {
-      "id": "6ce2ad0e-cc74-44a8-8c77-1e32037ce043",
+      "id": "0f7f3a7e-7848-4c63-9af5-39fd13dee28a",
       "name": "Запил плитки под 45гр. (каждая сторона)",
       "unit": "м.п.",
       "order": 56,
@@ -7416,7 +7558,7 @@
       "unitPrice": "84000"
      },
      {
-      "id": "45f87435-66ef-4b61-b13e-2d70bab28a7d",
+      "id": "48763571-8d45-4ab4-95b2-3fc6c7e25c00",
       "name": "Технические отверстия в плитке",
       "unit": "шт",
       "order": 57,
@@ -7426,7 +7568,7 @@
       "unitPrice": "65000"
      },
      {
-      "id": "3b321bae-35df-454f-877f-a4bee646b7a2",
+      "id": "aa60a7f6-4e1d-45a1-9cbe-29c560037dce",
       "name": "Установка ванной (экран облицованный плиткой) пеноблок",
       "unit": "шт",
       "order": 58,
@@ -7436,7 +7578,7 @@
       "unitPrice": "2500000"
      },
      {
-      "id": "32197a44-a8e2-4eb0-8da4-6d02d51c42da",
+      "id": "30b7dbbc-98d2-407b-8df3-796458b4eb86",
       "name": "Грунтовка",
       "unit": "м²",
       "order": 59,
@@ -7446,7 +7588,7 @@
       "unitPrice": "28000"
      },
      {
-      "id": "5b18c56a-ac6b-415f-82b8-4bb3c79e2c0c",
+      "id": "022e86b6-3bd7-44a2-938e-f094e62995f3",
       "name": "Просиликонивание примыканий (по факту)",
       "unit": "м.п.",
       "order": 60,
@@ -7456,7 +7598,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "f99ad500-ad0f-4701-80e8-607cf1bbe29f",
+      "id": "79b527f1-9d8c-43a3-8e0e-fca855166579",
       "name": "Монтаж скрытого люка",
       "unit": "шт",
       "order": 61,
@@ -7468,20 +7610,20 @@
     ]
    },
    {
-    "id": "b47733dd-142c-408d-b777-1f1b3d812170",
+    "id": "683dae95-138c-4625-9210-6b8a222e5231",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОКРАСКУ)",
     "order": 8,
     "stage": {
-     "id": "4641eee6-f806-464a-a6db-0c90ed5cb191",
+     "id": "7190a730-f744-48c8-aef2-89530377b705",
      "name": "Штукатурка стен",
      "brigade": {
-      "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+      "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
       "name": "Бригада Фархата"
      }
     },
     "positions": [
      {
-      "id": "7ed7ecf7-ff82-4fc1-9c94-44e4f2e70e8b",
+      "id": "bcfc9cb9-d9d1-402d-9e26-e765141c16bd",
       "name": "Штукатурка",
       "unit": "м²",
       "order": 62,
@@ -7491,7 +7633,7 @@
       "unitPrice": "84000"
      },
      {
-      "id": "d7f2bfda-938a-46e2-99d3-c54533d2cc94",
+      "id": "b5f82292-207a-487f-a924-336d3631bf23",
       "name": "Шпаклевка ( 3 слоя)",
       "unit": "м²",
       "order": 63,
@@ -7501,7 +7643,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "7c62240f-3d82-4e0f-a5a7-5de26c51a107",
+      "id": "cda5fe4f-97be-42c0-9e49-97ed739e4956",
       "name": "Грунтовка ( 2 раза)",
       "unit": "м.п.",
       "order": 64,
@@ -7511,7 +7653,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "8704fbfe-f3d3-4fca-95cb-7630fbe5d71f",
+      "id": "4f3935f3-7447-47ea-bb19-fd8a3ca61236",
       "name": "Шкурка ( 2 раза)",
       "unit": "м.п.",
       "order": 65,
@@ -7521,7 +7663,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "77a623de-f1c4-4466-b7c1-be7f94be8e38",
+      "id": "d03b8f25-cda9-4bc7-b81f-717e87dc0bfa",
       "name": "Стеклохолст",
       "unit": "м²",
       "order": 66,
@@ -7531,7 +7673,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "5cde8400-f804-45ee-aa9f-e2a85d0505e6",
+      "id": "73171e61-8ef0-42d4-aae1-672bfd56b185",
       "name": "Штукатурка",
       "unit": "м²",
       "order": 67,
@@ -7541,7 +7683,7 @@
       "unitPrice": "84000"
      },
      {
-      "id": "74d20683-6611-4a3e-b0cf-cbf67b7e0f40",
+      "id": "d3678903-573a-4909-9504-79a12a6ebaf6",
       "name": "Шпаклевка ( 3 слоя)",
       "unit": "м²",
       "order": 68,
@@ -7551,7 +7693,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "0e9954ff-899a-4a69-a915-2d94682a6b04",
+      "id": "da8835d5-f7b1-420e-86c4-1235b9cb2e98",
       "name": "Грунтовка ( 2 раза)",
       "unit": "м²",
       "order": 69,
@@ -7561,7 +7703,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "493bec5c-452a-41cb-b67a-761e68ffb7b0",
+      "id": "ba24b209-cb1f-47cb-87b5-4a39ecc062ae",
       "name": "Шкурка ( 2 раза)",
       "unit": "м²",
       "order": 70,
@@ -7571,7 +7713,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "7c06623c-2741-45f1-af58-3404c513d48c",
+      "id": "5f3a8a79-9efd-48a5-b3ff-29b876eb0725",
       "name": "откосы",
       "unit": "м²",
       "order": 71,
@@ -7581,7 +7723,7 @@
       "unitPrice": "63000"
      },
      {
-      "id": "ac14ba27-3006-4614-a49e-0800ac667e87",
+      "id": "8d3b6e76-09fe-42da-9cee-e04672a5cd8f",
       "name": "Перфорированый уголок",
       "unit": "м.п.",
       "order": 72,
@@ -7591,7 +7733,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "1af12d83-549a-476b-b48d-2f5579a4f9bd",
+      "id": "1f01096d-c988-40e6-9d0a-b414ee6eeec8",
       "name": "Бумажный уголок",
       "unit": "м.п.",
       "order": 73,
@@ -7601,7 +7743,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "8e32d30f-10b1-417a-afcd-d7d02b2d44b6",
+      "id": "be21fa30-b17e-439f-9b46-7bb7eda1ac82",
       "name": "Стеклохолст",
       "unit": "м²",
       "order": 74,
@@ -7613,13 +7755,13 @@
     ]
    },
    {
-    "id": "230af879-026b-4b71-9b05-5c33de91eeed",
+    "id": "70cc14fe-fea6-42c1-b2d8-ae5067d994be",
     "name": "МАЛЯРНЫЕ РАБОТЫ И ЧИСТОВАЯ ОТДЕЛКА (ПОД ОБОИ)",
     "order": 11,
     "stage": null,
     "positions": [
      {
-      "id": "b8e2c011-d98b-4885-b936-fed46093daed",
+      "id": "790f0787-01c6-4981-9e5c-6d445fe720f5",
       "name": "Грунтование (2 слоя)",
       "unit": "м²",
       "order": 75,
@@ -7629,7 +7771,7 @@
       "unitPrice": "24000"
      },
      {
-      "id": "6e88db95-f735-421f-b526-c050bab7931a",
+      "id": "6abe8d6f-2383-4ffc-9620-5530c5c4dfc3",
       "name": "Шпатлевание (2 слоя)",
       "unit": "м²",
       "order": 76,
@@ -7639,7 +7781,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "b08a2f12-472c-48ae-8a64-5bb91d6ec38b",
+      "id": "c95aa9a4-1d02-400a-94a2-08d549580928",
       "name": "Шкурка ( 2 слоя)",
       "unit": "м²",
       "order": 77,
@@ -7649,7 +7791,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "9425d603-16ad-40c3-8b83-243726c19f45",
+      "id": "89f3f91f-044a-4eab-998b-d9174c6ec8d9",
       "name": "Обои (по факту)",
       "unit": "м²",
       "order": 78,
@@ -7659,7 +7801,7 @@
       "unitPrice": "55000"
      },
      {
-      "id": "0e8bb044-5ea6-4e7c-b2ed-9a3e58314042",
+      "id": "ae8d3fd0-95eb-4c78-b759-b87ecfbd94a1",
       "name": "Грунтовка (1 слой) Перед обоями",
       "unit": "м²",
       "order": 79,
@@ -7669,7 +7811,7 @@
       "unitPrice": "12000"
      },
      {
-      "id": "5c192809-0e9c-468e-8257-cc1499b003bc",
+      "id": "78954e05-fa2c-4ad5-b371-7b66a2239d26",
       "name": "Монтаж",
       "unit": "м.п.",
       "order": 80,
@@ -7679,7 +7821,7 @@
       "unitPrice": "60000"
      },
      {
-      "id": "dc42cc9b-50b9-409d-a1a9-aceae2a5f59d",
+      "id": "c76fd121-fe63-4a8e-bd17-949a639d74e6",
       "name": "Грунтование (2 слоя)",
       "unit": "м.п.",
       "order": 81,
@@ -7689,7 +7831,7 @@
       "unitPrice": "24000"
      },
      {
-      "id": "d9977398-f508-425f-b7f9-bf36d2e5cce4",
+      "id": "093bab19-2259-4b13-a4e5-3590743b5148",
       "name": "Шпаклевание откосов (3 слоя)",
       "unit": "м.п.",
       "order": 82,
@@ -7699,7 +7841,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "e6b73b02-1dc8-48a7-87ea-e034022629d5",
+      "id": "34b0b87a-26f0-4f21-a01f-46c31633f9de",
       "name": "Наклейка стеклохолста",
       "unit": "м.п.",
       "order": 83,
@@ -7709,7 +7851,7 @@
       "unitPrice": "60000"
      },
      {
-      "id": "11c10aba-59bb-4ecb-831a-7ffe7fc2e357",
+      "id": "0820420e-089c-4183-872f-d291a90dc82e",
       "name": "Зачистка (3 раза)",
       "unit": "м.п.",
       "order": 84,
@@ -7719,7 +7861,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "2185c663-342c-429e-9f47-a9cc09428be5",
+      "id": "556ba971-65ad-4fe6-97ff-6415e202c77a",
       "name": "Загермечивание примыкания откоса с окном",
       "unit": "м.п.",
       "order": 85,
@@ -7729,7 +7871,7 @@
       "unitPrice": "20000"
      },
      {
-      "id": "5ce81079-7fbe-40ac-a574-95d62314adf8",
+      "id": "3797db68-87eb-47ab-88ed-23dcb1786b17",
       "name": "Покраска простой не фактурной краской (стандарт) - валиком ( 2 слоя)",
       "unit": "м.п.",
       "order": 86,
@@ -7739,7 +7881,7 @@
       "unitPrice": "60000"
      },
      {
-      "id": "e6143d76-3343-4084-9486-3c49a5aeb07a",
+      "id": "11be724b-4321-4c96-9194-518a861a6b73",
       "name": "Обеспыливание и грунтование пола",
       "unit": "м²",
       "order": 87,
@@ -7749,7 +7891,7 @@
       "unitPrice": "20000"
      },
      {
-      "id": "036ebf0e-c967-4160-b047-d73239b1a2da",
+      "id": "71a8400d-bb56-4ca2-8601-f8cd388ba951",
       "name": "Облицовка пола плиткой (600*600мм)",
       "unit": "м²",
       "order": 88,
@@ -7759,7 +7901,7 @@
       "unitPrice": "280000"
      },
      {
-      "id": "ceedf19b-bba0-4e2d-a9fb-145368b2f9f3",
+      "id": "382d5ac4-2d23-4056-8a97-fa0974207dfa",
       "name": "Затирка швов цементная",
       "unit": "м.п.",
       "order": 89,
@@ -7769,7 +7911,7 @@
       "unitPrice": "30000"
      },
      {
-      "id": "77679abe-bc57-466d-9636-6f4f640a5c75",
+      "id": "91f134a2-b959-4655-ab81-8b15873719b0",
       "name": "Подрезка керамогранита (сторона)",
       "unit": "м.п.",
       "order": 90,
@@ -7779,7 +7921,7 @@
       "unitPrice": "56000"
      },
      {
-      "id": "06459f92-c19b-437e-9603-8727f3356c47",
+      "id": "a2610306-79f9-458b-a4f2-9317338c2c23",
       "name": "Защита напольного покрытия гофрокартоном",
       "unit": "м²",
       "order": 91,
@@ -7789,7 +7931,7 @@
       "unitPrice": "10000"
      },
      {
-      "id": "83c640b7-f4be-4413-90b7-525521010b18",
+      "id": "4b5ab347-8725-4f0a-8da6-d58be677cb63",
       "name": "Монтаж подложки",
       "unit": "м²",
       "order": 92,
@@ -7799,7 +7941,7 @@
       "unitPrice": "15000"
      },
      {
-      "id": "bb15febc-7532-4b83-9ee6-2e333223f321",
+      "id": "f3c80bef-d0f3-41d4-b4f1-ac1ea0250535",
       "name": "Настил ламината на подложку (от вида укладки цена может меняться)",
       "unit": "м²",
       "order": 93,
@@ -7809,7 +7951,7 @@
       "unitPrice": "63000"
      },
      {
-      "id": "98aad504-bc71-40d6-89aa-c039784591f3",
+      "id": "45351998-9b77-45fd-a47f-ffd62d0916e9",
       "name": "Чистовой рез ламината",
       "unit": "м.п.",
       "order": 94,
@@ -7819,7 +7961,7 @@
       "unitPrice": "50000"
      },
      {
-      "id": "51d483f4-33fc-4f5d-bdbc-e98c8c481491",
+      "id": "7eb7e21f-9448-4bfb-8185-4901ee26fc09",
       "name": "Полотно и натяжка",
       "unit": "м²",
       "order": 95,
@@ -7829,7 +7971,7 @@
       "unitPrice": "39000"
      },
      {
-      "id": "5e4e405a-583a-4d18-a922-f176471374ca",
+      "id": "e9ef933e-bcf9-4c7d-ac43-51041880447d",
       "name": "Теневой профиль (Еврокраб)",
       "unit": "м.п.",
       "order": 96,
@@ -7839,7 +7981,7 @@
       "unitPrice": "175000"
      },
      {
-      "id": "de2c5ad0-d9e8-4922-b1cd-1a7617315e7c",
+      "id": "d4271db0-07fd-4439-960c-553f36242b7c",
       "name": "Запил под 45 градусов",
       "unit": "шт",
       "order": 97,
@@ -7849,7 +7991,7 @@
       "unitPrice": "75000"
      },
      {
-      "id": "d5796ad0-7987-424c-8ead-807dfe2cb55a",
+      "id": "338d7e96-a073-4ea7-bb7c-c149e51243f8",
       "name": "Стандартный профиль",
       "unit": "м.п.",
       "order": 98,
@@ -7859,7 +8001,7 @@
       "unitPrice": "45000"
      },
      {
-      "id": "8e4b9aaa-13fb-4c50-b7b9-c4e3f11a2838",
+      "id": "655f5f8b-0bdc-4270-bee0-183a5b9f6092",
       "name": "Вставка",
       "unit": "м.п.",
       "order": 99,
@@ -7869,7 +8011,7 @@
       "unitPrice": "12000"
      },
      {
-      "id": "a024f72a-53a2-49da-9cf7-73b09594502a",
+      "id": "fae508b9-4e2c-4bf6-b3e3-8bd24e4308d3",
       "name": "Закладная под люстру",
       "unit": "шт",
       "order": 100,
@@ -7879,7 +8021,7 @@
       "unitPrice": "80000"
      },
      {
-      "id": "c98eeae5-6fba-47bd-adb8-6d375e941cd5",
+      "id": "93512295-ac53-4acf-b1ca-95579b318829",
       "name": "Скрытая ниша (ПК - 14)",
       "unit": "м.п.",
       "order": 101,
@@ -7889,7 +8031,7 @@
       "unitPrice": "350000"
      },
      {
-      "id": "3c89cf5a-c53d-4b41-89c1-34b60bdf152f",
+      "id": "90d35357-7a0c-4856-861d-08de61e5a133",
       "name": "Устаонвка светодиодной ленты",
       "unit": "м.п.",
       "order": 102,
@@ -7899,7 +8041,7 @@
       "unitPrice": "15000"
      },
      {
-      "id": "b28daff6-9766-4a7d-8860-ec2eb8af58d1",
+      "id": "d4d91d61-88ba-4e1d-b582-c0c45e0299eb",
       "name": "Установка блока питания",
       "unit": "шт",
       "order": 103,
@@ -7909,7 +8051,7 @@
       "unitPrice": "40000"
      },
      {
-      "id": "65203309-ffcd-4b3f-b605-0e5f49f6163d",
+      "id": "cbdb1976-5e95-4275-9fee-ba24bfbd9ba8",
       "name": "Световые линии",
       "unit": "м.п.",
       "order": 104,
@@ -7919,7 +8061,7 @@
       "unitPrice": "280000"
      },
      {
-      "id": "53a9a060-25be-4475-8cbe-7a016fa53918",
+      "id": "7287fc86-246c-4fca-aeb4-fdd16dd7f65a",
       "name": "Установка светодиодной ленты",
       "unit": "м.п.",
       "order": 105,
@@ -7929,7 +8071,7 @@
       "unitPrice": "15000"
      },
      {
-      "id": "879153dc-bccd-4c29-afce-a5ec34414b37",
+      "id": "e57f68fc-a181-45a7-ab17-d1b6baec9463",
       "name": "Софты",
       "unit": "шт",
       "order": 106,
@@ -7939,7 +8081,7 @@
       "unitPrice": "65000"
      },
      {
-      "id": "87d325b6-cdce-4748-b237-ae1169ea4d40",
+      "id": "fb2c9c18-6508-4746-83df-a85fad515d19",
       "name": "Доп углы",
       "unit": "м.п.",
       "order": 107,
@@ -7949,7 +8091,7 @@
       "unitPrice": "15000"
      },
      {
-      "id": "49e533f1-69a4-42c7-ad2b-ebde3d511962",
+      "id": "3a0b9c48-26b3-48b0-9380-82d9d39cf628",
       "name": "Магнитные треки",
       "unit": "м.п.",
       "order": 108,
@@ -7959,7 +8101,7 @@
       "unitPrice": "400000"
      },
      {
-      "id": "38852fb5-ee36-4228-9739-d28a17438d56",
+      "id": "1e38267e-5ee4-4c85-bedd-60811f2f5d50",
       "name": "Запил магнитный линий",
       "unit": "шт",
       "order": 109,
@@ -7969,7 +8111,7 @@
       "unitPrice": "150000"
      },
      {
-      "id": "135ecc71-9047-487b-92b0-872da2659b4b",
+      "id": "8587b450-d80d-4517-89e3-fb105de54f14",
       "name": "Торец магнитной линии",
       "unit": "шт",
       "order": 110,
@@ -7979,7 +8121,7 @@
       "unitPrice": "65000"
      },
      {
-      "id": "bdf4d86a-a6d6-4213-a898-a543f52b08aa",
+      "id": "e405a674-2daa-4c5a-bd9a-d5577419d806",
       "name": "Проход по керамограниту",
       "unit": "м.п.",
       "order": 111,
@@ -7989,7 +8131,7 @@
       "unitPrice": "95000"
      },
      {
-      "id": "632c8736-ef4e-4369-824f-5a0e1b1b486e",
+      "id": "8a3ade11-f901-402a-ad4a-1e5cf264b4d3",
       "name": "Разделитель",
       "unit": "м.п.",
       "order": 112,
@@ -8001,13 +8143,13 @@
     ]
    },
    {
-    "id": "16f7fc91-d43a-4609-a248-3092d609cfc0",
+    "id": "4ca5a361-20e0-4804-bbec-68e4818a34c9",
     "name": "ЧИСТОВОЙ ЭЛЕКТРОМОНТАЖ ( По факту)",
     "order": 17,
     "stage": null,
     "positions": [
      {
-      "id": "a2cf61e1-ffbf-4a0d-8635-472dc087f063",
+      "id": "41f4a6b8-7aad-49ca-a60f-0ff263d4f8e0",
       "name": "Установка разеток, выключателей. (чистовое)",
       "unit": "шт",
       "order": 113,
@@ -8019,20 +8161,20 @@
     ]
    },
    {
-    "id": "e01443ff-b233-4729-bd7d-ea1d8b7deaae",
+    "id": "febf85b7-b46e-48af-86bf-2e2eb8012112",
     "name": "МОНТАЖНЫЕ РАБОТЫ",
     "order": 18,
     "stage": {
-     "id": "b81b78bf-87ff-4535-a5c4-7279e34feb50",
+     "id": "e0adc03b-bddc-4448-aeb7-717c6547779f",
      "name": "Чистовая отделка",
      "brigade": {
-      "id": "501db83d-57d0-454a-921c-9162f22a5f24",
+      "id": "0b86d264-4a19-4380-b1d3-33793b388d9c",
       "name": "Бригада Рашида"
      }
     },
     "positions": [
      {
-      "id": "60d7887e-963c-4fc9-8783-011d7651d9de",
+      "id": "2ed08659-1310-4756-9f71-136b9db4480d",
       "name": "Монтаж полотенцесушителя ( стандарт), 4 точки крепежа",
       "unit": "шт",
       "order": 114,
@@ -8042,7 +8184,7 @@
       "unitPrice": "450000"
      },
      {
-      "id": "0aca5a64-be42-4c05-9a5b-1723f8dd12a9",
+      "id": "50f02e05-55b1-4381-a229-4bbe673c4131",
       "name": "Подключение сифона (стандарт)",
       "unit": "шт",
       "order": 115,
@@ -8052,7 +8194,7 @@
       "unitPrice": "140000"
      },
      {
-      "id": "f9648933-8f3e-47f0-a37b-96b7f0b7bafc",
+      "id": "f10b6597-d361-49c4-b8f9-408f20e01eb4",
       "name": "Монтаж шкафа-зеркала (с подсветкой)",
       "unit": "шт",
       "order": 116,
@@ -8062,7 +8204,7 @@
       "unitPrice": "160000"
      },
      {
-      "id": "db87d564-b124-40e0-8357-dafde40a55a5",
+      "id": "5e7ed100-7d8f-4f87-a8ec-5dc3dfbb9a6d",
       "name": "Установка смесителей",
       "unit": "шт",
       "order": 117,
@@ -8072,7 +8214,7 @@
       "unitPrice": "300000"
      },
      {
-      "id": "de542fe7-cb13-4689-b3d2-2175edd87bd2",
+      "id": "355a0654-3fe3-4fa6-8a2d-4ac1f35252a9",
       "name": "Установка смесителя с лейкой (стандартный)",
       "unit": "шт",
       "order": 118,
@@ -8082,7 +8224,7 @@
       "unitPrice": "200000"
      },
      {
-      "id": "1de9d3d6-375a-4355-b018-964f9a553fc4",
+      "id": "73897afc-b59e-419c-847c-8a1268adfdc1",
       "name": "Установка душевой штанги",
       "unit": "шт",
       "order": 119,
@@ -8092,7 +8234,7 @@
       "unitPrice": "102000"
      },
      {
-      "id": "3f91b7b6-d01e-4a4b-a302-9ed7a4d3f73d",
+      "id": "7d155e9f-36e0-4c5b-a3bc-e0d685d9515b",
       "name": "Монтаж ванны (стандартная форма) (по факту)",
       "unit": "шт",
       "order": 120,
@@ -8102,7 +8244,7 @@
       "unitPrice": "600000"
      },
      {
-      "id": "d64bf599-ca05-4163-9c80-85b569477814",
+      "id": "dcd90318-a363-4fab-a00b-41caafd17bce",
       "name": "Монтаж навесного унитаза (стоимость от вида крепежа) (по факту)",
       "unit": "шт",
       "order": 121,
@@ -8112,7 +8254,7 @@
       "unitPrice": "450000"
      },
      {
-      "id": "4386d4ce-6812-48cb-a3c2-9f9805fbc627",
+      "id": "b3fc7f63-1667-457d-98b0-c14d6443d75d",
       "name": "Монтаж кнопки инсталляции",
       "unit": "шт",
       "order": 122,
@@ -8122,7 +8264,7 @@
       "unitPrice": "210000"
      },
      {
-      "id": "11eb8886-3a55-48b7-a100-9dc0a5652f44",
+      "id": "88a0fedd-fca2-4666-8346-2382bd33d73d",
       "name": "Монтаж дверей ( стандарт)",
       "unit": "шт",
       "order": 123,
@@ -8132,7 +8274,7 @@
       "unitPrice": "800000"
      },
      {
-      "id": "aa3328a2-9960-4af6-bd2f-ee5c8468dfe5",
+      "id": "4837278e-7b74-4b1b-8ce7-1d724825550d",
       "name": "Монтаж двойной двери",
       "unit": "шт",
       "order": 124,
@@ -8142,7 +8284,7 @@
       "unitPrice": "1100000"
      },
      {
-      "id": "0ee86199-d2cb-4aed-aa30-3b6e06f671fa",
+      "id": "71d55aff-276f-4856-a139-ed3f58715c4b",
       "name": "Монтаж Откотной двери",
       "unit": "шт",
       "order": 125,
@@ -8152,7 +8294,7 @@
       "unitPrice": "1100000"
      },
      {
-      "id": "b163b647-e296-4c38-bec2-7cc504ef6f4c",
+      "id": "f0c1068f-efc0-4fe3-805c-7b21cf63b207",
       "name": "Монтаж/Демонтаж радиаторов (стандарт)",
       "unit": "шт",
       "order": 126,
@@ -8164,13 +8306,13 @@
     ]
    },
    {
-    "id": "61e977eb-d160-43ba-acda-39b20dc3444d",
+    "id": "1f8c6868-080a-4cd2-a4df-bcdcee73b80a",
     "name": "КОНДИЦИОНИРОВАНИЕ (ПО ФАКТУ)",
     "order": 19,
     "stage": null,
     "positions": [
      {
-      "id": "807e1151-8225-479f-b86a-c0cbb70ed80c",
+      "id": "1ccd8cba-b509-4208-8b9c-e161d68d1178",
       "name": "Сквозное отверстие Ф52мм",
       "unit": "шт",
       "order": 127,
@@ -8180,7 +8322,7 @@
       "unitPrice": "310000"
      },
      {
-      "id": "bda75351-60a9-4fd4-99a8-b08761e8eef1",
+      "id": "88132934-63b0-4410-9339-6352b86da2d0",
       "name": "Штробление стен в Бетон (до 5*5см)",
       "unit": "м.п.",
       "order": 128,
@@ -8190,7 +8332,7 @@
       "unitPrice": "350000"
      },
      {
-      "id": "5b2a4309-5267-47e0-83ac-c40e50e7c6e8",
+      "id": "75cbdc69-c0b1-45f7-821e-6aa5606c5030",
       "name": "Кранштены",
       "unit": "шт",
       "order": 129,
@@ -8200,7 +8342,7 @@
       "unitPrice": "250000"
      },
      {
-      "id": "13df256d-61f0-43f0-a113-18c545f0db8a",
+      "id": "f968a591-8160-4a3f-993f-48457a17893d",
       "name": "Магистраль состоящая из медных труб, трубки конденсата, утеплителя медных труб, провода ВВГнГ 4*1,5 (цена от, обсуждение по факту)",
       "unit": "м.п.",
       "order": 130,
@@ -8210,7 +8352,7 @@
       "unitPrice": "260000"
      },
      {
-      "id": "8598edb0-067f-43d7-a6b0-023a07ff87f4",
+      "id": "23bfa8d2-a07e-430d-8941-fdadc4faf790",
       "name": "Монтаж и подключение внутреннего блока (цена от, обсуждение по факту)",
       "unit": "шт",
       "order": 131,
@@ -8220,7 +8362,7 @@
       "unitPrice": "390000"
      },
      {
-      "id": "a040ca3a-d439-4cfe-a566-634a5e14f0aa",
+      "id": "ea6670b3-56cd-4cd6-97d1-69eab9130b2a",
       "name": "Монтаж и подключение наружного блока (цена от, обсуждение по факту)",
       "unit": "шт",
       "order": 132,
@@ -8232,7 +8374,7 @@
     ]
    },
    {
-    "id": "3f13a2ce-b31f-4b5c-bef6-0c09f7416a33",
+    "id": "d88032ff-f8c7-4536-9ecb-6f3573525d0e",
     "name": "ДОПОЛНИТЕЛЬНЫЕ РАСХОДЫ ( ВХОДЕ РАБОТЫ)",
     "order": 22,
     "stage": null,
@@ -8241,22 +8383,97 @@
   ],
   "batches": [
    {
-    "id": "40d2197f-9047-4226-812d-f53ad93a4ff1",
-    "sectionId": "65effd56-0553-4d86-b22d-65a4b9360ca4",
+    "id": "914a051b-9d1b-4225-8317-429540a01f70",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
     "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
     "brigade": {
-     "id": "6ae6bfbe-5457-435d-8dbc-7bb6a58b0c1f",
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
      "name": "Бригада Фархата"
     },
-    "createdAt": "2026-09-09T17:36:56.770Z",
-    "author": "Роман Дементьев",
-    "comment": "Наполнение стенда",
+    "createdAt": "2026-09-09T18:43:54.784Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка перевыработки",
     "photos": [
-     "efd87bda-6219-48e8-989e-18ff17458203"
+     "af2bd4db-b42e-4071-b917-7d54d0feb711"
     ],
     "lines": [
      {
-      "id": "95fd5494-19ef-46e2-8062-26f7e91393af",
+      "id": "2a9b360e-4d17-4ec2-ba52-e1d37b5ebb47",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "375",
+      "reversedAt": "2026-09-09T18:43:54.851Z",
+      "reason": "Проверка транша: перевыработка отменена"
+     }
+    ]
+   },
+   {
+    "id": "1ad274a2-7301-4c68-983c-f1148c892e04",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:54.605Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка транша",
+    "photos": [
+     "32e039a7-20f5-4e56-b0c0-612d6b73b7d3"
+    ],
+    "lines": [
+     {
+      "id": "a4437c21-5204-4653-92a8-b839659404b1",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "375",
+      "reversedAt": "2026-09-09T18:43:54.666Z",
+      "reason": "Проверка транша: приёмка отменена"
+     }
+    ]
+   },
+   {
+    "id": "e8ef57ea-3339-4188-a280-6faf6abab553",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:54.432Z",
+    "author": "Фархат Юсупов",
+    "comment": "Проверка API",
+    "photos": [
+     "838ef785-5ffc-44e8-9bf6-6533e864f2e3"
+    ],
+    "lines": [
+     {
+      "id": "a841f914-5227-4e5f-8375-0f0aef87d621",
+      "positionName": "Окрывные работы",
+      "unit": "шт",
+      "qty": "750",
+      "reversedAt": "2026-09-09T18:43:54.544Z",
+      "reason": "Проверка API: приёмка отменена"
+     }
+    ]
+   },
+   {
+    "id": "90f31950-5e77-45a8-9383-4d03cf6ccdb0",
+    "sectionId": "d71a8bd7-e2a2-48b0-b263-a917ae612b34",
+    "sectionName": "ПОДГОТОВИТЕЛЬНЫЕ РАБОТЫ",
+    "brigade": {
+     "id": "1e6c96d9-3f38-46af-8079-5b77340011ae",
+     "name": "Бригада Фархата"
+    },
+    "createdAt": "2026-09-09T18:43:53.750Z",
+    "author": "Роман Дементьев",
+    "comment": "Наполнение стенда",
+    "photos": [
+     "b4c36852-8c3e-4d91-9ebf-2b8fc179a09c"
+    ],
+    "lines": [
+     {
+      "id": "9fc63532-2bb9-4c6d-85cc-f2783fa097ce",
       "positionName": "Окрывные работы",
       "unit": "шт",
       "qty": "500",
@@ -8276,13 +8493,13 @@
   "supervisionShare": 1200,
   "tranches": [
    {
-    "id": "3a658bc5-6716-4b95-a701-7ed40a2da62d",
+    "id": "8efabecc-2e92-4bef-a097-cfa626fc0881",
     "number": 0,
     "amount": "127507031",
     "status": "PAID",
-    "openedAt": "2026-09-09T17:36:56.713Z",
+    "openedAt": "2026-09-09T18:43:53.684Z",
     "closedAt": null,
-    "paidAt": "2026-09-09T17:36:56.712Z",
+    "paidAt": "2026-09-09T18:43:53.683Z",
     "comment": "Предоплата 30 % по договору",
     "produced": "0",
     "client": "0",
@@ -8290,33 +8507,61 @@
     "fill": 0
    },
    {
-    "id": "89c909e0-84d9-4e15-9117-c4b13a61f787",
+    "id": "4e8b0a61-6bf3-47d0-9edd-117ccd1a5d7e",
     "number": 1,
     "amount": "45000000",
-    "status": "OPEN",
-    "openedAt": "2026-09-09T17:36:56.727Z",
-    "closedAt": null,
+    "status": "CLOSED",
+    "openedAt": "2026-09-09T18:43:53.701Z",
+    "closedAt": "2026-09-09T18:43:54.740Z",
     "paidAt": null,
     "comment": "Рабочий транш",
     "produced": "500000",
     "client": "560000",
     "remainder": "44440000",
     "fill": 124
+   },
+   {
+    "id": "c177c6cb-e381-4d43-b0d1-7c53ed824b8e",
+    "number": 2,
+    "amount": "100",
+    "status": "PAID",
+    "openedAt": "2026-09-09T18:43:54.759Z",
+    "closedAt": "2026-09-09T18:43:54.883Z",
+    "paidAt": "2026-09-09T18:43:54.898Z",
+    "comment": "Проверка перевыработки",
+    "produced": "0",
+    "client": "0",
+    "remainder": "100",
+    "fill": 0
+   },
+   {
+    "id": "c841f33b-de20-434f-b25a-90891baa5f54",
+    "number": 3,
+    "amount": "45000000",
+    "status": "OPEN",
+    "openedAt": "2026-09-09T18:43:54.919Z",
+    "closedAt": null,
+    "paidAt": null,
+    "comment": "Рабочий транш",
+    "produced": "0",
+    "client": "0",
+    "remainder": "45000000",
+    "fill": 0
    }
   ],
   "current": {
-   "id": "89c909e0-84d9-4e15-9117-c4b13a61f787",
-   "number": 1,
+   "id": "c841f33b-de20-434f-b25a-90891baa5f54",
+   "number": 3,
    "amount": "45000000",
    "status": "OPEN",
-   "openedAt": "2026-09-09T17:36:56.727Z",
+   "openedAt": "2026-09-09T18:43:54.919Z",
    "closedAt": null,
    "paidAt": null,
    "comment": "Рабочий транш",
-   "produced": "500000",
-   "client": "560000",
-   "remainder": "44440000",
-   "fill": 124
+   "produced": "0",
+   "client": "0",
+   "remainder": "45000000",
+   "fill": 0
   },
   "outside": {
    "batches": 0,
@@ -8326,11 +8571,11 @@
  },
  "imports": [
   {
-   "id": "f46d9d1f-cfaa-4175-9917-ee7b7f2e07bc",
-   "estimateId": "fff8f55e-2f2a-47bb-8755-3374b1b8c355",
+   "id": "6288081c-3a51-47eb-a43e-9f2e9982b42d",
+   "estimateId": "8a1e7786-5da8-495c-bd20-228febb0a6f6",
    "version": 1,
    "fileName": "smeta-obezlichennaya.xlsx",
-   "importedAt": "2026-09-09T17:36:56.562Z",
+   "importedAt": "2026-09-09T18:43:53.513Z",
    "positions": 132,
    "report": {
     "findings": [
@@ -8533,8 +8778,8 @@
   }
  },
  "import": {
-  "importId": "f46d9d1f-cfaa-4175-9917-ee7b7f2e07bc",
-  "estimateId": "fff8f55e-2f2a-47bb-8755-3374b1b8c355",
+  "importId": "6288081c-3a51-47eb-a43e-9f2e9982b42d",
+  "estimateId": "8a1e7786-5da8-495c-bd20-228febb0a6f6",
   "version": 1,
   "report": {
    "findings": [

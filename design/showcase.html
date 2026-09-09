@@ -1072,6 +1072,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    на ячейках: итогов три строки, и каждая, закреплённая по bottom: 0,
    встала бы поверх соседней. */
 .estimate tfoot { position: sticky; bottom: 0; z-index: 2; }
+
+/* Колонка правки. Ширина по содержимому: кнопка «Править» короткая, и
+   резервировать под неё долю таблицы значило бы отнять её у наименования —
+   самой длинной колонки сметы. Появляется только у роли, которая правит. */
+.estimate__act { inline-size: 1%; white-space: nowrap; text-align: end; }
+
+/* Строка подстановки величин обмера в листе правки позиции. */
+.estimate__from-measure {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+}
 .estimate tfoot td { background: var(--surface); font-weight: 600; }
 .estimate tfoot tr:first-child td { border-top: 2px solid var(--line-strong); }
 

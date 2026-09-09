@@ -16,9 +16,11 @@ import type {
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
   CloseTranche, CreateTranche, TrancheView,
+  UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
-  acceptanceFault, accrualAmount, clientAmount, basisPoints, kopecks, measureTotals,
+  acceptanceFault, accrualAmount, applyPercent, clientAmount, basisPoints,
+  estimateItemFault, kopecks, measureTotals,
   milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, wallArea,
   type ProjectRange,
@@ -344,7 +346,9 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
   if (code !== "R-99") {
     throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
   }
-  return data["estimate-owner"];
+  /* Отдаётся правимая копия, а не снимок: иначе правка в демонстрации
+     видна на экране, но исчезает при возврате на вкладку. */
+  return сметаR99();
 }
 
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
@@ -847,5 +851,85 @@ export async function payTranche(_code: string, id: string): Promise<TrancheView
   }
   транш.status = "PAID";
   транш.paidAt = new Date().toISOString();
+  return вид;
+}
+
+/* --- правка сметы ---------------------------------------------------------
+   Состояние в памяти вкладки, как приёмка и транши: демонстрация без сервера
+   обязана показывать последствие действия. Отказы — теми же функциями домена,
+   что на сервере; итоги пересчитываются целиком. */
+
+let смета: EstimateView | null = null;
+
+const сметаR99 = (): EstimateView => {
+  смета ??= structuredClone(data["estimate-owner"]);
+  return смета;
+};
+
+/** Все позиции дерева одним списком: разделы вложены на два уровня. */
+const позицииСметы = (вид: EstimateView) =>
+  вид.sections.flatMap((раздел) =>
+    [...раздел.items, ...раздел.children.flatMap((вложенный) => вложенный.items)]);
+
+/**
+ * Итоги пересчитываются целиком: подытоги разделов, итог работ, надбавка и
+ * итог для клиента. Складывать разности значило бы завести вторую копию
+ * правил, которая разойдётся с первой на первой же вложенности.
+ */
+function пересчитатьСмету(вид: EstimateView): void {
+  const подытог = (раздел: EstimateView["sections"][number]): bigint => {
+    const свои = раздел.items.reduce(
+      (всего, позиция) => всего + kopecks(позиция.total), 0n);
+    const детей = раздел.children.reduce((всего, ребёнок) => всего + подытог(ребёнок), 0n);
+    раздел.subtotal = (свои + детей).toString();
+    return свои + детей;
+  };
+  for (const раздел of вид.sections) подытог(раздел);
+
+  const works = позицииСметы(вид).reduce((всего, позиция) => всего + kopecks(позиция.total), 0n);
+  const supervision = applyPercent(kopecks(works), basisPoints(вид.totals.supervisionShare));
+  вид.totals.works = works.toString();
+  вид.totals.supervision = supervision.toString();
+  вид.totals.estimate = (works + supervision).toString();
+}
+
+export async function updateEstimateItem(
+  _code: string, id: string, input: UpdateEstimateItem,
+): Promise<EstimateView> {
+  await pause(260);
+  const вид = сметаR99();
+  const позиция = позицииСметы(вид).find((строка) => строка.id === id);
+  if (позиция === undefined) throw new Error("Позиция не найдена в действующей редакции сметы.");
+
+  const qty = milliunits(input.qty ?? позиция.qty);
+  const unitPrice = kopecks(input.unitPrice ?? позиция.unitPrice);
+  const unitWage = kopecks(input.unitWage ?? позиция.unitWage ?? "0");
+  const fault = estimateItemFault({
+    qty, accepted: milliunits(позиция.qtyAccepted), unit: input.unit ?? позиция.unit,
+    unitPrice, unitWage,
+  });
+  if (fault !== null) throw new Error(fault);
+
+  позиция.name = input.name ?? позиция.name;
+  позиция.unit = input.unit ?? позиция.unit;
+  позиция.qty = qty.toString();
+  позиция.unitPrice = unitPrice.toString();
+  позиция.total = accrualAmount(unitPrice, qty).toString();
+  if (позиция.unitWage !== undefined) {
+    позиция.unitWage = unitWage.toString();
+    позиция.wageTotal = accrualAmount(unitWage, qty).toString();
+    позиция.profit = (kopecks(позиция.total) - kopecks(позиция.wageTotal)).toString();
+  }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+export async function updateSupervision(
+  _code: string, input: UpdateSupervision,
+): Promise<EstimateView> {
+  await pause(220);
+  const вид = сметаR99();
+  вид.totals.supervisionShare = input.supervisionShare;
+  пересчитатьСмету(вид);
   return вид;
 }
