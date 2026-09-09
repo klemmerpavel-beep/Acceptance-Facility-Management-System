@@ -11,6 +11,7 @@ import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
 import { Acceptance } from "./Acceptance.js";
+import { Tranches } from "./Tranches.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -69,6 +70,7 @@ const TABS = [
   { key: "estimate", label: "Смета" },
   { key: "work", label: "Работа" },
   { key: "acceptance", label: "Приёмка" },
+  { key: "tranches", label: "Транши" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -212,6 +214,32 @@ export function ProjectCard({
               </span>
             </div>
 
+            {/* Остаток текущего транша — та величина, ради которой руководитель
+                открывает систему вечером (объём полевого испытания, решение
+                № 3). Полоса с тремя величинами живёт на своей вкладке: в
+                сводке нужен ответ на один вопрос — сколько ещё можно
+                выработать. Транша нет — строки нет: ноль означал бы
+                «выработан ровно до копейки». */}
+            {project.trancheRemainder !== null && (
+              <div className="figure">
+                <span className="figure__label">Остаток текущего транша</span>
+                <span
+                  className={
+                    BigInt(project.trancheRemainder) < 0n
+                      ? "figure__value tranche__over"
+                      : "figure__value"
+                  }
+                >
+                  {money(project.trancheRemainder)}
+                </span>
+                <span className="figure__note">
+                  {BigInt(project.trancheRemainder) < 0n
+                    ? "перевыработка: пора закрывать транш актом"
+                    : "до следующего акта и оплаты"}
+                </span>
+              </div>
+            )}
+
             {/* Стадию называет штамп; здесь она стоит только как текущее
                 значение при органе управления. У прораба органа нет —
                 нет и строки. Почтовый адрес для чеков снят: приёма писем
@@ -333,6 +361,12 @@ export function ProjectCard({
             <div role="tabpanel" id="panel-acceptance" aria-labelledby="tab-acceptance" hidden={tab !== "acceptance"}>
               {tab === "acceptance" && (
                 <Acceptance code={project.code} role={user.role} onEvents={load} />
+              )}
+            </div>
+
+            <div role="tabpanel" id="panel-tranches" aria-labelledby="tab-tranches" hidden={tab !== "tranches"}>
+              {tab === "tranches" && (
+                <Tranches code={project.code} role={user.role} onEvents={load} />
               )}
             </div>
 

@@ -3,8 +3,9 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  workStageSchema, acceptanceViewSchema,
+  workStageSchema, acceptanceViewSchema, trancheViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
+  type CloseTranche, type CreateTranche, type TrancheView,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
@@ -279,3 +280,21 @@ export const setProjectStatus = (
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status }),
   });
+
+/* --- транши ---------------------------------------------------------------
+   Закрытие и оплата — отдельные вызовы, а не правка статуса: это разные
+   события, и общий вызов допускал бы переход «открыт → оплачен», которого
+   не бывает. Каждый возвращает вид целиком: закрытие меняет и величины
+   транша, и признак «открытого нет», от которого зависит вся вкладка. */
+
+export const fetchTranches = (code: string): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches`, trancheViewSchema);
+
+export const createTranche = (code: string, input: CreateTranche): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches`, trancheViewSchema, json(input));
+
+export const closeTranche = (code: string, id: string, input: CloseTranche): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches/${id}/closure`, trancheViewSchema, json(input));
+
+export const payTranche = (code: string, id: string): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches/${id}/payment`, trancheViewSchema, json({}));

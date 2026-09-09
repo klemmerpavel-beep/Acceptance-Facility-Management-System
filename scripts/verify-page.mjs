@@ -694,7 +694,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Транши|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -1156,6 +1156,127 @@ for (const selector of [".accept__check", ".accept__section"]) {
 await step("приёмка на телефоне", "35-priyomka-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
+
+await page.click('.tabs__item:has-text("Обзор")');
+
+/*
+ * Транши. Вопрос вкладки — сколько ещё можно выработать до акта.
+ *
+ * Главная проверка — согласованность мер: остаток на экране обязан равняться
+ * сумме транша минус выработка с надбавкой, посчитанной здесь заново. Та же
+ * проверка на приёмке поймала смешение редакций сметы; здесь она стережёт
+ * расхождение полосы с таблицей и надбавку, взятую не у той сметы.
+ */
+/* Обход обёрнут условием: не открывшаяся вкладка оставляла каждую следующую
+   строку падать по таймауту, а падение прятало весь остаток обхода. Непадающая
+   проверка не стережёт ничего, но и роняющая обход — тоже. */
+if ((await page.locator('.tabs__item:has-text("Транши")').count()) === 0) {
+  note("транши", "вкладки «Транши» нет в карточке объекта");
+} else {
+await page.click('.tabs__item:has-text("Транши")');
+await page.waitForTimeout(500);
+
+const остатокВСводке = (await page.locator("aside .figure__label:has-text('Остаток текущего транша')")
+  .count()) === 0
+  ? null
+  : (await page.locator("aside .figure__label:has-text('Остаток текущего транша')")
+      .locator("xpath=following-sibling::span[1]").first().textContent());
+if (остатокВСводке === null) {
+  note("транши", "остатка текущего транша нет в сводке объекта");
+}
+
+const строкиТраншей = await page.locator(".tranche__row").count();
+if (строкиТраншей < 2) {
+  note("транши", `строк траншей ${строкиТраншей}: на стенде их не меньше двух`);
+}
+
+/* Разбор величин строки. Числа приходят оформленными («450 000,00 ₽»),
+   поэтому разбираются обратно в копейки: сверять надо арифметику, а не
+   написание. Неразрывный пробел — разделитель разрядов формата. */
+const вКопейки = (текст) => {
+  // \u00A0 — неразрывный пробел разделителя разрядов, \u2212 — типографский минус.
+  const очищено = (текст ?? "").replace(/[\s\u00A0\u20BD]/g, "").replace("\u2212", "-");
+  const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
+  return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
+};
+
+const надбавкаЭкрана = await page.locator(".section-head .t-cap:has-text('надбавка')").first()
+  .textContent().catch(() => null);
+const доля = надбавкаЭкрана === null
+  ? null
+  : BigInt(Math.round(Number.parseFloat(надбавкаЭкрана.replace(/[^\d.,]/g, "").replace(",", ".")) * 100));
+if (доля === null) note("транши", "надбавка не названа на вкладке");
+
+for (let i = 0; i < строкиТраншей; i += 1) {
+  const строка = page.locator(".tranche__row").nth(i);
+  const величины = await строка.locator(".tranche__figures .num").allTextContents();
+  const [сумма, выработано, остаток] = величины.map(вКопейки);
+  if (сумма === null || выработано === null || остаток === null) {
+    note("транши", `строка ${i + 1}: величины не разобраны — «${величины.join(" / ")}»`);
+    continue;
+  }
+  if (сумма - выработано !== остаток) {
+    note("транши", `строка ${i + 1}: остаток ${остаток} не равен ${сумма} − ${выработано}`);
+  }
+}
+
+/* Полоса открытого транша: заливка не вылезает за дорожку, а число остатка
+   при перевыработке отрицательное и не обрезается. */
+if ((await page.locator(".tranche__bar").count()) === 0) {
+  note("транши", "полосы открытого транша нет");
+} else {
+  /* Ширина читается объявленной, а не измеренной: у дорожки `overflow:
+     hidden`, и браузер обрезает бокс заливки по её границе. Измерение здесь
+     всегда сходится, и проверка по нему не стережёт ничего — установлено
+     откатом, который она не поймала. */
+  const объявленная = await page.locator(".tranche__fill").first()
+    .evaluate((узел) => узел.style.inlineSize);
+  const доляПолосы = Number.parseFloat(объявленная);
+  if (!Number.isFinite(доляПолосы)) {
+    note("транши", `ширина заливки не объявлена: «${объявленная}»`);
+  } else if (доляПолосы > 100) {
+    note("транши", `заливка объявлена на ${доляПолосы.toFixed(2)} % — шире дорожки`);
+  }
+}
+
+await step("транши", "36-transhi.png");
+
+/* Лист открытия: отказ показывается до обращения к сети, тем же правилом,
+   что применит сервер. Второй открытый транш при уже открытом отклоняется. */
+await page.click('.btn--primary:has-text("Открыть транш")');
+await page.waitForTimeout(400);
+if ((await page.locator(".sheet").count()) === 0) {
+  note("транши", "лист открытия не открылся");
+} else {
+  await page.locator('.sheet input[inputmode="decimal"]').fill("450000");
+  await page.waitForTimeout(250);
+  const отказЛиста = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказЛиста === null || !отказЛиста.includes("уже открыт транш")) {
+    note("транши", `лист не отказал на втором открытом транше: «${отказЛиста ?? "молча"}»`);
+  }
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("транши", "кнопка открытия доступна при уже открытом транше");
+  }
+  await page.locator('.sheet input[inputmode="decimal"]').fill("0");
+  await page.waitForTimeout(250);
+  const отказНуля = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказНуля === null || !отказНуля.includes("больше нуля")) {
+    note("транши", `лист не отказал на нулевой сумме: «${отказНуля ?? "молча"}»`);
+  }
+  await step("транши, лист открытия", "37-transh-list.png");
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
+/* Транши на телефоне: шесть величин в строку на 390 px не помещаются, и
+   раскладка обязана переносить их второй строкой без переполнения. */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await overflow("транши, 390");
+await step("транши на телефоне", "38-transhi-390.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+}
 
 await page.click('.tabs__item:has-text("Обзор")');
 

@@ -120,3 +120,34 @@ for (const транш of транши) {
   else console.error(`  транш не заведён: код ${ответ.status}`);
 }
 console.log(`  траншей заведено: ${заведено}`);
+
+/* Один пакет приёмки на стенде. Без него выработка всех траншей равна нулю,
+   остаток совпадает с суммой, и проверка согласованности величин («остаток
+   равен сумме минус выработка с надбавкой») теряет силу: подмена одного
+   числа другим на таких данных неразличима. Обнаружено откатом проверки
+   страницы — она не покраснела там, где обязана была.
+
+   Заодно стенд перестаёт показывать пустой продукт: полоса транша
+   заполнена, свод начислений не пуст, кольцо готовности имеет основание. */
+const видПриёмки = await fetch(`${BASE}/projects/${CODE}/acceptance`, { headers: { cookie } })
+  .then((response) => response.json());
+const разделСЭтапом = видПриёмки.sections.find((раздел) => раздел.stage?.brigade != null);
+const позиция = разделСЭтапом?.positions.find((строка) => BigInt(строка.remaining) >= 4n);
+
+if (позиция !== undefined) {
+  const форма = new FormData();
+  форма.append("batch", JSON.stringify({
+    sectionId: разделСЭтапом.id,
+    comment: "Наполнение стенда",
+    // Четверть остатка: позиция остаётся частично принятой, и экран
+    // показывает все три состояния — принято, осталось, ожидает.
+    positions: [{ itemId: позиция.id, qty: (BigInt(позиция.remaining) / 4n).toString() }],
+  }));
+  форма.append("file", new Blob([readFileSync(new URL("./fixtures/snimok.png", import.meta.url))]), "snimok.png");
+  const ответ = await fetch(`${BASE}/projects/${CODE}/acceptance`, {
+    method: "POST", headers: { cookie }, body: форма,
+  });
+  console.log(ответ.ok
+    ? `  приёмка стенда: «${позиция.name}», ${(BigInt(позиция.remaining) / 4n).toString()} тысячных`
+    : `  приёмка стенда не прошла: код ${ответ.status}`);
+}
