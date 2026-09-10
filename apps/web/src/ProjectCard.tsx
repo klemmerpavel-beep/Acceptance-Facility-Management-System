@@ -3,7 +3,7 @@ import type {
   CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary,
 } from "@priyomka/contracts";
-import { daysBetween, projectRange, workingDaysBetween } from "@priyomka/domain";
+import { daysBetween, projectRange, sectionChoices, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
@@ -385,6 +385,7 @@ export function ProjectCard({
                   role={user.role}
                   today={today}
                   range={projectRange(project)}
+                  sections={estimate === null ? [] : sectionChoices(estimate.sections)}
                   onEvents={load}
                 />
               )}

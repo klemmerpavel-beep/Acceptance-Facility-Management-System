@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { basisPoints, parseQuantity, parseRubles } from "./money.js";
 import {
   buildEstimateView, estimateItemFault, estimateItemWarning, measureSourcesFor,
-  MEASURE_LABEL, MEASURE_SOURCES,
+  sectionChoices, MEASURE_LABEL, MEASURE_SOURCES,
   type BuildEstimateInput, type SectionNode,
 } from "./estimate.js";
 import { findInternalFields, INTERNAL_FIELDS } from "./projection.js";
@@ -226,5 +226,32 @@ describe("перенос величин обмера", () => {
         expect(MEASURE_LABEL[source]).toBeTruthy();
       }
     }
+  });
+});
+
+describe("разделы, которые может вести этап (5.2)", () => {
+  const дерево = [
+    {
+      id: "s1", name: "ДЕМОНТАЖ",
+      children: [
+        { id: "s1a", name: "Мастер ванная", children: [] },
+        { id: "s1b", name: "Кухня", children: [] },
+      ],
+    },
+    { id: "s2", name: "ЭЛЕКТРОМОНТАЖ", children: [] },
+  ];
+
+  it("предлагаются разделы верхнего уровня в порядке сметы", () => {
+    expect(sectionChoices(дерево).map((choice) => choice.name)).toEqual([
+      "ДЕМОНТАЖ", "ЭЛЕКТРОМОНТАЖ",
+    ]);
+  });
+
+  it("вложенный раздел не предлагается: приёмка его не видит", () => {
+    expect(sectionChoices(дерево).some((choice) => choice.id === "s1a")).toBe(false);
+  });
+
+  it("пустая смета не даёт ни одной строки выбора", () => {
+    expect(sectionChoices([])).toEqual([]);
   });
 });

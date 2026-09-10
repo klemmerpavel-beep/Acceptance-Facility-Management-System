@@ -14,6 +14,7 @@ import {
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
+import { currentEstimate } from "../common/current-estimate";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { toImportReport } from "./report.mapper";
@@ -502,11 +503,7 @@ export class EstimatesService {
 
   /** Действующая редакция объекта. Её отсутствие — не ошибка сервера, а состояние. */
   private async currentEstimate(projectId: string) {
-    const estimate = await this.prisma.estimate.findFirst({
-      where: { projectId },
-      orderBy: { version: "desc" },
-      select: { id: true, supervisionShare: true },
-    });
+    const estimate = await currentEstimate(this.prisma, projectId);
     if (!estimate) {
       throw new NotFoundException({
         message: "У объекта нет сметы. Импортируйте её на вкладке «Импорт».",

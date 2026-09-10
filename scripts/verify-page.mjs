@@ -1125,6 +1125,134 @@ await page.waitForTimeout(900);
 const послеЗаведения = await page.locator(".gantt__row").count();
 if (послеЗаведения !== 8) note("график", `после заведения строк ${послеЗаведения} вместо восьми`);
 
+/*
+ * Связь этапа с разделом сметы и бригадой (пункт плана 5.2, решение Р19).
+ *
+ * Пара «раздел → этап → бригада» решает, кому уйдёт сдельная оплата за
+ * принятые позиции раздела. До этой правки назначить её с экрана было
+ * нечем: оба поля жили только в модели и в скрипте наполнения, и у каждого
+ * заведённого человеком этапа получателя начисления не было.
+ *
+ * Проверяется на пробном этапе, который ниже снимается, и следствие
+ * проверяется там, где оно видно человеку: раздел на вкладке приёмки
+ * перестаёт быть бездействующим.
+ */
+await page.click('.gantt__title:has-text("Проверка страницы")');
+await page.waitForSelector(".sheet");
+const полеРаздела = page.locator('.sheet label:has-text("Раздел сметы") select');
+const полеБригады = page.locator('.sheet label:has-text("Бригада") select');
+
+/* Отсутствие полей — дефект экрана, а не повод упасть: снятая проверка
+   обязана краснеть замечанием, иначе она стережёт только саму себя. */
+if ((await полеРаздела.count()) === 0 || (await полеБригады.count()) === 0) {
+  note("связь этапа", "в листе этапа нет полей выбора раздела сметы и бригады");
+  await page.click('.sheet button:has-text("Отмена")');
+  await page.waitForTimeout(300);
+} else {
+  const занятых = await полеРаздела.locator("option[disabled]").count();
+  if (занятых !== 7) {
+    note("связь этапа", `недоступных разделов ${занятых} вместо семи занятых другими этапами`);
+  }
+  const занятаяПодпись = занятых === 0
+    ? ""
+    : (await полеРаздела.locator("option[disabled]").first().textContent())?.trim() ?? "";
+  if (занятых > 0 && !занятаяПодпись.includes("ведёт этап")) {
+    note("связь этапа", `занятый раздел не называет причину: «${занятаяПодпись}»`);
+  }
+
+  const свободные = полеРаздела.locator("option:not([disabled])");
+  if ((await свободные.count()) < 2) {
+    note("связь этапа", "в списке нет ни одного свободного раздела: связывать не с чем");
+    await page.click('.sheet button:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  } else {
+    const разделId = await свободные.nth(1).getAttribute("value");
+    const разделИмя = (await свободные.nth(1).textContent())?.trim() ?? "";
+    await полеРаздела.selectOption(разделId ?? "");
+
+    const бригадныеЗначения = await полеБригады.locator("option").evaluateAll(
+      (options) => options.map((option) => option.value).filter((value) => value !== ""),
+    );
+    if (бригадныеЗначения.length === 0) {
+      note("связь этапа", "в списке бригад пусто: назначать получателя некого");
+    } else {
+      await полеБригады.selectOption(бригадныеЗначения[0] ?? "");
+    }
+
+    await page.click('.sheet button:has-text("Сохранить")');
+    await page.waitForTimeout(900);
+
+    /* Лист, оставшийся открытым, означает отказ сервера. Предложенный
+       экраном раздел, который сервер не принимает, — дефект самого списка:
+       занятые разделы экран обязан не предлагать. */
+    if ((await page.locator(".sheet").count()) > 0) {
+      const отказСервера = (await page.locator(".sheet .field__error").first().textContent())?.trim() ?? "";
+      note("связь этапа", `сервер отказал в предложенном экраном разделе: «${отказСервера}»`);
+      await page.click('.sheet button:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    } else {
+      /* Значение обязано пережить сохранение: лист собирается заново из
+         ответа сервера, и «выбрал, сохранил, а там пусто» — обычный отказ
+         записи. */
+      await page.click('.gantt__title:has-text("Проверка страницы")');
+      await page.waitForSelector('.sheet label:has-text("Раздел сметы") select');
+      if ((await полеРаздела.inputValue()) !== разделId) {
+        note("связь этапа", `раздел не сохранился: в поле «${await полеРаздела.inputValue()}»`);
+      }
+      if (бригадныеЗначения.length > 0 && (await полеБригады.inputValue()) !== бригадныеЗначения[0]) {
+        note("связь этапа", "бригада не сохранилась у этапа");
+      }
+      await page.click('.sheet button:has-text("Отмена")');
+      await page.waitForTimeout(300);
+
+      /* Следствие на вкладке приёмки: раздел перестал быть бездействующим. */
+      await page.click('.tabs__item:has-text("Приёмка")');
+      await page.waitForSelector(".accept__section");
+      const вкладкаРаздела = page.locator(`.accept__section:has-text("${разделИмя}")`).first();
+      if ((await вкладкаРаздела.count()) === 0) {
+        note("связь этапа", `раздела «${разделИмя}» нет на вкладке приёмки`);
+      } else if ((await вкладкаРаздела.getAttribute("class"))?.includes("accept__section--idle")) {
+        note("связь этапа", `раздел «${разделИмя}» остался бездействующим после связи с этапом`);
+      }
+
+      await page.click('.tabs__item:has-text("Работа")');
+      await page.waitForSelector(".gantt__row");
+    }
+
+    /* Предзаполнение названия по разделу (Р19): выбор раздела заполняет
+       пустое название и не трогает набранное. */
+    await page.click('button:has-text("Добавить этап")');
+    await page.waitForSelector('.sheet label:has-text("Раздел сметы") select');
+    const полеИмени = page.locator(".sheet input").first();
+    const свободныйДляИмени = полеРаздела.locator("option:not([disabled])");
+    if ((await свободныйДляИмени.count()) > 1) {
+      const значение = await свободныйДляИмени.nth(1).getAttribute("value");
+      const подпись = (await свободныйДляИмени.nth(1).textContent())?.trim() ?? "";
+      await полеРаздела.selectOption(значение ?? "");
+      await page.waitForTimeout(200);
+      const подставлено = (await полеИмени.inputValue()).trim();
+      if (подставлено === "") {
+        note("связь этапа", "выбор раздела не подставил название в пустое поле");
+      } else if (!подпись.startsWith(подставлено.slice(0, 20))) {
+        note("связь этапа", `подставлено «${подставлено}», а раздел называется «${подпись}»`);
+      }
+      /* Набранное название выбор раздела не переписывает. */
+      await полеИмени.fill("Своё название");
+      const другой = await свободныйДляИмени.nth(2).getAttribute("value");
+      if (другой !== null) {
+        await полеРаздела.selectOption(другой);
+        await page.waitForTimeout(200);
+        if ((await полеИмени.inputValue()) !== "Своё название") {
+          note("связь этапа", "выбор раздела переписал набранное человеком название");
+        }
+      }
+    }
+    await page.click('.sheet button:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  }
+}
+await step("работа, раздел и бригада у этапа", "27b-etap-razdel.png");
+
 /* Заведённое снимается: стенд возвращается к семи этапам. */
 await page.click('.gantt__title:has-text("Проверка страницы")');
 await page.waitForSelector('.sheet button:has-text("Снять этап")');
@@ -1158,7 +1286,9 @@ if (названиеЭтапа !== null && названиеЭтапа.height < 4
 }
 await page.click(".gantt__title");
 await page.waitForSelector(".sheet select");
-const мест = await page.locator(".sheet select option").count();
+/* Счёт идёт по своему полю, а не по всем полям выбора листа: их стало
+   три — место в графике, раздел сметы и бригада. */
+const мест = await page.locator('.sheet label:has-text("Место в графике") select option').count();
 if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
 await page.click('.sheet button:has-text("Отмена")');
 await page.waitForTimeout(300);

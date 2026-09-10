@@ -3,6 +3,7 @@ import type { CreateWorkStage, UpdateWorkStage, WorkStage } from "@priyomka/cont
 import { projectRange, stageDateFault, type ProjectRange } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
+import { currentEstimate } from "../common/current-estimate";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 
@@ -86,6 +87,114 @@ export class StagesService {
     return this.list(project.id);
   }
 
+  /**
+   * Проверка связей этапа: раздел сметы и бригада.
+   *
+   * До этой правки оба опознавателя уходили в базу как есть, и три
+   * обращения давали 500 «Internal server error»: раздел, который уже
+   * ведёт другой этап (нарушение `@@unique([sectionId])`), несуществующий
+   * раздел и несуществующая бригада (нарушение внешнего ключа). Человек
+   * получал отказ сервера там, где ошибся во вводе.
+   *
+   * Раздел ищется в **действующей** редакции сметы, а не среди всех
+   * разделов объекта. Приёмка привязывает пакет к разделу действующей
+   * редакции (Р11) и ищет этап по этому разделу; этап, оставшийся на
+   * разделе прежней редакции, при приёмке найден не был бы, и начисление
+   * ушло бы в никуда молча. Это тот же класс расхождения, что закрыт
+   * стадией D.
+   *
+   * Бригада проверяется на принадлежность организации, но не на вид:
+   * получателем начисления бывает и мастер-одиночка, а `WageAccrual`
+   * ссылается на `Worker` без различения вида.
+   *
+   * `null` разрешён обоими полями и означает снятие связи: этап без
+   * раздела законен — график заводят раньше сметы.
+   */
+  private async checkBindings(
+    orgId: string,
+    projectId: string,
+    input: { sectionId?: string | null; brigadeId?: string | null },
+    stageId: string | null,
+  ): Promise<void> {
+    if (typeof input.sectionId === "string") {
+      const estimate = await currentEstimate(this.prisma, projectId);
+      if (estimate === null) {
+        throw new BadRequestException({
+          message: "У объекта нет сметы: связывать этап не с чем. "
+            + "Импортируйте смету на вкладке «Импорт».",
+        });
+      }
+
+      const section = await this.prisma.estimateSection.findFirst({
+        where: { id: input.sectionId, estimateId: estimate.id },
+        select: { id: true, name: true, parentId: true },
+      });
+      if (section === null) {
+        throw new NotFoundException({
+          message: "Раздел не найден в действующей смете объекта.",
+        });
+      }
+
+      /* Только раздел верхнего уровня. Приёмка складывает позиции вложенных
+         разделов в родительский и ищет этап по опознавателю верхнего:
+         этап, привязанный к вложенному, приёмке не виден вовсе, и начислять
+         по нему некому. Связь была бы, а работать бы не работала. */
+      if (section.parentId !== null) {
+        throw new BadRequestException({
+          message: `«${section.name}» — вложенный раздел. Этап ведёт раздел верхнего `
+            + "уровня: приёмка принимает вложенные разделы вместе с родительским.",
+        });
+      }
+
+      const занят = await this.prisma.workStage.findFirst({
+        where: {
+          projectId,
+          sectionId: section.id,
+          ...(stageId === null ? {} : { NOT: { id: stageId } }),
+        },
+        select: { name: true },
+      });
+      if (занят !== null) {
+        throw new BadRequestException({
+          message: `Раздел «${section.name}» уже ведёт этап «${занят.name}». `
+            + "Раздел ведёт один этап: иначе приёмка не знала бы, чьей бригаде начислять.",
+        });
+      }
+    }
+
+    if (typeof input.brigadeId === "string") {
+      const бригада = await this.prisma.worker.findFirst({
+        where: { id: input.brigadeId, orgId },
+        select: { id: true },
+      });
+      if (бригада === null) {
+        throw new NotFoundException({
+          message: "Бригада не найдена в справочнике организации.",
+        });
+      }
+    }
+  }
+
+  /** Имя раздела для журнала: `null` означает «связи не было». */
+  private async sectionName(id: string | null): Promise<string | null> {
+    if (id === null) return null;
+    const section = await this.prisma.estimateSection.findUnique({
+      where: { id },
+      select: { name: true },
+    });
+    return section?.name ?? null;
+  }
+
+  /** Имя бригады для журнала: `null` означает «получателя не было». */
+  private async brigadeName(id: string | null): Promise<string | null> {
+    if (id === null) return null;
+    const worker = await this.prisma.worker.findUnique({
+      where: { id },
+      select: { name: true },
+    });
+    return worker?.name ?? null;
+  }
+
   async create(user: RequestUser, code: string, input: CreateWorkStage): Promise<WorkStage[]> {
     const project = await this.projectOf(user, code);
     const fault = stageDateFault(input, StagesService.range(project));
@@ -100,6 +209,8 @@ export class StagesService {
         message: `Этап «${input.name}» на объекте уже есть. Название этапа — его опознавательный знак в графике и в акте.`,
       });
     }
+
+    await this.checkBindings(user.orgId, project.id, input, null);
 
     /* Новый этап встаёт в конец: место в графике определяет человек
        перестановкой, а не порядок заведения. */
@@ -164,6 +275,8 @@ export class StagesService {
       }
     }
 
+    await this.checkBindings(user.orgId, project.id, input, id);
+
     await this.prisma.workStage.update({
       where: { id },
       data: {
@@ -191,6 +304,40 @@ export class StagesService {
         newValue: стало,
       });
     }
+    /* Смена раздела и смена бригады пишутся в журнал наравне со сроками:
+       этой парой решается, кому уйдёт сдельная оплата за принятые позиции
+       раздела. Записывается имя, а не опознаватель: журнал читает человек. */
+    if (input.sectionId !== undefined && input.sectionId !== прежний.sectionId) {
+      const [было, стало] = await Promise.all([
+        this.sectionName(прежний.sectionId),
+        this.sectionName(input.sectionId),
+      ]);
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "WorkStage",
+        entityId: id,
+        field: `раздел сметы у этапа «${input.name ?? прежний.name}»`,
+        oldValue: было,
+        newValue: стало,
+      });
+    }
+    if (input.brigadeId !== undefined && input.brigadeId !== прежний.brigadeId) {
+      const [было, стало] = await Promise.all([
+        this.brigadeName(прежний.brigadeId),
+        this.brigadeName(input.brigadeId),
+      ]);
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "WorkStage",
+        entityId: id,
+        field: `бригада у этапа «${input.name ?? прежний.name}»`,
+        oldValue: было,
+        newValue: стало,
+      });
+    }
+
     if (input.progress !== undefined && input.progress !== прежний.progress) {
       await this.audit.record({
         orgId: user.orgId,

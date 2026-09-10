@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CreateWorkStage, Role, WorkStage } from "@priyomka/contracts";
+import type { CreateWorkStage, Role, WorkerRow, WorkStage } from "@priyomka/contracts";
 import {
   dayIndex, isDayOff, monthWindow, planWindow, shiftDay, shiftMonth, stageDateFault, windowDays,
-  type PlanWindow, type ProjectRange,
+  type PlanWindow, type ProjectRange, type SectionChoice,
 } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
 import {
-  createStage, deleteStage, errorMessage, fetchStages, reorderStages, updateStage,
+  createStage, deleteStage, errorMessage, fetchStages, fetchWorkers, reorderStages, updateStage,
 } from "./api.js";
-import { StageSheet } from "./StageSheet.js";
+import { StageSheet, type StageSection } from "./StageSheet.js";
 
 /**
  * Вкладка «Работа» карточки объекта — правка графика производства работ.
@@ -23,6 +23,28 @@ import { StageSheet } from "./StageSheet.js";
  * Готовность здесь заявленная. До приёмки (стадия D) подтвердить её
  * нечем, и экран говорит это словами, а не оставляет число без пояснения.
  */
+
+/**
+ * Занятость разделов: какой раздел уже ведёт другой этап.
+ *
+ * Считается на экране, а не приходит с сервером: этапы у экрана уже есть,
+ * и лишний запрос ради того, что лежит в соседней переменной, добавил бы
+ * состояние, способное разойтись со списком после первой же правки.
+ * Раздел самого правимого этапа занятым не считается — иначе человек не
+ * смог бы сохранить этап, ничего в нём не меняя.
+ */
+function занятость(
+  sections: readonly SectionChoice[],
+  stages: readonly WorkStage[],
+  editing: WorkStage | null,
+): readonly StageSection[] {
+  const ведёт = new Map(
+    stages
+      .filter((stage) => stage.sectionId !== null && stage.id !== editing?.id)
+      .map((stage) => [stage.sectionId ?? "", stage.name]),
+  );
+  return sections.map((section) => ({ ...section, takenBy: ведёт.get(section.id) ?? null }));
+}
 
 /** График ведёт руководитель — как и статус объекта. Прораб его читает. */
 const canEdit = (role: Role): boolean => role === "OWNER";
@@ -106,12 +128,14 @@ export function Schedule({
   role,
   today,
   range,
+  sections,
   onEvents,
 }: {
   code: string;
   role: Role;
   today: string;
   range: ProjectRange;
+  sections: readonly SectionChoice[];
   onEvents: () => void;
 }): React.JSX.Element {
   const [stages, setStages] = useState<WorkStage[] | null>(null);
@@ -119,6 +143,10 @@ export function Schedule({
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ stage: WorkStage | null } | null>(null);
+  /* Справочник бригад тянется здесь, а не приходит сверху: он нужен одному
+     листу этого экрана. Отказ справочника не мешает править сроки, поэтому
+     пустой список — не ошибка экрана, а отсутствие получателей. */
+  const [brigades, setBrigades] = useState<readonly WorkerRow[]>([]);
   /* Месяц выбирается при первом показе графика: до загрузки этапов
      выбирать не из чего, а после — незачем спрашивать снова. */
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -136,6 +164,15 @@ export function Schedule({
   }, [code]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Только руководителю: прораб график читает, назначать получателя ему
+     нечем, и справочник организации ему в этом экране не нужен. */
+  useEffect(() => {
+    if (!canEdit(role)) return;
+    fetchWorkers()
+      .then((rows) => { setBrigades(rows.filter((row) => row.kind === "BRIGADE")); })
+      .catch(() => { setBrigades([]); });
+  }, [role]);
 
   const apply = (next: WorkStage[]): void => {
     setStages(next);
@@ -444,6 +481,8 @@ export function Schedule({
           range={range}
           place={editing.stage === null ? stages.length + 1 : stages.indexOf(editing.stage) + 1}
           places={editing.stage === null ? stages.length + 1 : stages.length}
+          sections={занятость(sections, stages, editing.stage)}
+          brigades={brigades}
           busy={busy}
           error={sheetError}
           onSave={(stage: CreateWorkStage) => {

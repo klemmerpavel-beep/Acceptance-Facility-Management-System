@@ -10,6 +10,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
+import { currentEstimate } from "../common/current-estimate";
 import { FileStorage } from "../common/file-storage";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
 import type { RequestUser } from "../common/current-user";
@@ -59,11 +60,7 @@ export class AcceptanceService {
 
   /** Действующая редакция сметы объекта. Приёмка ведётся по ней. */
   private async estimateOf(projectId: string) {
-    const estimate = await this.prisma.estimate.findFirst({
-      where: { projectId },
-      orderBy: { version: "desc" },
-      select: { id: true },
-    });
+    const estimate = await currentEstimate(this.prisma, projectId);
     if (estimate === null) {
       throw new BadRequestException({
         message: "У объекта нет сметы. Принимать нечего: приёмке подлежат позиции сметы.",
