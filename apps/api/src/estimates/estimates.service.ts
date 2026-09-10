@@ -1,14 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import type { EstimateView, ImportRecord, ImportReport, ImportResult } from "@priyomka/contracts";
+import type {
+  EstimateView, ImportRecord, ImportReport, ImportResult,
+  UpdateEstimateItem, UpdateSupervision,
+} from "@priyomka/contracts";
 import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
-import { acceptedQty, basisPoints, buildEstimateView, kopecks, milliunits } from "@priyomka/domain";
+import {
+  acceptedQty, basisPoints, buildEstimateView, estimateItemFault, kopecks, milliunits,
+} from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
+import { currentEstimate } from "../common/current-estimate";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { toImportReport } from "./report.mapper";
@@ -27,6 +33,23 @@ function unitId(units: ReadonlyMap<string, string>, unit: string): string {
   }
   return found;
 }
+
+/**
+ * Подписи полей для журнала объекта.
+ *
+ * «unitPrice» в ленте событий читателю ничего не говорит, а спор звучит как
+ * «кто поменял цену», а не «кто правил позицию» — тот же довод, что у обмера.
+ */
+const FIELD_LABEL: Readonly<Record<string, string>> = {
+  name: "наименование",
+  unit: "единица",
+  qty: "количество",
+  unitPrice: "цена единицы",
+  unitWage: "ставка оплаты труда",
+};
+
+/** Поля позиции, правка которых пишется в журнал по отдельности. */
+const ITEM_FIELDS = ["name", "unit", "qty", "unitPrice", "unitWage"] as const;
 
 @Injectable()
 export class EstimatesService {
@@ -337,6 +360,156 @@ export class EstimatesService {
       address: project.address,
       supervisionShare: project.supervisionShare,
     });
+  }
+
+  /**
+   * Правка позиции действующей редакции (пункты плана 2.5, 2.6 и 3.9).
+   *
+   * Новой редакции не порождает: редакция растёт только при импорте. Правится
+   * то, что человек тронул, — необязательные поля приходят по одному.
+   */
+  async updateItem(
+    user: RequestUser,
+    code: string,
+    itemId: string,
+    input: UpdateEstimateItem,
+  ): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+
+    /* Позиция ищется в границах действующей редакции одним условием: чужая,
+       несуществующая и принадлежащая прежней редакции дают один и тот же 404.
+       Разные ответы на эти случаи рассказали бы о чужом объекте. */
+    const before = await this.prisma.estimateItem.findFirst({
+      where: { id: itemId, estimateId: estimate.id },
+      select: {
+        id: true, name: true, qty: true, unitPrice: true, unitWage: true,
+        unit: { select: { id: true, code: true } },
+        acceptances: { select: { qty: true } },
+      },
+    });
+    if (!before) {
+      throw new NotFoundException({
+        message: "Позиция не найдена в действующей редакции сметы этого объекта.",
+      });
+    }
+
+    const unit = input.unit ?? before.unit.code;
+    const принято = acceptedQty(before.acceptances.map((row) => ({ qty: milliunits(row.qty) })));
+    const отказ = estimateItemFault({
+      qty: input.qty === undefined ? milliunits(before.qty) : milliunits(input.qty),
+      accepted: принято,
+      unit,
+      unitPrice: input.unitPrice === undefined
+        ? kopecks(before.unitPrice)
+        : kopecks(input.unitPrice),
+      unitWage: input.unitWage === undefined ? kopecks(before.unitWage) : kopecks(input.unitWage),
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    /* Единица меняется только на каноническую: справочник организации
+       наполняется импортом, и свободное написание развело бы «м2» и «м²»
+       по разным строкам справочника — ровно то, против чего он заведён. */
+    let unitId = before.unit.id;
+    if (input.unit !== undefined && input.unit !== before.unit.code) {
+      if (!CANONICAL_UNITS.includes(input.unit as CanonicalUnit)) {
+        throw new BadRequestException({
+          message: `Единица «${input.unit}» не каноническая. Допустимы: ${CANONICAL_UNITS.join(", ")}.`,
+        });
+      }
+      const строка = await this.prisma.unit.upsert({
+        where: { orgId_code: { orgId: project.orgId, code: input.unit } },
+        update: {},
+        create: { orgId: project.orgId, code: input.unit },
+        select: { id: true },
+      });
+      unitId = строка.id;
+    }
+
+    const прежнее: Record<string, string> = {
+      name: before.name,
+      unit: before.unit.code,
+      qty: before.qty.toString(),
+      unitPrice: before.unitPrice.toString(),
+      unitWage: before.unitWage.toString(),
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.estimateItem.update({
+        where: { id: before.id },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.qty === undefined ? {} : { qty: milliunits(input.qty) }),
+          ...(input.unitPrice === undefined ? {} : { unitPrice: kopecks(input.unitPrice) }),
+          ...(input.unitWage === undefined ? {} : { unitWage: kopecks(input.unitWage) }),
+          ...(unitId === before.unit.id ? {} : { unitId }),
+        },
+      });
+
+      /* Каждое изменённое поле — отдельная запись журнала (БП-10): спор
+         звучит как «кто поменял цену», а не «кто правил позицию». */
+      for (const field of ITEM_FIELDS) {
+        const next = input[field];
+        if (next === undefined || next === прежнее[field]) continue;
+        await this.audit.record({
+          orgId: project.orgId,
+          actorId: user.id,
+          entity: "EstimateItem",
+          entityId: project.id,
+          field: `${before.name} — ${FIELD_LABEL[field] ?? field}`,
+          oldValue: прежнее[field] ?? null,
+          newValue: next,
+        });
+      }
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Правка надбавки «сопровождение объекта» действующей редакции.
+   *
+   * Правится у сметы, а не у объекта: надбавка объекта есть значение по
+   * умолчанию для новой сметы, а считают по надбавке той сметы, которая
+   * действует (установлено стадией E при выводе остатка транша).
+   */
+  async updateSupervision(
+    user: RequestUser,
+    code: string,
+    input: UpdateSupervision,
+  ): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+    if (estimate.supervisionShare === input.supervisionShare) return this.view(user, code);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.estimate.update({
+        where: { id: estimate.id },
+        data: { supervisionShare: input.supervisionShare },
+      });
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "Estimate",
+        entityId: project.id,
+        field: "надбавка «сопровождение объекта»",
+        oldValue: estimate.supervisionShare.toString(),
+        newValue: input.supervisionShare.toString(),
+      });
+    });
+
+    return this.view(user, code);
+  }
+
+  /** Действующая редакция объекта. Её отсутствие — не ошибка сервера, а состояние. */
+  private async currentEstimate(projectId: string) {
+    const estimate = await currentEstimate(this.prisma, projectId);
+    if (!estimate) {
+      throw new NotFoundException({
+        message: "У объекта нет сметы. Импортируйте её на вкладке «Импорт».",
+      });
+    }
+    return estimate;
   }
 
   /** Канонический справочник единиц для экрана сопоставления. */

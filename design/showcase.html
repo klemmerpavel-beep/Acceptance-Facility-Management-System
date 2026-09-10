@@ -1072,6 +1072,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    на ячейках: итогов три строки, и каждая, закреплённая по bottom: 0,
    встала бы поверх соседней. */
 .estimate tfoot { position: sticky; bottom: 0; z-index: 2; }
+
+/* Колонка правки. Ширина по содержимому: кнопка «Править» короткая, и
+   резервировать под неё долю таблицы значило бы отнять её у наименования —
+   самой длинной колонки сметы. Появляется только у роли, которая правит. */
+.estimate__act { inline-size: 1%; white-space: nowrap; text-align: end; }
+
+/* Строка подстановки величин обмера в листе правки позиции. */
+.estimate__from-measure {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+}
 .estimate tfoot td { background: var(--surface); font-weight: 600; }
 .estimate tfoot tr:first-child td { border-top: 2px solid var(--line-strong); }
 
@@ -1162,6 +1172,38 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .tranche__fill { height: 100%; background: var(--accent); border-radius: var(--radius-pill); transition: width var(--dur-base) var(--ease); }
 .tranche__fill--over { background: var(--signal); }
 .tranche__legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-3); font-size: var(--fs-sm); color: var(--ink-2); }
+
+/* Строка списка траншей. На телефоне номер с основанием и состояние идут
+   первой строкой, три величины — второй: шесть столбцов на 390 px не
+   помещаются ни при каком кегле. От 768 px величины переезжают в среднюю
+   колонку, и список читается таблицей. */
+.tranche__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-block-size: var(--tap-min);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--line);
+}
+.tranche__row:last-child { border-block-end: 0; }
+.tranche__no { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-3); }
+.tranche__figures {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4);
+  font-size: var(--fs-sm); color: var(--ink-2);
+}
+/* Состояние держит свою колонку: без неё пилюля и величины делят одну
+   ячейку и встают друг над другом, а не рядом. */
+.tranche__state { display: flex; align-items: center; gap: var(--space-2); }
+/* Отрицательный остаток — сигнальным, а не `--danger`: перевыработка есть
+   нормальное событие, требующее закрытия акта. Тот же довод, что у заливки. */
+.tranche__over { color: var(--signal); }
+@media (min-width: 768px) {
+  .tranche__row { grid-template-columns: minmax(0, 1fr) minmax(0, 34rem) 14rem; align-items: center; }
+  .tranche__figures { grid-row: 1; grid-column: 2; justify-content: space-between; }
+  .tranche__state { grid-row: 1; grid-column: 3; justify-content: flex-end; }
+}
 
 /* --- 5.8 График производства работ ---------------------------------------
    Масштаб — дни, а не недели. Прежняя формулировка «точность в днях

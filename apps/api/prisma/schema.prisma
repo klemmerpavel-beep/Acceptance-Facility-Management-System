@@ -33,6 +33,21 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+/// Состояние транша.
+///
+/// Закрытие и оплата разделены намеренно: транш закрывается, когда работы
+/// по нему выработаны, а оплачивается, когда деньги пришли, — между этими
+/// событиями проходят дни, и склеивание их в один статус скрыло бы от
+/// руководителя именно тот промежуток, за которым он следит.
+enum TrancheStatus {
+  /// Накапливает выработку. Открытый транш у объекта не более одного.
+  OPEN
+  /// Закрыт руководителем. Формирование акта — пункт плана 4.7.
+  CLOSED
+  /// Оплачен клиентом.
+  PAID
+}
+
 /// Расчётная единица сдельной оплаты. По решению допроса расчёт ведётся
 /// с бригадой через бригадира, состав бригады не хранится; тип PERSON
 /// оставлен для объектов, где рассчитываются с конкретным мастером.
@@ -103,6 +118,7 @@ model User {
   acceptanceBatches AcceptanceBatch[]
   acceptances       Acceptance[]
   acceptancePhotos  AcceptancePhoto[]
+  tranches          Tranche[]
 
   @@unique([orgId, email])
   @@index([orgId, role])
@@ -151,6 +167,7 @@ model Project {
   measurePlan       MeasurePlan?
   workStages        WorkStage[]
   acceptanceBatches AcceptanceBatch[]
+  tranches          Tranche[]
 
   @@unique([orgId, code])
   @@index([orgId, status])
@@ -173,8 +190,16 @@ model Unit {
   @@map("units")
 }
 
-/// Смета объекта. Редакция растёт при правке цен и ставок; правка
-/// количеств и наименований идёт на месте с записью в AuditLog (Р11).
+/// Смета объекта.
+///
+/// Редакция растёт **только при импорте**. Правка позиции — количества,
+/// наименования, единицы, цены и ставки — идёт на месте с записью прежнего
+/// значения в AuditLog (Р11 в редакции от 09.09.2026, БП-10).
+///
+/// Прежняя формулировка «цены и ставки порождают новую версию» снята: приёмка
+/// ссылается на позицию конкретной редакции, связи между редакциями позиции
+/// нет, и правка одной цены унесла бы всё принятое из вида приёмки, оставив
+/// его в выработке транша. Начисленное защищено снимком ставки (БП-03).
 model Estimate {
   id                 String   @id @default(uuid()) @db.Uuid
   projectId          String   @db.Uuid
@@ -184,6 +209,10 @@ model Estimate {
   /// Заявленный в исходном файле итог по работам, копейки. Хранится, чтобы
   /// расхождение оставалось проверяемым и после импорта (БП-09).
   declaredWorksTotal BigInt?
+  /// Объявлено, но ни одной строкой кода не читается и не пишется. Долг
+  /// назван прямо, чтобы разбор охраны не принял его за работающую защиту:
+  /// снятие поля требует миграции, применение — решения о том, кто и когда
+  /// запирает смету.
   isLocked           Boolean  @default(false)
   createdAt          DateTime @default(now())
 
@@ -502,15 +531,22 @@ model AcceptanceBatch {
   createdById String?  @db.Uuid
   createdAt   DateTime @default(now())
   comment     String?
+  /// Транш, открытый на момент приёмки. Проставляется при записи и никогда
+  /// не пересчитывается: открытие транша задним числом не должно переписывать
+  /// уже принятое (БП-04). Пуст у пакетов, записанных до появления траншей —
+  /// они показываются разрезом «вне транша», а не приписываются первому.
+  trancheId   String?  @db.Uuid
 
   project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   section     EstimateSection   @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   brigade     Worker            @relation(fields: [brigadeId], references: [id], onDelete: Restrict)
   createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tranche     Tranche?          @relation(fields: [trancheId], references: [id], onDelete: SetNull)
   acceptances Acceptance[]
   photos      AcceptancePhoto[]
 
   @@index([projectId, createdAt])
+  @@index([trancheId])
   @@map("acceptance_batches")
 }
 
@@ -590,4 +626,41 @@ model AcceptancePhoto {
 
   @@index([batchId])
   @@map("acceptance_photos")
+}
+
+/// Транш — сумма платежа клиента, в счёт которой идёт выработка.
+///
+/// Величина клиентская, а не стоимость работ: клиент платит смету с
+/// надбавкой «сопровождение объекта», и расчёт остатка по стоимости работ
+/// расходится с экономикой объекта на 402 726 ₽ (БП-05). Поэтому выработка
+/// переводится в клиентскую сумму до вычитания, а надбавка применяется
+/// одним умножением к итогу за транш — поэлементное начисление с
+/// округлением до копейки накапливает расхождение (`packages/domain/src/tranche.ts`).
+///
+/// Выработка полем не хранится: она есть сумма принятого по пакетам этого
+/// транша. Хранимое поле пришлось бы уменьшать при сторно, то есть
+/// переписывать — БП-04 запрещает.
+model Tranche {
+  id          String        @id @default(uuid()) @db.Uuid
+  projectId   String        @db.Uuid
+  /// Порядковый номер у объекта. Ноль — предоплата (решение Р12): она
+  /// заводится сразу оплаченной, иначе первые 30 % выпадают из картины
+  /// денег на карточке объекта.
+  number      Int
+  /// Копейки. Сумма платежа клиента по этому траншу.
+  amount      BigInt
+  status      TrancheStatus @default(OPEN)
+  openedAt    DateTime      @default(now())
+  closedAt    DateTime?
+  paidAt      DateTime?
+  comment     String?
+  createdById String?       @db.Uuid
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  batches   AcceptanceBatch[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@map("tranches")
 }

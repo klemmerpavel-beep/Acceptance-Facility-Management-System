@@ -15,9 +15,13 @@ import type {
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
+  CloseTranche, CreateTranche, TrancheView,
+  UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
-  acceptanceFault, accrualAmount, kopecks, measureTotals, milliunits, projectRange,
+  acceptanceFault, accrualAmount, applyPercent, clientAmount, basisPoints,
+  estimateItemFault, kopecks, measureTotals,
+  milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, wallArea,
   type ProjectRange,
 } from "@priyomka/domain";
@@ -40,6 +44,7 @@ interface Snapshot {
   unitDirectory: Unit[];
   "acceptance-owner": AcceptanceView;
   "acceptance-foreman": AcceptanceView;
+  tranches: TrancheView;
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
   imports: ImportRecord[];
@@ -231,6 +236,8 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     positions: 0,
     // Графика у нового объекта нет, и готовность не задана, а не равна нулю.
     readiness: null,
+    // Транша у нового объекта нет: остаток отсутствует, а не равен нулю.
+    trancheRemainder: null,
     stages: [],
   };
   заведённые.projects.push(created);
@@ -339,7 +346,9 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
   if (code !== "R-99") {
     throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
   }
-  return data["estimate-owner"];
+  /* Отдаётся правимая копия, а не снимок: иначе правка в демонстрации
+     видна на экране, но исчезает при возврате на вкладку. */
+  return сметаR99();
 }
 
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
@@ -461,6 +470,7 @@ export async function createAcceptance(
     photos: [новыйId()],
     lines,
   }, ...вид.batches];
+  выработатьВТранш(вид, section.id, lines, 1n);
   пересчитатьПриёмку(вид);
   return приёмкаR99("OWNER");
 }
@@ -485,10 +495,39 @@ export async function reverseAcceptance(
       position.accepted = (milliunits(position.accepted) - milliunits(line.qty)).toString();
       position.remaining = remainingQty(milliunits(position.qty), milliunits(position.accepted)).toString();
     }
+    выработатьВТранш(вид, batch.sectionId, [line], -1n);
     пересчитатьПриёмку(вид);
     return приёмкаR99("OWNER");
   }
   throw new Error("Приёмка не найдена на этом объекте.");
+}
+
+/**
+ * Провести выработку в открытый транш. Знак задаётся вызывающим: приёмка
+ * прибавляет, сторно вычитает.
+ *
+ * Открытого транша нет — выработка никуда не идёт и остаётся «вне транша»,
+ * ровно как на сервере: приписать её траншу задним числом значило бы
+ * переписать историю.
+ */
+function выработатьВТранш(
+  вид: AcceptanceView,
+  sectionId: string,
+  lines: readonly { positionName: string; qty: string }[],
+  знак: bigint,
+): void {
+  const транши = траншиR99();
+  const открытый = транши.current;
+  if (открытый === null) return;
+
+  const позиции = вид.sections.find((section) => section.id === sectionId)?.positions ?? [];
+  const дельта = lines.reduce((всего, line) => {
+    const position = позиции.find((row) => row.name === line.positionName);
+    return всего + accrualAmount(kopecks(position?.unitPrice ?? "0"), milliunits(line.qty));
+  }, 0n);
+
+  открытый.produced = (kopecks(открытый.produced) + знак * дельта).toString();
+  пересчитатьТранш(открытый, транши.supervisionShare);
 }
 
 /** Итоги пересчитываются целиком: складывать разности значило бы завести
@@ -521,6 +560,10 @@ function пересчитатьПриёмку(вид: AcceptanceView): void {
     brigadeName: свод.name,
     week: свод.сумма.toString(),
     total: свод.сумма.toString(),
+    /* Все пакеты стенда записаны при открытом транше, поэтому разрез за
+       транш совпадает с итогом. Транш закрыт — разрезать нечем, и это
+       null, а не ноль: ноль означал бы «за транш не начислено». */
+    tranche: траншиR99().current === null ? null : свод.сумма.toString(),
   }));
 }
 
@@ -702,3 +745,191 @@ export async function deletePlan(code: string): Promise<MeasureView> {
  * возвращается пустая строка, а экран показывает состояние «плана нет».
  */
 export const planUrl = (): string => "";
+
+/* --- транши ---------------------------------------------------------------
+   Состояние живёт в памяти вкладки, как и приёмка: демонстрация без сервера
+   обязана показывать последствия действия, а не отказывать в нём. Величины
+   выводятся теми же функциями домена, что на сервере — второй свод правил
+   разошёлся бы с первым, и демонстрация врала бы про арифметику. */
+
+let транши: TrancheView | null = null;
+
+const траншиR99 = (): TrancheView => {
+  if (транши === null) {
+    транши = structuredClone(data.tranches);
+    /* После клонирования `current` — отдельный объект, а не ссылка на строку
+       списка: сервер отдаёт его копией. Правка выработки в нём не дошла бы
+       до списка, и полоса разошлась бы с таблицей. */
+    транши.current = транши.tranches.find((строка) => строка.status === "OPEN") ?? null;
+  }
+  return транши;
+};
+
+/** Величины транша пересчитываются целиком: выработка хранится, остальное выводится. */
+function пересчитатьТранш(транш: TrancheView["tranches"][number], share: number): void {
+  const выработка = kopecks(транш.produced);
+  const доля = basisPoints(share);
+  транш.client = clientAmount(выработка, доля).toString();
+  транш.remainder = trancheRemainder(kopecks(транш.amount), выработка, доля).toString();
+  транш.fill = Number(trancheFill(kopecks(транш.amount), выработка, доля));
+}
+
+export async function fetchTranches(code: string): Promise<TrancheView> {
+  await pause(120);
+  if (code !== "R-99") {
+    return { supervisionShare: 1200, tranches: [], current: null,
+      outside: { batches: 0, produced: "0", client: "0" } };
+  }
+  return траншиR99();
+}
+
+export async function createTranche(_code: string, input: CreateTranche): Promise<TrancheView> {
+  await pause(240);
+  const вид = траншиR99();
+  const prepayment = input.prepayment ?? false;
+  const fault = trancheFault({
+    amount: kopecks(input.amount),
+    prepayment,
+    openNumber: вид.current?.number ?? null,
+    hasPrepayment: вид.tranches.some((транш) => транш.number === 0),
+  });
+  if (fault !== null) throw new Error(fault);
+
+  const number = prepayment
+    ? 0
+    : nextTrancheNumber(вид.tranches.map((транш) => транш.number));
+  const now = new Date().toISOString();
+  const транш = {
+    id: новыйId(),
+    number,
+    amount: input.amount,
+    status: prepayment ? "PAID" as const : "OPEN" as const,
+    openedAt: now,
+    closedAt: null,
+    paidAt: prepayment ? now : null,
+    comment: input.comment ?? null,
+    produced: "0",
+    client: "0",
+    remainder: input.amount,
+    fill: 0,
+  };
+  пересчитатьТранш(транш, вид.supervisionShare);
+  вид.tranches = [...вид.tranches, транш].sort((слева, справа) => слева.number - справа.number);
+  вид.current = вид.tranches.find((строка) => строка.status === "OPEN") ?? null;
+  return вид;
+}
+
+export async function closeTranche(
+  _code: string, id: string, input: CloseTranche,
+): Promise<TrancheView> {
+  await pause(200);
+  const вид = траншиR99();
+  const транш = вид.tranches.find((строка) => строка.id === id);
+  if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
+  if (транш.status !== "OPEN") {
+    throw new Error(`Транш № ${String(транш.number)} уже закрыт. Закрыть его второй раз нельзя.`);
+  }
+  транш.status = "CLOSED";
+  транш.closedAt = new Date().toISOString();
+  if (input.comment !== undefined) транш.comment = input.comment;
+  вид.current = вид.tranches.find((строка) => строка.status === "OPEN") ?? null;
+  return вид;
+}
+
+export async function payTranche(_code: string, id: string): Promise<TrancheView> {
+  await pause(200);
+  const вид = траншиR99();
+  const транш = вид.tranches.find((строка) => строка.id === id);
+  if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
+  if (транш.status === "OPEN") {
+    throw new Error(
+      `Транш № ${String(транш.number)} ещё открыт. Закройте его, прежде чем отмечать оплату.`,
+    );
+  }
+  if (транш.status === "PAID") {
+    throw new Error(`Транш № ${String(транш.number)} уже отмечен оплаченным.`);
+  }
+  транш.status = "PAID";
+  транш.paidAt = new Date().toISOString();
+  return вид;
+}
+
+/* --- правка сметы ---------------------------------------------------------
+   Состояние в памяти вкладки, как приёмка и транши: демонстрация без сервера
+   обязана показывать последствие действия. Отказы — теми же функциями домена,
+   что на сервере; итоги пересчитываются целиком. */
+
+let смета: EstimateView | null = null;
+
+const сметаR99 = (): EstimateView => {
+  смета ??= structuredClone(data["estimate-owner"]);
+  return смета;
+};
+
+/** Все позиции дерева одним списком: разделы вложены на два уровня. */
+const позицииСметы = (вид: EstimateView) =>
+  вид.sections.flatMap((раздел) =>
+    [...раздел.items, ...раздел.children.flatMap((вложенный) => вложенный.items)]);
+
+/**
+ * Итоги пересчитываются целиком: подытоги разделов, итог работ, надбавка и
+ * итог для клиента. Складывать разности значило бы завести вторую копию
+ * правил, которая разойдётся с первой на первой же вложенности.
+ */
+function пересчитатьСмету(вид: EstimateView): void {
+  const подытог = (раздел: EstimateView["sections"][number]): bigint => {
+    const свои = раздел.items.reduce(
+      (всего, позиция) => всего + kopecks(позиция.total), 0n);
+    const детей = раздел.children.reduce((всего, ребёнок) => всего + подытог(ребёнок), 0n);
+    раздел.subtotal = (свои + детей).toString();
+    return свои + детей;
+  };
+  for (const раздел of вид.sections) подытог(раздел);
+
+  const works = позицииСметы(вид).reduce((всего, позиция) => всего + kopecks(позиция.total), 0n);
+  const supervision = applyPercent(kopecks(works), basisPoints(вид.totals.supervisionShare));
+  вид.totals.works = works.toString();
+  вид.totals.supervision = supervision.toString();
+  вид.totals.estimate = (works + supervision).toString();
+}
+
+export async function updateEstimateItem(
+  _code: string, id: string, input: UpdateEstimateItem,
+): Promise<EstimateView> {
+  await pause(260);
+  const вид = сметаR99();
+  const позиция = позицииСметы(вид).find((строка) => строка.id === id);
+  if (позиция === undefined) throw new Error("Позиция не найдена в действующей редакции сметы.");
+
+  const qty = milliunits(input.qty ?? позиция.qty);
+  const unitPrice = kopecks(input.unitPrice ?? позиция.unitPrice);
+  const unitWage = kopecks(input.unitWage ?? позиция.unitWage ?? "0");
+  const fault = estimateItemFault({
+    qty, accepted: milliunits(позиция.qtyAccepted), unit: input.unit ?? позиция.unit,
+    unitPrice, unitWage,
+  });
+  if (fault !== null) throw new Error(fault);
+
+  позиция.name = input.name ?? позиция.name;
+  позиция.unit = input.unit ?? позиция.unit;
+  позиция.qty = qty.toString();
+  позиция.unitPrice = unitPrice.toString();
+  позиция.total = accrualAmount(unitPrice, qty).toString();
+  if (позиция.unitWage !== undefined) {
+    позиция.unitWage = unitWage.toString();
+    позиция.wageTotal = accrualAmount(unitWage, qty).toString();
+    позиция.profit = (kopecks(позиция.total) - kopecks(позиция.wageTotal)).toString();
+  }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+export async function updateSupervision(
+  _code: string, input: UpdateSupervision,
+): Promise<EstimateView> {
+  await pause(220);
+  const вид = сметаR99();
+  вид.totals.supervisionShare = input.supervisionShare;
+  пересчитатьСмету(вид);
+  return вид;
+}

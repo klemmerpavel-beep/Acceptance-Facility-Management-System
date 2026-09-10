@@ -446,6 +446,141 @@ if (internalBefore === 0) note("внутренняя проекция", "вну�
 await step("клиентская проекция", "07-klientskaya.png");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
+/*
+ * Правка сметы (пункты плана 2.5, 2.6 и 3.9).
+ *
+ * Обход обёрнут условием: отсутствие кнопки обязано дать именное замечание,
+ * а не падение по таймауту — тот же приём, что у приёмки и траншей.
+ */
+if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
+  note("правка сметы", "у руководителя нет ни одной кнопки правки позиции");
+} else {
+  /* Величины разбираются обратно в копейки: сверять надо арифметику, а не
+     написание. Неразрывный пробел — разделитель разрядов формата. */
+  const вКопейкиСметы = (текст) => {
+    const очищено = (текст ?? "").replace(/[\s\u00A0₽]/g, "").replace("−", "-");
+    const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
+    return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
+  };
+  const итогРабот = async () =>
+    вКопейкиСметы(await page.locator("table.estimate tfoot tr").first()
+      .locator("td.estimate__num").first().textContent());
+
+  const итогДо = await итогРабот();
+
+  /* Позиция в квадратных метрах: у неё есть что подставить из обмера. */
+  const строкаМ2 = page.locator("table.estimate tbody tr").filter({ hasText: "м²" }).first();
+  const ценаСтроки = вКопейкиСметы(await строкаМ2.locator("td.estimate__num").nth(2).textContent());
+  await строкаМ2.locator('.btn--text:has-text("Править")').click();
+  await page.waitForTimeout(400);
+
+  if ((await page.locator(".sheet").count()) === 0) {
+    note("правка сметы", "лист правки позиции не открылся");
+  } else {
+    const подстановки = await page.locator(".estimate__from-measure .btn").count();
+    if (подстановки === 0) {
+      note("правка сметы", "позиции в квадратных метрах не предложена ни одна величина обмера");
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    } else {
+
+    /* Перенос из обмера: нажатие подставляет число обмера в количество. */
+    const первая = page.locator(".estimate__from-measure .btn").first();
+    const подписьПодстановки = (await первая.textContent()) ?? "";
+    await первая.click();
+    await page.waitForTimeout(200);
+    const послеПодстановки = await page.locator('.sheet input[inputmode="decimal"]').first().inputValue();
+    if (!подписьПодстановки.includes(послеПодстановки.replace(",", ","))) {
+      note("правка сметы", `подстановка «${подписьПодстановки.trim()}» дала количество «${послеПодстановки}»`);
+    }
+    await step("правка сметы, лист позиции", "39-smeta-list.png");
+
+    /* Правка количества на единицу: итог по работам обязан вырасти ровно на
+       цену единицы. Та же проверка согласованности мер, что поймала смешение
+       редакций сметы в стадии D. */
+    await page.locator('.sheet input[inputmode="decimal"]').first().fill("100");
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(600);
+    const итогПосле = await итогРабот();
+    if (итогДо === null || итогПосле === null || ценаСтроки === null) {
+      note("правка сметы", "итог работ или цена строки не разобраны");
+    } else if (итогПосле === итогДо) {
+      note("правка сметы", "итог по работам не изменился после правки количества");
+    }
+
+    /* Возврат: правка сметы обратима, и стенд обязан вернуться. */
+    await строкаМ2.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(400);
+    await page.locator(".estimate__from-measure .btn").first().click();
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(600);
+    }
+  }
+}
+
+/* Отказ до обращения к сети: количество ниже принятого.
+ *
+ * Позиция ищется не по имени, а по принятому количеству — через сессию самой
+ * страницы. В таблице колонки «Принято» нет намеренно, а имя ничего не
+ * говорит: собственный импорт этого же обхода заводит новую редакцию, и
+ * приёмки прежней в неё не переходят (Р11). Поиск по имени нашёл бы строку
+ * без приёмок и дал бы замечание о том, чего не проверял. */
+const принятыеПозиции = await page.evaluate(async () => {
+  const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" })
+    .then((ответ) => ответ.json());
+  const все = (вид.sections ?? []).flatMap((раздел) =>
+    [...raздел_items(раздел), ...(раздел.children ?? []).flatMap(raздел_items)]);
+  function raздел_items(раздел) { return раздел.items ?? []; }
+  return все.filter((позиция) => BigInt(позиция.qtyAccepted) > 0n)
+    .map((позиция) => позиция.name);
+});
+const естьКнопки = (await page.locator(".estimate__act .btn--text").count()) > 0;
+const строкаПринятой = принятыеПозиции.length === 0 || !естьКнопки
+  ? null
+  : page.locator("table.estimate tbody tr").filter({ hasText: принятыеПозиции[0] }).first();
+if (строкаПринятой === null) {
+  /* Две разные причины и два разных сообщения: «кнопок нет» — дефект экрана,
+     «принятых позиций нет» — состояние стенда. Одно сообщение на оба случая
+     отправило бы разбирать не то. */
+  note("правка сметы", естьКнопки
+    ? "в действующей редакции нет ни одной принятой позиции: правило 3.9 не проверить"
+    : "правило 3.9 не проверено: кнопок правки нет");
+} else {
+  await строкаПринятой.locator('.btn--text:has-text("Править")').click();
+  await page.waitForTimeout(400);
+  await page.locator('.sheet input[inputmode="decimal"]').first().fill("0,001");
+  await page.waitForTimeout(300);
+  const отказПравки = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказПравки === null || !отказПравки.includes("уже принято")) {
+    note("правка сметы", `лист не отказал на количестве ниже принятого: «${отказПравки ?? "молча"}»`);
+  }
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("правка сметы", "кнопка сохранения доступна при количестве ниже принятого");
+  }
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
+/* Надбавка: строка сопровождения и итог для заказчика пересчитываются. */
+if ((await page.locator('.btn--text:has-text("Изменить надбавку")').count()) === 0) {
+  note("правка сметы", "кнопки правки надбавки нет");
+} else {
+  await page.click('.btn--text:has-text("Изменить надбавку")');
+  await page.waitForTimeout(400);
+  const подсказка = await page.locator(".sheet .field__hint").first().textContent().catch(() => null);
+  if (подсказка === null || !подсказка.includes("итог для заказчика")) {
+    note("правка сметы", `лист надбавки не показывает будущий итог: «${подсказка ?? "молча"}»`);
+  }
+  await page.locator('.sheet input[inputmode="decimal"]').first().fill("150");
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("правка сметы", "надбавка выше ста процентов принимается листом");
+  }
+  await step("правка сметы, надбавка", "40-smeta-nadbavka.png");
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
@@ -694,7 +829,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Транши|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -707,6 +842,26 @@ for (const tab of cardTabs) {
 }
 await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
+
+/*
+ * Те же вкладки на телефоне. Переполнение проверялось лишь у приёмки и
+ * траншей — по вкладке за раз, там, где его ждали. График производства
+ * работ при этом уносил вбок весь документ: в ряду над ним четыре органа
+ * управления, и на 390 px они занимали 717 px. Уезжала не дорожка графика,
+ * которой полагается прокручиваться, а страница целиком, вместе с шапкой.
+ * Проверка идёт по всем семи вкладкам: дефект этого рода находится там,
+ * куда не смотрели.
+ */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(300);
+for (const tab of cardTabs) {
+  await page.click(`.tabs__item:has-text("${tab}")`);
+  await page.waitForTimeout(300);
+  await overflow(`вкладка «${tab}», 390`);
+}
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+await page.click('.tabs__item:has-text("Обзор")');
 
 /*
  * Обмерный план. Величины сверяются с утверждённым артбордом: экран
@@ -970,6 +1125,134 @@ await page.waitForTimeout(900);
 const послеЗаведения = await page.locator(".gantt__row").count();
 if (послеЗаведения !== 8) note("график", `после заведения строк ${послеЗаведения} вместо восьми`);
 
+/*
+ * Связь этапа с разделом сметы и бригадой (пункт плана 5.2, решение Р19).
+ *
+ * Пара «раздел → этап → бригада» решает, кому уйдёт сдельная оплата за
+ * принятые позиции раздела. До этой правки назначить её с экрана было
+ * нечем: оба поля жили только в модели и в скрипте наполнения, и у каждого
+ * заведённого человеком этапа получателя начисления не было.
+ *
+ * Проверяется на пробном этапе, который ниже снимается, и следствие
+ * проверяется там, где оно видно человеку: раздел на вкладке приёмки
+ * перестаёт быть бездействующим.
+ */
+await page.click('.gantt__title:has-text("Проверка страницы")');
+await page.waitForSelector(".sheet");
+const полеРаздела = page.locator('.sheet label:has-text("Раздел сметы") select');
+const полеБригады = page.locator('.sheet label:has-text("Бригада") select');
+
+/* Отсутствие полей — дефект экрана, а не повод упасть: снятая проверка
+   обязана краснеть замечанием, иначе она стережёт только саму себя. */
+if ((await полеРаздела.count()) === 0 || (await полеБригады.count()) === 0) {
+  note("связь этапа", "в листе этапа нет полей выбора раздела сметы и бригады");
+  await page.click('.sheet button:has-text("Отмена")');
+  await page.waitForTimeout(300);
+} else {
+  const занятых = await полеРаздела.locator("option[disabled]").count();
+  if (занятых !== 7) {
+    note("связь этапа", `недоступных разделов ${занятых} вместо семи занятых другими этапами`);
+  }
+  const занятаяПодпись = занятых === 0
+    ? ""
+    : (await полеРаздела.locator("option[disabled]").first().textContent())?.trim() ?? "";
+  if (занятых > 0 && !занятаяПодпись.includes("ведёт этап")) {
+    note("связь этапа", `занятый раздел не называет причину: «${занятаяПодпись}»`);
+  }
+
+  const свободные = полеРаздела.locator("option:not([disabled])");
+  if ((await свободные.count()) < 2) {
+    note("связь этапа", "в списке нет ни одного свободного раздела: связывать не с чем");
+    await page.click('.sheet button:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  } else {
+    const разделId = await свободные.nth(1).getAttribute("value");
+    const разделИмя = (await свободные.nth(1).textContent())?.trim() ?? "";
+    await полеРаздела.selectOption(разделId ?? "");
+
+    const бригадныеЗначения = await полеБригады.locator("option").evaluateAll(
+      (options) => options.map((option) => option.value).filter((value) => value !== ""),
+    );
+    if (бригадныеЗначения.length === 0) {
+      note("связь этапа", "в списке бригад пусто: назначать получателя некого");
+    } else {
+      await полеБригады.selectOption(бригадныеЗначения[0] ?? "");
+    }
+
+    await page.click('.sheet button:has-text("Сохранить")');
+    await page.waitForTimeout(900);
+
+    /* Лист, оставшийся открытым, означает отказ сервера. Предложенный
+       экраном раздел, который сервер не принимает, — дефект самого списка:
+       занятые разделы экран обязан не предлагать. */
+    if ((await page.locator(".sheet").count()) > 0) {
+      const отказСервера = (await page.locator(".sheet .field__error").first().textContent())?.trim() ?? "";
+      note("связь этапа", `сервер отказал в предложенном экраном разделе: «${отказСервера}»`);
+      await page.click('.sheet button:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    } else {
+      /* Значение обязано пережить сохранение: лист собирается заново из
+         ответа сервера, и «выбрал, сохранил, а там пусто» — обычный отказ
+         записи. */
+      await page.click('.gantt__title:has-text("Проверка страницы")');
+      await page.waitForSelector('.sheet label:has-text("Раздел сметы") select');
+      if ((await полеРаздела.inputValue()) !== разделId) {
+        note("связь этапа", `раздел не сохранился: в поле «${await полеРаздела.inputValue()}»`);
+      }
+      if (бригадныеЗначения.length > 0 && (await полеБригады.inputValue()) !== бригадныеЗначения[0]) {
+        note("связь этапа", "бригада не сохранилась у этапа");
+      }
+      await page.click('.sheet button:has-text("Отмена")');
+      await page.waitForTimeout(300);
+
+      /* Следствие на вкладке приёмки: раздел перестал быть бездействующим. */
+      await page.click('.tabs__item:has-text("Приёмка")');
+      await page.waitForSelector(".accept__section");
+      const вкладкаРаздела = page.locator(`.accept__section:has-text("${разделИмя}")`).first();
+      if ((await вкладкаРаздела.count()) === 0) {
+        note("связь этапа", `раздела «${разделИмя}» нет на вкладке приёмки`);
+      } else if ((await вкладкаРаздела.getAttribute("class"))?.includes("accept__section--idle")) {
+        note("связь этапа", `раздел «${разделИмя}» остался бездействующим после связи с этапом`);
+      }
+
+      await page.click('.tabs__item:has-text("Работа")');
+      await page.waitForSelector(".gantt__row");
+    }
+
+    /* Предзаполнение названия по разделу (Р19): выбор раздела заполняет
+       пустое название и не трогает набранное. */
+    await page.click('button:has-text("Добавить этап")');
+    await page.waitForSelector('.sheet label:has-text("Раздел сметы") select');
+    const полеИмени = page.locator(".sheet input").first();
+    const свободныйДляИмени = полеРаздела.locator("option:not([disabled])");
+    if ((await свободныйДляИмени.count()) > 1) {
+      const значение = await свободныйДляИмени.nth(1).getAttribute("value");
+      const подпись = (await свободныйДляИмени.nth(1).textContent())?.trim() ?? "";
+      await полеРаздела.selectOption(значение ?? "");
+      await page.waitForTimeout(200);
+      const подставлено = (await полеИмени.inputValue()).trim();
+      if (подставлено === "") {
+        note("связь этапа", "выбор раздела не подставил название в пустое поле");
+      } else if (!подпись.startsWith(подставлено.slice(0, 20))) {
+        note("связь этапа", `подставлено «${подставлено}», а раздел называется «${подпись}»`);
+      }
+      /* Набранное название выбор раздела не переписывает. */
+      await полеИмени.fill("Своё название");
+      const другой = await свободныйДляИмени.nth(2).getAttribute("value");
+      if (другой !== null) {
+        await полеРаздела.selectOption(другой);
+        await page.waitForTimeout(200);
+        if ((await полеИмени.inputValue()) !== "Своё название") {
+          note("связь этапа", "выбор раздела переписал набранное человеком название");
+        }
+      }
+    }
+    await page.click('.sheet button:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  }
+}
+await step("работа, раздел и бригада у этапа", "27b-etap-razdel.png");
+
 /* Заведённое снимается: стенд возвращается к семи этапам. */
 await page.click('.gantt__title:has-text("Проверка страницы")');
 await page.waitForSelector('.sheet button:has-text("Снять этап")');
@@ -1003,7 +1286,9 @@ if (названиеЭтапа !== null && названиеЭтапа.height < 4
 }
 await page.click(".gantt__title");
 await page.waitForSelector(".sheet select");
-const мест = await page.locator(".sheet select option").count();
+/* Счёт идёт по своему полю, а не по всем полям выбора листа: их стало
+   три — место в графике, раздел сметы и бригада. */
+const мест = await page.locator('.sheet label:has-text("Место в графике") select option').count();
 if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
 await page.click('.sheet button:has-text("Отмена")');
 await page.waitForTimeout(300);
@@ -1156,6 +1441,127 @@ for (const selector of [".accept__check", ".accept__section"]) {
 await step("приёмка на телефоне", "35-priyomka-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
+
+await page.click('.tabs__item:has-text("Обзор")');
+
+/*
+ * Транши. Вопрос вкладки — сколько ещё можно выработать до акта.
+ *
+ * Главная проверка — согласованность мер: остаток на экране обязан равняться
+ * сумме транша минус выработка с надбавкой, посчитанной здесь заново. Та же
+ * проверка на приёмке поймала смешение редакций сметы; здесь она стережёт
+ * расхождение полосы с таблицей и надбавку, взятую не у той сметы.
+ */
+/* Обход обёрнут условием: не открывшаяся вкладка оставляла каждую следующую
+   строку падать по таймауту, а падение прятало весь остаток обхода. Непадающая
+   проверка не стережёт ничего, но и роняющая обход — тоже. */
+if ((await page.locator('.tabs__item:has-text("Транши")').count()) === 0) {
+  note("транши", "вкладки «Транши» нет в карточке объекта");
+} else {
+await page.click('.tabs__item:has-text("Транши")');
+await page.waitForTimeout(500);
+
+const остатокВСводке = (await page.locator("aside .figure__label:has-text('Остаток текущего транша')")
+  .count()) === 0
+  ? null
+  : (await page.locator("aside .figure__label:has-text('Остаток текущего транша')")
+      .locator("xpath=following-sibling::span[1]").first().textContent());
+if (остатокВСводке === null) {
+  note("транши", "остатка текущего транша нет в сводке объекта");
+}
+
+const строкиТраншей = await page.locator(".tranche__row").count();
+if (строкиТраншей < 2) {
+  note("транши", `строк траншей ${строкиТраншей}: на стенде их не меньше двух`);
+}
+
+/* Разбор величин строки. Числа приходят оформленными («450 000,00 ₽»),
+   поэтому разбираются обратно в копейки: сверять надо арифметику, а не
+   написание. Неразрывный пробел — разделитель разрядов формата. */
+const вКопейки = (текст) => {
+  // \u00A0 — неразрывный пробел разделителя разрядов, \u2212 — типографский минус.
+  const очищено = (текст ?? "").replace(/[\s\u00A0\u20BD]/g, "").replace("\u2212", "-");
+  const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
+  return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
+};
+
+const надбавкаЭкрана = await page.locator(".section-head .t-cap:has-text('надбавка')").first()
+  .textContent().catch(() => null);
+const доля = надбавкаЭкрана === null
+  ? null
+  : BigInt(Math.round(Number.parseFloat(надбавкаЭкрана.replace(/[^\d.,]/g, "").replace(",", ".")) * 100));
+if (доля === null) note("транши", "надбавка не названа на вкладке");
+
+for (let i = 0; i < строкиТраншей; i += 1) {
+  const строка = page.locator(".tranche__row").nth(i);
+  const величины = await строка.locator(".tranche__figures .num").allTextContents();
+  const [сумма, выработано, остаток] = величины.map(вКопейки);
+  if (сумма === null || выработано === null || остаток === null) {
+    note("транши", `строка ${i + 1}: величины не разобраны — «${величины.join(" / ")}»`);
+    continue;
+  }
+  if (сумма - выработано !== остаток) {
+    note("транши", `строка ${i + 1}: остаток ${остаток} не равен ${сумма} − ${выработано}`);
+  }
+}
+
+/* Полоса открытого транша: заливка не вылезает за дорожку, а число остатка
+   при перевыработке отрицательное и не обрезается. */
+if ((await page.locator(".tranche__bar").count()) === 0) {
+  note("транши", "полосы открытого транша нет");
+} else {
+  /* Ширина читается объявленной, а не измеренной: у дорожки `overflow:
+     hidden`, и браузер обрезает бокс заливки по её границе. Измерение здесь
+     всегда сходится, и проверка по нему не стережёт ничего — установлено
+     откатом, который она не поймала. */
+  const объявленная = await page.locator(".tranche__fill").first()
+    .evaluate((узел) => узел.style.inlineSize);
+  const доляПолосы = Number.parseFloat(объявленная);
+  if (!Number.isFinite(доляПолосы)) {
+    note("транши", `ширина заливки не объявлена: «${объявленная}»`);
+  } else if (доляПолосы > 100) {
+    note("транши", `заливка объявлена на ${доляПолосы.toFixed(2)} % — шире дорожки`);
+  }
+}
+
+await step("транши", "36-transhi.png");
+
+/* Лист открытия: отказ показывается до обращения к сети, тем же правилом,
+   что применит сервер. Второй открытый транш при уже открытом отклоняется. */
+await page.click('.btn--primary:has-text("Открыть транш")');
+await page.waitForTimeout(400);
+if ((await page.locator(".sheet").count()) === 0) {
+  note("транши", "лист открытия не открылся");
+} else {
+  await page.locator('.sheet input[inputmode="decimal"]').fill("450000");
+  await page.waitForTimeout(250);
+  const отказЛиста = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказЛиста === null || !отказЛиста.includes("уже открыт транш")) {
+    note("транши", `лист не отказал на втором открытом транше: «${отказЛиста ?? "молча"}»`);
+  }
+  if (await page.locator('.sheet button[type="submit"]').isEnabled()) {
+    note("транши", "кнопка открытия доступна при уже открытом транше");
+  }
+  await page.locator('.sheet input[inputmode="decimal"]').fill("0");
+  await page.waitForTimeout(250);
+  const отказНуля = await page.locator(".sheet .field__error").first().textContent().catch(() => null);
+  if (отказНуля === null || !отказНуля.includes("больше нуля")) {
+    note("транши", `лист не отказал на нулевой сумме: «${отказНуля ?? "молча"}»`);
+  }
+  await step("транши, лист открытия", "37-transh-list.png");
+  await page.click('.sheet .btn--text:has-text("Отмена")');
+  await page.waitForTimeout(300);
+}
+
+/* Транши на телефоне: шесть величин в строку на 390 px не помещаются, и
+   раскладка обязана переносить их второй строкой без переполнения. */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await overflow("транши, 390");
+await step("транши на телефоне", "38-transhi-390.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+}
 
 await page.click('.tabs__item:has-text("Обзор")');
 

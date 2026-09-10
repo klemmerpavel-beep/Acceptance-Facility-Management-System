@@ -13,3 +13,5 @@ apps/api/prisma/dev.db
 /private/
 # Хранилище файлов на файловой системе: план объекта, снимки.
 var/
+# Каталог публикации GitHub Pages: производное от dist-demo и design/.
+site/

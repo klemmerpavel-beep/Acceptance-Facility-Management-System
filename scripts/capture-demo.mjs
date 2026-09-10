@@ -63,6 +63,9 @@ const snapshot = {
   // и демонстрация обязана показывать оба вида, а не один с вырезанным полем.
   "acceptance-owner": await owner("/projects/R-99/acceptance"),
   "acceptance-foreman": await foreman("/projects/R-99/acceptance"),
+  // Транши снимаются один раз: внутренних величин в них нет, и вид у
+  // руководителя и прораба совпадает. Различается только право вести.
+  tranches: await owner("/projects/R-99/tranches"),
   imports,
   preview,
   // Результат импорта — запись о том импорте, который действительно был:

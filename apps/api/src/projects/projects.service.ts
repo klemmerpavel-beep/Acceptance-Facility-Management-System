@@ -5,12 +5,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { CreateProject, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
-import { basisPoints, clientTotals, projectReadiness } from "@priyomka/domain";
+import { basisPoints, clientTotals, projectReadiness, trancheRemainder } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { estimateFacts, type EstimateFacts } from "../common/estimate-facts";
+import { openTranches, type OpenTranche } from "../common/tranche-facts";
 
 const STATUS_LABEL: Record<ProjectSummary["status"], string> = {
   NEW: "Новый",
@@ -34,8 +35,13 @@ export class ProjectsService {
       include: { client: true, foreman: true, workStages: STAGES },
       orderBy: { code: "asc" },
     });
-    const facts = await estimateFacts(this.prisma, projects.map((project) => project.id));
-    return projects.map((project) => toSummary(project, facts.get(project.id)));
+    const ids = projects.map((project) => project.id);
+    const [facts, tranches] = await Promise.all([
+      estimateFacts(this.prisma, ids),
+      openTranches(this.prisma, ids),
+    ]);
+    return projects.map((project) =>
+      toSummary(project, facts.get(project.id), tranches.get(project.id)));
   }
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
@@ -46,8 +52,11 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
-    const facts = await estimateFacts(this.prisma, [project.id]);
-    return toSummary(project, facts.get(project.id));
+    const [facts, tranches] = await Promise.all([
+      estimateFacts(this.prisma, [project.id]),
+      openTranches(this.prisma, [project.id]),
+    ]);
+    return toSummary(project, facts.get(project.id), tranches.get(project.id));
   }
 
   /**
@@ -272,13 +281,24 @@ const STAGES = {
 const asDate = (value: Date | null): string | null =>
   value === null ? null : value.toISOString().slice(0, 10);
 
-function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): ProjectSummary {
+function toSummary(
+  project: ProjectRow,
+  facts: EstimateFacts | undefined,
+  tranche: OpenTranche | undefined,
+): ProjectSummary {
   // Итог для клиента считается по надбавке самой сметы: у объекта надбавка
   // может быть изменена после того, как смета уже импортирована.
   const totals =
     facts === undefined
       ? null
       : clientTotals(facts.works, basisPoints(facts.supervisionShare));
+  /* Остаток текущего транша считается по надбавке действующей сметы, той
+     же, что и итог для клиента: транш есть сумма платежа клиента, а клиент
+     платит смету с надбавкой (БП-05). Открытого транша нет — величины нет,
+     и это `null`, а не ноль: ноль означал бы «выработан ровно до копейки». */
+  const остатокТранша = tranche === undefined || facts === undefined
+    ? null
+    : trancheRemainder(tranche.amount, tranche.produced, basisPoints(facts.supervisionShare));
   const readiness = projectReadiness(
     project.workStages.map((stage) => ({
       startsOn: stage.startsOn.toISOString().slice(0, 10),
@@ -311,6 +331,7 @@ function toSummary(project: ProjectRow, facts: EstimateFacts | undefined): Proje
     // «график не заведён» — разные утверждения, и одно число на оба лишило
     // бы читателя возможности их различить.
     readiness: readiness === null ? null : Number(readiness),
+    trancheRemainder: остатокТранша === null ? null : остатокТранша.toString(),
     stages: project.workStages.map((stage) => ({
       id: stage.id,
       name: stage.name,

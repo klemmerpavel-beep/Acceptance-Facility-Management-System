@@ -3,12 +3,14 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  workStageSchema, acceptanceViewSchema,
+  workStageSchema, acceptanceViewSchema, trancheViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
+  type CloseTranche, type CreateTranche, type TrancheView,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
+  type UpdateEstimateItem, type UpdateSupervision,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
 } from "@priyomka/contracts";
 import { z } from "zod";
@@ -279,3 +281,47 @@ export const setProjectStatus = (
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status }),
   });
+
+/* --- правка сметы --------------------------------------------------------
+   Оба вызова возвращают вид сметы целиком: правка одной позиции меняет
+   подытог её раздела, итог работ, надбавку и итог для клиента, и собирать
+   новое состояние на клиенте значило бы завести вторую копию правил. */
+
+export const updateEstimateItem = (
+  code: string,
+  id: string,
+  input: UpdateEstimateItem,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items/${id}`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const updateSupervision = (
+  code: string,
+  input: UpdateSupervision,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/supervision`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+/* --- транши ---------------------------------------------------------------
+   Закрытие и оплата — отдельные вызовы, а не правка статуса: это разные
+   события, и общий вызов допускал бы переход «открыт → оплачен», которого
+   не бывает. Каждый возвращает вид целиком: закрытие меняет и величины
+   транша, и признак «открытого нет», от которого зависит вся вкладка. */
+
+export const fetchTranches = (code: string): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches`, trancheViewSchema);
+
+export const createTranche = (code: string, input: CreateTranche): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches`, trancheViewSchema, json(input));
+
+export const closeTranche = (code: string, id: string, input: CloseTranche): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches/${id}/closure`, trancheViewSchema, json(input));
+
+export const payTranche = (code: string, id: string): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches/${id}/payment`, trancheViewSchema, json({}));
