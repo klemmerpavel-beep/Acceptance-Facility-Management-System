@@ -603,6 +603,70 @@ export async function fetchStages(code: string): Promise<WorkStage[]> {
   return code === "R-99" ? этапыR99() : [];
 }
 
+/**
+ * Связь этапа с разделом сметы и бригадой в демонстрации (пункт плана 5.2).
+ *
+ * Двойник обязан вести себя как сервер: раздел ведёт не более одного
+ * этапа, и отказ звучит теми же словами. Иначе демонстрация примет то, что
+ * продукт отвергнет, — а показывают её заказчику именно как продукт.
+ */
+function связи(
+  input: { sectionId?: string | null | undefined; brigadeId?: string | null | undefined },
+  прежний: WorkStage | null,
+): { sectionId: string | null; brigade: { id: string; name: string } | null } {
+  const sectionId = input.sectionId === undefined ? прежний?.sectionId ?? null : input.sectionId;
+  if (sectionId !== null) {
+    const занят = этапыR99().find(
+      (existing) => existing.sectionId === sectionId && existing.id !== прежний?.id,
+    );
+    if (занят !== undefined) {
+      const раздел = приёмкаR99("OWNER").sections.find((row) => row.id === sectionId);
+      throw new Error(
+        `Раздел «${раздел?.name ?? ""}» уже ведёт этап «${занят.name}». `
+        + "Раздел ведёт один этап: иначе приёмка не знала бы, чьей бригаде начислять.",
+      );
+    }
+  }
+
+  const brigadeId = input.brigadeId === undefined ? прежний?.brigade?.id ?? null : input.brigadeId;
+  const найдена = brigadeId === null
+    ? undefined
+    : [...data.workers, ...заведённые.workers].find((worker) => worker.id === brigadeId);
+  if (brigadeId !== null && найдена === undefined) {
+    throw new Error("Бригада не найдена в справочнике организации.");
+  }
+  return {
+    sectionId,
+    brigade: найдена === undefined ? null : { id: найдена.id, name: найдена.name },
+  };
+}
+
+/**
+ * Связь «раздел → этап» переносится в вид приёмки: в продукте приёмка
+ * читает её у этапа, и без переноса демонстрация показывала бы раздел
+ * бездействующим сразу после того, как ему назначили этап.
+ */
+function перенестиСвязиВПриёмку(): void {
+  приёмка ??= structuredClone(data["acceptance-owner"]);
+  const поРазделу = new Map(
+    этапыR99()
+      .filter((stage) => stage.sectionId !== null)
+      .map((stage) => [stage.sectionId ?? "", stage]),
+  );
+  приёмка = {
+    ...приёмка,
+    sections: приёмка.sections.map((section) => {
+      const stage = поРазделу.get(section.id);
+      return {
+        ...section,
+        stage: stage === undefined
+          ? null
+          : { id: stage.id, name: stage.name, brigade: stage.brigade },
+      };
+    }),
+  };
+}
+
 export async function createStage(_code: string, stage: CreateWorkStage): Promise<WorkStage[]> {
   await pause(260);
   const список = этапыR99();
@@ -617,11 +681,9 @@ export async function createStage(_code: string, stage: CreateWorkStage): Promis
     startsOn: stage.startsOn,
     endsOn: stage.endsOn,
     progress: stage.progress,
-    // Раздел и бригада в демонстрации не назначаются: приёмка в ней ведётся
-    // по слепку, а не по связям.
-    sectionId: null,
-    brigade: null,
+    ...связи(stage, null),
   }];
+  перенестиСвязиВПриёмку();
   return этапыR99();
 }
 
@@ -640,15 +702,19 @@ export async function updateStage(
     ...(stage.startsOn === undefined ? {} : { startsOn: stage.startsOn }),
     ...(stage.endsOn === undefined ? {} : { endsOn: stage.endsOn }),
     ...(stage.progress === undefined ? {} : { progress: stage.progress }),
+    ...связи(stage, прежний),
   };
   проверитьДаты(next);
   этапы = список.map((existing) => (existing.id === id ? next : existing));
+  перенестиСвязиВПриёмку();
   return этапыR99();
 }
 
 export async function deleteStage(_code: string, id: string): Promise<WorkStage[]> {
   await pause(220);
   этапы = этапыR99().filter((stage) => stage.id !== id).map((stage, index) => ({ ...stage, order: index }));
+  /* Снятый этап освобождает свой раздел: раздел снова бездействующий. */
+  перенестиСвязиВПриёмку();
   return этапыR99();
 }
 
