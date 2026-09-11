@@ -206,74 +206,12 @@
 .meter__fill { display: block; block-size: 100%; background: var(--accent);
   border-radius: var(--radius-pill); transition: inline-size var(--dur-base) var(--ease); }
 .meter--danger .meter__fill { background: var(--danger); }
-.meter--quiet .meter__fill { background: var(--ink-3); }
 
 /* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
 .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-md); }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-family: var(--font-ui); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
-
-/* --- Полоса счётчиков ------------------------------------------------------
-   Десять однозначных чисел в десяти карточках занимают половину первого
-   экрана. В полосе они читаются одним движением глаза: подпись слева,
-   число справа, строки разделены линией. Строка кликабельна целиком.      */
-.counterstrip { display: flex; flex-direction: column; }
-.counterstrip__item {
-  /* Сетка, а не строка: под названием и числом идёт столбик доли, и он
-     обязан занимать всю ширину, а не тесниться между ними. */
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-3);
-  min-height: var(--tap-min);
-  padding: var(--space-2) 0;
-  border: 0; border-block-end: 1px solid var(--line);
-  background: none; text-align: start; color: inherit; font-family: inherit;
-  font-size: var(--fs-body);
-  transition: color var(--dur-fast) var(--ease);
-}
-.counterstrip__item:last-child { border-block-end: 0; }
-button.counterstrip__item { cursor: pointer; }
-button.counterstrip__item:hover { color: var(--accent); }
-.counterstrip__count { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-h3); font-weight: 600; }
-.counterstrip__count--danger { color: var(--danger); }
-/* Столбики строятся от наибольшего статуса, а не от размера портфеля:
-   иначе четыре доли по 12-50 % превратились бы в четыре обрубка. */
-.counterstrip__bar { grid-column: 1 / -1; }
-
-/* --- Недельная полоса ------------------------------------------------------
-   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
-   Полоса прокручивается внутри себя, полотно страницы по горизонтали
-   не двигается.                                                            */
-/* Семь плашек одной высоты. Прежде день без событий рамки не получал, и
-   полоса читалась как два блока среди пустоты; решением заказчика неделя
-   показывается сеткой, в которой каждый день — ячейка, а событие в ней —
-   содержимое. Растягивание по высоте держит ряд ровным. */
-.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
-  gap: var(--space-2); overflow-x: auto; align-items: stretch; }
-.daycard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-height: 96px;
-  padding: var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
-.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
-.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
-.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
-.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-chip); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
-/* Загрузка дня прижата к низу плашки: события растут сверху, загрузка
-   стоит на одной линии во всех семи ячейках и читается как ряд. */
-.daycard__load { margin-block-start: auto; display: flex; flex-direction: column; gap: var(--space-1); }
-.daycard__count { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
-.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
-.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
-.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
 
 /* --- Лента событий ---------------------------------------------------------
    Время слева отдельной колонкой: события читают сверху вниз, и колонка
@@ -916,17 +854,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    поэтому форма расходящаяся: нулевая отметка — сегодня, просрочка влево
    сигнальным, запас вправо акцентом. Одна шкала на все строки — иначе
    «21 день» и «86 дней» дали бы одинаковые отрезки. */
-.deadline { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline; gap: var(--space-1) var(--space-3);
-  padding-block: var(--space-2); border-block-end: 1px solid var(--line); }
-.deadline:last-child { border-block-end: 0; }
-.deadline__term { font-size: var(--fs-sm); color: var(--ink-2); overflow-wrap: anywhere; }
-.deadline__value { font-size: var(--fs-sm); text-align: end; white-space: nowrap; }
-.deadline__scale { grid-column: 1 / -1; position: relative; block-size: 8px; }
-.deadline__zero { position: absolute; inset-block: -1px; inline-size: 1px; background: var(--line-strong); }
-.deadline__bar { position: absolute; inset-block-start: 1px; block-size: 6px;
-  border-radius: var(--radius-pill); background: var(--accent); }
-.deadline__bar--late { background: var(--danger); }
 
 .finding__rows { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .finding__rows summary { font-family: var(--font-ui); cursor: pointer; min-block-size: var(--tap-min);
@@ -1324,22 +1251,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    шириной в две недели, а обрезанная подпись хуже её отсутствия: название,
    даты и процент несёт подсказка.
    -------------------------------------------------------------------------- */
-.plan { display: flex; flex-direction: column; gap: var(--space-1); }
-.plan__row, .plan__scale { display: grid; grid-template-columns: var(--gantt-label) minmax(0, 1fr);
-  gap: var(--space-3); align-items: center; }
-.plan__row { min-block-size: 32px; }
-.plan__label { display: flex; align-items: baseline; gap: var(--space-2);
-  min-inline-size: 0; font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
-.plan__address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan__track { position: relative; block-size: 22px; border-block-end: 1px solid var(--line); }
-.plan__scale .plan__track { block-size: 20px; border-block-end: 0; }
-.plan__tick { position: absolute; inset-block-start: 0; font-size: var(--fs-cap);
-  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 /* Деления шкалы — волосяные линии по первым числам месяцев. Сплошные и
    на один шаг от полотна: без них отрезок читается как длина, но не как
    срок, и «до конца октября» приходится прикидывать на глаз. */
-.plan__grid { position: absolute; inset-block: 0; inline-size: 1px;
-  background: var(--line); }
 /* Вертикаль текущего дня. Сплошная волосяная линия, а не пунктир: пунктир
    на графике читается как «предположительно», а сегодня — это факт.
 
@@ -1349,18 +1263,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Вертикаль лежит поверх отрезков. Под ними её перекрывал промежуток
    цвета поверхности, которым отрезки отделяются друг от друга, и линия
    рвалась ровно там, где работа идёт, — то есть там, где на неё смотрят. */
-.plan__today { position: absolute; inset-block: -2px; inline-size: 2px;
-  z-index: 1; background: var(--ink-2); }
-.plan__scale .plan__today { inset-block-start: auto; block-size: 6px; }
-.plan__bar { position: absolute; inset-block-start: 4px; block-size: 14px;
-  border-radius: var(--radius-sm); background: var(--accent-soft);
-  /* Разделяет соседние отрезки промежуток цвета поверхности, а не обводка:
-     обводка добавляет чернил, которые не несут данных. */
-  box-shadow: 0 0 0 2px var(--surface); overflow: hidden; }
-.plan__bar--late { background: var(--danger-soft); }
-.plan__done { display: block; block-size: 100%; background: var(--accent); }
-.plan__bar--late .plan__done { background: var(--danger); }
-.plan__rest { padding-block-start: var(--space-2); }
 
 /* Ниже 768 px колонка названий сжимается: адрес уступает место шкале —
    без неё блок перестаёт быть графиком. */
@@ -1628,3 +1530,113 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 @media (max-width: 767px) {
   .report__grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* --- 5.28 Предпросмотр графика из сметы -------------------------------------
+   Список предложенных этапов в листе заведения графика. Показывается до
+   записи, а не после: график — обязательство перед заказчиком, и узнавать
+   по факту, что именно система завела, поздно.
+
+   Три колонки на одних вертикалях: имя тянется, сроки и длительность
+   стоят столбцом. Разъехавшиеся даты приходится сравнивать глазом, а
+   смотрят на них как раз затем, чтобы сравнить. */
+.planlist { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none;
+  max-block-size: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+.planlist__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline; gap: var(--space-3);
+  padding-block: var(--space-1); border-block-end: 1px solid var(--line);
+}
+.planlist__row:last-child { border-block-end: 0; }
+.planlist__name { min-inline-size: 0; overflow-wrap: anywhere; font-size: var(--fs-sm); }
+.planlist__dates { white-space: nowrap; }
+.planlist__days { white-space: nowrap; }
+
+@media (max-width: 767px) {
+  /* На телефоне три колонки не помещаются: сроки уходят под имя, а
+     длительность остаётся при них — она читается вместе со сроками. */
+  .planlist__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .planlist__name { grid-column: 1 / -1; }
+}
+
+/* --- 5.29 Плитки счётчиков на первом экране ---------------------------------
+   Пришли на смену полосе счётчиков со столбиками долей (решение заказчика
+   от 11.09.2026: главная перегружена диаграммами). Полоса отвечала на
+   вопрос «много ли это относительно соседей» — вопрос второго порядка,
+   которого на первом экране не задают. Спрашивают «сколько», и ответ на
+   это — число: оно читается быстрее любой дорожки.
+
+   Рамки у плитки нет намеренно. Рамка, заливка и радиус означают
+   «отдельный объект», и восемь обведённых плиток на первом экране дают
+   карточную кашу, в которой пропадает иерархия, — правило раздела 5
+   норматива, и проверка страницы его стережёт. Группу держит волосяная
+   черта над числом: она разделяет, ничего не обводя.
+
+   Плитки укладываются в ряд и переносятся: четыре стадии воронки и
+   четыре-шесть статусов на 1440 px стоят строкой, на телефоне — по две. */
+.scores { display: grid; gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); }
+.score {
+  display: flex; flex-direction: column; gap: 2px;
+  min-block-size: var(--tap-min); padding: var(--space-3) 0 0;
+  text-align: start; font-family: inherit; color: var(--ink);
+  background: none; border: 0; border-block-start: 2px solid var(--line-strong);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+button.score { cursor: pointer; }
+button.score:hover { border-block-start-color: var(--accent); color: var(--accent); }
+.score__value { font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600;
+  line-height: 1.1; }
+.score__value--danger { color: var(--danger); }
+.score__label { font-size: var(--fs-sm); color: var(--ink-2); }
+.score__note { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+  text-transform: uppercase; color: var(--ink-3); }
+
+/* Воронка — последовательность, и читается она как путь заявки слева
+   направо. Стрелка между плитками говорит это без подписи; на переносе
+   строки и на телефоне она не нужна и снимается. */
+@media (min-width: 768px) {
+  .scores--chain .score { position: relative; }
+  .scores--chain .score:not(:last-child)::after {
+    content: ""; position: absolute; inset-inline-end: calc(var(--space-4) * -1);
+    inset-block-start: -2px; inline-size: var(--space-4); block-size: 2px;
+    background: var(--line);
+  }
+}
+
+/* --- 5.30 Сигнальная строка -------------------------------------------------
+   Одно обстоятельство, требующее действия сегодня: просроченные задачи по
+   заявкам. Стоит строкой, а не плиткой в ряду: в ряду она читалась бы как
+   ещё одна стадия воронки — то есть как наблюдение, а не как дело. */
+.alertline {
+  display: flex; align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-3) var(--space-4); text-align: start; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-sm); color: var(--danger);
+  background: var(--danger-soft); border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+}
+.alertline__text { flex: 1 1 auto; font-weight: 500; }
+.alertline__go { flex: none; text-decoration: underline; }
+
+/* --- 5.31 Ближайшие сроки ---------------------------------------------------
+   Расходящаяся шкала с отрезком влево-вправо от нуля снята: она показывала,
+   насколько один объект просрочен сильнее другого, — величину, которой
+   никто не распоряжается. Распоряжаются словами «через столько-то», и они
+   стоят пилюлей срочности: красная — просрочен, жёлтая — на неделе,
+   обычная — дальше. */
+.duelist { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.duelist__row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+.duelist__row:last-child { border-block-end: 0; }
+.duelist__project {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); min-inline-size: 0; flex: 1 1 auto;
+  padding: 0; text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+}
+.duelist__project:hover .duelist__address { color: var(--accent); }
+.duelist__address { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }

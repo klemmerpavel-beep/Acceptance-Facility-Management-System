@@ -138,7 +138,11 @@ export class SummaryService {
       });
 
     const week = buildWeek(day, [...deadlineEvents, ...importEvents]);
-    const feed = await this.projects.eventsFor(user, projects, 8);
+    /* Двадцать записей, а не восемь: главная показывает четыре свежие, а
+       остальные открываются кнопкой на том же экране. Восьми хватало, пока
+       лента была развёрнута целиком; под раскрытие восемь означало бы, что
+       за кнопкой прячутся четыре строки. */
+    const feed = await this.projects.eventsFor(user, projects, 20);
 
     /*
      * Воронка на первом экране. Руководителю — целиком, прорабу — не

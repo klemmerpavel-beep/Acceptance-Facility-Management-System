@@ -9,3 +9,4 @@ export * from "./tranche.js";
 export * from "./phone.js";
 export * from "./lead.js";
 export * from "./report.js";
+export * from "./plan.js";

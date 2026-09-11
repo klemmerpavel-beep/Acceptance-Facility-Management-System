@@ -13,9 +13,10 @@
  */
 
 import {
-  applyPercent, multiplyByQuantity, subtract, sum,
+  applyPercent, kopecks, multiplyByQuantity, subtract, sum,
   type BasisPoints, type Kopecks, type Milliunits,
 } from "./money.js";
+import type { SectionWeight } from "./plan.js";
 import { minimumQty, количествоТекстом } from "./acceptance.js";
 import {
   projectEstimateItem,
@@ -278,6 +279,15 @@ export function measureSourcesFor(unit: string): readonly MeasureSource[] {
 export interface SectionTreeNode {
   readonly id: string;
   readonly name: string;
+  /**
+   * Итог раздела вместе с вложенными, копейки. Нужен раскладке графика по
+   * стоимости работ; выбору раздела в листе этапа не нужен вовсе, поэтому
+   * поле необязательно.
+   */
+  readonly subtotal?: string;
+  /** Позиции раздела и вложенных: по ним раскладка отличает работу от заголовка. */
+  readonly items?: readonly unknown[];
+  readonly children?: readonly SectionTreeNode[];
 }
 
 /** Строка выбора раздела: имя и опознаватель. */
@@ -287,7 +297,8 @@ export interface SectionChoice {
 }
 
 /**
- * Разделы, которые может вести этап графика, — только верхнего уровня.
+ * Разделы, которые может вести этап графика, — только верхнего уровня, с
+ * именем и стоимостью работ.
  *
  * Ограничение не вкусовое: приёмка работает разделами верхнего уровня,
  * складывая позиции вложенных в родительский («прораб на объекте различает
@@ -298,10 +309,25 @@ export interface SectionChoice {
  * показала, выбрав «Мастер ванная».
  *
  * Отсюда же следует Р19: предзаполнение идёт по разделам первого уровня,
- * потому что других в этом списке и нет.
+ * потому что других в этом списке и нет. И по ним же идёт раскладка сроков
+ * (стадия C.3): разложить график по одному дереву, а принимать работы по
+ * другому значило бы завести расхождение своими руками.
+ *
+ * Стоимость берётся готовой из `subtotal`: она уже свёрнута по вложенным
+ * разделам на сервере. Пересчёт здесь завёл бы второе место, где
+ * складывается смета.
  */
-export function sectionChoices(
+export function sectionWeights(
   sections: readonly SectionTreeNode[],
-): readonly SectionChoice[] {
-  return sections.map((section) => ({ id: section.id, name: section.name }));
+): readonly SectionWeight[] {
+  const позиций = (section: SectionTreeNode): number =>
+    (section.items?.length ?? 0)
+    + (section.children ?? []).reduce((всего, child) => всего + позиций(child), 0);
+
+  return sections.map((section) => ({
+    id: section.id,
+    name: section.name,
+    total: kopecks(section.subtotal ?? "0"),
+    positions: позиций(section),
+  }));
 }

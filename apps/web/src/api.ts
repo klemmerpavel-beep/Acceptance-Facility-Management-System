@@ -224,6 +224,10 @@ export const fetchStages = (code: string): Promise<WorkStage[]> =>
 export const createStage = (code: string, stage: CreateWorkStage): Promise<WorkStage[]> =>
   request(`/projects/${code}/stages`, stagesSchema, json(stage));
 
+/** Завести график из разделов сметы: заведённые этапы не трогаются. */
+export const planStages = (code: string, from: string, to: string): Promise<WorkStage[]> =>
+  request(`/projects/${code}/stages/plan`, stagesSchema, json({ from, to }));
+
 export const updateStage = (
   code: string,
   id: string,

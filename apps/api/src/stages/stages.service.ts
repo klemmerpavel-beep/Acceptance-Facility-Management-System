@@ -1,8 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CreateWorkStage, UpdateWorkStage, WorkStage } from "@priyomka/contracts";
+import type {
+  CreateWorkStage, PlanFromEstimate, UpdateWorkStage, WorkStage,
+} from "@priyomka/contracts";
 import {
   acceptedQty, acceptedShare, acceptedTotal, kopecks, milliunits,
-  projectRange, stageDateFault, type ProjectRange,
+  planFromSections, projectRange, stageDateFault,
+  type ProjectRange, type SectionWeight,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -309,6 +312,152 @@ export class StagesService {
       field: "этап заведён",
       oldValue: null,
       newValue: `${input.name}: ${input.startsOn} — ${input.endsOn}`,
+    });
+
+    return this.list(project.id);
+  }
+
+  /**
+   * Завести график из разделов сметы (стадия C.3).
+   *
+   * Разделы верхнего уровня действующей сметы становятся этапами: имя от
+   * раздела, порядок от сметы, сроки — пропорционально стоимости работ.
+   * Связь с разделом проставляется сразу, и приёмка раздела с первого дня
+   * знает, какой этап ведёт работы.
+   *
+   * Ничего не удаляет и не правит. Разделы, у которых этап уже есть,
+   * пропускаются, и повторный вызов после нового импорта дозаводит только
+   * появившиеся. Затереть график одной кнопкой нельзя: он обязательство
+   * перед заказчиком, а не черновик.
+   *
+   * Бригада не проставляется. Исполнителя назначает человек, и угаданная
+   * бригада отправила бы начисление не тому — молча, потому что приёмка
+   * берёт бригаду из этапа не спрашивая.
+   */
+  async planFromEstimate(
+    user: RequestUser,
+    code: string,
+    input: PlanFromEstimate,
+  ): Promise<WorkStage[]> {
+    const project = await this.projectOf(user, code);
+
+    /* Окно проверяется тем же сводом правил, что даты отдельного этапа:
+       несуществующая дата, вывернутый отрезок и год за пределами договора
+       отвергаются здесь ровно так же, как в листе правки. */
+    const fault = stageDateFault(
+      { startsOn: input.from, endsOn: input.to },
+      StagesService.range(project),
+    );
+    if (fault !== null) throw new BadRequestException({ message: fault });
+
+    const estimate = await currentEstimate(this.prisma, project.id);
+    if (estimate === null) {
+      throw new BadRequestException({
+        message: "У объекта нет сметы: заводить график не из чего. "
+          + "Импортируйте смету на вкладке «Импорт».",
+      });
+    }
+
+    const [sections, items, занятые] = await Promise.all([
+      this.prisma.estimateSection.findMany({
+        where: { estimateId: estimate.id, parentId: null },
+        orderBy: { order: "asc" },
+        select: { id: true, name: true },
+      }),
+      this.prisma.estimateItem.findMany({
+        where: { estimateId: estimate.id },
+        select: { sectionId: true, qty: true, unitPrice: true },
+      }),
+      this.prisma.workStage.findMany({
+        where: { projectId: project.id },
+        select: { name: true, sectionId: true, order: true },
+      }),
+    ]);
+
+    /* Позиции вложенных разделов складываются в родительский — тем же
+       правилом, которым их складывает приёмка. Иначе вес раздела считался
+       бы по одним позициям, а принимался бы он по другим. */
+    const верхний = await topLevelSections(this.prisma, estimate.id);
+    const стоимость = new Map<string, bigint>();
+    const позиций = new Map<string, number>();
+    for (const item of items) {
+      const ключ = верхний.get(item.sectionId) ?? item.sectionId;
+      стоимость.set(
+        ключ,
+        (стоимость.get(ключ) ?? 0n)
+          + acceptedTotal([{ qty: milliunits(item.qty), unitPrice: kopecks(item.unitPrice) }]),
+      );
+      позиций.set(ключ, (позиций.get(ключ) ?? 0) + 1);
+    }
+
+    const ведут = new Set(занятые.flatMap((stage) =>
+      stage.sectionId === null ? [] : [stage.sectionId]));
+    const свободные: SectionWeight[] = sections
+      .filter((section) => !ведут.has(section.id))
+      .map((section) => ({
+        id: section.id,
+        name: section.name,
+        total: kopecks(стоимость.get(section.id) ?? 0n),
+        positions: позиций.get(section.id) ?? 0,
+      }));
+
+    /* Отсев разделов-заголовков — правило раскладки, и живёт оно в домене
+       (`planFromSections`). Второй отсев здесь разошёлся бы с ним на
+       первой правке, и сервер завёл бы не то, что показал лист. */
+    const предложены = planFromSections(свободные, { from: input.from, to: input.to });
+    if (предложены.length === 0) {
+      throw new BadRequestException({
+        message: sections.length === 0
+          ? "В смете нет разделов верхнего уровня: заводить нечего."
+          : свободные.length === 0
+            ? `Все ${String(sections.length)} разделов сметы уже ведутся этапами. `
+              + "Заводить нечего — правьте существующие этапы."
+            : "Свободные разделы сметы не содержат позиций работ: это заголовки, "
+              + "а не работа. Заводить этапы не по чему.",
+      });
+    }
+
+    /* Имя этапа уникально в пределах объекта. Совпасть оно может только с
+       этапом, заведённым руками: раздел, у которого этап есть, отсеян выше.
+       Отказ называет совпавшие имена — переименовывать чужой этап молча
+       система не вправе. */
+    const имена = new Set(занятые.map((stage) => stage.name));
+    const совпали = предложены.filter((stage) => имена.has(stage.name));
+    if (совпали.length > 0) {
+      throw new BadRequestException({
+        message: `Этап с таким именем уже есть: ${совпали.map((s) => `«${s.name}»`).join(", ")}. `
+          + "Переименуйте его или заведите этап раздела вручную.",
+      });
+    }
+
+    const следующий = занятые.reduce((max, stage) => Math.max(max, stage.order), -1) + 1;
+
+    /* Одной транзакцией: график, заведённый наполовину, хуже незаведённого —
+       человек не отличит его от того, что он сам собирался построить. */
+    await this.prisma.$transaction(
+      предложены.map((stage, индекс) => this.prisma.workStage.create({
+        data: {
+          projectId: project.id,
+          name: stage.name,
+          order: следующий + индекс,
+          startsOn: new Date(stage.startsOn),
+          endsOn: new Date(stage.endsOn),
+          progress: 0,
+          sectionId: stage.sectionId,
+        },
+        select: { id: true },
+      })),
+    );
+
+    await this.audit.record({
+      orgId: user.orgId,
+      actorId: user.id,
+      entity: "WorkStage",
+      entityId: project.id,
+      field: "график заведён из сметы",
+      oldValue: null,
+      newValue: `${String(предложены.length)} этапов: ${input.from} — `
+        + (предложены[предложены.length - 1]?.endsOn ?? input.to),
     });
 
     return this.list(project.id);
