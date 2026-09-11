@@ -21,10 +21,12 @@
  */
 
 import {
+  basisPoints,
   divideRoundHalfUp,
   milliunits,
   multiplyByQuantity,
   sum,
+  type BasisPoints,
   type Kopecks,
   type Milliunits,
 } from "./money.js";
@@ -153,6 +155,26 @@ export interface AcceptedRow {
  */
 export function acceptedTotal(rows: readonly AcceptedRow[]): Kopecks {
   return sum(rows.map((row) => multiplyByQuantity(row.unitPrice, row.qty)));
+}
+
+/**
+ * Доля принятого в итоге раздела — фактическая готовность.
+ *
+ * Мерится деньгами, а не числом позиций: раздел на миллион с одной принятой
+ * позицией из тридцати и тот же раздел с двадцатью принятыми дешёвыми — это
+ * разный объём выполненного, а счёт строк приравнивает вынос мусора к
+ * штукатурке стен. Цена уже выверена заказчиком, число строк — нет.
+ *
+ * `null`, когда делить не на что: раздел без позиций или с нулевым итогом.
+ * Ноль означал бы «ничего не принято», а это иное утверждение — то же
+ * правило, по которому `projectReadiness` возвращает `null` без графика.
+ *
+ * Верхняя граница не ставится: перевыработка законна и должна быть видна.
+ * Сторно учтено само собой — оно уже вычтено из принятого количества.
+ */
+export function acceptedShare(accepted: Kopecks, total: Kopecks): BasisPoints | null {
+  if (total === 0n) return null;
+  return basisPoints(divideRoundHalfUp(accepted * 10_000n, total));
 }
 
 /**

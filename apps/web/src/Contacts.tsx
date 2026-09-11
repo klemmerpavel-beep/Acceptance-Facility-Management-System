@@ -19,8 +19,10 @@ import { NewContactSheet } from "./NewContactSheet.js";
  */
 
 type Contact =
-  | { kind: "client"; id: string; name: string; code: string; note: string; projects: number; total: string | null }
-  | { kind: "worker"; id: string; name: string; code: null; note: string; projects: null; total: null };
+  | { kind: "client"; id: string; name: string; code: string; note: string;
+      projects: number; total: string | null; wage: null }
+  | { kind: "worker"; id: string; name: string; code: null; note: string;
+      projects: number | null; total: null; wage: string | null };
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
@@ -33,6 +35,7 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
     note: client.requisites ?? (client.isCompany ? "Юридическое лицо" : "Физическое лицо"),
     projects: client.projects,
     total: client.estimateTotal === "0" ? null : client.estimateTotal,
+    wage: null,
   })),
   ...workers.map<Contact>((worker) => ({
     kind: "worker",
@@ -40,8 +43,11 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
     name: worker.name,
     code: null,
     note: worker.kind === "BRIGADE" ? "Расчётная единица сдельной оплаты" : "Мастер",
-    projects: null,
+    /* Свод по рабочему приходит только руководителю: у прораба этих полей в
+       ответе нет вовсе, и строка честно показывает прочерк, а не ноль. */
+    projects: worker.projects ?? null,
     total: null,
+    wage: worker.wageTotal ?? null,
   })),
 ];
 
@@ -86,6 +92,17 @@ const COLUMNS: readonly Column<Contact>[] = [
     label: "Итог смет",
     value: (row) => (row.total === null ? null : BigInt(row.total)),
     render: (row) => (row.total === null ? <span className="t-muted">—</span> : <>{money(row.total)}</>),
+    numeric: true,
+  },
+  /* Начисленное стоит своей колонкой, а не делит колонку с итогом смет.
+     Итог сметы и начисление бригаде — разные величины; в одной колонке их
+     сортировка сравнивала бы несравнимое, а заголовок врал бы половине
+     строк. Пустая клетка честнее общего имени. */
+  {
+    key: "wage",
+    label: "Начислено",
+    value: (row) => (row.wage === null ? null : BigInt(row.wage)),
+    render: (row) => (row.wage === null ? <span className="t-muted">—</span> : <>{money(row.wage)}</>),
     numeric: true,
   },
 ];

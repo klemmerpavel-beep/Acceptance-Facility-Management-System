@@ -146,3 +146,53 @@ export function parseQuantity(input: string): Milliunits {
   const value = BigInt(whole ?? "0") * MILLI + BigInt(fraction.padEnd(3, "0"));
   return (sign === "-" ? -value : value) as Milliunits;
 }
+
+/* --- текстовая форма денег ------------------------------------------------
+
+   Сумма читается человеком и на экране, и в журнале объекта. Экран живёт в
+   `packages/ui`, журнал пишется сервером, а `packages/ui` в зависимостях
+   сервера нет и быть не должно: слой представления не место для того, что
+   нужно обеим сторонам. Поэтому форма суммы живёт здесь, а `packages/ui`
+   её реэкспортирует — точки вызова на экранах от переезда не меняются.
+
+   Правило дизайн-системы (§3.1): разряды неразрывным пробелом, копейки
+   всегда двумя цифрами, знак перед разрядами. */
+
+/** Неразрывный пробел U+00A0 — разделитель разрядов и отбивка валюты. */
+const NBSP = " ";
+
+const groupDigits = (digits: string): string =>
+  digits.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+
+/**
+ * Копейки → строка суммы. Знак выносится перед разрядами: сторнирующие
+ * записи отрицательны и должны читаться как «−4 288,00 ₽», а не
+ * «-4 288,00».
+ *
+ * @param withCurrency добавить символ рубля через неразрывный пробел
+ */
+export function formatKopecks(value: Kopecks | bigint, withCurrency = true): string {
+  const raw: bigint = value;
+  const negative = raw < 0n;
+  const absolute = negative ? -raw : raw;
+  const rubles = absolute / 100n;
+  const cents = absolute % 100n;
+  const body = `${groupDigits(rubles.toString())},${cents.toString().padStart(2, "0")}`;
+  return `${negative ? "−" : ""}${body}${withCurrency ? `${NBSP}₽` : ""}`;
+}
+
+/**
+ * Базисные пункты → проценты строкой: 1200 → «12 %», 8557 → «85,57 %».
+ *
+ * Переехало сюда по той же причине, что и форма суммы: надбавку
+ * «сопровождение объекта» пишет в журнал сервер, а слой представления ему
+ * недоступен. Незначащие нули отбрасываются — «12 %» читается быстрее
+ * «12,00 %», а два знака после запятой в проценте несут смысл лишь тогда,
+ * когда они не нули.
+ */
+export function formatPercent(share: BasisPoints | bigint): string {
+  const whole = share / 100n;
+  const fraction = (share % 100n).toString().padStart(2, "0").replace(/0+$/, "");
+  const body = fraction.length > 0 ? `${whole},${fraction}` : whole.toString();
+  return `${body}${NBSP}%`;
+}

@@ -9,7 +9,8 @@ import {
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
 import {
-  acceptedQty, basisPoints, buildEstimateView, estimateItemFault, kopecks, milliunits,
+  acceptedQty, basisPoints, buildEstimateView, estimateItemFault, formatKopecks,
+  formatPercent, kopecks, количествоТекстом, milliunits,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -50,6 +51,21 @@ const FIELD_LABEL: Readonly<Record<string, string>> = {
 
 /** Поля позиции, правка которых пишется в журнал по отдельности. */
 const ITEM_FIELDS = ["name", "unit", "qty", "unitPrice", "unitWage"] as const;
+
+/**
+ * Значение поля в том виде, в каком его читает человек.
+ *
+ * Журнал читает человек и только человек: машинного потребителя у него нет.
+ * Сырые копейки в записи «115050 → 120000» читаются как рубли и врут в сто
+ * раз, а количество в тысячных не читается вовсе. Формы берутся общие — те
+ * же, которыми числа показаны на экранах.
+ */
+function значениеДляЖурнала(field: string, value: string | null, unit: string): string | null {
+  if (value === null) return null;
+  if (field === "unitPrice" || field === "unitWage") return formatKopecks(kopecks(value));
+  if (field === "qty") return количествоТекстом(milliunits(value), unit);
+  return value;
+}
 
 @Injectable()
 export class EstimatesService {
@@ -457,8 +473,10 @@ export class EstimatesService {
           entity: "EstimateItem",
           entityId: project.id,
           field: `${before.name} — ${FIELD_LABEL[field] ?? field}`,
-          oldValue: прежнее[field] ?? null,
-          newValue: next,
+          /* Единица берётся прежняя: запись о смене количества читается в
+             той единице, в которой количество и правили. */
+          oldValue: значениеДляЖурнала(field, прежнее[field] ?? null, before.unit.code),
+          newValue: значениеДляЖурнала(field, next, before.unit.code),
         });
       }
     });
@@ -493,8 +511,8 @@ export class EstimatesService {
         entity: "Estimate",
         entityId: project.id,
         field: "надбавка «сопровождение объекта»",
-        oldValue: estimate.supervisionShare.toString(),
-        newValue: input.supervisionShare.toString(),
+        oldValue: formatPercent(basisPoints(estimate.supervisionShare)),
+        newValue: formatPercent(basisPoints(input.supervisionShare)),
       });
     });
 

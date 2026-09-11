@@ -4,6 +4,7 @@ import {
   acceptedTotal,
   basisPoints,
   clientAmount,
+  formatKopecks,
   kopecks,
   milliunits,
   nextTrancheNumber,
@@ -208,9 +209,11 @@ export class TranchesService {
       actorId: user.id,
       entity: "Tranche",
       entityId: транш.id,
-      field: prepayment ? "prepayment" : "opened",
+      field: prepayment ? "предоплата" : "открыт",
       oldValue: null,
-      newValue: `транш № ${String(number)} на ${транш.amount.toString()} копеек`,
+      /* Сумма пишется рублями: журнал читает человек, и «45000000 копеек»
+         он в уме не делит. Форма общая с экранами. */
+      newValue: `транш № ${String(number)} на ${formatKopecks(kopecks(транш.amount))}`,
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -245,7 +248,7 @@ export class TranchesService {
     });
     await this.audit.record({
       orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
-      field: "status", oldValue: "OPEN", newValue: "CLOSED",
+      field: "состояние", oldValue: "открыт", newValue: "закрыт",
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -272,7 +275,7 @@ export class TranchesService {
     await this.prisma.tranche.update({ where: { id }, data: { status: "PAID", paidAt: new Date() } });
     await this.audit.record({
       orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
-      field: "status", oldValue: "CLOSED", newValue: "PAID",
+      field: "состояние", oldValue: "закрыт", newValue: "оплачен",
     });
 
     return this.build(project.id, project.supervisionShare);

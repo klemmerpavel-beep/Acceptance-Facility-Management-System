@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   acceptanceFault,
   acceptedQty,
+  acceptedShare,
   acceptedTotal,
   accrualAmount,
   accrualSummary,
@@ -187,5 +188,36 @@ describe("копейки не теряются на длинной череде 
     const целиком = [{ qty: parseQuantity("240,5"), unitPrice: ЦЕНА }];
     expect(acceptedTotal(частями)).toBe(acceptedTotal(целиком));
     expect(acceptedTotal(целиком)).toBe(kopecks(parseRubles("276 575,00")));
+  });
+});
+
+describe("фактическая готовность: доля принятого в итоге раздела", () => {
+  const раздел = kopecks(parseRubles("1 000 000,00"));
+
+  it("ничего не принято — ноль, а не отсутствие", () => {
+    expect(acceptedShare(kopecks(0n), раздел)).toBe(0n);
+  });
+
+  it("принят весь раздел — ровно сто процентов", () => {
+    expect(acceptedShare(раздел, раздел)).toBe(10_000n);
+  });
+
+  it("половина раздела — пятьдесят процентов", () => {
+    expect(acceptedShare(kopecks(parseRubles("500 000,00")), раздел)).toBe(5000n);
+  });
+
+  it("перевыработка не подрезается: она законна и должна быть видна", () => {
+    expect(acceptedShare(kopecks(parseRubles("1 200 000,00")), раздел)).toBe(12_000n);
+  });
+
+  it("раздел без денег не даёт доли: делить не на что", () => {
+    expect(acceptedShare(kopecks(parseRubles("10 000,00")), kopecks(0n))).toBeNull();
+  });
+
+  it("округление то же, что у денег: половина вверх по модулю", () => {
+    // 1/3 раздела = 33,333…% → 3333 сотых доли процента.
+    expect(acceptedShare(kopecks(100_000n), kopecks(300_000n))).toBe(3333n);
+    // 2/3 = 66,666…% → 6667: половина уходит вверх.
+    expect(acceptedShare(kopecks(200_000n), kopecks(300_000n))).toBe(6667n);
   });
 });

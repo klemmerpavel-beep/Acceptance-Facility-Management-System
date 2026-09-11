@@ -10,7 +10,10 @@ import type {
 } from "@priyomka/contracts";
 import { parseContactPhone } from "@priyomka/domain";
 import { unitAliases } from "@priyomka/importer";
-import { basisPoints, clientTotals, kopecks, sum, type Kopecks } from "@priyomka/domain";
+import {
+  accrualSummary, basisPoints, clientTotals, kopecks, sum,
+  type AccrualRecord, type Kopecks,
+} from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
@@ -183,12 +186,64 @@ export class DirectoryService {
     return this.workers(user);
   }
 
+  /**
+   * Расчётные единицы сдельной оплаты со сводом по рабочему.
+   *
+   * Свод по объекту сделан вкладкой приёмки; здесь — вторая половина пункта
+   * 4 объёма: сколько начислено бригаде по всем объектам организации.
+   * Величина внутренняя и уходит только руководителю — тем же правилом, что
+   * ставка и прибыль в смете: прорабу её нет в ответе вовсе, а не нулём.
+   *
+   * Прорабу выборка не делается совсем: запрос ради полей, которые всё
+   * равно не уйдут, — это плата за ничто.
+   */
   async workers(user: RequestUser): Promise<WorkerRow[]> {
     const workers = await this.prisma.worker.findMany({
       where: { orgId: user.orgId },
       orderBy: { name: "asc" },
       select: { id: true, name: true, kind: true },
     });
-    return workers.map((worker) => ({ id: worker.id, name: worker.name, kind: worker.kind }));
+    if (user.role !== "OWNER") {
+      return workers.map((worker) => ({ id: worker.id, name: worker.name, kind: worker.kind }));
+    }
+
+    const начисления = await this.prisma.wageAccrual.findMany({
+      where: { brigade: { orgId: user.orgId } },
+      select: {
+        brigadeId: true,
+        amount: true,
+        createdAt: true,
+        brigade: { select: { name: true } },
+        acceptance: { select: { batch: { select: { projectId: true } } } },
+      },
+    });
+
+    /* Свод сумм — правилом домена, а не местным циклом: сторно приходит
+       отрицательной суммой, и пара «приёмка + сторно» обязана складываться
+       в ноль тем же кодом, которым она складывается на вкладке приёмки. */
+    const записи: AccrualRecord[] = начисления.map((row) => ({
+      brigadeId: row.brigadeId,
+      brigadeName: row.brigade.name,
+      amount: kopecks(row.amount),
+      at: row.createdAt.toISOString().slice(0, 10),
+    }));
+    const суммы = new Map(accrualSummary(записи).map((row) => [row.brigadeId, row.amount]));
+
+    const объекты = new Map<string, Set<string>>();
+    for (const row of начисления) {
+      const набор = объекты.get(row.brigadeId) ?? new Set<string>();
+      набор.add(row.acceptance.batch.projectId);
+      объекты.set(row.brigadeId, набор);
+    }
+
+    return workers.map((worker) => ({
+      id: worker.id,
+      name: worker.name,
+      kind: worker.kind,
+      /* Ноль, а не отсутствие: бригада заведена в справочнике, и ноль здесь
+         есть сведение — «работы не сдавала», а не «величины нет». */
+      projects: объекты.get(worker.id)?.size ?? 0,
+      wageTotal: (суммы.get(worker.id) ?? 0n).toString(),
+    }));
   }
 }

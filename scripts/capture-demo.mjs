@@ -59,6 +59,10 @@ const snapshot = {
   "estimate-owner": estimateOwner,
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
   measure: await owner("/projects/R-99/measure"),
+  /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
+     несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
+     связь с разделом, бригада и фактическая готовность по приёмке. */
+  stages: await owner("/projects/R-99/stages"),
   // Приёмка снимается дважды: свод начислений виден только руководителю,
   // и демонстрация обязана показывать оба вида, а не один с вырезанным полем.
   "acceptance-owner": await owner("/projects/R-99/acceptance"),
