@@ -5,12 +5,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { CreateProject, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
-import { basisPoints, clientTotals, projectReadiness, trancheRemainder } from "@priyomka/domain";
+import {
+  acceptedShare, basisPoints, clientTotals, kopecks, projectReadiness, trancheRemainder,
+} from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { estimateFacts, type EstimateFacts } from "../common/estimate-facts";
+import { acceptedFacts, type AcceptedFacts } from "../common/accepted-facts";
 import { openTranches, type OpenTranche } from "../common/tranche-facts";
 
 const STATUS_LABEL: Record<ProjectSummary["status"], string> = {
@@ -40,8 +43,12 @@ export class ProjectsService {
       estimateFacts(this.prisma, ids),
       openTranches(this.prisma, ids),
     ]);
-    return projects.map((project) =>
-      toSummary(project, facts.get(project.id), tranches.get(project.id)));
+    /* Принятое — одним запросом на весь портфель, а не по запросу на объект:
+       реестр из восьми строк иначе стоил бы восьми обращений, и цена росла
+       бы вместе с портфелем. Редакции берутся готовыми из `facts`. */
+    const принятое = await acceptedFacts(this.prisma, facts);
+    return projects.map((project) => toSummary(
+      project, facts.get(project.id), tranches.get(project.id), принятое.get(project.id)));
   }
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
@@ -56,7 +63,9 @@ export class ProjectsService {
       estimateFacts(this.prisma, [project.id]),
       openTranches(this.prisma, [project.id]),
     ]);
-    return toSummary(project, facts.get(project.id), tranches.get(project.id));
+    const принятое = await acceptedFacts(this.prisma, facts);
+    return toSummary(
+      project, facts.get(project.id), tranches.get(project.id), принятое.get(project.id));
   }
 
   /**
@@ -356,6 +365,7 @@ function toSummary(
   project: ProjectRow,
   facts: EstimateFacts | undefined,
   tranche: OpenTranche | undefined,
+  accepted: AcceptedFacts | undefined,
 ): ProjectSummary {
   // Итог для клиента считается по надбавке самой сметы: у объекта надбавка
   // может быть изменена после того, как смета уже импортирована.
@@ -402,6 +412,21 @@ function toSummary(
     // «график не заведён» — разные утверждения, и одно число на оба лишило
     // бы читателя возможности их различить.
     readiness: readiness === null ? null : Number(readiness),
+    /* Принятое стоит рядом с заявленным, а не вместо него: заявленную
+       ставит человек и она законно опережает приёмку, принятое считается по
+       приёмке (БП-01). Сметы нет — принятого нет: `null` и прочерк, а не
+       ноль. Ноль означал бы «ничего не принято», а это иное утверждение —
+       то же правило, по которому `readiness` пуст без графика. */
+    acceptedShare: facts === undefined || accepted === undefined
+      ? null
+      : (() => {
+        const доля = acceptedShare(accepted.accepted, facts.works);
+        return доля === null ? null : Number(доля);
+      })(),
+    accepted: accepted === undefined || facts === undefined
+      ? null
+      : kopecks(accepted.accepted).toString(),
+    acceptedPositions: accepted?.positions ?? 0,
     trancheRemainder: остатокТранша === null ? null : остатокТранша.toString(),
     stages: project.workStages.map((stage) => ({
       id: stage.id,

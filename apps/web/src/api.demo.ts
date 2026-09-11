@@ -244,6 +244,10 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     positions: 0,
     // Графика у нового объекта нет, и готовность не задана, а не равна нулю.
     readiness: null,
+    // Сметы у нового объекта нет: принятое считать не по чему.
+    acceptedShare: null,
+    accepted: null,
+    acceptedPositions: 0,
     // Транша у нового объекта нет: остаток отсутствует, а не равен нулю.
     trancheRemainder: null,
     stages: [],
