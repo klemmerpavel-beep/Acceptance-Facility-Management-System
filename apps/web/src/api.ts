@@ -345,6 +345,9 @@ export const payTranche = (code: string, id: string): Promise<TrancheView> =>
 export const fetchLeads = (open: boolean): Promise<LeadBoard> =>
   request(`/leads?open=${String(open)}`, leadBoardSchema);
 
+export const fetchLeadEvents = (id: string): Promise<ProjectEvent[]> =>
+  request(`/leads/${id}/events`, z.array(eventSchema));
+
 export const createLead = (input: CreateLead): Promise<LeadCard> =>
   request("/leads", leadCardSchema, json(input));
 

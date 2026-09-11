@@ -287,6 +287,7 @@ export function App(): React.JSX.Element {
             projects={state.projects}
             today={today}
             onOpenProjects={openProjects}
+            onOpenLeads={() => { setSection("requests"); }}
             onOpen={setOpened}
             onAdd={() => { setAdding(true); }}
           />

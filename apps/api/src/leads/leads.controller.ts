@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import type { LeadBoard, LeadCard } from "@priyomka/contracts";
+import type { LeadBoard, LeadCard, ProjectEvent } from "@priyomka/contracts";
 import {
   convertLeadSchema, createLeadSchema, createLeadTaskSchema, loseLeadSchema,
   updateLeadSchema, updateLeadTaskSchema,
@@ -31,6 +31,12 @@ export class LeadsController {
     /* По умолчанию доска показывает открытые: воронка — про работу, а не
        про историю. «Все» запрашиваются явно. */
     return this.leads.board(user, open !== "false");
+  }
+
+  /** Журнал заявки: кто и когда менял стадию, ориентир и исход. */
+  @Get(":id/events")
+  events(@CurrentUser() user: RequestUser, @Param("id") id: string): Promise<ProjectEvent[]> {
+    return this.leads.events(user, id);
   }
 
   @Post()

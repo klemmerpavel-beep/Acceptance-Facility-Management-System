@@ -1233,6 +1233,13 @@ export async function setLeadTask(
   }));
 }
 
+/* Журнал заявки в демонстрации пуст: аудит пишет сервер, которого тут нет.
+   Пустая лента честнее выдуманных записей о правках, которых не было. */
+export async function fetchLeadEvents(): Promise<ProjectEvent[]> {
+  await pause(80);
+  return [];
+}
+
 export async function fetchRepairTypes(): Promise<RepairType[]> {
   await pause(80);
   return data["repair-types"];

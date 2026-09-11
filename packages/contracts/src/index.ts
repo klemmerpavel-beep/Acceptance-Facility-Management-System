@@ -25,6 +25,14 @@ export const projectStatusSchema = z.enum([
 ]);
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 
+/** Стадия воронки. Четыре, по фактическому процессу компании. */
+export const leadStageSchema = z.enum(["FIRST_CONTACT", "MEETING", "DECIDING", "CONTRACT"]);
+export type LeadStage = z.infer<typeof leadStageSchema>;
+
+/** Исход заявки. Выигранная и отказная уходят из воронки, но не удаляются. */
+export const leadOutcomeSchema = z.enum(["OPEN", "WON", "LOST"]);
+export type LeadOutcome = z.infer<typeof leadOutcomeSchema>;
+
 /** Код объекта: латинская буква, дефис, цифры. Сквозной идентификатор R-99. */
 export const projectCodeSchema = z
   .string()
@@ -431,6 +439,27 @@ export const dashboardSchema = z.object({
     rooms: z.number().int(),
     floorArea: measureAmountSchema,
   }),
+  /**
+   * Воронка заявок на первом экране. Отсутствует у прораба целиком — как и
+   * сам раздел: заявок он не касается, и пустые счётчики сообщали бы
+   * «заявок нет» вместо «это не ваш контур».
+   *
+   * Просроченные задачи вынесены отдельным числом: первый экран отвечает
+   * на вопрос «что горит сегодня», а заявка с просроченной задачей горит
+   * сильнее объекта со сроком через неделю.
+   */
+  leads: z.object({
+    stages: z.array(z.object({
+      stage: leadStageSchema,
+      label: z.string(),
+      count: z.number().int().nonnegative(),
+    })),
+    open: z.number().int().nonnegative(),
+    overdueTasks: z.number().int().nonnegative(),
+    /** Заявок с посчитанным ориентиром и сумма середин их вилок. */
+    quoted: z.number().int().nonnegative(),
+    quotedMid: kopecksString,
+  }).optional(),
   deadlines: z.array(
     z.object({
       code: projectCodeSchema,
@@ -963,14 +992,6 @@ export type CloseTranche = z.infer<typeof closeTrancheSchema>;
 /* ===========================================================================
    Заявки: воронка и ориентир цены (стадия F)
    ======================================================================== */
-
-/** Стадия воронки. Четыре, по фактическому процессу компании. */
-export const leadStageSchema = z.enum(["FIRST_CONTACT", "MEETING", "DECIDING", "CONTRACT"]);
-export type LeadStage = z.infer<typeof leadStageSchema>;
-
-/** Исход заявки. Выигранная и отказная уходят из воронки, но не удаляются. */
-export const leadOutcomeSchema = z.enum(["OPEN", "WON", "LOST"]);
-export type LeadOutcome = z.infer<typeof leadOutcomeSchema>;
 
 /** Состояние задачи считается по дате на сервере, а не хранится признаком. */
 export const leadTaskSchema = z.object({

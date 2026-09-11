@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import type { LeadCard, LeadStage, RepairType } from "@priyomka/contracts";
+import type { LeadCard, LeadStage, ProjectEvent, RepairType } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
-  addLeadTask, errorMessage, fetchRepairTypes, loseLead, setLeadTask, updateLead,
+  addLeadTask, errorMessage, fetchLeadEvents, fetchRepairTypes, loseLead, setLeadTask, updateLead,
 } from "./api.js";
+import { EventFeed } from "./Dashboard.js";
 import { ConvertLeadSheet } from "./ConvertLeadSheet.js";
 import { useModalDialog } from "./modal.js";
 import { formatDate } from "./status.js";
@@ -38,6 +39,7 @@ export function LeadSheet({
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLSelectElement>(onClose);
   const [types, setTypes] = useState<RepairType[] | null>(null);
+  const [events, setEvents] = useState<ProjectEvent[] | null>(null);
   const [area, setArea] = useState(
     lead.guideline === null ? "" : (Number(lead.guideline.area) / 1000).toString().replace(".", ","),
   );
@@ -55,6 +57,14 @@ export function LeadSheet({
       .then(setTypes)
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
   }, []);
+
+  /* Журнал перечитывается после каждой правки: стадия и ориентир пишутся в
+     него, и лента, застывшая на состоянии открытия листа, врала бы. */
+  useEffect(() => {
+    fetchLeadEvents(lead.id)
+      .then(setEvents)
+      .catch(() => { setEvents([]); });
+  }, [lead]);
 
   const открыта = lead.outcome === "OPEN";
 
@@ -319,6 +329,15 @@ export function LeadSheet({
               Не закрывать
             </button>
           </div>
+        )}
+
+        {/* Журнал заявки: кто и когда менял стадию, ориентир и исход.
+            Записи писались с первого дня, но читать их было негде. */}
+        {events !== null && events.length > 0 && (
+          <section className="stack stack--tight">
+            <p className="t-cap">Журнал заявки</p>
+            <EventFeed events={events} showCode={false} />
+          </section>
         )}
 
         <button type="button" className="btn btn--text btn--block" onClick={onClose}>

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
   ConvertLead, CreateLead, CreateLeadTask, LeadBoard, LeadCard, LeadStage,
-  LoseLead, UpdateLead, UpdateLeadTask,
+  LoseLead, ProjectEvent, UpdateLead, UpdateLeadTask,
 } from "@priyomka/contracts";
 import {
   basisPoints, formatKopecks, guidelineRange, kopecks, milliunits, taskState,
@@ -342,6 +342,41 @@ export class LeadsService {
       data: { doneAt: input.done ? new Date() : null },
     });
     return this.card(user, id);
+  }
+
+  /**
+   * Журнал заявки.
+   *
+   * Записи в него пишутся с первого дня, но читать их было негде — ровно
+   * тот же дефект, что был у журнала объекта: запись, которую нельзя
+   * прочитать, спора не решает, ради которого журнал и заводился.
+   *
+   * Порядок обратный: последнее событие сверху, как в ленте объекта.
+   */
+  async events(user: RequestUser, id: string, limit = 20): Promise<ProjectEvent[]> {
+    const lead = await this.own(user, id);
+    const записи = await this.prisma.auditLog.findMany({
+      where: { orgId: user.orgId, entity: "Lead", entityId: lead.id },
+      orderBy: { at: "desc" },
+      take: limit,
+      select: {
+        at: true, field: true, oldValue: true, newValue: true,
+        actor: { select: { name: true } },
+      },
+    });
+    return записи.map((запись) => ({
+      at: запись.at.toISOString(),
+      kind: "field" as const,
+      title: `Заявка: ${запись.field}`,
+      /* Стрелка ставится только там, где есть обе стороны: у заведения и
+         превращения прежнего значения нет, и «— → R-42» читалось бы как
+         потеря величины. */
+      detail: запись.oldValue === null
+        ? запись.newValue
+        : `${запись.oldValue} → ${запись.newValue ?? "—"}`,
+      projectCode: lead.project?.code ?? null,
+      actor: запись.actor?.name ?? null,
+    }));
   }
 
   private async card(user: RequestUser, id: string): Promise<LeadCard> {
