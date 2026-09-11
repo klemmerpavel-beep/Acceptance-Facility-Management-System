@@ -2,7 +2,9 @@ import {
   BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, Res, UseGuards,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { EstimateView, ImportRecord, ImportReport, ImportResult } from "@priyomka/contracts";
+import type {
+  DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
+} from "@priyomka/contracts";
 import { unitOverridesSchema, updateEstimateItemSchema, updateSupervisionSchema } from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
 import { normalizeSpelling } from "@priyomka/importer";
@@ -64,9 +66,15 @@ export class EstimatesController {
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,
     @Req() request: FastifyRequest,
-  ): Promise<{ fileName: string; report: ImportReport }> {
+  ): Promise<{ fileName: string; report: ImportReport; displaced: DisplacedByImport | null }> {
     const upload = await readUpload(request);
-    return { fileName: upload.fileName, report: await this.estimates.preview(user, code, upload.buffer, upload.overrides) };
+    /* Отчёт описывает файл, `displaced` — состояние объекта, которое запись
+       новой редакции вытеснит из вида приёмки. Две разные вещи, два поля. */
+    const [report, displaced] = await Promise.all([
+      this.estimates.preview(user, code, upload.buffer, upload.overrides),
+      this.estimates.displacedByImport(user, code),
+    ]);
+    return { fileName: upload.fileName, report, displaced };
   }
 
   /** Импорт с записью новой редакции сметы. */

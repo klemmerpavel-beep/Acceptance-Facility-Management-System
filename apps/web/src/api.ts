@@ -7,7 +7,8 @@ import {
   type AcceptanceView, type CreateAcceptance, type Reversal,
   type CloseTranche, type CreateTranche, type TrancheView,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
-  type CreateWorker, type CreateWorkStage, type Dashboard, type EstimateView, type ImportRecord,
+  type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
+  type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
   type UpdateEstimateItem, type UpdateSupervision,
@@ -104,7 +105,7 @@ export const logout = (): Promise<{ ok: true }> =>
 export async function previewEstimate(
   code: string,
   file: File,
-): Promise<{ fileName: string; report: ImportReport }> {
+): Promise<{ fileName: string; report: ImportReport; displaced: DisplacedByImport | null }> {
   const form = new FormData();
   form.append("file", file);
   return request(`/projects/${code}/estimate/preview`, importPreviewResponseSchema, {

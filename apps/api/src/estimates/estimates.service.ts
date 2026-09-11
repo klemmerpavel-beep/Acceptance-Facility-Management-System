@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type {
-  EstimateView, ImportRecord, ImportReport, ImportResult,
+  DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
   UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
@@ -9,8 +9,8 @@ import {
   CANONICAL_UNITS, type CanonicalUnit, type ParsedItem, type UnitOverrides,
 } from "@priyomka/importer";
 import {
-  acceptedQty, basisPoints, buildEstimateView, estimateItemFault, formatKopecks,
-  formatPercent, kopecks, количествоТекстом, milliunits,
+  acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
+  formatKopecks, formatPercent, kopecks, количествоТекстом, milliunits,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -86,6 +86,51 @@ export class EstimatesService {
     await this.projectOf(user, code);
     const parsed = await parseWorkbook(file, overrides);
     return toImportReport(buildDiscrepancyReport(parsed));
+  }
+
+  /**
+   * Что уйдёт из вида приёмки при записи новой редакции.
+   *
+   * Приёмка привязана к своей редакции (Р11): после импорта принятые
+   * позиции действующей редакции остаются в базе и в журнале, но вкладка
+   * приёмки их больше не покажет — она отбирает по действующей. Это
+   * поведение принято заказчиком; не названо оно было только там, где
+   * человек нажимает кнопку.
+   *
+   * Считается по действующей редакции, а не по всем приёмкам объекта:
+   * приёмки прежних редакций из вида ушли уже и второй раз не уходят.
+   * Суммы — теми же правилами домена, что у вида приёмки: два свода одного
+   * и того же обязаны совпасть до копейки.
+   */
+  async displacedByImport(user: RequestUser, code: string): Promise<DisplacedByImport | null> {
+    const project = await this.projectOf(user, code);
+    const estimate = await currentEstimate(this.prisma, project.id);
+    if (estimate === null) return null;
+
+    const приёмки = await this.prisma.acceptance.findMany({
+      where: { batch: { projectId: project.id }, item: { estimateId: estimate.id } },
+      select: { itemId: true, qty: true, batchId: true, item: { select: { unitPrice: true } } },
+    });
+
+    const поПозиции = new Map<string, { qty: bigint; unitPrice: bigint }>();
+    for (const запись of приёмки) {
+      const прежнее = поПозиции.get(запись.itemId);
+      поПозиции.set(запись.itemId, {
+        qty: (прежнее?.qty ?? 0n) + запись.qty,
+        unitPrice: запись.item.unitPrice,
+      });
+    }
+
+    const принятые = [...поПозиции.values()]
+      .map((row) => ({ qty: acceptedQty([{ qty: milliunits(row.qty) }]), unitPrice: kopecks(row.unitPrice) }))
+      .filter((row) => row.qty > 0n);
+
+    return {
+      version: estimate.version,
+      acceptedPositions: принятые.length,
+      accepted: acceptedTotal(принятые).toString(),
+      batches: new Set(приёмки.map((запись) => запись.batchId)).size,
+    };
   }
 
   /**

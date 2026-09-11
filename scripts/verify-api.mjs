@@ -1294,6 +1294,137 @@ check(
   `прораб не видит записей графика, по которым работает: ${[...разделыПрораба].join(", ")}`,
 );
 
+/*
+ * Повторный импорт называет, что он уносит.
+ *
+ * Приёмка привязана к своей редакции (Р11): после записи новой редакции
+ * принятое по прежней остаётся в базе и в счёте транша, но из вида приёмки
+ * уходит. Лист подтверждения обязан назвать это числом до нажатия.
+ *
+ * Проверяются два утверждения: предпросмотр считает то же, что показывает
+ * вид приёмки (два независимых свода одного и того же), и предсказанное
+ * последствие действительно наступает — после импорта принятых ноль, а
+ * остаток транша прежний.
+ *
+ * Блок стоит последним и **оставляет стенд с новой редакцией**: импорт
+ * необратим по смыслу, и «вернуть как было» здесь нечем — приёмки прежней
+ * редакции обратно в вид не возвращаются ни одним действием продукта.
+ */
+const файлСметы = readFileSync("packages/importer/fixtures/smeta-obezlichennaya.xlsx");
+const предпросмотр = await owner("/projects/R-99/estimate/preview", {
+  method: "POST",
+  body: (() => { const form = new FormData(); form.append("file", new Blob([файлСметы]), "smeta.xlsx"); return form; })(),
+}).then((r) => r.json());
+
+const видДоИмпорта = await owner("/projects/R-99/acceptance").then((r) => r.json());
+check(предпросмотр.displaced !== null, "предпросмотр не сказал, что уйдёт при записи новой редакции");
+check(
+  предпросмотр.displaced?.acceptedPositions === видДоИмпорта.totals.acceptedPositions,
+  `предпросмотр обещает унести ${предпросмотр.displaced?.acceptedPositions} позиций, `
+  + `а в виде приёмки принято ${видДоИмпорта.totals.acceptedPositions}`,
+);
+check(
+  предпросмотр.displaced?.accepted === видДоИмпорта.totals.accepted,
+  `предпросмотр обещает унести ${предпросмотр.displaced?.accepted} копеек, `
+  + `а в виде приёмки выполнено ${видДоИмпорта.totals.accepted}`,
+);
+check(
+  предпросмотр.displaced?.acceptedPositions > 0,
+  "на стенде нечего уносить: проверять предупреждение не на чем",
+);
+
+/* Объект без сметы терять нечего — и лист об этом молчит. */
+const безСметы = await owner("/projects/R-19/estimate/preview", {
+  method: "POST",
+  body: (() => { const form = new FormData(); form.append("file", new Blob([файлСметы]), "smeta.xlsx"); return form; })(),
+}).then((r) => r.json());
+check(безСметы.displaced === null, "объекту без сметы предпросмотр обещает что-то унести");
+
+/* Последствие наступает: вид приёмки обнуляется, счёт транша — нет. */
+const траншиДоИмпорта = await owner("/projects/R-99/tranches").then((r) => r.json());
+/* Решения по написаниям единиц передаются те же, что предложил разбор:
+   проверка наполняет стенд, а не решает за руководителя. Без них импорт
+   отказывает — и правильно делает. */
+const решенияЕдиниц = Object.fromEntries(
+  предпросмотр.report.unitDecisions.map((decision) => [decision.raw, decision.suggestion]),
+);
+const записан = await owner("/projects/R-99/estimate/import", {
+  method: "POST",
+  body: (() => {
+    const form = new FormData();
+    form.append("file", new Blob([файлСметы]), "smeta.xlsx");
+    form.append("units", JSON.stringify(решенияЕдиниц));
+    return form;
+  })(),
+});
+check(записан.ok, `повторный импорт не прошёл: код ${записан.status}`);
+const видПослеИмпорта = await owner("/projects/R-99/acceptance").then((r) => r.json());
+check(
+  видПослеИмпорта.totals.acceptedPositions === 0,
+  `после импорта в виде приёмки ${видПослеИмпорта.totals.acceptedPositions} принятых позиций вместо нуля: `
+  + "предупреждение листа обещает иное",
+);
+/* Второй предпросмотр — уже поверх новой редакции. Уносить нечего: приёмки
+   остались у прежней редакции и из вида ушли однажды. Это и отличает счёт
+   «по действующей редакции» от счёта «все приёмки объекта»: на объекте с
+   одной редакцией они совпадают, и без этой проверки подмена одного другим
+   осталась бы незамеченной. */
+const послеПовтора = await owner("/projects/R-99/estimate/preview", {
+  method: "POST",
+  body: (() => { const form = new FormData(); form.append("file", new Blob([файлСметы]), "smeta.xlsx"); return form; })(),
+}).then((r) => r.json());
+check(
+  послеПовтора.displaced?.acceptedPositions === 0,
+  `поверх новой редакции предпросмотр обещает унести ${послеПовтора.displaced?.acceptedPositions} позиций: `
+  + "приёмки прежней редакции из вида ушли уже и второй раз не уходят",
+);
+
+const траншиПослеИмпорта = await owner("/projects/R-99/tranches").then((r) => r.json());
+check(
+  траншиПослеИмпорта.current?.remainder === траншиДоИмпорта.current?.remainder,
+  `остаток транша изменился импортом: ${траншиДоИмпорта.current?.remainder} → ${траншиПослеИмпорта.current?.remainder}; `
+  + "лист обещает, что в счёте транша принятое останется",
+);
+
+/*
+ * Стенд возвращается не в прежнее состояние, а в прежнее свойство: у
+ * действующей редакции снова есть принятые позиции.
+ *
+ * Приёмки прежней редакции обратно не переносятся ни одним действием
+ * продукта — и не должны (Р11). Но обход страницы идёт по тому же стенду
+ * и проверяет на нём два правила, которым принятое в действующей редакции
+ * необходимо: отказ правки сметы ниже принятого (3.9) и строку листа
+ * импорта об уходящих позициях. Без этого шага обе молча перестали бы
+ * что-либо стеречь — проверка, которой нечего проверять, проходит всегда.
+ */
+const видДляВозврата = await owner("/projects/R-99/acceptance").then((r) => r.json());
+const разделВозврата = видДляВозврата.sections.find((section) =>
+  section.stage?.brigade != null
+  && section.positions.some((position) => BigInt(position.remaining) >= 2n));
+const позицияВозврата = разделВозврата?.positions
+  .find((position) => BigInt(position.remaining) >= 2n);
+check(
+  позицияВозврата !== undefined,
+  "после повторного импорта нечем вернуть стенд: нет раздела с бригадой и остатком",
+);
+const возврат = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({
+    sectionId: разделВозврата?.id,
+    comment: "Возврат стенда после повторного импорта",
+    positions: [{
+      itemId: позицияВозврата?.id,
+      qty: (BigInt(позицияВозврата?.remaining ?? "0") / 2n).toString(),
+    }],
+  }),
+});
+check(возврат.ok, `возврат стенда не прошёл: код ${возврат.status}`);
+const видВозврата = возврат.ok ? await возврат.json() : видДляВозврата;
+check(
+  видВозврата.totals.acceptedPositions > 0,
+  "в действующей редакции не осталось принятых позиций: обход страницы проверит не то",
+);
+
 console.log(`Позиций в ответе: ${foremanEstimate.positions}, разделов ${foremanEstimate.sectionsTopLevel} + ${foremanEstimate.sectionsNested}`);
 console.log(`Внутренних полей у руководителя: ${findInternal(ownerEstimate).length}, у прораба: ${leaks.length}`);
 console.log(`Сводка: объектов у руководителя ${ownerSummary.projects.total}, у прораба ${foremanSummary.projects.total};`,
