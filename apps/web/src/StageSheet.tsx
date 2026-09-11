@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CreateWorkStage, WorkerRow, WorkStage } from "@priyomka/contracts";
 import { stageDateFault, type ProjectRange, type SectionChoice } from "@priyomka/domain";
+import { formatPercent } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
 import { STAGE_NAMES } from "./stageNames.js";
 
@@ -183,7 +184,10 @@ export function StageSheet({
             </label>
 
             <p className="field__hint">
-              Готовность заявленная: до приёмки подтвердить её нечем.
+              {stage?.actualProgress === null || stage?.actualProgress === undefined
+                ? "Готовность заявленная. Свяжите этап с разделом сметы — и рядом встанет принятое."
+                : `Заявляете вы; по приёмке раздела принято `
+                  + `${formatPercent(BigInt(stage.actualProgress))}.`}
             </p>
 
             <label className="field">

@@ -368,7 +368,7 @@ export function Schedule({
                   ))}
                 </div>
               </div>
-              <span className="gantt__pct t-cap">Готово</span>
+              <span className="gantt__pct t-cap">Заявлено · принято</span>
             </div>
 
             <div className="gantt__body">
@@ -458,7 +458,25 @@ export function Schedule({
                       )}
                     </div>
 
-                    <span className="gantt__pct num">{formatPercent(BigInt(stage.progress))}</span>
+                    <span className="gantt__pct">
+                      <b className="num">{formatPercent(BigInt(stage.progress))}</b>
+                      {/* Фактическая — доля принятого в итоге раздела. Прочерк,
+                          когда раздела нет: ноль означал бы «ничего не принято»,
+                          а это иное утверждение. Перевыработка сигнальным цветом,
+                          тем же правилом, что отрицательный остаток транша. */}
+                      <span
+                        className={stage.actualProgress !== null && stage.actualProgress > 10_000
+                          ? "gantt__fact num gantt__fact--over"
+                          : "gantt__fact num"}
+                        title={stage.actualProgress === null
+                          ? "Этап не связан с разделом сметы: принятое считать не по чему"
+                          : "Принято по разделу сметы"}
+                      >
+                        {stage.actualProgress === null
+                          ? "—"
+                          : formatPercent(BigInt(stage.actualProgress))}
+                      </span>
+                    </span>
 
                     {fault !== null && fault.id === stage.id && (
                       <p className="gantt__hint" role="alert">{fault.text}</p>

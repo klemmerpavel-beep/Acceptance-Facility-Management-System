@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { CreateWorkStage, UpdateWorkStage, WorkStage } from "@priyomka/contracts";
-import { projectRange, stageDateFault, type ProjectRange } from "@priyomka/domain";
+import {
+  acceptedQty, acceptedShare, acceptedTotal, kopecks, milliunits,
+  projectRange, stageDateFault, type ProjectRange,
+} from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { currentEstimate } from "../common/current-estimate";
+import { topLevelSections } from "../common/section-rollup";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 
@@ -30,13 +34,14 @@ interface StageRow {
 
 const iso = (date: Date): string => date.toISOString().slice(0, 10);
 
-const toStage = (row: StageRow): WorkStage => ({
+const toStage = (row: StageRow, actual: number | null): WorkStage => ({
   id: row.id,
   name: row.name,
   order: row.order,
   startsOn: iso(row.startsOn),
   endsOn: iso(row.endsOn),
   progress: row.progress,
+  actualProgress: actual,
   sectionId: row.sectionId,
   brigade: row.brigade,
 });
@@ -79,7 +84,70 @@ export class StagesService {
       orderBy: { order: "asc" },
       include: { brigade: { select: { id: true, name: true } } },
     });
-    return rows.map(toStage);
+    const фактическая = await this.actualProgress(projectId);
+    return rows.map((row) => toStage(row, фактическая.get(row.sectionId ?? "") ?? null));
+  }
+
+  /**
+   * Фактическая готовность разделов — доля принятого в итоге раздела.
+   *
+   * Заявленную ставит человек, эта считается по приёмке. Обе живут рядом:
+   * заявленная законно опережает приёмку (материал закуплен, работа идёт,
+   * пакет ещё не собран), и подменять одну другой значило бы стереть то,
+   * ради чего человек её ставит. Расхождение и есть содержание.
+   *
+   * Считается по действующей редакции сметы — тем же правилом, что приёмка
+   * (Р11). Иначе вкладка «Работа» и вкладка «Приёмка» разошлись бы на
+   * первом же импорте.
+   *
+   * Пустая карта, когда сметы нет: этапу тогда неоткуда взять величину, и
+   * экран покажет прочерк, а не ноль. Ноль означает «ничего не принято».
+   */
+  private async actualProgress(projectId: string): Promise<Map<string, number>> {
+    const estimate = await currentEstimate(this.prisma, projectId);
+    if (estimate === null) return new Map();
+
+    const [items, acceptances, верхний] = await Promise.all([
+      this.prisma.estimateItem.findMany({
+        where: { estimateId: estimate.id },
+        select: { id: true, sectionId: true, qty: true, unitPrice: true },
+      }),
+      /* Приёмки только по позициям действующей редакции: прежние относятся
+         к позициям, которых в смете уже нет (Р11). */
+      this.prisma.acceptance.findMany({
+        where: { batch: { projectId }, item: { estimateId: estimate.id } },
+        select: { itemId: true, qty: true },
+      }),
+      topLevelSections(this.prisma, estimate.id),
+    ]);
+
+    const принятоПоПозиции = new Map<string, bigint>();
+    for (const record of acceptances) {
+      принятоПоПозиции.set(
+        record.itemId,
+        (принятоПоПозиции.get(record.itemId) ?? 0n) + record.qty,
+      );
+    }
+
+    const итог = new Map<string, { всего: bigint; принято: bigint }>();
+    for (const item of items) {
+      const ключ = верхний.get(item.sectionId) ?? item.sectionId;
+      const свод = итог.get(ключ) ?? { всего: 0n, принято: 0n };
+      const цена = kopecks(item.unitPrice);
+      свод.всего += acceptedTotal([{ qty: milliunits(item.qty), unitPrice: цена }]);
+      свод.принято += acceptedTotal([{
+        qty: acceptedQty([{ qty: milliunits(принятоПоПозиции.get(item.id) ?? 0n) }]),
+        unitPrice: цена,
+      }]);
+      итог.set(ключ, свод);
+    }
+
+    const доли = new Map<string, number>();
+    for (const [sectionId, свод] of итог) {
+      const доля = acceptedShare(kopecks(свод.принято), kopecks(свод.всего));
+      if (доля !== null) доли.set(sectionId, Number(доля));
+    }
+    return доли;
   }
 
   async view(user: RequestUser, code: string): Promise<WorkStage[]> {

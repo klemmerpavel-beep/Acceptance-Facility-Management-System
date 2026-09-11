@@ -127,7 +127,16 @@ export type WorkerKind = z.infer<typeof workerKindSchema>;
  * главной рисует все объекты сразу, и второй запрос на этап каждого из них
  * упёрся бы в сотню обращений на один экран.
  */
-export const workStageSchema = z.object({
+/**
+ * Этап в списке объектов: только план.
+ *
+ * Полосе плана на главной нужны даты и заявленная готовность — больше
+ * ничего. Фактическую готовность список не несёт намеренно: она стоит двух
+ * выборок на объект, а на портфеле в сотню объектов это сотня пар выборок
+ * ради числа, которого на полосе нет. Узкая схема говорит это типом, а не
+ * комментарием: поля, которого нет, нельзя показать по ошибке.
+ */
+export const planStageSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   order: z.number().int().nonnegative(),
@@ -135,6 +144,20 @@ export const workStageSchema = z.object({
   endsOn: z.string().date(),
   /** Заявленный прогресс в сотых долях процента: 5000 = 50,00 %. */
   progress: z.number().int().min(0).max(10_000),
+});
+export type PlanStage = z.infer<typeof planStageSchema>;
+
+/** Этап в карточке объекта: план, факт и связи. */
+export const workStageSchema = planStageSchema.extend({
+  /**
+   * Фактическая готовность: доля принятого в итоге раздела, в сотых долях
+   * процента. `null` — раздела у этапа нет или сметы нет у объекта, и
+   * считать не из чего; ноль означал бы «ничего не принято».
+   *
+   * Верхняя граница не ставится: перевыработка законна и должна быть видна
+   * тем же сигнальным цветом, что отрицательный остаток транша.
+   */
+  actualProgress: z.number().int().min(0).nullable(),
   /**
    * Раздел сметы, работы которого ведёт этап, и бригада-получатель
    * начисления. Через эту пару приёмка раздела узнаёт, кому начислять:
@@ -227,7 +250,7 @@ export const projectSummarySchema = z.object({
    */
   trancheRemainder: kopecksString.nullable(),
   /** Этапы графика в порядке ведения. Пусто — график не заведён. */
-  stages: z.array(workStageSchema),
+  stages: z.array(planStageSchema),
 });
 export type ProjectSummary = z.infer<typeof projectSummarySchema>;
 

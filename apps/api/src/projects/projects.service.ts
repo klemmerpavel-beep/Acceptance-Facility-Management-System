@@ -339,8 +339,6 @@ function toSummary(
       startsOn: stage.startsOn.toISOString().slice(0, 10),
       endsOn: stage.endsOn.toISOString().slice(0, 10),
       progress: stage.progress,
-      sectionId: stage.sectionId,
-      brigade: stage.brigade === null ? null : { id: stage.brigade.id, name: stage.brigade.name },
     })),
   };
 }

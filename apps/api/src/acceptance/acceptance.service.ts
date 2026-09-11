@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { currentEstimate } from "../common/current-estimate";
+import { topLevelSections } from "../common/section-rollup";
 import { FileStorage } from "../common/file-storage";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
 import type { RequestUser } from "../common/current-user";
@@ -143,19 +144,10 @@ export class AcceptanceService {
       }),
     ]);
 
-    /* Позиции раскладываются по разделам верхнего уровня. Вложенный раздел
-       принимается вместе со своим верхним: прораб на объекте различает
-       «электрику», а не «электрику / штробление». */
+    /* Позиции раскладываются по разделам верхнего уровня общим правилом:
+       по этой же карте считает фактическую готовность график. */
     const поРазделу = new Map<string, typeof items>();
-    const верхний = new Map<string, string>();
-    for (const section of sections) верхний.set(section.id, section.id);
-    const вложенные = await this.prisma.estimateSection.findMany({
-      where: { estimateId: estimate.id, NOT: { parentId: null } },
-      select: { id: true, parentId: true },
-    });
-    for (const section of вложенные) {
-      if (section.parentId !== null) верхний.set(section.id, section.parentId);
-    }
+    const верхний = await topLevelSections(this.prisma, estimate.id);
 
     for (const item of items) {
       const ключ = верхний.get(item.sectionId) ?? item.sectionId;

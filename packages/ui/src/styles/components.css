@@ -1499,3 +1499,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .accept__batch { grid-template-columns: 56px minmax(0, 1fr); }
   .accept__photo { inline-size: 56px; block-size: 56px; }
 }
+
+/* Фактическая готовность стоит под заявленной в той же колонке: две
+   величины в строку не помещаются в 72 px, а разводить их по колонкам
+   значило бы отодвинуть дни ещё на одну ширину. Приглушена, потому что
+   заявленную ставит человек, а эта считается и спорить с ней не должна. */
+.gantt__pct { flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
+.gantt__fact { font-size: var(--fs-sm); color: var(--ink-3); }
+.gantt__fact--over { color: var(--signal); }

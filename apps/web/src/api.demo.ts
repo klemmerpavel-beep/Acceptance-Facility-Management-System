@@ -19,7 +19,8 @@ import type {
   UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
-  acceptanceFault, accrualAmount, applyPercent, clientAmount, basisPoints,
+  acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent,
+  clientAmount, basisPoints,
   estimateItemFault, kopecks, measureTotals,
   milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, wallArea,
@@ -42,6 +43,8 @@ interface Snapshot {
   units: string[];
   organization: Organization;
   unitDirectory: Unit[];
+  /** Этапы карточки R-99 своим вызовом: список объектов несёт узкий план. */
+  stages: WorkStage[];
   "acceptance-owner": AcceptanceView;
   "acceptance-foreman": AcceptanceView;
   tranches: TrancheView;
@@ -578,9 +581,37 @@ export const acceptancePhotoUrl = (): string => ЗАГОТОВКА_СНИМКА;
 
 let этапы: WorkStage[] | null = null;
 
+/**
+ * Фактическая готовность разделов по слепку приёмки — та же величина, что
+ * считает сервер. Демонстрация не должна показывать прочерк там, где
+ * продукт показывает число: смотрят её как продукт.
+ */
+const фактическаяПоРазделам = (): Map<string, number> => {
+  const доли = new Map<string, number>();
+  for (const section of приёмкаR99("OWNER").sections) {
+    const всего = acceptedTotal(section.positions.map((position) => ({
+      qty: milliunits(BigInt(position.qty)),
+      unitPrice: kopecks(BigInt(position.unitPrice)),
+    })));
+    const принято = acceptedTotal(section.positions.map((position) => ({
+      qty: milliunits(BigInt(position.accepted)),
+      unitPrice: kopecks(BigInt(position.unitPrice)),
+    })));
+    const доля = acceptedShare(принято, всего);
+    if (доля !== null) доли.set(section.id, Number(доля));
+  }
+  return доли;
+};
+
 const этапыR99 = (): WorkStage[] => {
-  этапы ??= data["projects-owner"].find((project) => project.code === "R-99")?.stages ?? [];
-  return [...этапы].sort((left, right) => left.order - right.order);
+  этапы ??= data.stages;
+  const доли = фактическаяПоРазделам();
+  return [...этапы]
+    .sort((left, right) => left.order - right.order)
+    .map((stage) => ({
+      ...stage,
+      actualProgress: доли.get(stage.sectionId ?? "") ?? null,
+    }));
 };
 
 /** Диапазон объекта — тем же правилом домена, что на сервере. */
@@ -681,6 +712,10 @@ export async function createStage(_code: string, stage: CreateWorkStage): Promis
     startsOn: stage.startsOn,
     endsOn: stage.endsOn,
     progress: stage.progress,
+    /* Фактическая пересчитывается при чтении списка: хранить её у этапа
+       значило бы завести второе место, откуда она может разойтись с
+       приёмкой. Здесь достаточно объявить поле. */
+    actualProgress: null,
     ...связи(stage, null),
   }];
   перенестиСвязиВПриёмку();
