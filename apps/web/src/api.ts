@@ -5,9 +5,9 @@ import {
   photoReportSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
-  workStageSchema, acceptanceViewSchema, trancheViewSchema,
+  workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
-  type CloseTranche, type CreateTranche, type TrancheView,
+  type CloseTranche, type CreateTranche, type TrancheView, type AccountingView,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type EstimateView, type ImportRecord,
@@ -350,6 +350,10 @@ export const payTranche = (code: string, id: string): Promise<TrancheView> =>
 
    Превращение, отказ и правка задач объявлены отдельными вызовами, а не
    правкой полей: это разные события с разными отказами. */
+
+/** Бухгалтерия: деньги заказчиков по всему портфелю. Только руководителю. */
+export const fetchAccounting = (): Promise<AccountingView> =>
+  request("/accounting", accountingViewSchema);
 
 export const fetchLeads = (open: boolean): Promise<LeadBoard> =>
   request(`/leads?open=${String(open)}`, leadBoardSchema);
