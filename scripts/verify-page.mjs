@@ -105,6 +105,36 @@ page.on("response", (response) => {
 /** Похоже ли значение колонки на процент: «0,86 %», «100 %». */
 const factNotPercent = (text) => !/^\d/u.test(text);
 
+/**
+ * Усечение без раскрытия. Значение, обрезанное многоточием, обязано быть
+ * доступно целиком: наведением, подсказкой, чем угодно — но обязано. Иначе
+ * длинное ФИО, адрес или наименование позиции теряются в интерфейсе без
+ * следа, и человек не знает, что именно он не дочитал.
+ *
+ * Проверяется свойство, а не список мест: узел, у которого содержимое шире
+ * своей коробки и объявлено `text-overflow: ellipsis`, обязан нести `title`
+ * либо `aria-label`.
+ */
+const усечение = async (page, где) => {
+  const немые = await page.evaluate(() => {
+    const найдено = [];
+    for (const узел of document.querySelectorAll("main *")) {
+      if (узел.children.length > 0) continue;
+      const стиль = getComputedStyle(узел);
+      if (стиль.textOverflow !== "ellipsis") continue;
+      if (узел.scrollWidth <= узел.clientWidth + 1) continue;
+      const раскрытие = узел.getAttribute("title") ?? узел.getAttribute("aria-label")
+        ?? узел.closest("[title]")?.getAttribute("title") ?? "";
+      if (раскрытие.trim() !== "") continue;
+      найдено.push(`${(узел.className.toString() || узел.tagName).slice(0, 40)}: `
+        + `«${(узел.textContent ?? "").trim().slice(0, 30)}»`);
+    }
+    return [...new Set(найдено)];
+  });
+  for (const место of немые) note("усечение", `${где}: ${место} — обрезано без раскрытия`);
+  return немые.length;
+};
+
 const overflow = async (label) => {
   const result = await page.evaluate(() => {
     const root = document.documentElement;
@@ -167,6 +197,7 @@ await page.click('button[type="submit"]');
 await page.waitForSelector(".statcard");
 await step("главная", "03-glavnaya.png");
 await overflow("главная, 1440");
+await усечение(page, "главная");
 
 /**
  * Состав экрана. Числовых карточек ровно четыре, и это не придирка к
@@ -556,6 +587,7 @@ await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
+await усечение(page, "объекты");
 
 const rows = await page.locator(".datatable__table tbody tr").count();
 console.log(`  объектов в списке: ${rows}`);
@@ -632,6 +664,7 @@ await page.waitForSelector(".stamp");
 await page.waitForSelector(".metric__value");
 await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
+await усечение(page, "карточка");
 
 /*
  * Шкала объекта показывает две величины и не выдаёт одну за другую.
@@ -1055,6 +1088,7 @@ if (!заголовки.includes("Начислено")) {
 await геометрия(page, "контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
+await усечение(page, "контакты");
 
 /**
  * Заведение записи. Обещание экрана — сохранённая запись видна в списке
@@ -1249,6 +1283,7 @@ if ((await page.locator(".money__row--client").count()) === 0) {
 }
 await step("бухгалтерия", "44-buhgalteriya.png");
 await overflow("бухгалтерия, 1440");
+await усечение(page, "бухгалтерия");
 
 /*
  * Воронка заявок.
@@ -1344,6 +1379,7 @@ if ((await просрочка.count()) === 0) {
 
 await step("воронка заявок", "41-zayavki.png");
 await overflow("воронка, 1440");
+await усечение(page, "воронка");
 
 /* Переключатель «Открытые / Все». На стенде закрытых заявок нет, поэтому
    проверяется не рост числа карточек, а то, что выбор вообще применяется:
@@ -1708,6 +1744,37 @@ if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 0) {
    абсолютно), и стоит забыть её задать, как готовность уезжает под
    название, а шапка остаётся на месте. Глазом на снимке это заметно, а
    проверкой раньше не ловилось. */
+/* Подписи и названия в графике помещаются в свои колонки. До 12.09.2026
+   колонка готовности была шириной 72 px, и её надзаголовок «Заявлено ·
+   принято» обрезался на середине первого слова — «ЗАЯВЛЕНС»; колонка
+   названия в 200 px резала имена этапов многоточием при свободном месте
+   справа. Проверяется свойство: содержимое не шире своей коробки. */
+const обрезано = await page.evaluate(() => {
+  const найдено = [];
+  /* Подпись — элемент гибкой колонки: собственной обрезки у неё нет, она
+     шире своей колонки и уезжает под соседнюю. Сравнивать поэтому надо
+     ширину подписи с шириной колонки, а не содержимое узла с ним самим:
+     первое написание проверки смотрело на scrollWidth подписи и молчало
+     при любой ширине колонки. */
+  for (const колонка of document.querySelectorAll(".gantt__scale .gantt__pct")) {
+    const место = колонка.clientWidth;
+    for (const подпись of колонка.querySelectorAll("span")) {
+      if (подпись.getBoundingClientRect().width > место + 1) {
+        найдено.push(`подпись готовности «${(подпись.textContent ?? "").trim().slice(0, 28)}» `
+          + `шириной ${Math.round(подпись.getBoundingClientRect().width)} px в колонке ${место} px`);
+      }
+    }
+  }
+  for (const узел of document.querySelectorAll(".gantt__name")) {
+    if (узел.scrollWidth > узел.clientWidth + 1) {
+      найдено.push(`колонка этапа: «${(узел.textContent ?? "").trim().slice(0, 28)}»`);
+    }
+  }
+  return найдено;
+});
+for (const место of обрезано) note("график", `${место} — не помещается в свою колонку`);
+await усечение(page, "график");
+
 const шапкаГотово = await page.locator(".gantt__scale .gantt__pct").boundingBox();
 const строкаГотово = await page.locator(".gantt__row .gantt__pct").first().boundingBox();
 if (шапкаГотово !== null && строкаГотово !== null
@@ -2331,6 +2398,7 @@ if ((await page.locator(".sheet").count()) === 0) {
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(400);
 await overflow("транши, 390");
+await усечение(page, "транши, 390");
 await step("транши на телефоне", "38-transhi-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -2396,6 +2464,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.setViewportSize({ width: 360, height: 800 });
 await page.waitForTimeout(400);
 await overflow("контрагенты, 360");
+await усечение(page, "контрагенты, 360");
 const tabbar = await page.locator(".tabbar__item").count();
 if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
 
@@ -2421,6 +2490,15 @@ if (covered !== null) note("мобильная навигация", `таб-па
  * ширине 360 px уводят половину сведений за край экрана, а работает там
  * прораб.
  */
+/* Главная на телефоне: списки сроков и событий несут адреса, и усечение
+   доходит до текста именно там. Экран выбирается явно — к этому месту
+   обход стоит на разделе объектов, и подпись «главная» без перехода
+   называла бы не тот экран. */
+await page.click('.tabbar__item:has-text("Главная")');
+await page.waitForSelector(".duelist__row");
+await page.waitForTimeout(300);
+await усечение(page, "главная, 360");
+
 await page.click('.tabbar__item:has-text("Проекты")');
 await page.waitForSelector(".segmented__option");
 await page.waitForTimeout(300);
@@ -2434,6 +2512,7 @@ if ((await page.locator("main .datatable__search input").count()) === 0) {
 }
 console.log(`  строк объектов на 360 px: ${mobileRows}`);
 await overflow("объекты, 360");
+await усечение(page, "объекты, 360");
 await step("объекты на телефоне", "10b-obekty-360.png");
 await step("мобильный, 360 px", "10-mobile-360.png");
 

@@ -3,7 +3,7 @@ import type {
   CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary,
 } from "@priyomka/contracts";
-import { daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
+import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
@@ -270,7 +270,7 @@ export function ProjectCard({
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Прораб</span>
-            <span className="stamp__value">{project.foreman?.name ?? "не назначен"}</span>
+            <span className="stamp__value" title={project.foreman?.name ?? "не назначен"}>{project.foreman?.name ?? "не назначен"}</span>
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Смета</span>
@@ -691,7 +691,7 @@ function Overview({
           <dl className="deflist">
             {estimate.sections.map((section) => (
               <div className="deflist__row" key={section.id}>
-                <dt className="deflist__term">{section.name}</dt>
+                <dt className="deflist__term">{sectionTitle(section.name)}</dt>
                 <dd className="deflist__value num">{money(section.subtotal)}</dd>
               </div>
             ))}

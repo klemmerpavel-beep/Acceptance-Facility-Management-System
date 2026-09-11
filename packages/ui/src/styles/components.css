@@ -683,7 +683,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__scale,
 .gantt__row {
   display: grid;
-  grid-template-columns: var(--gantt-label) max-content 72px;
+  grid-template-columns: var(--gantt-label) max-content var(--gantt-pct);
   align-items: center;
   border-block-end: 1px solid var(--line);
 }
@@ -786,14 +786,21 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Готовность прижата к правому краю так же, как название к левому: колонка
    дней шире экрана, и без этого процент уезжал за предел прокрутки — то
    есть переставал существовать для того, кто на график и смотрит. */
+/* Колонка готовности несёт две величины, и обе подписаны: до 12.09.2026
+   она была шириной 72 px, и надзаголовок «Заявлено · принято» обрезался на
+   середине первого слова — «ЗАЯВЛЕНС». Подписи стоят теперь столбцом, по
+   одной над своим числом, а ширина назначена токеном, а не числом в двух
+   местах сразу. */
 .gantt__pct {
   position: sticky; inset-inline-end: 0; z-index: 1;
-  display: flex; align-items: center; justify-content: flex-end;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  gap: 2px;
   block-size: 100%; padding-inline: var(--space-3);
   background: var(--surface);
   border-inline-start: 1px solid var(--line);
   font-size: var(--fs-sm); color: var(--ink-2);
 }
+.gantt__scale .gantt__pct { gap: 0; line-height: var(--lh-cap); }
 .gantt__scale .gantt__pct { background: var(--surface-2); }
 
 /* Этап, лежащий вне открытого месяца, оставляет пустую строку. Метка у края
@@ -826,7 +833,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 @media (max-width: 767px) {
   .gantt__canvas { --gantt-label: 168px; }
   .gantt__scale,
-  .gantt__row { grid-template-columns: var(--gantt-label) max-content 56px; }
+  .gantt__row { grid-template-columns: var(--gantt-label) max-content var(--gantt-pct); }
   /* Ручка перестановки уходит: она съедала 44 px из 168, оставляя названию
      полсотни, а тянуть строку в полотне, которое само едет по горизонтали,
      на телефоне и не выходит. Место в графике меняется полем в листе —
@@ -1759,7 +1766,7 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .readiness__mark--claim { background: var(--claim); }
 .readiness__mark--fact { background: var(--ok); margin-inline-start: var(--space-3); }
 .readiness__row {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) 3.5rem;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 4.5rem;
   align-items: center; gap: var(--space-3);
   inline-size: 100%; min-block-size: var(--tap-min); padding: var(--space-1) 0;
   text-align: start; cursor: pointer;
@@ -1776,10 +1783,15 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 /* Перевыработка законна и показывается как есть, а не обрезается по
    заявленному: обрезка скрыла бы ровно то, ради чего две величины рядом. */
 .readiness__fact--over { background: var(--signal); }
+/* Числа столбцом: заявленное сверху, принятое под ним — в том же порядке,
+   в каком они лежат на дорожке и названы в легенде. Принятое набрано тоном
+   своей заливки: это второй канал опознания, первый — положение. */
+.readiness__pair { display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
 .readiness__value { text-align: end; white-space: nowrap; }
+.readiness__fact-value { text-align: end; white-space: nowrap; color: var(--ok); }
 
 @media (max-width: 767px) {
-  .readiness__row { grid-template-columns: auto minmax(0, 1fr) 3rem; }
+  .readiness__row { grid-template-columns: auto minmax(0, 1fr) 4rem; }
 }
 
 /* --- 5.34 Реестр денег по объектам ------------------------------------------

@@ -180,7 +180,18 @@ export function ReadinessChart({
                     />
                   )}
                 </span>
-                <span className="readiness__value num t-sm">{formatPercent(BigInt(заявлено))}</span>
+                {/* Два числа столбцом, а не одно: принятое стояло только в
+                    подсказке, и график читался как одноцветный — принято на
+                    стенде близко к нулю, и второй заливки на дорожке почти
+                    не видно (аудит З-3). Прочерк вместо нуля там, где
+                    приёмки нет вовсе: ноль означал бы «принято ничего», а
+                    это иное утверждение. */}
+                <span className="readiness__pair">
+                  <span className="readiness__value num t-sm">{formatPercent(BigInt(заявлено))}</span>
+                  <span className="readiness__fact-value num t-sm">
+                    {row.fact === null ? "—" : formatPercent(BigInt(принято))}
+                  </span>
+                </span>
               </button>
             </li>
           );

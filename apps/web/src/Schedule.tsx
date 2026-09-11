@@ -394,7 +394,12 @@ export function Schedule({
                   ))}
                 </div>
               </div>
-              <span className="gantt__pct t-cap">Заявлено · принято</span>
+              {/* Подписи столбцом, по одной над своим числом: строкой они не
+                  помещались и обрезались на середине первого слова. */}
+              <span className="gantt__pct t-cap">
+                <span>Заявлено</span>
+                <span>Принято</span>
+              </span>
             </div>
 
             <div className="gantt__body">

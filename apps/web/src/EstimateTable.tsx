@@ -1,3 +1,4 @@
+import { sectionTitle } from "@priyomka/domain";
 import { useState } from "react";
 import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
@@ -73,7 +74,7 @@ export function EstimateTable({
                 <use href="#i-chevron" />
               </svg>
               <span className="estimate__row-name" style={{ ["--level" as string]: node.level - 1 }}>
-                {node.name}
+                {sectionTitle(node.name)}
               </span>
             </button>
           </td>

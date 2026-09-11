@@ -497,7 +497,7 @@ export function Dashboard({
                     }}
                   >
                     <span className="code-badge">{row.code}</span>
-                    <span className="duelist__address">{row.address}</span>
+                    <span className="duelist__address" title={row.address}>{row.address}</span>
                   </button>
                   {/* Слова и ступень срочности выдаёт `due.ts` — одна шкала
                       на реестр, первый экран и карточку. */}
