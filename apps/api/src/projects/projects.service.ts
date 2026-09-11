@@ -164,27 +164,72 @@ export class ProjectsService {
     limit: number,
   ): Promise<ProjectEvent[]> {
     if (projects.length === 0) return [];
-    const byId = new Map(projects.map((project) => [project.id, project.code]));
+    const projectIds = projects.map((project) => project.id);
+    /* Код объекта ищется по опознавателю записи. Часть записей адресована
+       объектом, часть — этапом или траншем, поэтому карта пополняется их
+       опознавателями: иначе событие графика осталось бы без объекта и в
+       сводке портфеля было бы непонятно, о чём оно. */
+    const кодПо = new Map(projects.map((project) => [project.id, project.code]));
+
+    /*
+     * Что видно в ленте и кому.
+     *
+     * Записи о деньгах — цены и ставки позиции, надбавка, суммы траншей —
+     * видит только руководитель. Запись журнала есть обход поля: строка
+     * «цена единицы: 1 150,50 ₽ → 1 200,00 ₽» рассказывает ровно то, что
+     * поле скрывает от прораба. Разграничение на уровне полей иначе
+     * держалось бы на одном экране и текло бы в ленте.
+     *
+     * График прорабу остаётся: сроки, готовность, раздел и бригада — то,
+     * по чему он работает.
+     *
+     * Приёмки в ленте нет намеренно: вкладка показывает её пакетами со
+     * строками, автором, снимком и сторно. Повторить её здесь значило бы
+     * залить ленту дубликатом того, что рядом показано подробнее.
+     */
+    const внутренние = user.role === "OWNER";
+    const поОбъекту = внутренние
+      ? ["Project", "MeasureRoom", "MeasurePlan", "EstimateItem", "Estimate"]
+      : ["Project", "MeasureRoom", "MeasurePlan"];
+
+    const [этапы, транши] = await Promise.all([
+      this.prisma.workStage.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { id: true, projectId: true },
+      }),
+      внутренние
+        ? this.prisma.tranche.findMany({
+          where: { projectId: { in: projectIds } },
+          select: { id: true, projectId: true },
+        })
+        : Promise.resolve([] as { id: string; projectId: string }[]),
+    ]);
+    for (const row of [...этапы, ...транши]) {
+      const code = кодПо.get(row.projectId);
+      if (code !== undefined) кодПо.set(row.id, code);
+    }
 
     /**
-     * Записи журнала трёх видов: правка объекта, правка обмера, замена
-     * плана. Все три адресованы объектом, поэтому берутся одним запросом.
+     * Записи журнала по объекту, его этапам и траншам.
      *
-     * Обмер адресуется объектом, а не помещением, намеренно: помещение
-     * можно удалить, и запись об удалении, сославшись на исчезнувшую
-     * строку, выпала бы из ленты — то есть самое важное событие обмера
-     * стало бы единственным невидимым. Какое именно помещение правили,
-     * названо в самой записи.
+     * Отбор уходит в запрос, а не фильтрует выбранное: недоступное роли не
+     * должно физически попадать в ответ — то же правило, по которому
+     * видимость объекта живёт в `projectScope`, а не в проверке после
+     * выборки.
      *
-     * Показывать эти записи обязательно: журнал заводился ради спора
-     * «кто поменял площадь», а запись, которую никто не видит, спора не
-     * решает.
+     * Показывать эти записи обязательно: журнал заводился ради спора «кто
+     * поменял величину», а запись, которую никто не видит, спора не решает.
      */
     const entries = await this.prisma.auditLog.findMany({
       where: {
         orgId: user.orgId,
-        entity: { in: ["Project", "MeasureRoom", "MeasurePlan"] },
-        entityId: { in: [...byId.keys()] },
+        OR: [
+          { entity: { in: поОбъекту }, entityId: { in: projectIds } },
+          { entity: "WorkStage", entityId: { in: этапы.map((row) => row.id) } },
+          ...(внутренние
+            ? [{ entity: "Tranche", entityId: { in: транши.map((row) => row.id) } }]
+            : []),
+        ],
       },
       orderBy: { at: "desc" },
       take: limit,
@@ -192,7 +237,7 @@ export class ProjectsService {
     });
 
     const imports = await this.prisma.estimateImport.findMany({
-      where: { estimate: { projectId: { in: [...byId.keys()] } } },
+      where: { estimate: { projectId: { in: projectIds } } },
       orderBy: { importedAt: "desc" },
       take: limit,
       select: {
@@ -204,13 +249,18 @@ export class ProjectsService {
     const events: ProjectEvent[] = [
       ...entries.map((entry): ProjectEvent => ({
         at: entry.at.toISOString(),
-        kind: entry.field === "status" ? "status" : "field",
-        title:
-          entry.field === "status"
-            ? `Статус: ${label(entry.oldValue)} → ${label(entry.newValue)}`
-            : `Правка поля «${entry.field}»`,
-        detail: entry.field === "status" ? null : `${entry.oldValue ?? "—"} → ${entry.newValue ?? "—"}`,
-        projectCode: byId.get(entry.entityId) ?? null,
+        /* Вид «статус» — только у объекта. Состояние транша тоже писалось
+           полем `status`, и общая ветка титуловала его «Статус: OPEN →
+           CLOSED», то есть выдавала смену состояния транша за смену статуса
+           объекта. Различает не имя поля, а сущность записи. */
+        kind: статусОбъекта(entry) ? "status" : "field",
+        title: статусОбъекта(entry)
+          ? `Статус: ${label(entry.oldValue)} → ${label(entry.newValue)}`
+          : `${РАЗДЕЛ[entry.entity] ?? "Объект"}: ${entry.field}`,
+        detail: статусОбъекта(entry)
+          ? null
+          : `${entry.oldValue ?? "—"} → ${entry.newValue ?? "—"}`,
+        projectCode: кодПо.get(entry.entityId) ?? null,
         actor: entry.actor?.name ?? null,
       })),
       ...imports.map((record): ProjectEvent => ({
@@ -218,7 +268,7 @@ export class ProjectsService {
         kind: "import",
         title: `Импорт сметы: редакция ${record.estimate.version}, позиций ${record.positions}`,
         detail: record.fileName,
-        projectCode: byId.get(record.estimate.projectId) ?? null,
+        projectCode: кодПо.get(record.estimate.projectId) ?? null,
         actor: null,
       })),
     ];
@@ -226,6 +276,27 @@ export class ProjectsService {
     return events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
   }
 }
+
+/** Смена статуса объекта: только она рисуется отдельным видом события. */
+const статусОбъекта = (entry: { entity: string; field: string }): boolean =>
+  entry.entity === "Project" && entry.field === "status";
+
+/**
+ * Раздел продукта, к которому относится запись журнала.
+ *
+ * Заголовок называет место, а не механику: «Смета: цена единицы» вместо
+ * «Правка поля „цена единицы"». Человек ищет в ленте по месту — «что там
+ * было со сметой», — а слово «поле» в этом поиске не помогает.
+ */
+const РАЗДЕЛ: Readonly<Record<string, string>> = {
+  Project: "Объект",
+  MeasureRoom: "Замер",
+  MeasurePlan: "Замер",
+  EstimateItem: "Смета",
+  Estimate: "Смета",
+  WorkStage: "График",
+  Tranche: "Транш",
+};
 
 /**
  * Подпись статуса для журнала. Строка из журнала — не обязательно

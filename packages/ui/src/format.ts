@@ -13,26 +13,15 @@
 const NBSP = " ";
 
 import { divideRoundHalfUp } from "@priyomka/domain";
-import type { BasisPoints, Kopecks, Milliunits } from "@priyomka/domain";
+import type { Milliunits } from "@priyomka/domain";
 
 const groupDigits = (digits: string): string =>
   digits.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
 
-/**
- * Копейки → строка суммы. Знак выносится перед разрядами: сторнирующие
- * записи отрицательны и должны читаться как «−4 288,00 ₽», а не «-4 288,00».
- *
- * @param withCurrency добавить символ рубля через неразрывный пробел
- */
-export function formatKopecks(value: Kopecks | bigint, withCurrency = true): string {
-  const raw: bigint = value;
-  const negative = raw < 0n;
-  const absolute = negative ? -raw : raw;
-  const rubles = absolute / 100n;
-  const cents = absolute % 100n;
-  const body = `${groupDigits(rubles.toString())},${cents.toString().padStart(2, "0")}`;
-  return `${negative ? "−" : ""}${body}${withCurrency ? `${NBSP}₽` : ""}`;
-}
+/* Форма суммы переехала в домен: её пишет и сервер — в журнал объекта, —
+   а `packages/ui` в его зависимостях нет. Имя реэкспортируется, поэтому ни
+   одна точка вызова на экранах не изменилась. */
+export { formatKopecks } from "@priyomka/domain";
 
 /**
  * Количество → строка. Незначащие нули отбрасываются: 2,000 → «2»,
@@ -51,13 +40,7 @@ export function formatQty(value: Milliunits | bigint): string {
   return `${negative ? "−" : ""}${body}`;
 }
 
-/** Доля в сотых долях процента (1200 = 12,00 %) → «12 %» или «12,5 %». */
-export function formatPercent(share: BasisPoints | bigint): string {
-  const whole = share / 100n;
-  const fraction = (share % 100n).toString().padStart(2, "0").replace(/0+$/, "");
-  const body = fraction.length > 0 ? `${whole},${fraction}` : whole.toString();
-  return `${body}${NBSP}%`;
-}
+export { formatPercent } from "@priyomka/domain";
 
 /** Единица измерения рядом с количеством: «406,91 м²». */
 export function formatQtyWithUnit(value: Milliunits | bigint, unit: string): string {
