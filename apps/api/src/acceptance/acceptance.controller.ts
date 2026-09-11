@@ -2,7 +2,7 @@ import {
   BadRequestException, Body, Controller, Get, Param, Post, Req, Res, UseGuards,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { AcceptanceView } from "@priyomka/contracts";
+import type { AcceptanceView, PhotoReport } from "@priyomka/contracts";
 import { createAcceptanceSchema, reversalSchema } from "@priyomka/contracts";
 import { AcceptanceService } from "./acceptance.service";
 import { FileStorage } from "../common/file-storage";
@@ -107,6 +107,15 @@ export class AcceptanceController {
     @Body() body: unknown,
   ): Promise<AcceptanceView> {
     return this.acceptance.reverse(user, code, id, reversalSchema.parse(body));
+  }
+
+  /**
+   * Фотоотчёт объекта. Читают обе роли: снимки делает прораб, и прятать от
+   * него собственную работу незачем. Денежных величин в отчёте нет.
+   */
+  @Get("report")
+  report(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<PhotoReport> {
+    return this.acceptance.report(user, code);
   }
 
   @Get("photo/:id")

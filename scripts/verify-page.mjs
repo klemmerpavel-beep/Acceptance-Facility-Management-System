@@ -59,8 +59,14 @@ const геометрия = async (page, где) => {
  *   на машине пользователя гарнитуры загрузятся, а до тех пор работает
  *   запасной стек, объявленный в токенах.
  */
+/* Снимки приёмки отключаются обходом намеренно — так проверяется, что
+   место под них отведено заранее. Пока отключение включено, сорванные
+   запросы снимков дефектом не считаются: их сорвала сама проверка. */
+let снимкиОтключены = false;
+
 const expected = (url, text = "") =>
   url.endsWith("/auth/me") || url.includes("fonts.googleapis.com") || url.includes("fonts.gstatic.com")
+  || (снимкиОтключены && url.includes("/acceptance/photo/"))
   // Объект без сметы отвечает 404 на запрос сметы; карточка показывает
   // честное пустое состояние. Это поведение продукта, а не сбой страницы.
   || /\/projects\/[A-Z]-\d+\/estimate$/u.test(new URL(url, "http://x").pathname)
@@ -1161,9 +1167,11 @@ await page.waitForSelector(".roadmap__item");
 const roadmap = await page.locator(".roadmap__item").count();
 const stages = await page.locator(".roadmap__item .pill").count();
 console.log(`  строк в «Что дальше»: ${roadmap}`);
-/* Строк стало семь: «Заявки» ушли из списка — у раздела появился свой
-   экран, и обещать его на «Что дальше» значило бы обещать сделанное. */
-if (roadmap < 7) note("что дальше", `строк ${roadmap} — список неполон`);
+/* Строк шесть. Список короче не оттого, что обещаний стало меньше, а
+   оттого, что два из них выполнены: «Заявки» получили свой раздел, «Отчёт»
+   — свою вкладку. Обещать на «Что дальше» сделанное значит лгать о составе
+   продукта, поэтому сделанное из списка уходит. */
+if (roadmap < 6) note("что дальше", `строк ${roadmap} — список неполон`);
 if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
 const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {
@@ -1178,7 +1186,7 @@ await page.waitForSelector(".datatable__table tbody tr");
 await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
-if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Транши|Импорт") {
+if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Отчёт|Транши|Импорт") {
   note("вкладки карточки", `состав «${cardTabs.join(", ")}»`);
 }
 for (const tab of cardTabs) {
@@ -1198,7 +1206,7 @@ await step("вкладки карточки", "20-vkladki.png");
  * работ при этом уносил вбок весь документ: в ряду над ним четыре органа
  * управления, и на 390 px они занимали 717 px. Уезжала не дорожка графика,
  * которой полагается прокручиваться, а страница целиком, вместе с шапкой.
- * Проверка идёт по всем семи вкладкам: дефект этого рода находится там,
+ * Проверка идёт по всем восьми вкладкам: дефект этого рода находится там,
  * куда не смотрели.
  */
 await page.setViewportSize({ width: 390, height: 844 });
@@ -2215,6 +2223,149 @@ if (квадрат !== null && квадрат.height > 32) {
   note("отбор приёмки", `флажок растянут до ${квадрат.height} px и читается как пустая рамка`);
 }
 await step("приёмка, отбор позиций, 390 px", "35b-priyomka-otbor.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+
+/*
+ * Стенд доводится до состояния, в котором отбор по разделу вообще можно
+ * проверить: приёмка заводится во втором разделе, отличном от того, что
+ * принят выше по обходу. Без этого шага раздел в отчёте один, отбор
+ * сужать нечего, и проверка проходила бы при любой ошибке — то есть не
+ * проверяла бы ничего.
+ */
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForSelector(".accept__row");
+const другойРаздел = page.locator(".accept__section:not(.accept__section--idle)").nth(1);
+if ((await другойРаздел.count()) === 0) {
+  note("отчёт", "на стенде один раздел с этапом: отбор по разделу проверить не на чем");
+} else {
+  await другойРаздел.click();
+  await page.waitForTimeout(400);
+  const свободнаяВторая = page.locator(".accept__row")
+    .filter({ hasNot: page.locator(".pill--ok") }).first();
+  await свободнаяВторая.locator(".accept__check").click();
+  await page.click('.accept__bar button:has-text("Принять")');
+  await page.waitForSelector(".sheet", { timeout: 10_000 }).catch(() => undefined);
+  await page.locator(".sheet .input--num").first().fill("1");
+  await page.setInputFiles('.sheet input[type="file"]', "scripts/fixtures/snimok.png");
+  await page.waitForTimeout(300);
+  await page.click('.sheet button:has-text("Подтвердить")');
+  await page.waitForTimeout(1200);
+}
+
+/*
+ * Фотоотчёт объекта (стадия C.4).
+ *
+ * Проверяется то, ради чего вкладка заведена: снимки видны, отбор по
+ * разделу сужает показанное, отменённая приёмка помечена, а сетка не
+ * прыгает по мере загрузки изображений — место под снимок отведено заранее.
+ */
+await page.waitForTimeout(300);
+
+/* Место под снимок отведено заранее. Проверяется не стилем, а поведением:
+   снимки не отдаются вовсе, и высота меряется на том, что осталось. Без
+   заданной пропорции карточка схлопывается, а когда снимки доезжают —
+   сетка перекладывается под курсором. Мерить после загрузки бесполезно:
+   на стенде она мгновенна, и проверка прошла бы при любой вёрстке. */
+снимкиОтключены = true;
+await page.route("**/acceptance/photo/**", (route) => route.abort());
+await page.click('.tabs__item:has-text("Отчёт")');
+await page.waitForSelector(".report__card", { timeout: 5000 }).catch(() => null);
+const безСнимков = await page.locator(".report__photo").first().boundingBox().catch(() => null);
+if (безСнимков === null || безСнимков.height < 80) {
+  note("отчёт", `место под снимок ${Math.round(безСнимков?.height ?? 0)} px: сетка переложится по загрузке`);
+}
+await page.unroute("**/acceptance/photo/**");
+снимкиОтключены = false;
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForTimeout(200);
+await page.click('.tabs__item:has-text("Отчёт")');
+await page.waitForSelector(".report__card", { timeout: 5000 }).catch(() => null);
+
+const карточекОтчёта = await page.locator(".report__card").count();
+if (карточекОтчёта === 0) {
+  note("отчёт", "вкладка отчёта не показала ни одной приёмки, хотя на стенде они есть");
+} else {
+
+  /* Отбор по разделу. «Весь объект» и хотя бы один раздел — иначе
+     сравнивать не с чем, и проверка проходила бы всегда. */
+  /* Чипов обязано быть не меньше трёх: «Весь объект» и два раздела.
+     Меньше — стенд не даёт проверить отбор, и это замечание, а не повод
+     тихо пропустить проверку. */
+  const разделов = await page.locator(".segmented__option").count();
+  if (разделов < 3) {
+    note("отчёт", `в отборе по разделу ${разделов} кнопок: сузить нечем`);
+  } else {
+    await page.locator(".segmented__option").nth(1).click();
+    await page.waitForTimeout(300);
+    const послеОтбора = await page.locator(".report__card").count();
+    if (послеОтбора === 0) {
+      note("отчёт", "отбор по разделу не оставил ни одной приёмки, хотя раздел выбран из списка снятых");
+    }
+    if (послеОтбора >= карточекОтчёта) {
+      note("отчёт", `отбор по разделу не сузил список: ${послеОтбора} из ${карточекОтчёта}`);
+    }
+    await page.locator(".segmented__option").first().click();
+    await page.waitForTimeout(300);
+    if ((await page.locator(".report__card").count()) !== карточекОтчёта) {
+      note("отчёт", "возврат к «Весь объект» не вернул прежний состав приёмок");
+    }
+  }
+
+  /* Число и слово при нём согласованы. «2 снимков» и «1 дней» —
+     не придирка к языку: продукт, который так пишет, читается как
+     недоделанный, и доверия к числам рядом это не прибавляет. */
+  const форма = (число, одна, две, много) => {
+    const сотня = число % 100;
+    const десяток = число % 10;
+    if (сотня >= 11 && сотня <= 14) return много;
+    if (десяток === 1) return одна;
+    if (десяток >= 2 && десяток <= 4) return две;
+    return много;
+  };
+  const меры = await page.locator('[id="panel-report"] .metric').all();
+  for (const мера of меры) {
+    const число = Number.parseInt((await мера.locator(".metric__value").textContent()) ?? "0", 10);
+    const подпись = ((await мера.locator(".metric__label").textContent()) ?? "").trim().toLowerCase();
+    const слово = подпись.split(/\s+/u)[0] ?? "";
+    const ожидается = слово.startsWith("сним")
+      ? форма(число, "снимок", "снимка", "снимков")
+      : форма(число, "день", "дня", "дней");
+    if (слово !== ожидается) {
+      note("отчёт", `«${число} ${слово}» вместо «${число} ${ожидается}»`);
+    }
+  }
+
+  /* Две одинаковые надписи в отборе выбрать не дают: человеку нечем
+     отличить одну от другой, а показывают они разное. Так и было, пока
+     раздел считался по опознавателю: повторный импорт заводит разделы
+     заново под теми же именами. */
+  const надписи = await page.locator(".segmented__label").allTextContents();
+  if (new Set(надписи).size !== надписи.length) {
+    note("отчёт", `в отборе повторяются надписи: ${надписи.join(", ")}`);
+  }
+
+  /* Сторно в отчёте видно. На стенде оно прошло выше по обходу, и
+     отсутствие пометки означало бы, что отменённая работа выдана за
+     сделанную. */
+  if ((await page.locator(".report__card--reversed, .report__line--reversed").count()) === 0) {
+    note("отчёт", "отменённая приёмка в отчёте ничем не помечена");
+  }
+
+  /* Денег в отчёте нет ни у одной роли: отчёт показывает работу.
+     Проверяется по знаку рубля в области вкладки, а не по вёрстке. */
+  const текстОтчёта = (await page.locator('[id="panel-report"]').textContent()) ?? "";
+  if (текстОтчёта.includes("\u20BD")) {
+    note("отчёт", "в отчёте есть денежные величины");
+  }
+}
+await step("отчёт по объекту, 1440", "36-otchyot.png");
+
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await overflow("отчёт, 390");
+await step("отчёт по объекту, 390 px", "36b-otchyot-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 
 await browser.close();

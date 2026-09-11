@@ -18,6 +18,7 @@ import type {
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
+  PhotoReport, ReportBatch,
   CloseTranche, CreateTranche, TrancheView,
   UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
@@ -609,6 +610,69 @@ function пересчитатьПриёмку(вид: AcceptanceView): void {
 
 /** Снимок пакета: в демонстрации это вшитая заготовка, а не файл на сервере. */
 export const acceptancePhotoUrl = (): string => ЗАГОТОВКА_СНИМКА;
+
+/* --- фотоотчёт -----------------------------------------------------------
+   Отчёт собирается из того же состояния приёмки, что и вкладка «Приёмка»,
+   а не из отдельного снимка: принятый в демонстрации пакет обязан
+   появиться в отчёте тут же — иначе демонстрация обещает связь, которой
+   не показывает.
+
+   Отбора по редакции сметы здесь нет, как и на сервере. В демонстрации
+   редакция одна, и разницы не видно; в продукте она есть, и правило
+   записано там, где ему место, — в `acceptance.service.ts`. */
+export async function fetchReport(code: string): Promise<PhotoReport> {
+  await pause(220);
+  if (code !== "R-99") {
+    return { days: [], sections: [], totals: { photos: 0, batches: 0, days: 0 } };
+  }
+  const вид = приёмкаR99("OWNER");
+  const дни = new Map<string, ReportBatch[]>();
+  const разделы = new Map<string, { name: string; photos: number }>();
+  let снимков = 0;
+
+  for (const пакет of вид.batches) {
+    const день = пакет.createdAt.slice(0, 10);
+    const строки = пакет.lines.map((line) => ({
+      positionName: line.positionName,
+      unit: line.unit,
+      qty: line.qty,
+      reversed: line.reversedAt !== null,
+    }));
+    const список = дни.get(день) ?? [];
+    список.push({
+      id: пакет.id,
+      sectionId: пакет.sectionId,
+      sectionName: пакет.sectionName,
+      brigade: пакет.brigade.name,
+      at: пакет.createdAt,
+      author: пакет.author,
+      comment: пакет.comment,
+      photos: пакет.photos,
+      lines: строки,
+      /* Пакет без строк отменённым не считается: `every` на пустом списке
+         истинно, и живой пакет получил бы клеймо сторно ни за что. */
+      reversed: строки.length > 0 && строки.every((line) => line.reversed),
+    });
+    дни.set(день, список);
+
+    снимков += пакет.photos.length;
+    /* Ключ — имя раздела, как и на сервере: отчёт охватывает все редакции
+       сметы, а новая редакция заводит разделы заново под теми же именами. */
+    const раздел = разделы.get(пакет.sectionName) ?? { name: пакет.sectionName, photos: 0 };
+    раздел.photos += пакет.photos.length;
+    разделы.set(пакет.sectionName, раздел);
+  }
+
+  return {
+    days: [...дни.entries()]
+      .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+      .map(([day, batches]) => ({ day, batches })),
+    sections: [...разделы.values()]
+      .filter((раздел) => раздел.photos > 0)
+      .sort((левый, правый) => левый.name.localeCompare(правый.name, "ru")),
+    totals: { photos: снимков, batches: вид.batches.length, days: дни.size },
+  };
+}
 
 /* --- график производства работ ------------------------------------------
    Сервера в демонстрации нет, но правка графика обязана работать: именно

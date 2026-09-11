@@ -858,6 +858,65 @@ export const acceptanceBatchSchema = z.object({
 });
 export type AcceptanceBatch = z.infer<typeof acceptanceBatchSchema>;
 
+/**
+ * Фотоотчёт объекта (стадия C.4).
+ *
+ * Собирается из тех же пакетов приёмки, но **без отбора по редакции сметы**,
+ * в отличие от вида приёмки: снимок сделан, работа была, и новая редакция
+ * этого не отменяет. То же правило, по которому счёт транша не отбирается
+ * по редакции.
+ *
+ * Денежных величин в отчёте нет ни одной, ни одной роли: это отчёт о
+ * сделанном, а не о начисленном. Суммы живут на вкладке приёмки.
+ */
+export const reportBatchSchema = z.object({
+  id: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  sectionName: z.string(),
+  brigade: z.string(),
+  at: z.string(),
+  author: z.string().nullable(),
+  comment: z.string().nullable(),
+  photos: z.array(z.string().uuid()),
+  lines: z.array(z.object({
+    positionName: z.string(),
+    unit: z.string(),
+    qty: milliunitsString,
+    reversed: z.boolean(),
+  })),
+  /** Все строки пакета сторнированы: работа была отменена целиком. */
+  reversed: z.boolean(),
+});
+export type ReportBatch = z.infer<typeof reportBatchSchema>;
+
+export const photoReportSchema = z.object({
+  /** Дни по убыванию: последнее сделанное сверху. */
+  days: z.array(z.object({
+    day: z.string().date(),
+    batches: z.array(reportBatchSchema),
+  })),
+  /**
+   * Разделы для отбора «по этапу». Пустых в списке нет.
+   *
+   * Раздел назван именем, а не опознавателем, и это не мелочь. Отчёт
+   * охватывает все редакции сметы, а новая редакция заводит разделы
+   * заново: те же имена, другие опознаватели. Отбор по опознавателю дал бы
+   * две одинаковые надписи «Подготовительные работы», между которыми
+   * человеку нечем выбрать, и каждая показывала бы половину сделанного.
+   * На объекте раздел один — тот, что назван.
+   */
+  sections: z.array(z.object({
+    name: z.string(),
+    photos: z.number().int().nonnegative(),
+  })),
+  totals: z.object({
+    photos: z.number().int().nonnegative(),
+    batches: z.number().int().nonnegative(),
+    days: z.number().int().nonnegative(),
+  }),
+});
+export type PhotoReport = z.infer<typeof photoReportSchema>;
+
 /** Строка свода начислений по бригаде. Только OWNER. */
 export const accrualRowSchema = z.object({
   brigadeId: z.string().uuid(),
