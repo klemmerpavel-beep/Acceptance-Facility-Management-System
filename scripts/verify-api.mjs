@@ -1295,6 +1295,178 @@ check(
 );
 
 /*
+ * Воронка заявок и ориентир цены (стадия F).
+ *
+ * Блок ОСТАВЛЯЕТ СЛЕД: заявка не удаляется по решению заказчика — история
+ * не переписывается (БП-04), — и заведённый превращением объект остаётся
+ * до следующего наполнения. Стенд возвращает посев, а не проверка; без
+ * этой оговорки накопившиеся заявки на грязном стенде примут за дефект.
+ */
+const доска = await owner("/leads").then((r) => r.json());
+check(доска.columns?.length === 4, `колонок воронки ${доска.columns?.length} вместо четырёх`);
+check(
+  доска.columns?.map((column) => column.label).join("|")
+    === "Первичный контакт|Знакомство|Принимают решение|Согласование договора",
+  `стадии воронки: ${доска.columns?.map((column) => column.label).join(", ")}`,
+);
+const заявокНаДоске = доска.columns.reduce((всего, column) => всего + column.leads.length, 0);
+check(
+  заявокНаДоске === доска.totals.open,
+  `на доске ${заявокНаДоске} заявок, а открытых по счётчику ${доска.totals.open}`,
+);
+
+/* Воронка — раздел руководителя целиком, включая чтение: прораб заявок не
+   касается вовсе, и пустая доска сообщала бы «заявок нет» вместо «это не
+   ваш раздел». */
+check((await foreman("/leads")).status === 403, "прораб читает воронку заявок");
+check(
+  (await создать(foreman, "/leads", { name: "Проверка", phone: "+79000000099" })).status === 403,
+  "прораб заводит заявки",
+);
+check((await foreman("/repair-types")).status === 403, "прораб читает справочник тарифов");
+
+/* Ориентир считается доменом. Пересчёт независимый: площадь × тариф,
+   отклонение — долей от него, тем же округлением, что вся арифметика. */
+const сВилкой = доска.columns.flatMap((column) => column.leads)
+  .find((lead) => lead.guideline !== null);
+check(сВилкой !== undefined, "ни одна заявка стенда не несёт ориентира");
+if (сВилкой !== undefined) {
+  const центр = (BigInt(сВилкой.guideline.rate) * BigInt(сВилкой.guideline.area) + 500n) / 1000n;
+  const отклонение = (центр * BigInt(сВилкой.guideline.spread) + 5000n) / 10_000n;
+  check(
+    BigInt(сВилкой.guideline.low) === центр - отклонение
+      && BigInt(сВилкой.guideline.high) === центр + отклонение,
+    `вилка ${сВилкой.guideline.low}—${сВилкой.guideline.high}, `
+    + `пересчёт даёт ${(центр - отклонение).toString()}—${(центр + отклонение).toString()}`,
+  );
+}
+
+/* Номер выводит сервер и не переиспользует. */
+const первая = await создать(owner, "/leads", {
+  name: "Проверка API", phone: "+7 900 000-00-98", note: "Заведена проверкой",
+}).then((r) => r.json());
+const вторая = await создать(owner, "/leads", {
+  name: "Проверка API, вторая", phone: "+7 900 000-00-97", note: "Заведена проверкой",
+}).then((r) => r.json());
+check(
+  вторая.number === первая.number + 1,
+  `номера заявок ${первая.number} и ${вторая.number}: второй не следует за первым`,
+);
+
+/* Снимок тарифа: правка справочника не меняет уже названную вилку. Это и
+   есть смысл снимка (БП-03) — правка задним числом изменила бы цену,
+   названную заказчику по телефону. */
+const типы = await owner("/repair-types").then((r) => r.json());
+const тип = типы[0];
+check(тип !== undefined, "справочник тарифов пуст");
+const сОриентиром = await owner(`/leads/${первая.id}`, {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ repairTypeId: тип?.id, area: "60000" }),
+}).then((r) => r.json());
+check(сОриентиром.guideline !== null, "ориентир не посчитался по типу и площади");
+const вилкаДоПравки = сОриентиром.guideline?.low;
+await owner(`/repair-types/${тип?.id}`, {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ ratePerSqm: (BigInt(тип?.ratePerSqm ?? "0") * 2n).toString() }),
+});
+const послеПравкиТарифа = await owner("/leads").then((r) => r.json());
+const таЖе = послеПравкиТарифа.columns.flatMap((column) => column.leads)
+  .find((lead) => lead.id === первая.id);
+check(
+  таЖе?.guideline?.low === вилкаДоПравки,
+  `правка тарифа изменила уже названную вилку: ${вилкаДоПравки} → ${таЖе?.guideline?.low}`,
+);
+/* Возврат тарифа: справочник — общий для стенда, и удвоенная цена ушла бы
+   в слепок демонстрации. */
+await owner(`/repair-types/${тип?.id}`, {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ ratePerSqm: тип?.ratePerSqm }),
+});
+
+/* Отказ требует причину. */
+check(
+  (await создать(owner, `/leads/${вторая.id}/loss`, {})).status === 400,
+  "отказ принят без причины",
+);
+const отказана = await создать(owner, `/leads/${вторая.id}/loss`, {
+  reason: "Проверка: выбрали другого подрядчика",
+}).then((r) => r.json());
+check(отказана.outcome === "LOST", `после отказа исход ${отказана.outcome}`);
+const открытыеЗаявки = await owner("/leads?open=true").then((r) => r.json());
+check(
+  !открытыеЗаявки.columns.flatMap((column) => column.leads).some((lead) => lead.id === вторая.id),
+  "отказная заявка осталась в списке открытых",
+);
+const всеЗаявки = await owner("/leads?open=false").then((r) => r.json());
+check(
+  всеЗаявки.columns.flatMap((column) => column.leads).some((lead) => lead.id === вторая.id),
+  "отказная заявка пропала из списка всех: история не переписывается",
+);
+
+/* Превращение заводит заказчика и объект одним действием. */
+const объектовДо = (await owner("/projects").then((r) => r.json())).length;
+const превращена = await создать(owner, `/leads/${первая.id}/conversion`, {
+  code: "T-1", address: "Проверочный адрес 1", clientCode: "T-900",
+}).then((r) => r.json());
+check(превращена.outcome === "WON", `после превращения исход ${превращена.outcome}`);
+check(превращена.projectCode === "T-1", `заявка ссылается на ${превращена.projectCode}`);
+const объектовПосле = (await owner("/projects").then((r) => r.json())).length;
+check(объектовПосле === объектовДо + 1, `объектов ${объектовПосле} вместо ${объектовДо + 1}`);
+const заказчики = await owner("/clients").then((r) => r.json());
+check(
+  заказчики.some((client) => client.code === "T-900"),
+  "заказчик из заявки не появился в справочнике",
+);
+
+/* Ориентир переехал на объект и стоит рядом с итогом сметы. */
+const заведённый = await owner("/projects/T-1").then((r) => r.json());
+check(
+  заведённый.guideline?.low === сОриентиром.guideline?.low
+    && заведённый.guideline?.high === сОриентиром.guideline?.high,
+  `вилка на объекте ${заведённый.guideline?.low}—${заведённый.guideline?.high}, `
+  + `на заявке ${сОриентиром.guideline?.low}—${сОриентиром.guideline?.high}`,
+);
+/* Сметы у заведённого объекта нет, и сверять не с чем: `null`, а не ноль.
+   Ноль означал бы «сошлось копейка в копейку». */
+check(
+  заведённый.guideline?.verdict === null,
+  `у объекта без сметы сверка со сметой ${JSON.stringify(заведённый.guideline?.verdict)}`,
+);
+
+/* Повторное превращение отказывает и называет уже заведённый объект. */
+const повторное = await создать(owner, `/leads/${первая.id}/conversion`, {
+  code: "T-2", address: "Проверочный адрес 2", clientCode: "T-901",
+});
+check(повторное.status === 400, `повторное превращение прошло с кодом ${повторное.status}`);
+
+/* Задачи: просрочка считается по дате, а не хранится признаком. */
+const вчера = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const сЗадачей = await создать(owner, `/leads/${вторая.id}/tasks`, {
+  title: "Проверка просрочки", dueOn: вчера,
+}).then((r) => r.json());
+const задача = сЗадачей.tasks?.find((task) => task.title === "Проверка просрочки");
+check(задача?.state === "просрочена", `задача со вчерашним сроком в состоянии «${задача?.state}»`);
+const выполненная = await owner(`/leads/${вторая.id}/tasks/${задача?.id}`, {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ done: true }),
+}).then((r) => r.json());
+check(
+  выполненная.tasks?.find((task) => task.id === задача?.id)?.state === "выполнена",
+  "отметка выполнения не сняла просрочку",
+);
+
+/* Внутренних величин в воронке нет ни одной: закрывать нечего, закрыт весь
+   раздел. Проверка остаётся, чтобы они туда не приехали позже. */
+check(
+  findInternal(доска).length === 0,
+  `в воронке внутренние поля: ${findInternal(доска).join(", ")}`,
+);
+
+/*
  * Заявленное не называется принятым.
  *
  * Карточка объекта печатала заявленную готовность графика под словом

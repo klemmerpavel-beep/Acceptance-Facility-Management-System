@@ -4,6 +4,7 @@ import { fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, l
 import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
 import { Contacts } from "./Contacts.js";
+import { Leads } from "./Leads.js";
 import { NewProjectSheet } from "./NewProjectSheet.js";
 import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
@@ -101,6 +102,27 @@ export function App(): React.JSX.Element {
         : current,
     );
     setOpened(updated);
+  };
+
+  /**
+   * Открытие объекта по коду. Нужно воронке: превращённая заявка ведёт на
+   * заведённый объект, а список объектов к этому моменту уже устарел —
+   * объекта в нём ещё нет.
+   */
+  const открытьОбъект = (code: string): void => {
+    fetchProjects()
+      .then((projects) => {
+        const найден = projects.find((project) => project.code === code) ?? null;
+        if (найден === null) return;
+        setState((current) => (current.kind === "signed" ? { ...current, projects } : current));
+        setSection("projects");
+        setOpened(найден);
+      })
+      .catch(() => {
+        /* Объект заведён, но список не обновился: раздел всё равно
+           открывается — оттуда объект достижим руками. */
+        setSection("projects");
+      });
   };
 
   /**
@@ -283,6 +305,23 @@ export function App(): React.JSX.Element {
               onAdd={() => { setAdding(true); }}
             />
           </main>
+        </>
+      )}
+      {/* Заявки — раздел руководителя: прорабу маршруты закрыты ролью, и
+          показывать ему доску, которая ответит отказом, незачем. */}
+      {section === "requests" && (
+        <>
+          {cover("Заявки", ["Главная", "Заявки"])}
+          {state.user.role === "OWNER" ? (
+            <Leads onOpenProject={открытьОбъект} />
+          ) : (
+            <div className="empty">
+              <p className="empty__title">Раздел ведёт руководитель</p>
+              <p className="empty__text">
+                Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
+              </p>
+            </div>
+          )}
         </>
       )}
       {section === "contacts" && (

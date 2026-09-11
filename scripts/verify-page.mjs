@@ -937,13 +937,150 @@ for (const label of navWanted) {
  * Это правило пришло на смену прежнему запрету пунктов без содержания, и
  * без проверки оно продержится ровно до первой правки навигации.
  */
-for (const label of ["Заявки", "Бухгалтерия"]) {
+for (const label of ["Бухгалтерия"]) {
   await page.click(`.appbar__link:has-text("${label}")`);
   await page.waitForTimeout(400);
   if ((await page.locator(".roadmap__item").count()) === 0) {
     note("навигация", `раздел «${label}» не ведёт на «Что дальше»`);
   }
 }
+/* «Заявки» перестали быть разделом без экрана 11.09.2026: у них своя доска.
+   Проверяется именно это — пункт, который снова привёл бы на «Что дальше»,
+   означал бы, что раздел выключили правкой навигации. */
+await page.click('.appbar__link:has-text("Заявки")');
+await page.waitForTimeout(400);
+if ((await page.locator(".roadmap__item").count()) > 0) {
+  note("навигация", "раздел «Заявки» ведёт на «Что дальше», а у него есть свой экран");
+}
+/*
+ * Воронка заявок.
+ *
+ * Доска показывает все четыре стадии, даже пустые: колонка, исчезающая
+ * вместе с последней заявкой, ломает картину воронки — человек перестаёт
+ * видеть стадию, на которой у него ничего нет.
+ */
+await page.click('.appbar__link:has-text("Заявки")');
+await page.waitForSelector(".leadboard__column");
+const колонокВоронки = await page.locator(".leadboard__column").count();
+if (колонокВоронки !== 4) note("воронка", `колонок ${колонокВоронки} вместо четырёх`);
+
+const заголовкиВоронки = (await page.locator(".leadboard__title").allTextContents())
+  .map((текст) => текст.trim());
+const стадииВоронки = ["Первичный контакт", "Знакомство", "Принимают решение", "Согласование договора"];
+if (заголовкиВоронки.join("|") !== стадииВоронки.join("|")) {
+  note("воронка", `стадии «${заголовкиВоронки.join(", ")}»`);
+}
+
+/* Счётчик колонки считает свою колонку, а не всю доску. */
+for (const [индекс, стадия] of стадииВоронки.entries()) {
+  const колонка = page.locator(".leadboard__column").nth(индекс);
+  const карточек = await колонка.locator(".leadcard").count();
+  const подпись = (await колонка.locator(".leadboard__count").textContent()) ?? "";
+  if (!подпись.trim().startsWith(String(карточек))) {
+    note("воронка", `у стадии «${стадия}» счётчик «${подпись.trim()}», а карточек ${карточек}`);
+  }
+}
+
+/* Черта под заголовком нейтральная: сигнальный цвет в продукте закреплён за
+   сторно, просрочкой и расхождением, и на карточках под чертой стоит
+   красная пилюля просрочки. Один цвет не может означать разное в двух
+   сантиметрах друг от друга. */
+const цветаВоронки = await page.evaluate(() => {
+  const узел = document.querySelector(".leadboard__count");
+  /* Токен приходит записью «#A5150D», а вычисленный цвет — «rgb(165, 21, 13)».
+     Сравнивать их как строки бесполезно: проверка проходила бы всегда.
+     Токен красится на пробном узле и снимается уже вычисленным. */
+  const проба = document.createElement("span");
+  проба.style.color = "var(--danger)";
+  document.body.append(проба);
+  const сигнальный = getComputedStyle(проба).color;
+  проба.remove();
+  return {
+    черта: узел === null ? "" : getComputedStyle(узел).borderBottomColor,
+    сигнальный,
+  };
+});
+if (цветаВоронки.черта === цветаВоронки.сигнальный) {
+  note("воронка", "черта стадии окрашена сигнальным цветом, закреплённым за просрочкой");
+}
+
+/* Пилюля просрочки несёт текст, а не только цвет: смысл в этом продукте
+   никогда не передаётся одним цветом. */
+const просрочка = page.locator(".leadcard .pill--danger").first();
+if ((await просрочка.count()) === 0) {
+  note("воронка", "на стенде нет заявки с просроченной задачей: пилюлю не проверить");
+} else if (!/просроч/u.test((await просрочка.textContent()) ?? "")) {
+  note("воронка", `пилюля просрочки без подписи: «${(await просрочка.textContent()) ?? ""}»`);
+}
+
+await step("воронка заявок", "41-zayavki.png");
+await overflow("воронка, 1440");
+
+/* Переключатель «Открытые / Все». На стенде закрытых заявок нет, поэтому
+   проверяется не рост числа карточек, а то, что выбор вообще применяется:
+   число в подписи «Все» не меньше числа в подписи «Открытые». */
+const подписиОтбора = (await page.locator("#leads-scope option").allTextContents())
+  .map((текст) => Number(/(\d+)/u.exec(текст)?.[1] ?? "-1"));
+if ((подписиОтбора[1] ?? -1) < (подписиОтбора[0] ?? 0)) {
+  note("воронка", `«Все» (${подписиОтбора[1]}) меньше «Открытых» (${подписиОтбора[0]})`);
+}
+
+/*
+ * Лист заявки: ориентир считается сервером и приходит вилкой. Проверяется
+ * независимым пересчётом площадь × тариф ± отклонение — то же правило, по
+ * которому сверяется доля принятого.
+ */
+const сОриентиром = page.locator(".leadcard").filter({ has: page.locator(".leadcard__guide") }).first();
+if ((await сОриентиром.count()) === 0) {
+  note("воронка", "ни одна карточка не несёт вилку ориентира");
+} else {
+  await сОриентиром.click();
+  await page.waitForSelector('.sheet[role="dialog"]');
+  const листЗаявки = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+  for (const нужно of ["Ориентир цены", "Тип ремонта", "Общая площадь", "Превратить в объект"]) {
+    if (!листЗаявки.includes(нужно)) note("лист заявки", `нет блока «${нужно}»`);
+  }
+  /* Снимок тарифа назван прямо: тариф в справочнике могли уже поправить. */
+  if (!/за м²/u.test(листЗаявки)) {
+    note("лист заявки", "вилка показана без тарифа, по которому посчитана");
+  }
+  await step("лист заявки", "42-zayavka-list.png");
+
+  /* Отказ требует причину: кнопка недоступна, пока её не назвали. */
+  await page.click('.sheet button:has-text("Отказ")');
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button:has-text("Закрыть отказом")').isEnabled()) {
+    note("лист заявки", "отказ принимается без причины");
+  }
+  await page.click('.sheet button:has-text("Не закрывать")');
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+}
+
+/* Телефон: четыре колонки в его ширину не помещаются, и доска становится
+   лентой стадий. Документ вбок не едет — прокручивается лента. */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+if ((await page.locator(".leads__stages").count()) === 0) {
+  note("воронка", "на 390 px нет ленты стадий");
+}
+const чиповСтадий = await page.locator(".leads__stage").count();
+if (чиповСтадий !== 4) note("воронка", `чипов стадий ${чиповСтадий} вместо четырёх`);
+/* Измерение — только когда есть что мерить: `boundingBox` отсутствующего
+   органа ждёт полминуты и роняет обход, а падение вместо именного
+   замечания отправляет разбирать не туда. */
+if (чиповСтадий > 0) {
+  const чип = await page.locator(".leads__stage").first().boundingBox();
+  if (чип === null || чип.height < 44) {
+    note("воронка", `чип стадии ${чип?.height ?? 0} px при норме 44`);
+  }
+}
+await overflow("воронка, 390");
+await step("воронка на телефоне", "43-zayavki-390.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
 await page.click('.appbar__link:has-text("Главная")');
 await page.waitForSelector(".statcard");
 
@@ -955,7 +1092,7 @@ await page.click(".appbar__user");
 await page.waitForSelector('.tabs__item:has-text("Организация")');
 const settingsTabs = (await page.locator(".tabs__item").allTextContents())
   .map((text) => text.trim());
-if (settingsTabs.join("|") !== "Организация|Единицы измерения") {
+if (settingsTabs.join("|") !== "Организация|Единицы измерения|Типы ремонта") {
   note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
 }
 await page.waitForSelector('input[name="name"]');
@@ -980,7 +1117,9 @@ await page.waitForSelector(".roadmap__item");
 const roadmap = await page.locator(".roadmap__item").count();
 const stages = await page.locator(".roadmap__item .pill").count();
 console.log(`  строк в «Что дальше»: ${roadmap}`);
-if (roadmap < 8) note("что дальше", `строк ${roadmap} — список неполон`);
+/* Строк стало семь: «Заявки» ушли из списка — у раздела появился свой
+   экран, и обещать его на «Что дальше» значило бы обещать сделанное. */
+if (roadmap < 7) note("что дальше", `строк ${roadmap} — список неполон`);
 if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
 const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {

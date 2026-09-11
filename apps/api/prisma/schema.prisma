@@ -65,6 +65,27 @@ enum WorkerKind {
   PERSON
 }
 
+/// Стадия воронки заявок. Четыре, по фактическому процессу компании
+/// (01_PROJECT.md, раздел 4, шаги 1–3) и утверждённому макету.
+enum LeadStage {
+  /// Обращение поступило, разговора ещё не было.
+  FIRST_CONTACT
+  /// Выезд на объект, знакомство и обмер.
+  MEETING
+  /// Смета составлена, заказчик думает.
+  DECIDING
+  /// Договор и предоплата 30 %.
+  CONTRACT
+}
+
+/// Исход заявки. Выигранная и отказная уходят из воронки, но не удаляются:
+/// история не переписывается (БП-04).
+enum LeadOutcome {
+  OPEN
+  WON
+  LOST
+}
+
 /// Назначение одноразовой ссылки входа.
 enum AuthPurpose {
   /// Магическая ссылка руководителя, живёт минуты.
@@ -90,12 +111,15 @@ model Organization {
   logoKey   String?
   createdAt DateTime @default(now())
 
-  users    User[]
-  clients  Client[]
-  projects Project[]
-  workers  Worker[]
-  units    Unit[]
-  auditLog AuditLog[]
+  users       User[]
+  clients     Client[]
+  projects    Project[]
+  workers     Worker[]
+  units       Unit[]
+  auditLog    AuditLog[]
+  leads       Lead[]
+  leadTasks   LeadTask[]
+  repairTypes RepairType[]
 
   @@map("organizations")
 }
@@ -136,6 +160,7 @@ model Client {
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   projects     Project[]
+  leads        Lead[]
 
   @@unique([orgId, code])
   @@map("clients")
@@ -168,6 +193,8 @@ model Project {
   workStages        WorkStage[]
   acceptanceBatches AcceptanceBatch[]
   tranches          Tranche[]
+  /// Заявка, из которой объект заведён. Её нет у объектов, заведённых руками.
+  lead              Lead?
 
   @@unique([orgId, code])
   @@index([orgId, status])
@@ -663,4 +690,92 @@ model Tranche {
   @@unique([projectId, number])
   @@index([projectId, status])
   @@map("tranches")
+}
+
+/// Справочник типов ремонта с тарифом за квадратный метр.
+///
+/// Тарифы правятся на экране настроек, а не зашиты в код: цены меняются
+/// чаще, чем выходят редакции продукта (решение заказчика от 11.09.2026).
+model RepairType {
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @db.Uuid
+  name       String
+  /// Копейки за квадратный метр.
+  ratePerSqm BigInt
+  /// Отклонение вилки в сотых долях процента: 1500 — это ±15 %.
+  spread     Int    @default(1500)
+  order      Int    @default(0)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  @@unique([orgId, name])
+  @@map("repair_types")
+}
+
+/// Заявка — обращение до того, как оно стало объектом.
+model Lead {
+  id     String @id @default(uuid()) @db.Uuid
+  orgId  String @db.Uuid
+  /// Сквозной номер в рамках организации, как в обиходе: № 1044.
+  number Int
+
+  name    String
+  phone   String
+  /// Адрес объекта со слов обратившегося. Нужен при превращении в объект.
+  address String?
+  note    String?
+
+  stage      LeadStage   @default(FIRST_CONTACT)
+  outcome    LeadOutcome @default(OPEN)
+  /// Причина отказа. Заполняется вместе с outcome = LOST и только с ним.
+  lostReason String?
+
+  repairTypeId   String? @db.Uuid
+  /// Общая площадь по документам, тысячные квадратного метра.
+  area           BigInt?
+  /// Снимок тарифа и отклонения на момент расчёта ориентира.
+  ///
+  /// По тому же правилу, по которому приёмка хранит снимок ставки (БП-03):
+  /// правка справочника не вправе задним числом изменить цену, названную
+  /// заказчику по телефону.
+  rateSnapshot   BigInt?
+  spreadSnapshot Int?
+
+  /// Заведённые превращением. Заявка остаётся и после него.
+  clientId  String? @db.Uuid
+  projectId String? @unique @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  repairType   RepairType?  @relation(fields: [repairTypeId], references: [id], onDelete: SetNull)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  tasks        LeadTask[]
+
+  @@unique([orgId, number])
+  @@index([orgId, stage])
+  @@map("leads")
+}
+
+/// Задача по заявке. Срок и отметка выполнения; просрочка вычисляется по
+/// дате, а не хранится признаком — иначе она врёт до первого пересчёта.
+model LeadTask {
+  id     String @id @default(uuid()) @db.Uuid
+  orgId  String @db.Uuid
+  leadId String @db.Uuid
+
+  title  String
+  dueOn  DateTime  @db.Date
+  doneAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("lead_tasks")
 }

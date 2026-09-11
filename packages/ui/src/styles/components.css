@@ -1518,3 +1518,69 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__pct { flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
 .gantt__fact { font-size: var(--fs-sm); color: var(--ink-3); }
 .gantt__fact--over { color: var(--signal); }
+
+/* --- 5.26 Доска воронки заявок ---------------------------------------------
+   Четыре колонки по стадиям. Колонка показывается всегда, даже пустая:
+   исчезающая вместе с последней заявкой колонка ломает картину воронки —
+   человек перестаёт видеть стадию, на которой у него ничего нет.
+
+   Черта под заголовком нейтральная у всех четырёх. Макет красил её
+   сигнальными цветами, но «--danger» в этом продукте закреплён за сторно,
+   просрочкой и расхождением, и на карточках под чертой стоит красная
+   пилюля просрочки: один цвет означал бы разное в двух сантиметрах друг от
+   друга. Положение в воронке называет порядок колонок, а не цвет.       */
+.leads__head { padding: var(--space-3) var(--space-4); background: var(--surface-2);
+  border-radius: var(--radius-md); gap: var(--space-4); }
+.leadboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5); align-items: start; }
+.leadboard__column { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.leadboard__title { text-align: center; color: var(--ink); }
+.leadboard__count { text-align: center; padding-block-end: var(--space-2);
+  border-block-end: 2px solid var(--line-strong); }
+.leadboard__cards { display: flex; flex-direction: column; gap: var(--space-3);
+  padding-block-start: var(--space-3); }
+.leadboard__empty { padding-block-start: var(--space-3); text-align: center; }
+
+/* Карточка — кнопка, а не ссылка: заявка открывается листом, а не
+   страницей, и ссылка обещала бы адрес, которого нет. */
+.leadcard { display: flex; flex-direction: column; gap: var(--space-2);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-3); text-align: start; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font-family: inherit; color: var(--ink);
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.leadcard:hover { border-color: var(--line-strong); }
+/* Акцентная заливка означает «лист этой карточки открыт», а не важность. */
+.leadcard[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.leadcard__head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); }
+.leadcard__number { font-size: var(--fs-cap); color: var(--ink-3); text-align: start; }
+.leadcard__name { font-weight: 500; }
+.leadcard__guide { text-align: start; }
+.leadcard__pills { gap: var(--space-2); }
+
+/* Лента стадий на узком экране. Четыре колонки в ширину телефона не
+   помещаются, а документ шире окна запрещён: прокручивается лента, как
+   лента разделов приёмки. Счётчики в чипах сохраняют картину воронки
+   целиком — видно, где затор, не листая. */
+.leads__stages { display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin;
+  overscroll-behavior-x: contain; }
+.leads__stage { display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);
+  font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+  white-space: nowrap; cursor: pointer; }
+.leads__stage[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent); }
+
+/* Лист заявки длиннее прочих: в нём стадия, ориентир, задачи и два
+   завершающих действия. Прокрутка внутри листа, а не страницы под ним. */
+.sheet--tall { max-block-size: 88vh; overflow-y: auto; }
+
+@media (max-width: 1023px) {
+  .leadboard { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Вилка занимает больше места, чем одно число: крупный кегль денежной
+   величины рвал бы её на две строки посреди тире. */
+.figure__value--range { font-size: var(--fs-h2); }

@@ -283,6 +283,31 @@ export function ProjectCard({
               </span>
             </div>
 
+            {/* Ориентир, названный на заявке до выезда, — рядом с итогом
+                сметы: в этом соседстве весь его смысл. Видно, на сколько
+                промахнулись, когда смета готова. Объект заведён руками —
+                строки нет: ориентира никто не называл. */}
+            {project.guideline !== null && (
+              <div className="figure">
+                <span className="figure__label">
+                  Ориентир по заявке № {project.guideline.leadNumber}
+                </span>
+                <span className="figure__value figure__value--range">
+                  {money(project.guideline.low)} — {money(project.guideline.high)}
+                </span>
+                <span className="figure__note">
+                  {money(project.guideline.rate)} за м² ±
+                  {formatPercent(BigInt(project.guideline.spread))}
+                  {" · "}
+                  {project.guideline.verdict === null
+                    ? "сметы ещё нет — сверять не с чем"
+                    : project.guideline.verdict.verdict === "внутри"
+                      ? "смета внутри вилки"
+                      : `смета ${project.guideline.verdict.verdict} вилки на ${money(project.guideline.verdict.delta)}`}
+                </span>
+              </div>
+            )}
+
             {/* Остаток текущего транша — та величина, ради которой руководитель
                 открывает систему вечером (объём полевого испытания, решение
                 № 3). Полоса с тремя величинами живёт на своей вкладке: в

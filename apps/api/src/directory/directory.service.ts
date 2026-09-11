@@ -1,20 +1,24 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
   ClientRow,
   CreateClient,
   CreateWorker,
+  CreateRepairType,
   Organization,
+  RepairType,
   Unit,
   UpdateOrganization,
+  UpdateRepairType,
   WorkerRow,
 } from "@priyomka/contracts";
 import { parseContactPhone } from "@priyomka/domain";
 import { unitAliases } from "@priyomka/importer";
 import {
-  accrualSummary, basisPoints, clientTotals, kopecks, sum,
+  accrualSummary, basisPoints, clientTotals, formatKopecks, formatPercent, kopecks, sum,
   type AccrualRecord, type Kopecks,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
+import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { estimateFacts } from "../common/estimate-facts";
@@ -30,7 +34,10 @@ const EMPTY_ID = "00000000-0000-0000-0000-000000000000";
  */
 @Injectable()
 export class DirectoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async clients(user: RequestUser): Promise<ClientRow[]> {
     const projects = await this.prisma.project.findMany({
@@ -245,5 +252,103 @@ export class DirectoryService {
       projects: объекты.get(worker.id)?.size ?? 0,
       wageTotal: (суммы.get(worker.id) ?? 0n).toString(),
     }));
+  }
+
+  /**
+   * Типы ремонта с тарифом за квадратный метр.
+   *
+   * Справочник правится на экране, а не зашит в код: цены меняются чаще,
+   * чем выходят редакции продукта (решение заказчика от 11.09.2026).
+   * Число заявок при строке нужно экрану, чтобы не предлагать удаление
+   * типа, по которому уже назван ориентир.
+   */
+  async repairTypes(user: RequestUser): Promise<RepairType[]> {
+    const строки = await this.prisma.repairType.findMany({
+      where: { orgId: user.orgId },
+      orderBy: [{ order: "asc" }, { name: "asc" }],
+      select: {
+        id: true, name: true, ratePerSqm: true, spread: true, order: true,
+        _count: { select: { leads: true } },
+      },
+    });
+    return строки.map((тип) => ({
+      id: тип.id,
+      name: тип.name,
+      ratePerSqm: тип.ratePerSqm.toString(),
+      spread: тип.spread,
+      order: тип.order,
+      leads: тип._count.leads,
+    }));
+  }
+
+  async createRepairType(user: RequestUser, input: CreateRepairType): Promise<RepairType[]> {
+    const занято = await this.prisma.repairType.findUnique({
+      where: { orgId_name: { orgId: user.orgId, name: input.name } },
+      select: { id: true },
+    });
+    if (занято !== null) {
+      throw new BadRequestException({ message: `Тип «${input.name}» уже есть в справочнике.` });
+    }
+    const последний = await this.prisma.repairType.aggregate({
+      where: { orgId: user.orgId },
+      _max: { order: true },
+    });
+    const тип = await this.prisma.repairType.create({
+      data: {
+        orgId: user.orgId,
+        name: input.name,
+        ratePerSqm: BigInt(input.ratePerSqm),
+        spread: input.spread,
+        order: (последний._max.order ?? -1) + 1,
+      },
+      select: { id: true },
+    });
+    await this.audit.record({
+      orgId: user.orgId,
+      actorId: user.id,
+      entity: "RepairType",
+      entityId: тип.id,
+      field: "тариф за квадратный метр",
+      oldValue: null,
+      newValue: `${input.name}: ${formatKopecks(kopecks(input.ratePerSqm))} ± ${formatPercent(BigInt(input.spread))}`,
+    });
+    return this.repairTypes(user);
+  }
+
+  /**
+   * Правка тарифа. Заявки, посчитанные по нему раньше, не меняются: они
+   * хранят снимок (БП-03), и в этом весь смысл снимка.
+   */
+  async updateRepairType(
+    user: RequestUser,
+    id: string,
+    input: UpdateRepairType,
+  ): Promise<RepairType[]> {
+    const было = await this.prisma.repairType.findFirst({
+      where: { id, orgId: user.orgId },
+      select: { id: true, name: true, ratePerSqm: true, spread: true },
+    });
+    if (было === null) throw new NotFoundException({ message: "Тип ремонта не найден." });
+
+    await this.prisma.repairType.update({
+      where: { id },
+      data: {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.ratePerSqm === undefined ? {} : { ratePerSqm: BigInt(input.ratePerSqm) }),
+        ...(input.spread === undefined ? {} : { spread: input.spread }),
+      },
+    });
+    if (input.ratePerSqm !== undefined && BigInt(input.ratePerSqm) !== было.ratePerSqm) {
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "RepairType",
+        entityId: id,
+        field: "тариф за квадратный метр",
+        oldValue: formatKopecks(kopecks(было.ratePerSqm)),
+        newValue: formatKopecks(kopecks(input.ratePerSqm)),
+      });
+    }
+    return this.repairTypes(user);
   }
 }

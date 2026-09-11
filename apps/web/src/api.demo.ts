@@ -11,6 +11,8 @@
  */
 import type {
   DisplacedByImport,
+  CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
+  UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
   CreateClient, CreateProject, CreateWorker,
@@ -20,11 +22,11 @@ import type {
   UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
-  acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent,
+  acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   clientAmount, basisPoints,
   estimateItemFault, kopecks, measureTotals,
   milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
-  remainingQty, roomVolume, stageDateFault, wallArea,
+  remainingQty, roomVolume, stageDateFault, taskState, wallArea,
   type ProjectRange,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
@@ -52,6 +54,8 @@ interface Snapshot {
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
   imports: ImportRecord[];
+  "leads-owner": LeadBoard;
+  "repair-types": RepairType[];
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
   measure: MeasureView;
@@ -248,6 +252,8 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     acceptedShare: null,
     accepted: null,
     acceptedPositions: 0,
+    // Объект заведён руками, а не из заявки: ориентира никто не называл.
+    guideline: null,
     // Транша у нового объекта нет: остаток отсутствует, а не равен нулю.
     trancheRemainder: null,
     stages: [],
@@ -1064,4 +1070,180 @@ export async function updateSupervision(
   вид.totals.supervisionShare = input.supervisionShare;
   пересчитатьСмету(вид);
   return вид;
+}
+
+/* --- заявки ---------------------------------------------------------------
+   Воронка живёт копией слепка в памяти вкладки, как смета, приёмка и
+   транши. Вилка считается тем же доменом, что на сервере: показывать в
+   демонстрации другое число, чем в продукте, — обман.
+
+   Превращение в объект в демонстрации не заводится: объект без сметы и без
+   графика показал бы пустую карточку, а сервера, который её наполнит, тут
+   нет. Отказ называет это прямо, а не молчит. */
+
+const воронка: { board: LeadBoard | null } = { board: null };
+
+const доска = (): LeadBoard => {
+  воронка.board ??= JSON.parse(JSON.stringify(data["leads-owner"])) as LeadBoard;
+  return воронка.board;
+};
+
+const всеЗаявки = (): LeadCard[] => доска().columns.flatMap((column) => column.leads);
+
+const пересобрать = (open: boolean): LeadBoard => {
+  const board = доска();
+  const все = всеЗаявки();
+  return {
+    columns: board.columns.map((column) => ({
+      ...column,
+      leads: все.filter((lead) =>
+        lead.stage === column.stage && (!open || lead.outcome === "OPEN")),
+    })),
+    totals: {
+      open: все.filter((lead) => lead.outcome === "OPEN").length,
+      won: все.filter((lead) => lead.outcome === "WON").length,
+      lost: все.filter((lead) => lead.outcome === "LOST").length,
+    },
+  };
+};
+
+export async function fetchLeads(open: boolean): Promise<LeadBoard> {
+  await pause(120);
+  return пересобрать(open);
+}
+
+export async function createLead(input: CreateLead): Promise<LeadCard> {
+  await pause(200);
+  const все = всеЗаявки();
+  const lead: LeadCard = {
+    id: новыйId(),
+    number: Math.max(...все.map((row) => row.number), 1000) + 1,
+    name: input.name,
+    phone: input.phone,
+    address: input.address ?? null,
+    note: input.note ?? null,
+    stage: "FIRST_CONTACT",
+    outcome: "OPEN",
+    lostReason: null,
+    createdAt: `${data["summary-owner"].today}T09:00:00.000Z`,
+    repairTypeId: null,
+    guideline: null,
+    tasks: [],
+    projectCode: null,
+  };
+  доска().columns[0]?.leads.unshift(lead);
+  return lead;
+}
+
+/** Находит заявку в доске и заменяет её изменённой копией. */
+const правка = (id: string, изменить: (lead: LeadCard) => LeadCard): LeadCard => {
+  const board = доска();
+  for (const column of board.columns) {
+    const at = column.leads.findIndex((lead) => lead.id === id);
+    if (at < 0) continue;
+    const прежняя = column.leads[at];
+    if (прежняя === undefined) continue;
+    const следующая = изменить(прежняя);
+    column.leads.splice(at, 1);
+    const целевая = board.columns.find((c) => c.stage === следующая.stage) ?? column;
+    целевая.leads.unshift(следующая);
+    return следующая;
+  }
+  throw new Error("Заявка не найдена.");
+};
+
+export async function updateLead(id: string, input: UpdateLead): Promise<LeadCard> {
+  await pause(180);
+  return правка(id, (lead) => {
+    const typeId = input.repairTypeId === undefined ? lead.repairTypeId : input.repairTypeId;
+    const трогаютОриентир = input.repairTypeId !== undefined || input.area !== undefined;
+    const площадь = input.area === undefined
+      ? (lead.guideline === null ? null : lead.guideline.area)
+      : input.area;
+    const тип = data["repair-types"].find((row) => row.id === typeId) ?? null;
+    const вилка = трогаютОриентир && тип !== null && площадь !== null
+      ? guidelineRange(milliunits(площадь), kopecks(тип.ratePerSqm), basisPoints(тип.spread))
+      : null;
+    return {
+      ...lead,
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.phone === undefined ? {} : { phone: input.phone }),
+      ...(input.address === undefined ? {} : { address: input.address }),
+      ...(input.note === undefined ? {} : { note: input.note }),
+      ...(input.stage === undefined ? {} : { stage: input.stage }),
+      ...(трогаютОриентир
+        ? {
+          repairTypeId: typeId,
+          guideline: вилка === null || тип === null || площадь === null ? null : {
+            low: вилка.low.toString(),
+            high: вилка.high.toString(),
+            typeName: тип.name,
+            area: площадь,
+            rate: тип.ratePerSqm,
+            spread: тип.spread,
+          },
+        }
+        : {}),
+    };
+  });
+}
+
+export async function convertLead(): Promise<LeadCard> {
+  await pause(200);
+  throw new Error(
+    "В демонстрации объекты из заявок не заводятся: объект без сметы и графика показал бы "
+    + "пустую карточку. В продукте превращение заводит заказчика и объект одним действием.",
+  );
+}
+
+export async function loseLead(id: string, input: LoseLead): Promise<LeadCard> {
+  await pause(180);
+  return правка(id, (lead) => ({ ...lead, outcome: "LOST", lostReason: input.reason }));
+}
+
+export async function addLeadTask(id: string, input: CreateLeadTask): Promise<LeadCard> {
+  await pause(180);
+  const today = data["summary-owner"].today;
+  return правка(id, (lead) => ({
+    ...lead,
+    tasks: [...lead.tasks, {
+      id: новыйId(),
+      title: input.title,
+      dueOn: input.dueOn,
+      doneAt: null,
+      state: taskState(input.dueOn, null, today),
+    }],
+  }));
+}
+
+export async function setLeadTask(
+  id: string,
+  taskId: string,
+  input: UpdateLeadTask,
+): Promise<LeadCard> {
+  await pause(180);
+  const today = data["summary-owner"].today;
+  return правка(id, (lead) => ({
+    ...lead,
+    tasks: lead.tasks.map((task) => task.id !== taskId ? task : {
+      ...task,
+      doneAt: input.done ? today : null,
+      state: taskState(task.dueOn, input.done ? today : null, today),
+    }),
+  }));
+}
+
+export async function fetchRepairTypes(): Promise<RepairType[]> {
+  await pause(80);
+  return data["repair-types"];
+}
+
+export async function createRepairType(): Promise<RepairType[]> {
+  await pause(150);
+  throw new Error("В демонстрации справочник тарифов только читается.");
+}
+
+export async function updateRepairType(): Promise<RepairType[]> {
+  await pause(150);
+  throw new Error("В демонстрации справочник тарифов только читается.");
 }

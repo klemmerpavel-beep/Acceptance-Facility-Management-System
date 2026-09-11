@@ -260,6 +260,27 @@ export const projectSummarySchema = z.object({
   /** Позиций с ненулевым принятым количеством. */
   acceptedPositions: z.number().int().nonnegative(),
   /**
+   * Ориентир, названный на заявке до выезда, и его сверка с итогом сметы.
+   *
+   * `null` — объект заведён руками, а не из заявки, либо ориентир не был
+   * посчитан. Величины читаются с заявки и не дублируются здесь в базе:
+   * два места для одного числа расходятся на первой же правке.
+   */
+  guideline: z.object({
+    low: kopecksString,
+    high: kopecksString,
+    typeName: z.string(),
+    area: milliunitsString,
+    rate: kopecksString,
+    spread: z.number().int().nonnegative(),
+    leadNumber: z.number().int().positive(),
+    /** Куда лёг итог сметы. `null` — сметы ещё нет, сверять не с чем. */
+    verdict: z.object({
+      verdict: z.enum(["внутри", "выше", "ниже"]),
+      delta: kopecksString,
+    }).nullable(),
+  }).nullable(),
+  /**
    * Остаток текущего транша. `null` — открытого транша нет.
    *
    * Ноль здесь означал бы «транш выработан ровно до копейки», а это иное
@@ -938,3 +959,154 @@ export const closeTrancheSchema = z.object({
   comment: z.string().trim().max(280, "Комментарий длиннее 280 знаков").optional(),
 });
 export type CloseTranche = z.infer<typeof closeTrancheSchema>;
+
+/* ===========================================================================
+   Заявки: воронка и ориентир цены (стадия F)
+   ======================================================================== */
+
+/** Стадия воронки. Четыре, по фактическому процессу компании. */
+export const leadStageSchema = z.enum(["FIRST_CONTACT", "MEETING", "DECIDING", "CONTRACT"]);
+export type LeadStage = z.infer<typeof leadStageSchema>;
+
+/** Исход заявки. Выигранная и отказная уходят из воронки, но не удаляются. */
+export const leadOutcomeSchema = z.enum(["OPEN", "WON", "LOST"]);
+export type LeadOutcome = z.infer<typeof leadOutcomeSchema>;
+
+/** Состояние задачи считается по дате на сервере, а не хранится признаком. */
+export const leadTaskSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  dueOn: z.string().date(),
+  doneAt: z.string().date().nullable(),
+  state: z.enum(["выполнена", "просрочена", "ждёт"]),
+});
+export type LeadTask = z.infer<typeof leadTaskSchema>;
+
+/**
+ * Ориентир на карточке заявки. `null` — не посчитан: не выбран тип ремонта
+ * либо не названа площадь. Ноль означал бы «ремонт бесплатный».
+ */
+export const guidelineSchema = z.object({
+  low: kopecksString,
+  high: kopecksString,
+  typeName: z.string(),
+  area: milliunitsString,
+  /** Снимок тарифа, по которому вилка посчитана. Только руководителю. */
+  rate: kopecksString,
+  spread: z.number().int().nonnegative(),
+});
+export type Guideline = z.infer<typeof guidelineSchema>;
+
+export const leadCardSchema = z.object({
+  id: z.string().uuid(),
+  number: z.number().int().positive(),
+  name: z.string(),
+  phone: z.string(),
+  address: z.string().nullable(),
+  note: z.string().nullable(),
+  stage: leadStageSchema,
+  outcome: leadOutcomeSchema,
+  lostReason: z.string().nullable(),
+  createdAt: z.string(),
+  repairTypeId: z.string().uuid().nullable(),
+  guideline: guidelineSchema.nullable(),
+  tasks: z.array(leadTaskSchema),
+  /** Код заведённого объекта. `null` — заявка ещё не превращена. */
+  projectCode: z.string().nullable(),
+});
+export type LeadCard = z.infer<typeof leadCardSchema>;
+
+/**
+ * Доска воронки. Колонки приходят всегда все четыре, даже пустые: колонка,
+ * исчезающая вместе с последней заявкой, ломает картину воронки — человек
+ * перестаёт видеть стадию, на которой у него ничего нет.
+ */
+export const leadBoardSchema = z.object({
+  columns: z.array(z.object({
+    stage: leadStageSchema,
+    label: z.string(),
+    leads: z.array(leadCardSchema),
+  })),
+  totals: z.object({
+    open: z.number().int().nonnegative(),
+    won: z.number().int().nonnegative(),
+    lost: z.number().int().nonnegative(),
+  }),
+});
+export type LeadBoard = z.infer<typeof leadBoardSchema>;
+
+/**
+ * Заведение заявки. Номер не приходит от клиента: он выводится из уже
+ * заведённых, тем же правилом, что номер транша.
+ */
+export const createLeadSchema = z.object({
+  name: z.string().trim().min(2, "Имя: не короче двух знаков").max(120),
+  phone: z.string().trim().min(10, "Телефон: не короче десяти знаков").max(24),
+  address: z.string().trim().max(200).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+export type CreateLead = z.infer<typeof createLeadSchema>;
+
+/** Правка заявки. Все поля необязательны: правят по одному. */
+export const updateLeadSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  phone: z.string().trim().min(10).max(24).optional(),
+  address: z.string().trim().max(200).nullable().optional(),
+  note: z.string().trim().max(500).nullable().optional(),
+  stage: leadStageSchema.optional(),
+  /** Тип ремонта и площадь идут парой: вилка считается от обоих. */
+  repairTypeId: z.string().uuid().nullable().optional(),
+  area: milliunitsString.nullable().optional(),
+});
+export type UpdateLead = z.infer<typeof updateLeadSchema>;
+
+/**
+ * Превращение заявки в заказчика и объект. Код заказчика спрашивается:
+ * он уникален в справочнике и в обиходе компании, и выводить его из имени
+ * значило бы выдумывать обиход за заказчика.
+ */
+export const convertLeadSchema = z.object({
+  code: projectCodeSchema,
+  address: z.string().trim().min(3, "Адрес объекта: не короче трёх знаков").max(200),
+  clientCode: z.string().trim().min(1, "Код заказчика обязателен").max(40),
+});
+export type ConvertLead = z.infer<typeof convertLeadSchema>;
+
+/** Отказ. Причина обязательна: отказ без причины ничему не учит. */
+export const loseLeadSchema = z.object({
+  reason: z.string().trim().min(3, "Причина отказа: не короче трёх знаков").max(280),
+});
+export type LoseLead = z.infer<typeof loseLeadSchema>;
+
+export const createLeadTaskSchema = z.object({
+  title: z.string().trim().min(2, "Задача: не короче двух знаков").max(200),
+  dueOn: z.string().date("Срок задачи: дата в формате ГГГГ-ММ-ДД"),
+});
+export type CreateLeadTask = z.infer<typeof createLeadTaskSchema>;
+
+/** Отметка выполнения. Снятие отметки допустимо: ошиблись — вернули. */
+export const updateLeadTaskSchema = z.object({ done: z.boolean() });
+export type UpdateLeadTask = z.infer<typeof updateLeadTaskSchema>;
+
+/** Строка справочника типов ремонта. */
+export const repairTypeSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  ratePerSqm: kopecksString,
+  /** Отклонение вилки в сотых долях процента: 1500 — это ±15 %. */
+  spread: z.number().int().min(0).max(10_000),
+  order: z.number().int().nonnegative(),
+  /** Заявок, посчитанных по этому типу. Удалять с ними нельзя. */
+  leads: z.number().int().nonnegative(),
+});
+export type RepairType = z.infer<typeof repairTypeSchema>;
+
+export const createRepairTypeSchema = z.object({
+  name: z.string().trim().min(2, "Название типа: не короче двух знаков").max(80),
+  ratePerSqm: kopecksString,
+  spread: z.number().int().min(0).max(10_000),
+});
+export type CreateRepairType = z.infer<typeof createRepairTypeSchema>;
+
+export const updateRepairTypeSchema = createRepairTypeSchema.partial();
+export type UpdateRepairType = z.infer<typeof updateRepairTypeSchema>;
