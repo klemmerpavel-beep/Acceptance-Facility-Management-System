@@ -5,10 +5,8 @@ import type {
   ProjectStatus,
   ProjectSummary,
 } from "@priyomka/contracts";
-import { coversDay } from "@priyomka/domain";
 import { formatKopecks } from "@priyomka/ui";
 import { fetchDashboard, errorMessage } from "./api.js";
-import { PlanStrip } from "./PlanStrip.js";
 import { ProjectTable } from "./ProjectTable.js";
 import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
 
@@ -145,15 +143,31 @@ function StatCard({
  */
 const FEED_LIMIT = 8;
 
+/** Сколько записей видно на главной до раскрытия. */
+const FEED_PREVIEW = 4;
+
 export function EventFeed({
   events,
   showCode = true,
+  preview = false,
 }: {
   events: ProjectEvent[];
   /** В журнале самого объекта код в каждой строке — повтор заголовка страницы. */
   showCode?: boolean;
+  /**
+   * Свёрнутый вид: видны четыре свежие записи, остальные открываются
+   * кнопкой. Главная отвечает на вопрос «что нового», а не «что было»:
+   * два десятка почти одинаковых строк отодвигают таблицу объектов за
+   * сгиб и читаются как шум. Раскрытие идёт на том же экране — уводить за
+   * новостями на другую страницу значит терять контекст.
+   */
+  preview?: boolean;
 }): React.JSX.Element {
-  const shown = events.slice(0, FEED_LIMIT);
+  const [open, setOpen] = useState(false);
+  /* Раскрытая лента показывает всё, что пришло: кнопка обещала остальные
+     записи, а не следующие четыре. В журнале объекта предел прежний. */
+  const предел = preview ? (open ? events.length : FEED_PREVIEW) : FEED_LIMIT;
+  const shown = events.slice(0, предел);
   const rest = events.length - shown.length;
   const days: { day: string; rows: ProjectEvent[] }[] = [];
   for (const event of shown) {
@@ -185,10 +199,28 @@ export function EventFeed({
           ))}
         </div>
       ))}
-      {rest > 0 && (
+      {preview && !open && rest > 0 && (
+        /* Кнопка называет число: «показать ещё» не говорит, сколько за ней,
+           и человек жмёт вслепую. */
+        <button
+          type="button"
+          className="btn btn--text btn--block"
+          aria-expanded={false}
+          onClick={() => { setOpen(true); }}
+        >
+          Показать ещё {rest} {plural(rest, "событие", "события", "событий")}
+        </button>
+      )}
+      {!preview && rest > 0 && (
         <p className="feed__item t-sm t-muted">
           <span className="feed__time" />
           <span>Ещё {rest} {plural(rest, "событие", "события", "событий")} — в журнале объекта</span>
+        </p>
+      )}
+      {preview && open && (
+        <p className="feed__item t-sm t-muted">
+          <span className="feed__time" />
+          <span>Раньше этого — в журнале объекта.</span>
         </p>
       )}
     </div>
@@ -206,64 +238,78 @@ const FEED_MARK: Record<ProjectEvent["kind"], { icon: string; className: string 
   field: { icon: "#i-document", className: "icon icon--sm feed__mark" },
 };
 
-const WEEKDAY = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
-
-const EVENT_CLASS = {
-  neutral: "daycard__event",
-  ok: "daycard__event daycard__event--ok",
-  warn: "daycard__event daycard__event--warn",
-  danger: "daycard__event daycard__event--danger",
-} as const;
-
-const COUNTER_CLASS = {
-  plain: "counterstrip__count",
-  danger: "counterstrip__count counterstrip__count--danger",
+const SCORE_CLASS = {
+  plain: "score",
+  danger: "score score--danger",
 } as const;
 
 /**
- * Строка полосы счётчиков: подпись слева, число справа.
+ * Плитка счётчика: крупное число и подпись под ним.
  *
- * Строка, ведущая в отфильтрованный список, — кнопка целиком: число, по
- * которому нельзя перейти, заставляет искать руками то, что система уже
- * посчитала (норматив 07_IA, правило 4).
+ * Пришла на смену полосе с долей (решение заказчика от 11.09.2026: главная
+ * перегружена диаграммами). Полоса отвечала на вопрос «много ли это
+ * относительно соседей» — вопрос второго порядка, который на первом экране
+ * никто не задаёт. Спрашивают «сколько», и ответ на него — число, а число
+ * читается быстрее любой дорожки.
+ *
+ * Плитка — кнопка целиком: число, по которому нельзя перейти, заставляет
+ * искать руками то, что система уже посчитала (норматив 07_IA, правило 4).
  */
-function Counter({
+function Score({
   value,
   label,
+  note,
   tone,
-  bar,
   onClick,
 }: {
   value: number | string;
   label: string;
+  /** Подпись под числом: что это за величина на деле. Необязательна. */
+  note?: string;
   tone?: "danger";
-  /** Столбик доли. Предел — наибольший счётчик ряда, а не размер портфеля. */
-  bar?: { value: number; limit: number };
   onClick?: () => void;
 }): React.JSX.Element {
   const body = (
     <>
-      <span>{label}</span>
-      <span className={tone === undefined ? COUNTER_CLASS.plain : COUNTER_CLASS.danger}>{value}</span>
-      {bar !== undefined && (
-        <div className="counterstrip__bar">
-          <Meter
-            value={bar.value}
-            limit={bar.limit}
-            tone="quiet"
-            label={`${label}: ${String(bar.value)}`}
-          />
-        </div>
-      )}
+      <span className={tone === undefined ? "score__value" : "score__value score__value--danger"}>
+        {value}
+      </span>
+      <span className="score__label">{label}</span>
+      {note !== undefined && <span className="score__note">{note}</span>}
     </>
   );
-  if (onClick === undefined) return <div className="counterstrip__item">{body}</div>;
+  if (onClick === undefined) return <div className={SCORE_CLASS[tone ?? "plain"]}>{body}</div>;
   return (
-    <button type="button" className="counterstrip__item" onClick={onClick}>
+    <button type="button" className={SCORE_CLASS[tone ?? "plain"]} onClick={onClick}>
       {body}
     </button>
   );
 }
+
+/**
+ * Срок словами и пилюлей срочности.
+ *
+ * Число дней само по себе не говорит, что делать: «34» и «−27» человек
+ * сравнивает в уме. Слово называет положение, цвет — срочность: красный
+ * значит «срок прошёл», жёлтый — «на этой неделе», обычный — «дальше».
+ * Три состояния, а не шкала: шкала мерила бы, насколько один объект
+ * просрочен сильнее другого, а распоряжаются не этим.
+ */
+const СРОК_СЛОВАМИ = (days: number): string => {
+  if (days < 0) {
+    const прошло = Math.abs(days);
+    return `просрочен на ${String(прошло)} ${plural(прошло, "день", "дня", "дней")}`;
+  }
+  if (days === 0) return "сдать сегодня";
+  if (days === 1) return "завтра";
+  return `через ${String(days)} ${plural(days, "день", "дня", "дней")}`;
+};
+
+const PILL_BY_DUE = (days: number): string => {
+  if (days < 0) return "pill pill--danger";
+  if (days <= 7) return "pill pill--warn";
+  return "pill";
+};
 
 /** Статусы, при которых объект считается активным: работа по нему идёт или вот-вот пойдёт. */
 const ACTIVE: readonly ProjectStatus[] = ["NEW", "IN_PROGRESS", "WAITING_CLIENT"];
@@ -349,33 +395,6 @@ export function Dashboard({
     .filter((row) => ACTIVE.includes(row.status))
     .reduce((total, row) => total + row.count, 0);
 
-  /* Предел столбиков ряда статусов. От размера портфеля доли вышли бы по
-     12-50 % и читались как четыре обрубка одной длины. */
-  const наибольшийСтатус = data.statuses.reduce((max, row) => Math.max(max, row.count), 0);
-  /* Предел столбика — наибольшая стадия воронки, а не число всех заявок:
-     доля от портфеля на четырёх стадиях даёт четыре одинаково коротких
-     столбика и не показывает, где затор. */
-  const наибольшаяСтадия = (data.leads?.stages ?? [])
-    .reduce((max, row) => Math.max(max, row.count), 0);
-
-  /* Загрузка недели: сколько объектов в работе в каждый день. День без
-     событий сам по себе не сообщает ничего; «в работе четыре» сообщает.
-     Величина берётся из тех же этапов, что и план работ ниже, — считать её
-     вторым способом значило бы завести два расходящихся числа.
-
-     Предел дорожки — размер портфеля, а не пик недели: от пика ровная
-     неделя дала бы семь полных дорожек и сообщила бы «максимум» там, где
-     работает половина объектов. От портфеля тот же день читается как
-     «четыре из восьми», и знаменатель у недели общий с карточками. */
-  const загрузка = data.week.map((day) =>
-    projects.filter((project) => project.stages.some((stage) => coversDay(stage, day.date))).length,
-  );
-
-  /* Предел расходящейся шкалы сроков: наибольший модуль дней. Одна шкала на
-     все строки — иначе «просрочен на 21 день» и «86 дней» дали бы отрезки
-     одинаковой длины, и блок сообщал бы порядок, но не величину. */
-  const пределСрока = data.deadlines.reduce((max, row) => Math.max(max, Math.abs(row.days)), 1);
-
   return (
     <main className="container stack stack--loose">
       <section className="statrow">
@@ -411,67 +430,16 @@ export function Dashboard({
         />
       </section>
 
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">Неделя</h2>
-          <p className="t-sm t-muted">сроки и импорт по дням · неделя от понедельника</p>
-        </div>
-        <div className="weekstrip">
-          {data.week.map((day, индекс) => {
-            const date = new Date(day.date);
-            const weekday = WEEKDAY[(date.getUTCDay() + 6) % 7];
-            return (
-              <div
-                className={day.isToday ? "daycard daycard--today" : "daycard"}
-                key={day.date}
-              >
-                <p className="daycard__head">
-                  <span className="daycard__date">{day.date.slice(8)}</span>
-                  <span className="daycard__weekday">{weekday}</span>
-                </p>
-                {day.events.map((event, index) => (
-                  <span className={EVENT_CLASS[event.tone]} key={`${event.kind}-${index}`}>
-                    {event.title}
-                  </span>
-                ))}
-                <div className="daycard__load">
-                  <span className="daycard__count">
-                    {загрузка[индекс] === 0 ? "работ нет" : `в работе ${String(загрузка[индекс])}`}
-                  </span>
-                  <Meter
-                    value={загрузка[индекс] ?? 0}
-                    limit={data.projects.total}
-                    tone="quiet"
-                    label={`объектов в работе: ${String(загрузка[индекс] ?? 0)} из ${String(data.projects.total)}`}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {/* Пустота названа один раз строкой под полосой, а не пять раз
-            повторённой фразой в пустых днях: повтор одной и той же подписи
-            читается как шум и мешает увидеть день, где событие есть. */}
-        {data.week.every((day) => day.events.length === 0) && (
-          <p className="t-sm t-muted">На этой неделе событий нет.</p>
-        )}
-      </section>
-
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">План работ</h2>
-          <p className="t-sm t-muted">
-            этапы объектов во времени, текущий день отмечен · прогресс заявленный
-          </p>
-        </div>
-        <PlanStrip projects={projects} today={today} onOpen={onOpen} />
-      </section>
-
       {/* Воронка на первом экране. Первый экран отвечает на вопрос «что горит
           сегодня», и заявка с просроченной задачей горит сильнее объекта со
           сроком через неделю. Прорабу блок не приходит вовсе — как и сам
           раздел: пустые счётчики сообщали бы «заявок нет» вместо «это не
-          ваш контур». */}
+          ваш контур».
+
+          Стадии стоят цепочкой плиток, а не столбиками долей: воронка —
+          это последовательность, и читается она как путь заявки слева
+          направо. Доля от наибольшей стадии отвечала на вопрос, которого
+          на первом экране не задают. */}
       {data.leads !== undefined && (
         <section className="stack">
           <div className="section-head">
@@ -486,26 +454,28 @@ export function Dashboard({
               )}
             </p>
           </div>
-          <div className="counterstrip">
+          <div className="scores scores--chain">
             {data.leads.stages.map((row) => (
-              <Counter
-                key={row.stage}
-                label={row.label}
-                value={row.count}
-                bar={{ value: row.count, limit: наибольшаяСтадия }}
-                onClick={onOpenLeads}
-              />
+              <Score key={row.stage} label={row.label} value={row.count} onClick={onOpenLeads} />
             ))}
-            {/* Просроченные задачи вынесены отдельной строкой сигнальным
-                цветом: это единственное в воронке, что требует действия
-                сегодня, а не наблюдения. */}
-            <Counter
-              label="Просроченные задачи"
-              value={data.leads.overdueTasks}
-              {...(data.leads.overdueTasks > 0 ? { tone: "danger" as const } : {})}
-              onClick={onOpenLeads}
-            />
           </div>
+          {/* Просрочка вынесена из ряда отдельной строкой: это единственное в
+              воронке, что требует действия сегодня, а не наблюдения. В ряду
+              плиток она читалась бы как ещё одна стадия. */}
+          {data.leads.overdueTasks > 0 && (
+            <button type="button" className="alertline" onClick={onOpenLeads}>
+              <svg className="icon" aria-hidden="true"><use href="#i-alert" /></svg>
+              {/* Сказуемое склоняется вместе с числом: «1 задача просрочено»
+                  читается как недоделка, а недоделанному продукту не верят
+                  и в числах рядом. */}
+              <span className="alertline__text">
+                {plural(data.leads.overdueTasks, "Просрочена", "Просрочено", "Просрочено")}
+                {" "}{data.leads.overdueTasks}
+                {" "}{plural(data.leads.overdueTasks, "задача", "задачи", "задач")} по заявкам
+              </span>
+              <span className="alertline__go">Открыть заявки</span>
+            </button>
+          )}
         </section>
       )}
 
@@ -514,13 +484,12 @@ export function Dashboard({
           <div className="section-head">
             <h2 className="t-h2">Объекты по статусам</h2>
           </div>
-          <div className="counterstrip">
+          <div className="scores">
             {data.statuses.map((row) => (
-              <Counter
+              <Score
                 key={row.status}
                 label={STATUS_LABEL[row.status]}
                 value={row.count}
-                bar={{ value: row.count, limit: наибольшийСтатус }}
                 onClick={() => { onOpenProjects(row.status); }}
               />
             ))}
@@ -537,35 +506,32 @@ export function Dashboard({
               <p className="empty__text">Ни у одного действующего объекта не задан срок сдачи.</p>
             </div>
           ) : (
-            <dl className="deflist">
-              {data.deadlines.map((row) => {
-                const доля = (Math.abs(row.days) / пределСрока) * 50;
-                const просрочен = row.days < 0;
-                return (
-                  <div className="deadline" key={row.code}>
-                    <dt className="deadline__term">
-                      <span className="code-badge">{row.code}</span> {row.address}
-                    </dt>
-                    <dd className={просрочен ? "deadline__value num--danger" : "deadline__value"}>
-                      {просрочен
-                        ? `просрочен на ${Math.abs(row.days)} ${plural(row.days, "день", "дня", "дней")}`
-                        : `${row.days} ${plural(row.days, "день", "дня", "дней")}`}
-                    </dd>
-                    <div className="deadline__scale">
-                      <span className="deadline__zero" style={{ insetInlineStart: "50%" }} />
-                      <span
-                        className={просрочен ? "deadline__bar deadline__bar--late" : "deadline__bar"}
-                        style={
-                          просрочен
-                            ? { insetInlineStart: `${(50 - доля).toFixed(1)}%`, inlineSize: `${доля.toFixed(1)}%` }
-                            : { insetInlineStart: "50%", inlineSize: `${доля.toFixed(1)}%` }
-                        }
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </dl>
+            /* Шкала с отрезком влево-вправо от нуля снята: она показывала,
+               насколько один объект просрочен сильнее другого, — величину,
+               которой никто не распоряжается. Распоряжаются словами «через
+               столько-то», и они стоят пилюлей срочности: красная —
+               просрочен, жёлтая — на неделе, обычная — дальше. */
+            <ul className="duelist">
+              {data.deadlines.map((row) => (
+                <li className="duelist__row" key={row.code}>
+                  {/* Строка ведёт в объект. Объект ищется среди уже
+                      загруженных: строка срока, по которой нельзя перейти,
+                      заставляет искать его руками в таблице ниже. */}
+                  <button
+                    type="button"
+                    className="duelist__project"
+                    onClick={() => {
+                      const объект = projects.find((project) => project.code === row.code);
+                      if (объект !== undefined) onOpen(объект);
+                    }}
+                  >
+                    <span className="code-badge">{row.code}</span>
+                    <span className="duelist__address">{row.address}</span>
+                  </button>
+                  <span className={PILL_BY_DUE(row.days)}>{СРОК_СЛОВАМИ(row.days)}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </section>
@@ -581,7 +547,7 @@ export function Dashboard({
             <p className="empty__text">Здесь появятся смены статуса, импорт смет и правки обмера.</p>
           </div>
         ) : (
-          <EventFeed events={data.feed} />
+          <EventFeed events={data.feed} preview />
         )}
       </section>
 

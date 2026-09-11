@@ -211,6 +211,22 @@ export const reorderWorkStagesSchema = z.object({
 });
 export type ReorderWorkStages = z.infer<typeof reorderWorkStagesSchema>;
 
+/**
+ * Заведение графика из разделов сметы (стадия C.3).
+ *
+ * Окно передаётся явно, а не выводится сервером из сроков объекта. Срок
+ * сдачи заполняется при заведении объекта и после не правится, и объект
+ * без срока остался бы без графика навсегда — вывод на сервере превратил
+ * бы необязательное поле в обязательное задним числом. Человек называет
+ * окно в листе, видит предложенные сроки до записи и правит их потом
+ * указателем, как любой другой этап.
+ */
+export const planFromEstimateSchema = z.object({
+  from: z.string().date("Начало графика: дата в формате ГГГГ-ММ-ДД."),
+  to: z.string().date("Окончание графика: дата в формате ГГГГ-ММ-ДД."),
+});
+export type PlanFromEstimate = z.infer<typeof planFromEstimateSchema>;
+
 export const projectSummarySchema = z.object({
   id: z.string().uuid(),
   code: projectCodeSchema,

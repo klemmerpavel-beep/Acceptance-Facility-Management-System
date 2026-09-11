@@ -24,6 +24,7 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
+  planFromSections, sectionWeights,
   clientAmount, basisPoints,
   estimateItemFault, kopecks, measureTotals,
   milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
@@ -797,6 +798,51 @@ function перенестиСвязиВПриёмку(): void {
       };
     }),
   };
+}
+
+/**
+ * Завести график из разделов сметы (стадия C.3).
+ *
+ * Раскладку считает то же доменное правило, что и сервер: демонстрация
+ * показывает продукт, а не его подобие. Разделы берутся из слепка сметы,
+ * вес — готовый итог раздела, и занятые этапами разделы пропускаются
+ * ровно как в продукте.
+ */
+export async function planStages(
+  _code: string,
+  from: string,
+  to: string,
+): Promise<WorkStage[]> {
+  await pause(320);
+  const список = этапыR99();
+  const ведут = new Set(список.flatMap((stage) =>
+    stage.sectionId === null ? [] : [stage.sectionId]));
+  const свободные = sectionWeights(data["estimate-owner"].sections)
+    .filter((section) => !ведут.has(section.id) && section.positions > 0);
+  if (свободные.length === 0) {
+    throw new Error("Все разделы сметы с работами уже ведутся этапами. Заводить нечего.");
+  }
+  const имена = new Set(список.map((stage) => stage.name));
+  const совпали = свободные.filter((section) => имена.has(section.name));
+  if (совпали.length > 0) {
+    throw new Error(`Этап с таким именем уже есть: ${совпали.map((s) => `«${s.name}»`).join(", ")}.`);
+  }
+
+  этапы = [...список, ...planFromSections(свободные, { from, to }).map((stage, индекс) => ({
+    id: новыйId(),
+    name: stage.name,
+    order: список.length + индекс,
+    startsOn: stage.startsOn,
+    endsOn: stage.endsOn,
+    progress: 0,
+    actualProgress: null,
+    sectionId: stage.sectionId,
+    /* Бригада не назначается: приёмка берёт её из этапа, и угаданная
+       отправила бы начисление не тому. Исполнителя выбирает человек. */
+    brigade: null,
+  }))];
+  перенестиСвязиВПриёмку();
+  return этапыR99();
 }
 
 export async function createStage(_code: string, stage: CreateWorkStage): Promise<WorkStage[]> {

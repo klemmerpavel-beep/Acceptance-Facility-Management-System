@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateWorkStage, Role, WorkerRow, WorkStage } from "@priyomka/contracts";
 import {
   dayIndex, isDayOff, monthWindow, planWindow, shiftDay, shiftMonth, stageDateFault, windowDays,
-  type PlanWindow, type ProjectRange, type SectionChoice,
+  type PlanWindow, type ProjectRange, type SectionWeight,
 } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
 import {
-  createStage, deleteStage, errorMessage, fetchStages, fetchWorkers, reorderStages, updateStage,
+  createStage, deleteStage, errorMessage, fetchStages, fetchWorkers, planStages, reorderStages,
+  updateStage,
 } from "./api.js";
 import { StageSheet, type StageSection } from "./StageSheet.js";
+import { PlanSheet } from "./PlanSheet.js";
 
 /**
  * Вкладка «Работа» карточки объекта — правка графика производства работ.
@@ -34,7 +36,7 @@ import { StageSheet, type StageSection } from "./StageSheet.js";
  * смог бы сохранить этап, ничего в нём не меняя.
  */
 function занятость(
-  sections: readonly SectionChoice[],
+  sections: readonly SectionWeight[],
   stages: readonly WorkStage[],
   editing: WorkStage | null,
 ): readonly StageSection[] {
@@ -135,7 +137,7 @@ export function Schedule({
   role: Role;
   today: string;
   range: ProjectRange;
-  sections: readonly SectionChoice[];
+  sections: readonly SectionWeight[];
   onEvents: () => void;
 }): React.JSX.Element {
   const [stages, setStages] = useState<WorkStage[] | null>(null);
@@ -143,6 +145,7 @@ export function Schedule({
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ stage: WorkStage | null } | null>(null);
+  const [planning, setPlanning] = useState(false);
   /* Справочник бригад тянется здесь, а не приходит сверху: он нужен одному
      листу этого экрана. Отказ справочника не мешает править сроки, поэтому
      пустой список — не ошибка экрана, а отсутствие получателей. */
@@ -177,6 +180,7 @@ export function Schedule({
   const apply = (next: WorkStage[]): void => {
     setStages(next);
     setEditing(null);
+    setPlanning(false);
     setSheetError(null);
     onEvents();
   };
@@ -193,6 +197,19 @@ export function Schedule({
   if (stages === null) return <p className="t-sm t-muted">Загружаем график…</p>;
 
   const editable = canEdit(role);
+
+  /* Разделы, которые ещё не ведёт ни один этап, и последний день графика.
+     Считаются здесь, а не приходят с сервером: этапы у экрана уже есть, и
+     лишний запрос ради того, что лежит в соседней переменной, добавил бы
+     состояние, способное разойтись со списком после первой же правки. */
+  const ведут = new Set(stages.flatMap((stage) =>
+    stage.sectionId === null ? [] : [stage.sectionId]));
+  const свободные = sections.filter((section) => !ведут.has(section.id));
+  const последнийДень = stages.reduce<string | null>(
+    (поздний, stage) => (поздний === null || stage.endsOn > поздний ? stage.endsOn : поздний),
+    null,
+  );
+
   const width = SCALES[scale]?.width ?? 32;
   const месяц = anchor ?? firstMonth(stages, today);
   const window_: PlanWindow = monthWindow(месяц);
@@ -327,6 +344,15 @@ export function Schedule({
           <svg className="icon" aria-hidden="true"><use href="#i-expand" /></svg>
           На весь экран
         </button>
+        {editable && свободные.length > 0 && (
+          /* Показывается, только когда есть что раскладывать. Погашенная
+             кнопка не объясняет, почему она погашена, а исчезнувшая хотя бы
+             не обещает действия, которого нет. */
+          <button type="button" className="btn btn--secondary" onClick={() => { setPlanning(true); }}>
+            <svg className="icon" aria-hidden="true"><use href="#i-estimate" /></svg>
+            График из сметы
+          </button>
+        )}
         {editable && (
           <button type="button" className="btn btn--primary" onClick={() => { setEditing({ stage: null }); }}>
             <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
@@ -519,6 +545,18 @@ export function Schedule({
             run(deleteStage(code, текущий.id));
           }}
           onClose={() => { setEditing(null); setSheetError(null); }}
+        />
+      )}
+
+      {planning && (
+        <PlanSheet
+          sections={свободные}
+          range={range}
+          after={последнийДень}
+          busy={busy}
+          error={sheetError}
+          onPlan={(from, to) => { run(planStages(code, from, to)); }}
+          onClose={() => { setPlanning(false); setSheetError(null); }}
         />
       )}
     </div>

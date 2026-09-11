@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@n
 import type { WorkStage } from "@priyomka/contracts";
 import {
   createWorkStageSchema,
+  planFromEstimateSchema,
   reorderWorkStagesSchema,
   updateWorkStageSchema,
 } from "@priyomka/contracts";
@@ -40,6 +41,20 @@ export class StagesController {
     @Body() body: unknown,
   ): Promise<WorkStage[]> {
     return this.stages.create(user, code, createWorkStageSchema.parse(body));
+  }
+
+  /**
+   * Завести график из разделов действующей сметы. Разделы, у которых этап
+   * уже есть, пропускаются: действие дозаводит, а не перезаписывает.
+   */
+  @Post("plan")
+  @Roles("OWNER")
+  plan(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<WorkStage[]> {
+    return this.stages.planFromEstimate(user, code, planFromEstimateSchema.parse(body));
   }
 
   /* Перестановка объявлена прежде правки одного этапа: иначе «order» попал

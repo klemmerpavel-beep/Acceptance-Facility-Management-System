@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { basisPoints, parseQuantity, parseRubles } from "./money.js";
 import {
   buildEstimateView, estimateItemFault, estimateItemWarning, measureSourcesFor,
-  sectionChoices, MEASURE_LABEL, MEASURE_SOURCES,
+  sectionWeights, MEASURE_LABEL, MEASURE_SOURCES,
   type BuildEstimateInput, type SectionNode,
 } from "./estimate.js";
 import { findInternalFields, INTERNAL_FIELDS } from "./projection.js";
@@ -242,16 +242,23 @@ describe("разделы, которые может вести этап (5.2)", 
   ];
 
   it("предлагаются разделы верхнего уровня в порядке сметы", () => {
-    expect(sectionChoices(дерево).map((choice) => choice.name)).toEqual([
+    expect(sectionWeights(дерево).map((choice) => choice.name)).toEqual([
       "ДЕМОНТАЖ", "ЭЛЕКТРОМОНТАЖ",
     ]);
   });
 
   it("вложенный раздел не предлагается: приёмка его не видит", () => {
-    expect(sectionChoices(дерево).some((choice) => choice.id === "s1a")).toBe(false);
+    expect(sectionWeights(дерево).some((choice) => choice.id === "s1a")).toBe(false);
   });
 
   it("пустая смета не даёт ни одной строки выбора", () => {
-    expect(sectionChoices([])).toEqual([]);
+    expect(sectionWeights([])).toEqual([]);
+  });
+
+  it("раздел без итога весит ноль, а не ломает раскладку", () => {
+    /* Лист выбора раздела итога не запрашивает, и поле необязательно.
+       Ноль здесь означает «вес неизвестен», и раскладка делит окно
+       поровну — это её правило, а не выдумка вызывающего. */
+    expect(sectionWeights(дерево).every((section) => section.total === 0n)).toBe(true);
   });
 });
