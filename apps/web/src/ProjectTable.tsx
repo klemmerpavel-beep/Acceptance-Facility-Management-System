@@ -1,7 +1,8 @@
 import type { ProjectSummary } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
-import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
+import { STATUS_LABEL, STATUS_PILL, formatDate } from "./status.js";
+import { due } from "./due.js";
 
 /**
  * Объекты таблицей — один набор колонок на главную и на раздел «Проекты».
@@ -14,20 +15,21 @@ import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
-/** Срок объекта в человеческом виде: просрочка называется просрочкой. */
+/**
+ * Срок объекта в человеческом виде: дата и словами, сколько до неё.
+ *
+ * Ступень и слова берутся из общей шкалы срочности (`due.ts`), а не
+ * считаются здесь второй формулой: до 12.09.2026 реестр звал срок «34 дня»,
+ * первый экран — «через 34 дня», а карточка — «Осталось 34 дня», и три
+ * места расходились в словах, порогах и цвете (аудит Б-4).
+ */
 export function deadlineCell(deadline: string | null, today: string): React.JSX.Element {
-  if (deadline === null) return <span className="t-muted">не задан</span>;
-  const days = Math.round(
-    (Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
-  );
+  const срок = due(deadline, today);
+  if (deadline === null) return <span className="t-muted">{срок.words}</span>;
   return (
-    <span className={days < 0 ? "num--danger" : undefined}>
+    <span className={срок.level === "overdue" ? "num--danger" : undefined}>
       {formatDate(deadline)}
-      <span className="t-sm t-muted">
-        {days < 0
-          ? ` · просрочен на ${Math.abs(days)} ${plural(days, "день", "дня", "дней")}`
-          : ` · ${days} ${plural(days, "день", "дня", "дней")}`}
-      </span>
+      <span className="t-sm t-muted"> · {срок.words}</span>
     </span>
   );
 }

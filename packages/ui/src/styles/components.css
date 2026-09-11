@@ -95,6 +95,41 @@
 .pill--danger  { background: var(--danger-soft); color: var(--danger); }
 .pill--signal  { background: var(--signal-soft); color: var(--signal); }
 
+/* Статус объекта. Шесть статусов — шесть видов, и вид берётся из той же
+   тройки токенов, что заливка сегмента полосы на первом экране: одна
+   кодировка на весь продукт, а не две (аудит Б-1, Б-2).
+
+   Сигнальные пилюли выше статусам не принадлежат. `--ok` означает
+   «принято» и «оплачено», `--warn` — «ждёт оплаты», `--danger` —
+   «сторно, просрочено, расхождение». Статус объекта ни одним из этих
+   слов не является, и общая заливка стирала бы разницу между «объект
+   завершён» и «деньги получены». */
+.pill--status-new     { background: var(--status-new-soft);   color: var(--status-new-ink); }
+.pill--status-work    { background: var(--status-work-soft);  color: var(--status-work-ink); }
+.pill--status-wait    { background: var(--status-wait-soft);  color: var(--status-wait-ink); }
+.pill--status-pause   { background: var(--status-pause-soft); color: var(--status-pause-ink); }
+.pill--status-done    { background: var(--status-done-soft);  color: var(--status-done-ink); }
+/* Архив — единственный без заливки: два серых фона («новый» и «архив»)
+   сходились бы в один вид, и различать пришлось бы оттенок серого.
+   Обводка различает формой. */
+.pill--status-archive { background: transparent; color: var(--status-archive-ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* Срочность срока. Четыре ступени одной шкалы: просрочено, сегодня или
+   завтра, ближайшая неделя, дальше. Прежде срок красили три места по трём
+   своим правилам — реестр красным текстом, первый экран пилюлей трёх
+   тонов, карточка сплошной плашкой (аудит Б-4). Слова и ступень теперь
+   выдаёт `due.ts`, а вид — эти четыре правила. */
+.duepill { display: inline-flex; align-items: center; height: var(--pill-h);
+  padding: 0 var(--space-2); border-radius: var(--radius-chip);
+  font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+  background: transparent; color: var(--ink-3); }
+.duepill--overdue { background: var(--danger-soft); color: var(--danger); }
+.duepill--today   { background: var(--warn-soft);   color: var(--warn); }
+.duepill--soon    { background: var(--surface-2);   color: var(--ink-2); }
+.duepill--later   { background: transparent;        color: var(--ink-3); }
+.duepill--none    { background: transparent;        color: var(--ink-3); }
+
 /* Код объекта — моноширинный бейдж на мягком акценте. Сквозной
    идентификатор: почта, документы, разговор, акт. */
 .code-badge {
@@ -192,6 +227,24 @@
 .tile--accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .tile--accent .figure__label, .tile--accent .figure__note { color: var(--accent-ink); opacity: .78; }
 .tile--accent .figure__value { color: var(--accent-ink); }
+
+/* Плашка срока помечена в разметке классом `tile--due` независимо от тона:
+   по этому имени её находят проверки. Своих объявлений у него нет и не
+   нужно — пустое правило было бы мёртвым. Опознавать блок по цвету значит
+   ломать опознание вместе со сменой цвета: так и вышло при первом прогоне
+   этой правки — плашка стала красной, и проверка шкалы перестала её
+   находить.
+   
+   Плашка срока берёт тон своей ступени срочности. Прежде она была
+   акцентной при любом сроке: слово говорило «просрочено на 27 дней», цвет
+   — «всё как обычно» (аудит Б-4). Тон один на всю шкалу: тот же, что у
+   пилюли срочности в реестре и на первом экране. */
+.tile--overdue { background: var(--danger); border-color: var(--danger); color: var(--ink-inv); }
+.tile--overdue .figure__label, .tile--overdue .figure__note { color: var(--ink-inv); opacity: .82; }
+.tile--overdue .figure__value { color: var(--ink-inv); }
+.tile--today { background: var(--warn); border-color: var(--warn); color: var(--ink-inv); }
+.tile--today .figure__label, .tile--today .figure__note { color: var(--ink-inv); opacity: .82; }
+.tile--today .figure__value { color: var(--ink-inv); }
 
 /* Волосяная линия и надзаголовок раздела. Раздел отделяется линией и
    подписью, а не помещается в коробку. */
@@ -1652,20 +1705,22 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    ещё один цвет на полосе из шести, а зазор читается как разделитель при
    любой заливке и при чёрно-белой печати.
 
-   Цвет сегмента — ступень жизни объекта (`--stage-1…6`), а не качество его
-   состояния. Опознание держится на подписи и числе под полосой: цвет здесь
-   второй канал, первый — слово.                                          */
+   Цвет сегмента — тот же токен, которым окрашена пилюля этого статуса в
+   реестре и на карточке (`--status-*-bar`). До 12.09.2026 полоса брала
+   порядковую шкалу индиго, а пилюли — сигнальные токены, и один объект был
+   двух цветов на одном экране. Опознание по-прежнему держится на подписи и
+   числе под полосой: цвет — второй канал, первый — слово.                                          */
 .statusbar { display: flex; gap: 2px; block-size: 28px; inline-size: 100%;
   border-radius: var(--radius-chip); overflow: hidden; }
 .statusbar__part { min-inline-size: 4px; border: 0; padding: 0; cursor: pointer;
   transition: opacity var(--dur-fast) var(--ease); }
 .statusbar__part:hover { opacity: .82; }
-.statusbar__part--1 { background: var(--stage-1); }
-.statusbar__part--2 { background: var(--stage-2); }
-.statusbar__part--3 { background: var(--stage-3); }
-.statusbar__part--4 { background: var(--stage-4); }
-.statusbar__part--5 { background: var(--stage-5); }
-.statusbar__part--6 { background: var(--stage-6); }
+.statusbar__part--new     { background: var(--status-new-bar); }
+.statusbar__part--work    { background: var(--status-work-bar); }
+.statusbar__part--wait    { background: var(--status-wait-bar); }
+.statusbar__part--pause   { background: var(--status-pause-bar); }
+.statusbar__part--done    { background: var(--status-done-bar); }
+.statusbar__part--archive { background: var(--status-archive-bar); }
 
 .statusbar__legend { display: flex; flex-direction: column;
   margin: 0; padding: 0; list-style: none; }
@@ -1682,12 +1737,12 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .statusbar__item .num { text-align: end; }
 .statusbar__mark { inline-size: 10px; block-size: 10px; flex: none;
   border-radius: var(--radius-sm); }
-.statusbar__mark--1 { background: var(--stage-1); }
-.statusbar__mark--2 { background: var(--stage-2); }
-.statusbar__mark--3 { background: var(--stage-3); }
-.statusbar__mark--4 { background: var(--stage-4); }
-.statusbar__mark--5 { background: var(--stage-5); }
-.statusbar__mark--6 { background: var(--stage-6); }
+.statusbar__mark--new     { background: var(--status-new-bar); }
+.statusbar__mark--work    { background: var(--status-work-bar); }
+.statusbar__mark--wait    { background: var(--status-wait-bar); }
+.statusbar__mark--pause   { background: var(--status-pause-bar); }
+.statusbar__mark--done    { background: var(--status-done-bar); }
+.statusbar__mark--archive { background: var(--status-archive-bar); }
 
 /* --- 5.33 Готовность работ по объектам --------------------------------------
    Заявленное и принятое в одной дорожке, а не двумя полосами рядом:
@@ -1701,7 +1756,7 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .readiness__legend { display: flex; align-items: center; gap: var(--space-2); }
 .readiness__mark { inline-size: 10px; block-size: 10px; flex: none;
   border-radius: var(--radius-sm); }
-.readiness__mark--claim { background: var(--stage-2); }
+.readiness__mark--claim { background: var(--claim); }
 .readiness__mark--fact { background: var(--ok); margin-inline-start: var(--space-3); }
 .readiness__row {
   display: grid; grid-template-columns: auto minmax(0, 1fr) 3.5rem;
@@ -1714,7 +1769,7 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .readiness__track { position: relative; block-size: 10px; inline-size: 100%;
   background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
 .readiness__claim { position: absolute; inset-block: 0; inset-inline-start: 0;
-  background: var(--stage-2); border-radius: var(--radius-pill); }
+  background: var(--claim); border-radius: var(--radius-pill); }
 .readiness__fact { position: absolute; inset-block: 2px; inset-inline-start: 0;
   background: var(--ok); border-radius: var(--radius-pill);
   box-shadow: 0 0 0 2px var(--surface); }

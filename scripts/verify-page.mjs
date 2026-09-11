@@ -294,13 +294,96 @@ if ((await page.locator(".duelist__row").count()) === 0) {
 }
 /* Срок назван словами и помечен пилюлей срочности, а не отрезком шкалы:
    «через 34 дня» распоряжаются, длиной отрезка — нет. */
-const срочности = await page.locator(".duelist__row .pill").allTextContents();
+const срочности = await page.locator(".duelist__row .duepill").allTextContents();
 if (!срочности.some((текст) => текст.includes("просрочен"))) {
   note("главная", `среди сроков нет просроченного: ${срочности.join(" · ")}`);
 }
-if ((await page.locator(".duelist__row .pill--danger").count()) === 0) {
+if ((await page.locator(".duelist__row .duepill--overdue").count()) === 0) {
   note("главная", "просроченный срок не помечен сигнальным цветом");
 }
+/* Шкала срочности одна на продукт, и словарь у неё один: пять ступеней,
+   пять оборотов. Слово вне словаря означает, что срок посчитали ещё раз
+   на месте — так и было до 12.09.2026 в трёх местах сразу (аудит Б-4). */
+const СЛОВАРЬ_СРОКА = [/^просрочен на /u, /^сдать сегодня$/u, /^сдать завтра$/u,
+  /^через /u, /^срок не задан$/u];
+for (const текст of срочности) {
+  const слово = текст.trim();
+  if (!СЛОВАРЬ_СРОКА.some((образец) => образец.test(слово))) {
+    note("срочность", `слово вне словаря шкалы: «${слово}»`);
+  }
+}
+
+/*
+ * ЦВЕТОВАЯ СИСТЕМА СТАТУСОВ (этап 2 работы по интерфейсу).
+ *
+ * Проверяется не «красиво», а два утверждения, каждое из которых уже было
+ * нарушено: шесть состояний имеют шесть разных видов, и вид у состояния
+ * один на весь продукт.
+ */
+const СТАТУСЫ = [
+  ["new", "Новый"], ["work", "В работе"], ["wait", "Ждёт ответа"],
+  ["pause", "Пауза"], ["done", "Завершён"], ["archive", "Архив"],
+];
+
+/* 1. Шесть различимых видов. Читаются значения токенов, а не пилюли на
+      экране: на стенде встречаются не все шесть статусов, и проверка по
+      видимым пилюлям молчала бы о паре, которой сегодня нет в данных. */
+const видыСтатусов = await page.evaluate((ключи) => {
+  const корень = getComputedStyle(document.documentElement);
+  return ключи.map(([ключ]) => ({
+    ключ,
+    полоса: корень.getPropertyValue(`--status-${ключ}-bar`).trim(),
+    заливка: корень.getPropertyValue(`--status-${ключ}-soft`).trim(),
+    текст: корень.getPropertyValue(`--status-${ключ}-ink`).trim(),
+  }));
+}, СТАТУСЫ);
+for (const поле of ["полоса", "текст"]) {
+  const значения = видыСтатусов.map((вид) => вид[поле]).filter((значение) => значение !== "");
+  if (new Set(значения).size !== значения.length) {
+    note("статусы", `${поле}: ${значения.length} статусов дают ${new Set(значения).size} значений — `
+      + `состояния неразличимы (${значения.join(", ")})`);
+  }
+}
+const безВида = видыСтатусов.filter((вид) => вид.полоса === "" || вид.текст === "");
+if (безВида.length > 0) {
+  note("статусы", `у статусов нет собственных токенов: ${безВида.map((в) => в.ключ).join(", ")}`);
+}
+
+/* 2. Одна кодировка. Пилюля статуса в реестре обязана брать заливку своего
+      статуса, а не сигнальный токен: до 12.09.2026 «в работе» и «завершён»
+      несли одну зелёную заливку `--ok-soft`, а полоса первого экрана
+      красила те же статусы третьим набором. */
+const пилюли = await page.evaluate(() => {
+  const найдено = [];
+  for (const узел of document.querySelectorAll("main .pill")) {
+    const стиль = getComputedStyle(узел);
+    найдено.push({ слово: (узел.textContent ?? "").trim(), фон: стиль.backgroundColor });
+  }
+  return найдено;
+});
+const токены = await page.evaluate((ключи) => {
+  const проба = document.createElement("span");
+  document.body.append(проба);
+  const итог = {};
+  for (const [ключ] of ключи) {
+    проба.style.backgroundColor = `var(--status-${ключ}-soft)`;
+    итог[ключ] = getComputedStyle(проба).backgroundColor;
+  }
+  проба.remove();
+  return итог;
+}, СТАТУСЫ);
+for (const [ключ, слово] of СТАТУСЫ) {
+  for (const пилюля of пилюли.filter((строка) => строка.слово === слово)) {
+    const ожидаемый = токены[ключ];
+    /* Архив заливки не имеет вовсе — обводка вместо неё. */
+    if (ключ === "archive") continue;
+    if (пилюля.фон !== ожидаемый) {
+      note("статусы", `пилюля «${слово}» залита ${пилюля.фон} вместо ${ожидаемый}: `
+        + "кодировка статуса не одна");
+    }
+  }
+}
+console.log(`  статусов с собственным видом: ${видыСтатусов.length - безВида.length} из ${СТАТУСЫ.length}`);
 
 /**
  * Мера доли осталась там, где отвечает на свой вопрос: в числовой карточке
@@ -560,12 +643,12 @@ await overflow("карточка, 1440");
  * значит обесценить его на всех остальных экранах.
  */
 const шкала = await page.evaluate(() => {
-  const легенды = [...document.querySelectorAll(".tile--accent .scale__legend")];
+  const легенды = [...document.querySelectorAll(".tile--due .scale__legend")];
   return {
     подписи: легенды.map((строка) => строка.firstElementChild?.textContent?.trim() ?? ""),
     значения: легенды.map((строка) => строка.querySelector(".scale__value")?.textContent?.trim() ?? ""),
-    отметка: document.querySelectorAll(".tile--accent .scale__claim").length,
-    ярлык: document.querySelector(".tile--accent .scale__track")?.getAttribute("aria-label") ?? "",
+    отметка: document.querySelectorAll(".tile--due .scale__claim").length,
+    ярлык: document.querySelector(".tile--due .scale__track")?.getAttribute("aria-label") ?? "",
   };
 });
 if (шкала.подписи.join("|") !== "принято|заявлено") {

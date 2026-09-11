@@ -22,6 +22,7 @@ import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
+import { due, type DueLevel } from "./due.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
@@ -108,6 +109,15 @@ function ReadinessScale({
  * Порядок вкладок повторяет конвейер объекта: замер даёт площади, площади
  * идут в смету, смета — в график работ, график — в приёмку.
  */
+/** Тон плашки срока по ступени шкалы срочности. */
+const ТОН_СРОКА: Record<DueLevel, string> = {
+  overdue: "tile--overdue",
+  today: "tile--today",
+  soon: "tile--accent",
+  later: "tile--accent",
+  none: "tile--accent",
+};
+
 const TABS = [
   { key: "overview", label: "Обзор" },
   { key: "measure", label: "Замер" },
@@ -227,6 +237,7 @@ export function ProjectCard({
       ? null
       : { date: formatDate(project.deadline), days: daysBetween(today, project.deadline) };
   const overdue = deadline !== null && deadline.days < 0;
+  const срок = due(project.deadline, today);
 
   return (
     <>
@@ -349,7 +360,10 @@ export function ProjectCard({
               </div>
             )}
 
-            <div className="tile tile--accent row row--between">
+            {/* Тон плашки — ступень общей шкалы срочности, а не постоянный
+                акцент: слово «просрочено» при спокойном цвете сообщало
+                разное двумя каналами сразу (аудит Б-4). */}
+            <div className={`tile tile--due ${ТОН_СРОКА[срок.level]} row row--between`}>
               <div className="figure">
                 <span className="figure__label">
                   {deadline === null ? "Срок" : overdue ? "Просрочено на" : "Осталось"}
@@ -359,7 +373,7 @@ export function ProjectCard({
                 </span>
                 <span className="figure__note">
                   {deadline === null
-                    ? "дедлайн не задан"
+                    ? "срок не задан"
                     : plural(deadline.days, "день", "дня", "дней")}
                 </span>
               </div>
