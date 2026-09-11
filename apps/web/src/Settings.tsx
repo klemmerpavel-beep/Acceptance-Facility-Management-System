@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import type { Organization, Unit } from "@priyomka/contracts";
+import type { Organization, RepairType, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
-import { fetchOrganization, fetchUnits, logout, saveOrganization, errorMessage } from "./api.js";
+import { formatKopecks, formatPercent } from "@priyomka/ui";
+import {
+  createRepairType, errorMessage, fetchOrganization, fetchRepairTypes, fetchUnits,
+  logout, saveOrganization, updateRepairType,
+} from "./api.js";
+import { useModalDialog } from "./modal.js";
+import { plural } from "./status.js";
 import { tabArrowHandler } from "./tabs.js";
-import { ThemeSwitch } from "./ThemeSwitch.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -22,6 +27,7 @@ import { ThemeSwitch } from "./ThemeSwitch.js";
 const TABS = [
   { key: "overview", label: "Организация" },
   { key: "estimate", label: "Единицы измерения" },
+  { key: "tariffs", label: "Типы ремонта" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"];
@@ -201,16 +207,16 @@ export function Settings({
       )}
       </div>
 
-      {/* Тема и выход переехали сюда из шапки: в шапке эталона справа стоят
-          блок пользователя и колокол, и два лишних органа управления рядом
-          с ними сделали бы её длиннее полосы навигации. Оба нужны редко —
-          тему выбирают один раз, выходят в конце дня. */}
+      <div role="tabpanel" id="settings-panel-tariffs" aria-labelledby="settings-tab-tariffs" hidden={tab !== "tariffs"}>
+      {tab === "tariffs" && <RepairTypes />}
+      </div>
+
+      {/* Выход переехал сюда из шапки: в шапке эталона справа стоят блок
+          пользователя и колокол, и лишний орган управления рядом с ними
+          сделал бы её длиннее полосы навигации. Нужен он редко — выходят в
+          конце дня. Переключателя темы здесь больше нет: тема одна. */}
       <section className="panel panel--pad stack settings__panel">
         <h2 className="t-h2">Рабочее место</h2>
-        <div className="field">
-          <span className="field__label">Тема оформления</span>
-          <ThemeSwitch />
-        </div>
         <div className="row">
           <button
             type="button"
@@ -232,5 +238,189 @@ export function Settings({
         </a>.
       </p>
     </main>
+  );
+}
+
+/**
+ * Справочник типов ремонта с тарифом за квадратный метр.
+ *
+ * Правится здесь, а не зашит в код: цены меняются чаще, чем выходят
+ * редакции продукта. Правка тарифа **не** меняет уже названные ориентиры —
+ * заявка хранит снимок, и в этом весь его смысл; экран об этом говорит.
+ */
+function RepairTypes(): React.JSX.Element {
+  const [types, setTypes] = useState<RepairType[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<RepairType | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    fetchRepairTypes()
+      .then(setTypes)
+      .catch((cause: unknown) => { setError(errorMessage(cause)); });
+  }, []);
+
+  return (
+    <section className="panel panel--pad stack settings__panel">
+      <div className="row row--between">
+        <h2 className="t-h2">Типы ремонта</h2>
+        <button type="button" className="btn btn--secondary" onClick={() => { setAdding(true); }}>
+          Добавить тип
+        </button>
+      </div>
+      <p className="t-sm t-muted prose">
+        Тариф за квадратный метр общей площади и отклонение вилки. По ним считается ориентир
+        на заявке до выезда. Правка тарифа не меняет уже названные ориентиры: заявка хранит
+        снимок тарифа на момент расчёта — иначе правка справочника задним числом меняла бы
+        цену, названную заказчику по телефону.
+      </p>
+      {error !== null && <p className="field__error" role="alert">{error}</p>}
+      {types === null ? (
+        <span className="skeleton skeleton--row" />
+      ) : types.length === 0 ? (
+        <p className="t-sm t-muted">Типов ремонта нет. Без них ориентир не посчитать.</p>
+      ) : (
+        <dl className="deflist">
+          {types.map((type) => (
+            <div className="deflist__row" key={type.id}>
+              <dt className="deflist__term">{type.name}</dt>
+              <dd className="deflist__value row row--wrap">
+                <span className="num">{formatKopecks(BigInt(type.ratePerSqm))} за м²</span>
+                <span className="t-sm t-muted num">± {formatPercent(BigInt(type.spread))}</span>
+                <span className="t-sm t-muted">
+                  {type.leads} {plural(type.leads, "заявка", "заявки", "заявок")}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--text"
+                  onClick={() => { setEditing(type); }}
+                >
+                  Править
+                </button>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {(adding || editing !== null) && (
+        <RepairTypeSheet
+          type={editing}
+          onClose={() => { setAdding(false); setEditing(null); }}
+          onSaved={(next) => { setTypes(next); setAdding(false); setEditing(null); }}
+        />
+      )}
+    </section>
+  );
+}
+
+/** Лист типа ремонта. Тариф вводится рублями, хранится копейками. */
+function RepairTypeSheet({
+  type,
+  onClose,
+  onSaved,
+}: {
+  type: RepairType | null;
+  onClose: () => void;
+  onSaved: (types: RepairType[]) => void;
+}): React.JSX.Element {
+  const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
+  const [name, setName] = useState(type?.name ?? "");
+  const [rate, setRate] = useState(
+    type === null ? "" : (Number(type.ratePerSqm) / 100).toString().replace(".", ","),
+  );
+  const [spread, setSpread] = useState(
+    type === null ? "15" : (type.spread / 100).toString().replace(".", ","),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const копейки = (значение: string): string | null => {
+    const число = Number(значение.replace(",", ".").trim());
+    if (!Number.isFinite(число) || число <= 0) return null;
+    return Math.round(число * 100).toString();
+  };
+  const сотые = (значение: string): number | null => {
+    const число = Number(значение.replace(",", ".").trim());
+    if (!Number.isFinite(число) || число < 0 || число > 100) return null;
+    return Math.round(число * 100);
+  };
+
+  const тариф = копейки(rate);
+  const отклонение = сотые(spread);
+  const ready = name.trim().length >= 2 && тариф !== null && отклонение !== null;
+
+  const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    if (!ready || busy) return;
+    setBusy(true);
+    setError(null);
+    const поля = { name: name.trim(), ratePerSqm: тариф, spread: отклонение };
+    (type === null ? createRepairType(поля) : updateRepairType(type.id, поля))
+      .then(onSaved)
+      .catch((cause: unknown) => { setError(errorMessage(cause)); })
+      .finally(() => { setBusy(false); });
+  };
+
+  return (
+    <>
+      <button type="button" className="scrim" aria-label="Закрыть" onClick={onClose} />
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={type === null ? "Новый тип ремонта" : "Правка типа ремонта"}
+        ref={dialog}
+      >
+        <p className="t-h3">{type === null ? "Новый тип ремонта" : type.name}</p>
+        <form className="stack stack--tight" onSubmit={submit}>
+          <label className="field">
+            <span className="field__label">Название</span>
+            <input
+              ref={first}
+              id="tariff-name"
+              className="input"
+              value={name}
+              onChange={(event) => { setName(event.target.value); }}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Тариф, ₽ за м²</span>
+            <input
+              id="tariff-rate"
+              className="input num"
+              inputMode="decimal"
+              value={rate}
+              onChange={(event) => { setRate(event.target.value); }}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Отклонение вилки, %</span>
+            <input
+              id="tariff-spread"
+              className="input num"
+              inputMode="decimal"
+              value={spread}
+              onChange={(event) => { setSpread(event.target.value); }}
+            />
+            <span className="field__hint">
+              Ориентир называется вилкой «от — до»: смета предварительная, и одно число
+              заказчик запоминает как обещанное.
+            </span>
+          </label>
+          {error !== null && <p className="field__error" role="alert">{error}</p>}
+          <button
+            type="submit"
+            className="btn btn--primary btn--block btn--touch"
+            data-loading={busy || undefined}
+            disabled={busy || !ready}
+          >
+            Сохранить
+          </button>
+          <button type="button" className="btn btn--text btn--block" onClick={onClose}>
+            Отмена
+          </button>
+        </form>
+      </div>
+    </>
   );
 }

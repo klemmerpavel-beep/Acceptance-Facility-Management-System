@@ -391,43 +391,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   transition: background-color var(--dur-fast) var(--ease); }
 .appbar__menu-item:hover { background: var(--surface-2); }
 
-/* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
-   что «светлая», и пользователь, не менявший тему, должен оставаться на
-   системной. Область нажатия 44 px — норма §7, на всех ширинах.
-   Дорожка на ступень выше опции: при отступе 2 px внешний радиус обязан
-   быть внутренним плюс отступ (8 − 2 = 6), иначе угол опции выпирает
-   за угол дорожки.
-
-   Основные значения — для поверхности, а не для полосы шапки. Прежде было
-   наоборот: подложка --on-band-fill и значки --band-ink рисовали в
-   настройках белое по белому, и два невыбранных состояния из трёх
-   исчезали. Управление, которого не видно, всё равно что отсутствует. */
-.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--surface-2); border-radius: var(--radius-md); }
-.themeswitch__option {
-  display: grid;
-  place-items: center;
-  width: var(--tap-min); height: var(--tap-min);
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-chip);
-  color: var(--ink-2);
-  cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-.themeswitch__option[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-1); }
-/* В поле настроек дорожка иначе растягивается на всю ширину панели и
-   читается как полоса, а не как переключатель из трёх состояний. */
-.field > .themeswitch { align-self: start; }
-/* В шапке дорожки нет вовсе: три плашки подряд рядом с блоком работающего
-   читались как четвёртый блок навигации. Остаётся ряд значков, из которых
-   плашку носит только выбранный. */
-.appbar .themeswitch { background: none; padding: 0; gap: 0; }
-.appbar .themeswitch__option { color: var(--band-ink); }
-.appbar .themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); box-shadow: none; }
-/* До 768 px шапка держит знак, блок работающего и колокол; четвёртый орган
-   в неё не помещается. Там переключатель остаётся в настройках. */
-@media (max-width: 767px) { .appbar .themeswitch { display: none; } }
-
 /* Объект в узкой раскладке — строка ведомости, а не карточка. Ссылкой
    служит вся строка: цель нажатия равна её высоте, а не высоте заголовка
    (реестр Д-27, Д-33). */
@@ -654,6 +617,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   background: var(--surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-2);
+  /* Прокрутка листа не утягивает страницу под ним: докрутив длинный лист
+     до конца, прораб продолжал движение пальца и уезжал по документу,
+     теряя место, к которому вернуться нечем — лист закрывает экран. */
+  overscroll-behavior: contain;
 }
 @media (min-width: 768px) {
   .sheet {
@@ -938,6 +905,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
+/* Перевыработка — законное состояние, а не ошибка: сигнальный цвет, не
+   тревожный. Тем же правилом окрашены остаток транша и фактическая
+   готовность этапа выше ста процентов. */
+.num--over { color: var(--signal); }
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */
@@ -1031,8 +1002,8 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__search input { flex: 1 1 auto; border: 0; background: none;
   font-family: inherit; font-size: var(--fs-body); color: var(--ink); }
 /* Кольцо фокуса остаётся на самом поле: смена цвета границы обёртки на
-   один пиксель — более слабый указатель, а в тёмной теме он давал 6,56:1
-   (реестр Д-24). Обёртка усиливает, но не заменяет. */
+   один пиксель — более слабый указатель (реестр Д-24). Обёртка усиливает,
+   но не заменяет. */
 .datatable__search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
@@ -1147,11 +1118,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .stamp__cell--wide { grid-column: span 2; }
 }
 
-/* --- 5.18 Шкала готовности -------------------------------------------------
+/* --- 5.18 Шкала объекта ----------------------------------------------------
    Доля принятого показывается размеченной линейкой с делениями, а не
    кольцом. Кольцо из одного значения — украшение: чтобы снять с него долю,
    её всё равно печатают числом в середине. Линейка с делениями по четвертям
-   читается как измерение и принадлежит миру рулетки, а не инфографики.   */
+   читается как измерение и принадлежит миру рулетки, а не инфографики.
+
+   Заполнение — принятое по приёмке. Заявленная готовность стоит риской
+   поперёк линейки: это утверждение человека, а не измерение, и вторым
+   заполнением она выдавала бы себя за измеренное. Риска выше дорожки с
+   обеих сторон — её видно и тогда, когда она стоит вплотную к краю
+   заполнения, то есть ровно в том случае, ради которого нарисована.      */
 .scale { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 140px; }
 .scale__track { position: relative; block-size: 10px; border: 1px solid var(--line-strong); }
 .scale__fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--accent); }
@@ -1165,6 +1142,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .scale--on-accent .scale__tick { background: var(--on-accent-track); }
 .scale--on-accent .scale__legend { color: var(--accent-ink); opacity: .78; }
 .scale--on-accent .scale__value { color: var(--accent-ink); opacity: 1; }
+.scale__claim { position: absolute; inset-block: -3px; inline-size: 2px;
+  background: var(--ink); transform: translateX(-1px); }
+.scale--on-accent .scale__claim { background: var(--accent-ink); }
+/* Перевыработка сигнальным цветом, тем же правилом, что отрицательный
+   остаток транша и фактическая готовность этапа выше ста процентов. */
+.scale__value--over { color: var(--signal); }
+/* На акцентной плитке сигнальный цвет недоступен: «--signal» — тёмная охра
+   на индиго, и она там нечитаема. Перевыработка выделяется обращением
+   пары, контраст которой задан самой парой. */
+.scale--on-accent .scale__value--over { color: var(--accent); background: var(--accent-ink);
+  padding-inline: var(--space-1); }
 
 /* --- 5.19 «Что дальше» -----------------------------------------------------
    Список того, чего в продукте ещё нет. Строки разделены линией, стадия
@@ -1214,8 +1202,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .toggle--inv[aria-checked="true"] .toggle__track { background: var(--accent-inv); }
 .toggle--inv[aria-checked="true"] .toggle__knob  { background: var(--surface-inv); }
 
-/* Инвертированная плашка помещения. Материал, а не тема: в тёмной теме
-   значения токенов сходятся с общей палитрой, и плашку держит линия. */
+/* Инвертированная плашка помещения. Материал, а не тема: она тёмная по
+   назначению — числа замера читаются как одно целое и не смешиваются со
+   сводкой по объекту рядом. Плашку держит линия, а не тень. */
 .measure { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-5);
   padding: var(--space-5); border: 1px solid var(--line-inv); border-radius: var(--radius-lg);
   background: var(--surface-inv); color: var(--ink-on-inv); }
@@ -1257,7 +1246,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
      по объекту, ни органов управления. Экранная часть вкладки скрыта одним
      классом, а не перечислением блоков — перечисление устаревает на первой
      же правке экрана. */
-  .appbar, .tabbar, .themeswitch, .stamp, .stamp__crumbs, .tabs,
+  .appbar, .tabbar, .stamp, .stamp__crumbs, .tabs,
   .measure-screen, .project-layout > aside { display: none !important; }
   .measure-print { display: block; }
   /* Сетка карточки держит ширину колонки даже со скрытой сводкой: на листе
@@ -1417,6 +1406,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Карточка позиции. Наименование в две строки, под ним смета и принятое,
    справа отметка — цель нажатия во всю высоту карточки. */
+/* Отбор позиций внутри раздела. Поле растягивается, флажок и счётчик
+   держат свою ширину; на телефоне ряд переносится, и поле занимает строку
+   целиком — печатают в него большим пальцем, стоя на объекте. */
+.accept__filter { display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-3); margin-block-end: var(--space-3); }
+.accept__filter .datatable__search { flex: 1 1 240px; min-inline-size: 0; }
+/* Счётчик отобранного прижат к концу ряда: он подпись к списку, а не орган
+   управления, и в потоке между флажком и списком читался бы как третий
+   орган. */
+.accept__filter .num { margin-inline-start: auto; }
 .accept__list { display: grid; gap: var(--space-2); }
 .accept__row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
@@ -1444,6 +1443,18 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 .accept__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .accept__check:disabled { cursor: not-allowed; opacity: .5; }
+/* Флажок — не отметка приёмки. Класс `.accept__check` принадлежит кнопке
+   отметки позиции, и раздавать его обычным флажкам нельзя: по нему ищут
+   отметку и люди, и проверки.
+
+   Сам квадрат оставлен в своём размере: растянутый до 48 px системный
+   флажок рисуется пустой рамкой во весь орган и читается как незаполненное
+   поле. Норму области нажатия держит подпись — строка целиком, — и это
+   правильнее: попадают в слова, а не в квадрат. */
+.checkbox { inline-size: 20px; block-size: 20px; flex: none;
+  accent-color: var(--accent); cursor: pointer; }
+.checkline { display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); cursor: pointer; }
 
 /* Полоса подтверждения. Прилипает к низу списка и появляется вместе с первой
    отметкой: до неё она заняла бы место, ничего не сообщая. */
@@ -1507,3 +1518,69 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__pct { flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
 .gantt__fact { font-size: var(--fs-sm); color: var(--ink-3); }
 .gantt__fact--over { color: var(--signal); }
+
+/* --- 5.26 Доска воронки заявок ---------------------------------------------
+   Четыре колонки по стадиям. Колонка показывается всегда, даже пустая:
+   исчезающая вместе с последней заявкой колонка ломает картину воронки —
+   человек перестаёт видеть стадию, на которой у него ничего нет.
+
+   Черта под заголовком нейтральная у всех четырёх. Макет красил её
+   сигнальными цветами, но «--danger» в этом продукте закреплён за сторно,
+   просрочкой и расхождением, и на карточках под чертой стоит красная
+   пилюля просрочки: один цвет означал бы разное в двух сантиметрах друг от
+   друга. Положение в воронке называет порядок колонок, а не цвет.       */
+.leads__head { padding: var(--space-3) var(--space-4); background: var(--surface-2);
+  border-radius: var(--radius-md); gap: var(--space-4); }
+.leadboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5); align-items: start; }
+.leadboard__column { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.leadboard__title { text-align: center; color: var(--ink); }
+.leadboard__count { text-align: center; padding-block-end: var(--space-2);
+  border-block-end: 2px solid var(--line-strong); }
+.leadboard__cards { display: flex; flex-direction: column; gap: var(--space-3);
+  padding-block-start: var(--space-3); }
+.leadboard__empty { padding-block-start: var(--space-3); text-align: center; }
+
+/* Карточка — кнопка, а не ссылка: заявка открывается листом, а не
+   страницей, и ссылка обещала бы адрес, которого нет. */
+.leadcard { display: flex; flex-direction: column; gap: var(--space-2);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-3); text-align: start; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font-family: inherit; color: var(--ink);
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.leadcard:hover { border-color: var(--line-strong); }
+/* Акцентная заливка означает «лист этой карточки открыт», а не важность. */
+.leadcard[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.leadcard__head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); }
+.leadcard__number { font-size: var(--fs-cap); color: var(--ink-3); text-align: start; }
+.leadcard__name { font-weight: 500; }
+.leadcard__guide { text-align: start; }
+.leadcard__pills { gap: var(--space-2); }
+
+/* Лента стадий на узком экране. Четыре колонки в ширину телефона не
+   помещаются, а документ шире окна запрещён: прокручивается лента, как
+   лента разделов приёмки. Счётчики в чипах сохраняют картину воронки
+   целиком — видно, где затор, не листая. */
+.leads__stages { display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin;
+  overscroll-behavior-x: contain; }
+.leads__stage { display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);
+  font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+  white-space: nowrap; cursor: pointer; }
+.leads__stage[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent); }
+
+/* Лист заявки длиннее прочих: в нём стадия, ориентир, задачи и два
+   завершающих действия. Прокрутка внутри листа, а не страницы под ним. */
+.sheet--tall { max-block-size: 88vh; overflow-y: auto; }
+
+@media (max-width: 1023px) {
+  .leadboard { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Вилка занимает больше места, чем одно число: крупный кегль денежной
+   величины рвал бы её на две строки посреди тире. */
+.figure__value--range { font-size: var(--fs-h2); }

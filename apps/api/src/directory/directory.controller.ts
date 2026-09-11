@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   createClientSchema,
+  createRepairTypeSchema,
   createWorkerSchema,
   updateOrganizationSchema,
+  updateRepairTypeSchema,
   type ClientRow,
   type Organization,
+  type RepairType,
   type Unit,
   type WorkerRow,
 } from "@priyomka/contracts";
@@ -56,5 +59,31 @@ export class DirectoryController {
   @Roles("OWNER")
   createWorker(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<WorkerRow[]> {
     return this.directory.createWorker(user, createWorkerSchema.parse(body));
+  }
+
+  /**
+   * Типы ремонта с тарифом за квадратный метр. Справочник руководителя
+   * целиком: тариф — денежная величина, и прорабу она не приходит вовсе.
+   */
+  @Get("repair-types")
+  @Roles("OWNER")
+  repairTypes(@CurrentUser() user: RequestUser): Promise<RepairType[]> {
+    return this.directory.repairTypes(user);
+  }
+
+  @Post("repair-types")
+  @Roles("OWNER")
+  createRepairType(@CurrentUser() user: RequestUser, @Body() body: unknown): Promise<RepairType[]> {
+    return this.directory.createRepairType(user, createRepairTypeSchema.parse(body));
+  }
+
+  @Patch("repair-types/:id")
+  @Roles("OWNER")
+  updateRepairType(
+    @CurrentUser() user: RequestUser,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<RepairType[]> {
+    return this.directory.updateRepairType(user, id, updateRepairTypeSchema.parse(body));
   }
 }

@@ -14,10 +14,6 @@
     <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></symbol>
     <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4"/><path d="M6 12l4 4 4-4"/></symbol>
     <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4"/></symbol>
-    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
-    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
-    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
     <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
@@ -39,11 +35,6 @@
     </div>
     <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
   </nav>
-  <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
-    <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
-    <button type="button" class="themeswitch__option" data-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-light"/></svg><span class="visually-hidden">Светлая тема</span></button>
-    <button type="button" class="themeswitch__option" data-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-dark"/></svg><span class="visually-hidden">Тёмная тема</span></button>
-  </div>
 </header>
 
 <div class="container">
@@ -770,20 +761,6 @@
   for (const fill of document.querySelectorAll("[data-fill]")) {
     fill.style.width = fill.dataset.fill + "%";
   }
-
-  // Переключатель темы: три состояния. Системное снимает признак —
-  // в этом состоянии тёмную тему включает медиазапрос, а не атрибут.
-  document.getElementById("theme").addEventListener("click", (event) => {
-    const option = event.target.closest(".themeswitch__option");
-    if (!option) return;
-    const mode = option.dataset.mode;
-    const root = document.documentElement;
-    if (mode === "system") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", mode);
-    for (const other of document.querySelectorAll(".themeswitch__option")) {
-      other.setAttribute("aria-pressed", String(other === option));
-    }
-  });
 
   document.querySelectorAll(".tabs").forEach((group) => {
     group.addEventListener("click", (event) => {

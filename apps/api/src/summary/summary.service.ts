@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import type { Dashboard } from "@priyomka/contracts";
+import type { Dashboard, LeadStage } from "@priyomka/contracts";
 import {
-  acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, kopecks, milliunits,
+  acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, guidelineRange,
+  kopecks, milliunits, taskState,
   type CalendarEvent, type Kopecks, type Milliunits, type PortfolioProject,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
@@ -139,6 +140,55 @@ export class SummaryService {
     const week = buildWeek(day, [...deadlineEvents, ...importEvents]);
     const feed = await this.projects.eventsFor(user, projects, 8);
 
+    /*
+     * Воронка на первом экране. Руководителю — целиком, прорабу — не
+     * приходит вовсе: заявок он не касается, и пустые счётчики сообщали бы
+     * «заявок нет» вместо «это не ваш контур».
+     *
+     * Просроченные задачи считаются по дате тем же доменом, что на доске:
+     * второй счёт просрочки разошёлся бы с первым на границе суток.
+     */
+    const воронка = user.role !== "OWNER" ? undefined : await (async () => {
+      const заявки = await this.prisma.lead.findMany({
+        where: { orgId: user.orgId, outcome: "OPEN" },
+        select: {
+          stage: true, area: true, rateSnapshot: true, spreadSnapshot: true,
+          tasks: { select: { dueOn: true, doneAt: true } },
+        },
+      });
+      const середины = заявки
+        .map((заявка) => (
+          заявка.area === null || заявка.rateSnapshot === null || заявка.spreadSnapshot === null
+            ? null
+            : guidelineRange(
+              milliunits(заявка.area),
+              kopecks(заявка.rateSnapshot),
+              basisPoints(заявка.spreadSnapshot),
+            )
+        ))
+        .filter((вилка): вилка is NonNullable<typeof вилка> => вилка !== null)
+        /* Середина вилки, а не её край: сумма нижних границ занижала бы
+           портфель воронки, сумма верхних — завышала. */
+        .map((вилка) => (вилка.low + вилка.high) / 2n);
+
+      return {
+        stages: STAGE_LABELS.map(({ stage, label }) => ({
+          stage,
+          label,
+          count: заявки.filter((заявка) => заявка.stage === stage).length,
+        })),
+        open: заявки.length,
+        overdueTasks: заявки.reduce((всего, заявка) => всего + заявка.tasks.filter((task) =>
+          taskState(
+            task.dueOn.toISOString().slice(0, 10),
+            task.doneAt === null ? null : task.doneAt.toISOString().slice(0, 10),
+            day,
+          ) === "просрочена").length, 0),
+        quoted: середины.length,
+        quotedMid: середины.reduce((всего, середина) => всего + середина, 0n).toString(),
+      };
+    })();
+
     return {
       today: day,
       money: {
@@ -166,6 +216,7 @@ export class SummaryService {
         expenses: 0,
       },
       measure,
+      ...(воронка === undefined ? {} : { leads: воронка }),
       deadlines: portfolio.deadlines.slice(0, 5),
       week,
       feed,
@@ -174,3 +225,11 @@ export class SummaryService {
 }
 
 const asDay = (value: Date): string => value.toISOString().slice(0, 10);
+
+/** Подписи стадий воронки. Те же, что отдаёт доска. */
+const STAGE_LABELS: readonly { stage: LeadStage; label: string }[] = [
+  { stage: "FIRST_CONTACT", label: "Первичный контакт" },
+  { stage: "MEETING", label: "Знакомство" },
+  { stage: "DECIDING", label: "Принимают решение" },
+  { stage: "CONTRACT", label: "Согласование договора" },
+];

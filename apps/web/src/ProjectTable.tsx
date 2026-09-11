@@ -33,7 +33,7 @@ export function deadlineCell(deadline: string | null, today: string): React.JSX.
 }
 
 /**
- * Готовность объекта.
+ * Заявленная готовность объекта — та, которую поставил человек.
  *
  * «Не задано» и «0 %» — разные утверждения, и колонка их различает: первое
  * означает, что графика нет, второе — что работа по нему не начата. Процент
@@ -43,6 +43,30 @@ export function deadlineCell(deadline: string | null, today: string): React.JSX.
 export function readinessCell(readiness: number | null): React.JSX.Element {
   if (readiness === null) return <span className="t-muted">не задано</span>;
   return <>{Math.round(readiness / 100)} %</>;
+}
+
+/**
+ * Принятое по приёмке: доля выполненной суммы в итоге работ.
+ *
+ * Стоит отдельной колонкой рядом с заявленной, а не вместо неё. Реестр —
+ * то место, где расхождение видно по всему портфелю сразу: объект, где
+ * заявлено девяносто, а принято три, виден строкой, а не обходом вкладок.
+ *
+ * «Нет сметы» отличается от нуля: ноль означает «ничего не принято», а это
+ * иное утверждение. Перевыработка сигнальным цветом — законное состояние,
+ * которое должно быть заметно.
+ */
+export function acceptedCell(share: number | null): React.JSX.Element {
+  if (share === null) return <span className="t-muted">нет сметы</span>;
+  /* Начатая работа не округляется до нуля. Столбец показывает целые
+     проценты — сотые доли в списке из двадцати строк не читают, — но ноль
+     здесь означает «не принято ничего», и объект с первым принятым пакетом
+     обязан отличаться от объекта, где не принято ни позиции. */
+  if (share > 0 && share < 50) return <>{"<"}&nbsp;1&nbsp;%</>;
+  const целых = Math.round(share / 100);
+  return share > 10_000
+    ? <span className="num--over">{целых}&nbsp;%</span>
+    : <>{целых}&nbsp;%</>;
 }
 
 /**
@@ -98,11 +122,22 @@ export function projectColumns(
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
       ),
     },
+    /* Две величины двумя колонками, а не одной «готовностью»: их складывает
+       разный источник — первую человек, вторую приёмка, — и одна колонка на
+       обе заставляла бы читателя гадать, чьё перед ним число. Сортируется
+       каждая: «где заявлено больше принятого» — это сортировка по второй. */
     {
       key: "readiness",
-      label: "Готовность",
+      label: "Заявлено",
       value: (project) => project.readiness,
       render: (project) => readinessCell(project.readiness),
+      numeric: true,
+    },
+    {
+      key: "accepted",
+      label: "Принято",
+      value: (project) => project.acceptedShare,
+      render: (project) => acceptedCell(project.acceptedShare),
       numeric: true,
     },
     {

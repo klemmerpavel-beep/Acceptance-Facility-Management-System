@@ -124,24 +124,32 @@ describe("значение мимо токена — дефект", () => {
   });
 });
 
-describe("ни один цвет не определяется только внутри медиазапроса", () => {
-  const base = definitionsIn(TOKENS.slice(0, TOKENS.indexOf("@media (prefers-color-scheme")));
-  const mediaBlock = TOKENS.slice(
-    TOKENS.indexOf("@media (prefers-color-scheme"),
-    TOKENS.indexOf(':root[data-theme="dark"]'),
-  );
-  const explicitBlock = TOKENS.slice(TOKENS.indexOf(':root[data-theme="dark"]'));
-
-  it("базовый :root объявляет все токены до переопределения темой", () => {
-    const overridden = [...definitionsIn(mediaBlock).keys(), ...definitionsIn(explicitBlock).keys()];
-    const declaredOnlyInTheme = overridden.filter((name) => !base.has(name));
-    expect(declaredOnlyInTheme).toEqual([]);
+/**
+ * Тема одна — светлая, решением заказчика от 11.09.2026.
+ *
+ * Проверка держит решение механически. Тёмная палитра снимается один раз, а
+ * возвращается по кусочкам: правило под медиазапросом, переопределение под
+ * атрибутом, и продукт снова о двух темах, из которых поддерживается одна.
+ * Цвет определяется ровно один раз, в :root.
+ */
+describe("тема одна: тёмной палитры в продукте нет", () => {
+  it("в токенах нет ни медиазапроса темы, ни переопределения атрибутом", () => {
+    const следы = ["prefers-color-scheme", "data-theme"].filter((след) => TOKENS.includes(след));
+    expect(следы).toEqual([]);
   });
 
-  it("системная тёмная тема и явный переключатель задают одно и то же", () => {
-    const bySystem = definitionsIn(mediaBlock);
-    const byToggle = definitionsIn(explicitBlock);
-    expect(Object.fromEntries(byToggle)).toEqual(Object.fromEntries(bySystem));
+  it("в слое стилей нет ни одного правила, зависящего от темы", () => {
+    const следы = OTHER_SHEETS
+      .filter(({ css }) => css.includes("prefers-color-scheme") || css.includes("data-theme"))
+      .map(({ name }) => name);
+    expect(следы).toEqual([]);
+  });
+
+  /* Без color-scheme браузер у человека с тёмной темой в системе закрасит
+     поля ввода, выпадающие списки и полосы прокрутки тёмным — поверх нашего
+     светлого полотна. Это не украшение, а условие читаемости. */
+  it(":root объявляет светлую цветовую схему", () => {
+    expect(/:root\s*\{[^}]*color-scheme:\s*light\s*;/.test(TOKENS)).toBe(true);
   });
 });
 
@@ -186,8 +194,7 @@ describe("контраст: 7:1 для основного текста и орг
     return found;
   };
 
-  const light = solid(TOKENS.slice(0, TOKENS.indexOf("@media (prefers-color-scheme")));
-  const dark = solid(TOKENS.slice(TOKENS.indexOf(':root[data-theme="dark"]')));
+  const light = solid(TOKENS);
 
   /** Относительная яркость по определению WCAG 2.1. */
   const luminance = (hex: string): number => {
@@ -261,7 +268,7 @@ describe("контраст: 7:1 для основного текста и орг
     ["--danger", "--accent-soft", "просроченный срок под курсором", AA],
     /* Инвертированная поверхность обмерного плана. Пары с --line-inv здесь
        отсутствуют намеренно: это цвет линии, а не заливки, и текста на нём
-       не бывает — числа дали бы 6,51 в светлой теме и 4,68 в тёмной. */
+       не бывает — числа дали бы 6,51. */
     ["--ink-on-inv", "--surface-inv", "основной текст на инвертированной плашке", AAA],
     ["--accent-inv", "--surface-inv", "числа обмера на инвертированной плашке", AAA],
     ["--ink-on-inv-2", "--surface-inv", "подписи на инвертированной плашке", AA],
@@ -269,18 +276,16 @@ describe("контраст: 7:1 для основного текста и орг
 
   /**
    * Отделение мягкой заливки от поверхности. Проверка контраста смотрит на
-   * пару «текст на фоне» и слепа к паре «заливка на заливке»: в тёмной теме
-   * --accent-soft давал 1,02 к --surface, и незакрашенная часть отрезка
-   * графика, подсветка строки реестра и карточка «сегодня» пропадали
-   * целиком, хотя текст на них проходил 7:1. Порог 1,10 — ниже самой
+   * пару «текст на фоне» и слепа к паре «заливка на заливке»: мягкая
+   * заливка может слиться с поверхностью, и незакрашенная часть отрезка
+   * графика, подсветка строки реестра и карточка «сегодня» пропадут
+   * целиком, хотя текст на них проходит 7:1. Порог 1,10 — ниже самой
    * слабой действующей пары (1,128) и выше того, что различить нельзя.
    */
   const SURFACE_SEPARATION = 1.1;
 
-  it.each([
-    ["светлая", light],
-    ["тёмная", dark],
-  ] as const)("%s тема: мягкая заливка отделяется от поверхности", (_name, palette) => {
+  it.each([["светлая", light]] as const)(
+    "%s тема: мягкая заливка отделяется от поверхности", (_name, palette) => {
     const surface = palette.get("--surface");
     if (surface === undefined) throw new Error("В палитре нет --surface");
     const слабые: string[] = [];
@@ -292,10 +297,7 @@ describe("контраст: 7:1 для основного текста и орг
     expect(слабые).toEqual([]);
   });
 
-  const themes: readonly (readonly [string, Map<string, string>])[] = [
-    ["светлая", light],
-    ["тёмная", dark],
-  ];
+  const themes: readonly (readonly [string, Map<string, string>])[] = [["светлая", light]];
 
   it.each(themes)("%s тема: каждая пара проходит норму", (_name, theme) => {
     const failures: string[] = [];

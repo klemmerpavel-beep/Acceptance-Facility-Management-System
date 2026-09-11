@@ -58,17 +58,6 @@ export function Sprite(): React.JSX.Element {
         <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4" /><path d="M6 12l4 4 4-4" /></symbol>
         <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4" /></symbol>
         <symbol id="i-sort-desc" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4" /></symbol>
-
-        {/* Тема: доля закраски квадрата — половина, пусто, целиком. */}
-        <symbol id="i-theme-system" viewBox="0 0 20 20">
-          <path d="M3 3h14v14H3z" />
-          <path d="M10 3h7v14h-7z" fill="currentColor" stroke="none" />
-        </symbol>
-        <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z" /></symbol>
-        <symbol id="i-theme-dark" viewBox="0 0 20 20">
-          <path d="M3 3h14v14H3z" />
-          <path d="M3 3h14v14H3z" fill="currentColor" stroke="none" />
-        </symbol>
       </defs>
     </svg>
   );

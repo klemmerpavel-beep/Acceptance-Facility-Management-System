@@ -71,6 +71,8 @@ const snapshot = {
   // руководителя и прораба совпадает. Различается только право вести.
   tranches: await owner("/projects/R-99/tranches"),
   imports,
+  "leads-owner": await owner("/leads?open=false"),
+  "repair-types": await owner("/repair-types"),
   preview,
   // Результат импорта — запись о том импорте, который действительно был:
   // повторять запись ради снимка значило бы плодить редакции сметы.

@@ -1,7 +1,8 @@
 import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
-  importPreviewResponseSchema, importRecordSchema, importResultSchema, measureViewSchema,
+  importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
+  leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
@@ -13,6 +14,9 @@ import {
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
   type UpdateEstimateItem, type UpdateSupervision,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
+  type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
+  type LeadBoard, type LeadCard, type LoseLead, type RepairType,
+  type UpdateLead, type UpdateLeadTask, type UpdateRepairType,
 } from "@priyomka/contracts";
 import { z } from "zod";
 
@@ -76,6 +80,9 @@ const json = (body: unknown): RequestInit => ({
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
 });
+
+/** Тот же конверт, но правкой: отличается только глаголом. */
+const patch = (body: unknown): RequestInit => ({ ...json(body), method: "PATCH" });
 
 /**
  * Запрос кода подтверждения. Ответ одинаков для существующего и
@@ -326,3 +333,51 @@ export const closeTranche = (code: string, id: string, input: CloseTranche): Pro
 
 export const payTranche = (code: string, id: string): Promise<TrancheView> =>
   request(`/projects/${code}/tranches/${id}/payment`, trancheViewSchema, json({}));
+
+/* --- заявки ---------------------------------------------------------------
+   Каждый пишущий вызов возвращает доску целиком: смена стадии переносит
+   карточку между колонками и меняет счётчики, и собирать это на экране
+   значило бы завести вторую копию правил воронки.
+
+   Превращение, отказ и правка задач объявлены отдельными вызовами, а не
+   правкой полей: это разные события с разными отказами. */
+
+export const fetchLeads = (open: boolean): Promise<LeadBoard> =>
+  request(`/leads?open=${String(open)}`, leadBoardSchema);
+
+export const fetchLeadEvents = (id: string): Promise<ProjectEvent[]> =>
+  request(`/leads/${id}/events`, z.array(eventSchema));
+
+export const createLead = (input: CreateLead): Promise<LeadCard> =>
+  request("/leads", leadCardSchema, json(input));
+
+export const updateLead = (id: string, input: UpdateLead): Promise<LeadCard> =>
+  request(`/leads/${id}`, leadCardSchema, patch(input));
+
+export const convertLead = (id: string, input: ConvertLead): Promise<LeadCard> =>
+  request(`/leads/${id}/conversion`, leadCardSchema, json(input));
+
+export const loseLead = (id: string, input: LoseLead): Promise<LeadCard> =>
+  request(`/leads/${id}/loss`, leadCardSchema, json(input));
+
+export const addLeadTask = (id: string, input: CreateLeadTask): Promise<LeadCard> =>
+  request(`/leads/${id}/tasks`, leadCardSchema, json(input));
+
+export const setLeadTask = (
+  id: string,
+  taskId: string,
+  input: UpdateLeadTask,
+): Promise<LeadCard> =>
+  request(`/leads/${id}/tasks/${taskId}`, leadCardSchema, patch(input));
+
+/* Справочник тарифов. Тариф — денежная величина, и справочник целиком
+   принадлежит руководителю. */
+
+export const fetchRepairTypes = (): Promise<RepairType[]> =>
+  request("/repair-types", z.array(repairTypeSchema));
+
+export const createRepairType = (input: CreateRepairType): Promise<RepairType[]> =>
+  request("/repair-types", z.array(repairTypeSchema), json(input));
+
+export const updateRepairType = (id: string, input: UpdateRepairType): Promise<RepairType[]> =>
+  request(`/repair-types/${id}`, z.array(repairTypeSchema), patch(input));

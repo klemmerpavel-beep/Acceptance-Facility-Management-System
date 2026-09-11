@@ -51,6 +51,10 @@ export function Acceptance({
   const [busy, setBusy] = useState(false);
   const [current, setCurrent] = useState<string | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
+  /* Поиск и фильтр — состояние вида, а не данных: сервер их не знает и
+     перезагрузка вкладки их не трогает. */
+  const [запрос, setЗапрос] = useState("");
+  const [толькоОстаток, setТолькоОстаток] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reversing, setReversing] = useState<{ line: AcceptanceLine; brigade: string } | null>(null);
 
@@ -102,6 +106,26 @@ export function Acceptance({
     ? []
     : selected.positions.filter((position) => picked.includes(position.id));
 
+  /*
+   * Раздел сметы держит до нескольких десятков позиций, и прораб ищет в нём
+   * одну — стоя на объекте, с телефона в руке. Прокрутка списка большим
+   * пальцем была единственным способом её найти.
+   *
+   * Отбор идёт по подстроке без учёта регистра: названия в смете писаны как
+   * попало («Штукатурка стен» и «ШТУКАТУРКА ОТКОСОВ» в одном разделе), и
+   * точное совпадение не нашло бы ничего.
+   */
+  const искомое = запрос.trim().toLowerCase();
+  const видимые = (selected?.positions ?? []).filter((position) => {
+    if (толькоОстаток && BigInt(position.remaining) === 0n) return false;
+    return искомое === "" || position.name.toLowerCase().includes(искомое);
+  });
+  /* Отметка переживает отбор: фильтр — это взгляд, а не снятие отметки.
+     Но молчать об отмеченном, которого не видно, нельзя — полоса называет
+     число, и человек обязан понимать, откуда оно взялось. */
+  const скрытоОтмеченных = выбранные.length
+    - видимые.filter((position) => picked.includes(position.id)).length;
+
   return (
     <div className="accept">
       <div className="row">
@@ -150,7 +174,47 @@ export function Acceptance({
               на вкладке «Работа»: начисление адресуется бригаде этапа.
             </p>
           )}
-          {selected.positions.map((position) => {
+          {/* Органы отбора стоят над списком, а не над разделами: ищут внутри
+              раздела, и поле, оторванное от того, что оно отбирает, читается
+              как поиск по всему объекту. */}
+          <div className="accept__filter">
+            <label className="datatable__search">
+              <svg className="icon" aria-hidden="true"><use href="#i-search" /></svg>
+              <span className="visually-hidden">Поиск позиции в разделе</span>
+              <input
+                id="accept-search"
+                type="search"
+                value={запрос}
+                onChange={(event) => { setЗапрос(event.target.value); }}
+                placeholder="Поиск позиции в разделе"
+              />
+            </label>
+            <label className="checkline">
+              <input
+                id="accept-remaining-only"
+                type="checkbox"
+                className="checkbox"
+                checked={толькоОстаток}
+                onChange={(event) => { setТолькоОстаток(event.target.checked); }}
+              />
+              <span className="t-sm">Только с остатком</span>
+            </label>
+            <span className="t-sm t-secondary num">
+              {видимые.length} / {selected.positions.length}
+            </span>
+          </div>
+
+          {видимые.length === 0 && (
+            /* Пустой отбор объясняется, а не показывается пустотой: человек
+               должен понимать, это раздел пуст или запрос ничего не нашёл. */
+            <p className="empty__text">
+              {selected.positions.length === 0
+                ? "В разделе нет позиций."
+                : "Ни одна позиция раздела не подходит под отбор. Измените запрос или снимите фильтр."}
+            </p>
+          )}
+
+          {видимые.map((position) => {
             const остаток = BigInt(position.remaining);
             const отмечена = picked.includes(position.id);
             const можно = editable && selected.stage?.brigade != null && остаток > 0n;
@@ -192,7 +256,10 @@ export function Acceptance({
 
       {выбранные.length > 0 && (
         <div className="accept__bar">
-          <span className="t-sm">Отмечено позиций: {выбранные.length}</span>
+          <span className="t-sm">
+            Отмечено позиций: {выбранные.length}
+            {скрытоОтмеченных > 0 && ` · ${скрытоОтмеченных} не видно из-за отбора`}
+          </span>
           <button
             type="button"
             className="btn btn--primary"

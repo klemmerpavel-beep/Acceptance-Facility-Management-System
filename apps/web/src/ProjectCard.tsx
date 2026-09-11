@@ -24,32 +24,69 @@ import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
-/** Кольцо готовности. Считается по сумме принятых позиций к итогу сметы. */
 /**
- * Шкала готовности: размеченная линейка с делениями по четвертям.
+ * Шкала объекта: принятое и заявленное на одной линейке.
  *
  * Не кольцо. Кольцевая диаграмма из одного значения ничего не показывает
  * сверх напечатанной внутри неё доли, зато выглядит как инфографика.
  * Линейка с делениями читается как измерение — тем же движением, каким
  * читают рулетку, и это язык предметной области продукта.
+ *
+ * Меряет шкала **принятое**: приёмка — единственный источник факта
+ * выполнения (БП-01), и слово «принято» закреплено за ней. Заявленное
+ * стоит отметкой на той же линейке, а не вторым заполнением: это не
+ * измерение, а утверждение человека, и на измерительной шкале ему место
+ * риски, а не полосы. Обе величины сравнимы только потому, что стоят на
+ * одной шкале, и расхождение между ними — то, ради чего экран их показывает.
  */
-function ReadinessScale({ share }: { share: number }): React.JSX.Element {
+function ReadinessScale({
+  accepted,
+  declared,
+}: {
+  /** Сотые доли процента, как их отдаёт сервер. */
+  accepted: number | null;
+  declared: number | null;
+}): React.JSX.Element {
+  /* Заполнение подрезается сотней, подпись — нет: перевыработка законна и
+     должна быть видна числом, но полоса длиннее линейки сломала бы саму
+     меру. Тот же приём, что у заполнения перевыработанного транша. */
+  const fill = accepted === null ? 0 : Math.min(accepted / 100, 100);
+  const mark = declared === null ? null : Math.min(declared / 100, 100);
+
   return (
     <div className="scale scale--on-accent">
       <div
         className="scale__track"
         role="img"
-        aria-label={`Принято ${share} процентов итога сметы`}
+        aria-label={accepted === null
+          ? "Сметы нет: принятое считать не по чему"
+          : `Принято ${formatPercent(BigInt(accepted))} итога работ`}
       >
-        <span className="scale__fill" style={{ inlineSize: `${share}%` }} />
+        <span className="scale__fill" style={{ inlineSize: `${fill}%` }} />
         {[25, 50, 75].map((tick) => (
           <span key={tick} className="scale__tick" style={{ insetInlineStart: `${tick}%` }} />
         ))}
+        {mark !== null && (
+          <span className="scale__claim" style={{ insetInlineStart: `${mark}%` }} />
+        )}
       </div>
       <p className="scale__legend">
         <span>принято</span>
-        <span className="scale__value">{share} %</span>
+        <span className={accepted !== null && accepted > 10_000
+          ? "scale__value scale__value--over"
+          : "scale__value"}
+        >
+          {accepted === null ? "—" : formatPercent(BigInt(accepted))}
+        </span>
       </p>
+      {/* Заявленного нет — строки нет: график не заведён, и прочерк здесь
+          сообщал бы о величине, которой никто не обещал. */}
+      {declared !== null && (
+        <p className="scale__legend">
+          <span>заявлено</span>
+          <span className="scale__value">{formatPercent(BigInt(declared))}</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -246,6 +283,31 @@ export function ProjectCard({
               </span>
             </div>
 
+            {/* Ориентир, названный на заявке до выезда, — рядом с итогом
+                сметы: в этом соседстве весь его смысл. Видно, на сколько
+                промахнулись, когда смета готова. Объект заведён руками —
+                строки нет: ориентира никто не называл. */}
+            {project.guideline !== null && (
+              <div className="figure">
+                <span className="figure__label">
+                  Ориентир по заявке № {project.guideline.leadNumber}
+                </span>
+                <span className="figure__value figure__value--range">
+                  {money(project.guideline.low)} — {money(project.guideline.high)}
+                </span>
+                <span className="figure__note">
+                  {money(project.guideline.rate)} за м² ±
+                  {formatPercent(BigInt(project.guideline.spread))}
+                  {" · "}
+                  {project.guideline.verdict === null
+                    ? "сметы ещё нет — сверять не с чем"
+                    : project.guideline.verdict.verdict === "внутри"
+                      ? "смета внутри вилки"
+                      : `смета ${project.guideline.verdict.verdict} вилки на ${money(project.guideline.verdict.delta)}`}
+                </span>
+              </div>
+            )}
+
             {/* Остаток текущего транша — та величина, ради которой руководитель
                 открывает систему вечером (объём полевого испытания, решение
                 № 3). Полоса с тремя величинами живёт на своей вкладке: в
@@ -299,10 +361,12 @@ export function ProjectCard({
                     : plural(deadline.days, "день", "дня", "дней")}
                 </span>
               </div>
-              {/* Готовность показывается только тогда, когда график заведён.
-                  Ноль означал бы «работа не начата», а не «мы не знаем». */}
-              {project.readiness !== null && project.readiness > 0 && (
-                <ReadinessScale share={project.readiness / 100} />
+              {/* Шкала показывается, когда есть хоть одна из величин. Прежде
+                  условие смотрело только на заявленную, и объект с приёмкой,
+                  но без графика не показывал ничего — при том, что принятое
+                  как раз и есть то, ради чего продукт заведён. */}
+              {(project.acceptedShare !== null || project.readiness !== null) && (
+                <ReadinessScale accepted={project.acceptedShare} declared={project.readiness} />
               )}
             </div>
 

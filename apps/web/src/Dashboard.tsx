@@ -6,6 +6,7 @@ import type {
   ProjectSummary,
 } from "@priyomka/contracts";
 import { coversDay } from "@priyomka/domain";
+import { formatKopecks } from "@priyomka/ui";
 import { fetchDashboard, errorMessage } from "./api.js";
 import { PlanStrip } from "./PlanStrip.js";
 import { ProjectTable } from "./ProjectTable.js";
@@ -271,12 +272,14 @@ export function Dashboard({
   projects,
   today,
   onOpenProjects,
+  onOpenLeads,
   onOpen,
   onAdd,
 }: {
   projects: ProjectSummary[];
   today: string;
   onOpenProjects: (status: ProjectStatus | null) => void;
+  onOpenLeads: () => void;
   onOpen: (project: ProjectSummary) => void;
   onAdd: () => void;
 }): React.JSX.Element {
@@ -349,6 +352,11 @@ export function Dashboard({
   /* Предел столбиков ряда статусов. От размера портфеля доли вышли бы по
      12-50 % и читались как четыре обрубка одной длины. */
   const наибольшийСтатус = data.statuses.reduce((max, row) => Math.max(max, row.count), 0);
+  /* Предел столбика — наибольшая стадия воронки, а не число всех заявок:
+     доля от портфеля на четырёх стадиях даёт четыре одинаково коротких
+     столбика и не показывает, где затор. */
+  const наибольшаяСтадия = (data.leads?.stages ?? [])
+    .reduce((max, row) => Math.max(max, row.count), 0);
 
   /* Загрузка недели: сколько объектов в работе в каждый день. День без
      событий сам по себе не сообщает ничего; «в работе четыре» сообщает.
@@ -458,6 +466,48 @@ export function Dashboard({
         </div>
         <PlanStrip projects={projects} today={today} onOpen={onOpen} />
       </section>
+
+      {/* Воронка на первом экране. Первый экран отвечает на вопрос «что горит
+          сегодня», и заявка с просроченной задачей горит сильнее объекта со
+          сроком через неделю. Прорабу блок не приходит вовсе — как и сам
+          раздел: пустые счётчики сообщали бы «заявок нет» вместо «это не
+          ваш контур». */}
+      {data.leads !== undefined && (
+        <section className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Воронка заявок</h2>
+            <p className="t-sm t-muted">
+              {data.leads.open} {plural(data.leads.open, "открытая", "открытые", "открытых")}
+              {data.leads.quoted > 0 && (
+                <>
+                  {" · "}
+                  {data.leads.quoted} с ориентиром на {formatKopecks(BigInt(data.leads.quotedMid))} по серединам вилок
+                </>
+              )}
+            </p>
+          </div>
+          <div className="counterstrip">
+            {data.leads.stages.map((row) => (
+              <Counter
+                key={row.stage}
+                label={row.label}
+                value={row.count}
+                bar={{ value: row.count, limit: наибольшаяСтадия }}
+                onClick={onOpenLeads}
+              />
+            ))}
+            {/* Просроченные задачи вынесены отдельной строкой сигнальным
+                цветом: это единственное в воронке, что требует действия
+                сегодня, а не наблюдения. */}
+            <Counter
+              label="Просроченные задачи"
+              value={data.leads.overdueTasks}
+              {...(data.leads.overdueTasks > 0 ? { tone: "danger" as const } : {})}
+              onClick={onOpenLeads}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="split">
         <div className="stack">

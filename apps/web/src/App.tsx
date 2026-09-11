@@ -4,13 +4,13 @@ import { fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, l
 import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
 import { Contacts } from "./Contacts.js";
+import { Leads } from "./Leads.js";
 import { NewProjectSheet } from "./NewProjectSheet.js";
 import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
 import { ProjectCard } from "./ProjectCard.js";
 import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
 import { Settings } from "./Settings.js";
-import { ThemeSwitch } from "./ThemeSwitch.js";
 import { useModalDialog } from "./modal.js";
 
 type State =
@@ -105,6 +105,27 @@ export function App(): React.JSX.Element {
   };
 
   /**
+   * Открытие объекта по коду. Нужно воронке: превращённая заявка ведёт на
+   * заведённый объект, а список объектов к этому моменту уже устарел —
+   * объекта в нём ещё нет.
+   */
+  const открытьОбъект = (code: string): void => {
+    fetchProjects()
+      .then((projects) => {
+        const найден = projects.find((project) => project.code === code) ?? null;
+        if (найден === null) return;
+        setState((current) => (current.kind === "signed" ? { ...current, projects } : current));
+        setSection("projects");
+        setOpened(найден);
+      })
+      .catch(() => {
+        /* Объект заведён, но список не обновился: раздел всё равно
+           открывается — оттуда объект достижим руками. */
+        setSection("projects");
+      });
+  };
+
+  /**
    * Шапка: знак слева, разделы пилюлями по центру, блок пользователя и
    * колокол справа. Раскладка эталона.
    *
@@ -174,12 +195,6 @@ export function App(): React.JSX.Element {
         <span className="appbar__name">{state.user.name}</span>
         <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
       </button>
-      {/* Переключатель темы вернулся в шапку. Прежде он стоял только в
-          настройках — «тему выбирают один раз», — но выбирают её ровно
-          тогда, когда в текущей ничего не видно, и путь в два перехода
-          через блок работающего в этот момент не находят. До 768 px
-          он скрыт стилями: там шапка держит три органа управления. */}
-      <ThemeSwitch />
       <button
         type="button"
         className="appbar__bell"
@@ -272,6 +287,7 @@ export function App(): React.JSX.Element {
             projects={state.projects}
             today={today}
             onOpenProjects={openProjects}
+            onOpenLeads={() => { setSection("requests"); }}
             onOpen={setOpened}
             onAdd={() => { setAdding(true); }}
           />
@@ -290,6 +306,23 @@ export function App(): React.JSX.Element {
               onAdd={() => { setAdding(true); }}
             />
           </main>
+        </>
+      )}
+      {/* Заявки — раздел руководителя: прорабу маршруты закрыты ролью, и
+          показывать ему доску, которая ответит отказом, незачем. */}
+      {section === "requests" && (
+        <>
+          {cover("Заявки", ["Главная", "Заявки"])}
+          {state.user.role === "OWNER" ? (
+            <Leads onOpenProject={открытьОбъект} />
+          ) : (
+            <div className="empty">
+              <p className="empty__title">Раздел ведёт руководитель</p>
+              <p className="empty__text">
+                Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
+              </p>
+            </div>
+          )}
         </>
       )}
       {section === "contacts" && (

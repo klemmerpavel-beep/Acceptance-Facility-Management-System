@@ -85,10 +85,10 @@ export function TrancheSheet({
             </span>
           </label>
 
-          <label className="row">
+          <label className="checkline">
             <input
               type="checkbox"
-              className="accept__check"
+              className="checkbox"
               checked={prepayment}
               onChange={(event) => { setPrepayment(event.target.checked); }}
             />

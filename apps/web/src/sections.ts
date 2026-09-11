@@ -22,7 +22,7 @@ export const SECTIONS = [
 ] as const;
 
 /** Разделы, за которыми ещё нет экрана: ведут на «Что дальше». */
-export const PLANNED_SECTIONS = ["requests", "accounting"] as const;
+export const PLANNED_SECTIONS = ["accounting"] as const;
 
 export type Section = (typeof SECTIONS)[number]["key"] | "settings" | "roadmap";
 
@@ -67,12 +67,6 @@ export const ROADMAP: readonly {
     where: "вкладка объекта",
     stage: "отложенный контур",
     text: "Акты из принятых позиций в двух видах — клиентском и внутреннем. Акт закрывает транш; ждёт бланка с реквизитами исполнителя. В клиентском виде внутренних величин нет по составу документа.",
-  },
-  {
-    title: "Заявки",
-    where: "раздел",
-    stage: "отложенный контур",
-    text: "Воронка: первичный контакт, знакомство, принимают решение, согласование договора. Заявка превращается в заказчика и объект одним действием.",
   },
   {
     title: "Бухгалтерия",

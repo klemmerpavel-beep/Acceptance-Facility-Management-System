@@ -260,7 +260,14 @@ if (homeFeed > 9) note("лента событий", `строк ${homeFeed}: п�
  * Число, по которому нельзя перейти, бесполезно (норматив 07_IA, правило 4).
  * Счётчик статуса ведёт в список с наложенным фильтром.
  */
-const firstCounter = page.locator("button.counterstrip__item").first();
+/* Счётчик берётся из блока статусов поимённо, а не «первый на странице»:
+   первым стал счётчик воронки, и проверка молча ушла бы проверять переход
+   в другой раздел. Проверка обязана называть, что именно проверяет. */
+const firstCounter = page.locator("section")
+  .filter({ hasText: "Объекты по статусам" })
+  .last()
+  .locator("button.counterstrip__item")
+  .first();
 if ((await firstCounter.count()) === 0) {
   note("главная", "ни один счётчик статуса не ведёт в отфильтрованный список");
 } else {
@@ -286,8 +293,23 @@ if (!строкиТаблицы.some((row) => row.includes("не задано"))
   note("главная", "объект без графика не показал «не задано» в готовности");
 }
 const колонки = await page.locator(".datatable__table thead th").allTextContents();
-for (const нужна of ["Готовность", "Срок", "Статус", "Адрес"]) {
+for (const нужна of ["Заявлено", "Принято", "Срок", "Статус", "Адрес"]) {
   if (!колонки.some((c) => c.includes(нужна))) note("главная", `в таблице нет колонки «${нужна}»`);
+}
+/* Величин две, и они разные. Одна колонка «Готовность» на обе заставляла бы
+   гадать, чьё перед ней число: заявленное ставит человек, принятое считает
+   приёмка. Проверяется на строке R-99, где они на стенде расходятся. */
+if (колонки.some((c) => c.trim() === "Готовность")) {
+  note("главная", "колонка «Готовность» не говорит, чья это величина");
+}
+const строкаR99Реестра = page.locator(".datatable__table tbody tr")
+  .filter({ has: page.locator('.code-badge:text-is("R-99")') }).first();
+const заявленоРеестр = (await строкаR99Реестра
+  .locator("td").nth(колонки.findIndex((c) => c.includes("Заявлено"))).textContent()) ?? "";
+const принятоРеестр = (await строкаR99Реестра
+  .locator("td").nth(колонки.findIndex((c) => c.includes("Принято"))).textContent()) ?? "";
+if (заявленоРеестр.trim() === принятоРеестр.trim()) {
+  note("главная", `заявлено и принято совпали («${заявленоРеестр.trim()}»): показано одно число дважды`);
 }
 
 /**
@@ -403,6 +425,55 @@ await page.waitForSelector(".stamp");
 await page.waitForSelector(".metric__value");
 await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
+
+/*
+ * Шкала объекта показывает две величины и не выдаёт одну за другую.
+ *
+ * Прежде она печатала заявленную готовность графика под словом «принято»:
+ * 85,57 % там, где по приёмке принято меньше процента. Слово «принято» в
+ * этом продукте закреплено за приёмкой — единственным источником факта
+ * выполнения (БП-01), и отдавать его величине, которую поставил человек,
+ * значит обесценить его на всех остальных экранах.
+ */
+const шкала = await page.evaluate(() => {
+  const легенды = [...document.querySelectorAll(".tile--accent .scale__legend")];
+  return {
+    подписи: легенды.map((строка) => строка.firstElementChild?.textContent?.trim() ?? ""),
+    значения: легенды.map((строка) => строка.querySelector(".scale__value")?.textContent?.trim() ?? ""),
+    отметка: document.querySelectorAll(".tile--accent .scale__claim").length,
+    ярлык: document.querySelector(".tile--accent .scale__track")?.getAttribute("aria-label") ?? "",
+  };
+});
+if (шкала.подписи.join("|") !== "принято|заявлено") {
+  note("шкала объекта", `подписи «${шкала.подписи.join("|")}» вместо «принято|заявлено»`);
+}
+if (шкала.значения[0] === шкала.значения[1]) {
+  note("шкала объекта", `принято и заявлено совпали («${шкала.значения[0]}»): показано одно число дважды`);
+}
+/* Заявленное — риска поперёк линейки, а не второе заполнение: это
+   утверждение человека, а не измерение. */
+if (шкала.отметка !== 1) {
+  note("шкала объекта", `отметок заявленного ${шкала.отметка} вместо одной`);
+}
+/* Ярлык для чтеца экрана обязан называть ту же величину, что и заполнение:
+   расхождение видимой подписи и озвученной — дефект, который глазами не
+   ловится вовсе. */
+if (!шкала.ярлык.startsWith("Принято")) {
+  note("шкала объекта", `чтецу экрана шкала называется «${шкала.ярлык}»`);
+}
+/* Принятое сходится с вкладкой приёмки: два места, одно число. */
+const принятоПоВиду = await page.evaluate(async () => {
+  const вид = await fetch("/api/projects/R-99/acceptance", { credentials: "include" })
+    .then((ответ) => ответ.json());
+  const смета = await fetch("/api/projects/R-99/estimate", { credentials: "include" })
+    .then((ответ) => ответ.json());
+  return Number((BigInt(вид.totals.accepted) * 10_000n * 2n / BigInt(смета.totals.works) + 1n) / 2n);
+});
+const наШкале = Number((шкала.значения[0] ?? "").replace(",", ".").replace(/[^\d.]/gu, ""));
+if (Math.abs(наШкале * 100 - принятоПоВиду) > 1) {
+  note("шкала объекта",
+    `на шкале принято ${наШкале} %, а по вкладке приёмки ${принятоПоВиду / 100} %`);
+}
 
 /*
  * Штамп объекта — подпись продукта, и проверяется он по составу, а не по
@@ -873,13 +944,187 @@ for (const label of navWanted) {
  * Это правило пришло на смену прежнему запрету пунктов без содержания, и
  * без проверки оно продержится ровно до первой правки навигации.
  */
-for (const label of ["Заявки", "Бухгалтерия"]) {
+for (const label of ["Бухгалтерия"]) {
   await page.click(`.appbar__link:has-text("${label}")`);
   await page.waitForTimeout(400);
   if ((await page.locator(".roadmap__item").count()) === 0) {
     note("навигация", `раздел «${label}» не ведёт на «Что дальше»`);
   }
 }
+/* «Заявки» перестали быть разделом без экрана 11.09.2026: у них своя доска.
+   Проверяется именно это — пункт, который снова привёл бы на «Что дальше»,
+   означал бы, что раздел выключили правкой навигации. */
+await page.click('.appbar__link:has-text("Заявки")');
+await page.waitForTimeout(400);
+if ((await page.locator(".roadmap__item").count()) > 0) {
+  note("навигация", "раздел «Заявки» ведёт на «Что дальше», а у него есть свой экран");
+}
+/*
+ * Воронка заявок.
+ *
+ * Доска показывает все четыре стадии, даже пустые: колонка, исчезающая
+ * вместе с последней заявкой, ломает картину воронки — человек перестаёт
+ * видеть стадию, на которой у него ничего нет.
+ */
+/* Воронка на первом экране. Первый экран отвечает на вопрос «что горит
+   сегодня», и заявка с просроченной задачей горит сильнее объекта со сроком
+   через неделю. Счётчики сводки обязаны сойтись с колонками доски. */
+await page.click('.appbar__link:has-text("Главная")');
+await page.waitForSelector(".statcard");
+const воронкаНаГлавной = page.locator("section").filter({ hasText: "Воронка заявок" }).last();
+if ((await воронкаНаГлавной.count()) === 0) {
+  note("сводка", "на первом экране нет блока воронки заявок");
+} else {
+  const строкиВоронки = await воронкаНаГлавной.locator(".counterstrip__item").count();
+  /* Четыре стадии и строка просроченных задач. */
+  if (строкиВоронки !== 5) {
+    note("сводка", `в блоке воронки ${строкиВоронки} строк вместо пяти`);
+  }
+  const просроченные = воронкаНаГлавной.locator(".counterstrip__item")
+    .filter({ hasText: "Просроченные задачи" });
+  if ((await просроченные.count()) === 0) {
+    note("сводка", "в блоке воронки нет строки просроченных задач");
+  }
+  await step("воронка на первом экране", "40b-voronka-svodka.png");
+}
+
+await page.click('.appbar__link:has-text("Заявки")');
+await page.waitForSelector(".leadboard__column");
+const колонокВоронки = await page.locator(".leadboard__column").count();
+if (колонокВоронки !== 4) note("воронка", `колонок ${колонокВоронки} вместо четырёх`);
+
+const заголовкиВоронки = (await page.locator(".leadboard__title").allTextContents())
+  .map((текст) => текст.trim());
+const стадииВоронки = ["Первичный контакт", "Знакомство", "Принимают решение", "Согласование договора"];
+if (заголовкиВоронки.join("|") !== стадииВоронки.join("|")) {
+  note("воронка", `стадии «${заголовкиВоронки.join(", ")}»`);
+}
+
+/* Счётчик колонки считает свою колонку, а не всю доску. */
+for (const [индекс, стадия] of стадииВоронки.entries()) {
+  const колонка = page.locator(".leadboard__column").nth(индекс);
+  const карточек = await колонка.locator(".leadcard").count();
+  const подпись = (await колонка.locator(".leadboard__count").textContent()) ?? "";
+  if (!подпись.trim().startsWith(String(карточек))) {
+    note("воронка", `у стадии «${стадия}» счётчик «${подпись.trim()}», а карточек ${карточек}`);
+  }
+}
+
+/* Черта под заголовком нейтральная: сигнальный цвет в продукте закреплён за
+   сторно, просрочкой и расхождением, и на карточках под чертой стоит
+   красная пилюля просрочки. Один цвет не может означать разное в двух
+   сантиметрах друг от друга. */
+const цветаВоронки = await page.evaluate(() => {
+  const узел = document.querySelector(".leadboard__count");
+  /* Токен приходит записью «#A5150D», а вычисленный цвет — «rgb(165, 21, 13)».
+     Сравнивать их как строки бесполезно: проверка проходила бы всегда.
+     Токен красится на пробном узле и снимается уже вычисленным. */
+  const проба = document.createElement("span");
+  проба.style.color = "var(--danger)";
+  document.body.append(проба);
+  const сигнальный = getComputedStyle(проба).color;
+  проба.remove();
+  return {
+    черта: узел === null ? "" : getComputedStyle(узел).borderBottomColor,
+    сигнальный,
+  };
+});
+if (цветаВоронки.черта === цветаВоронки.сигнальный) {
+  note("воронка", "черта стадии окрашена сигнальным цветом, закреплённым за просрочкой");
+}
+
+/* Пилюля просрочки несёт текст, а не только цвет: смысл в этом продукте
+   никогда не передаётся одним цветом. */
+const просрочка = page.locator(".leadcard .pill--danger").first();
+if ((await просрочка.count()) === 0) {
+  note("воронка", "на стенде нет заявки с просроченной задачей: пилюлю не проверить");
+} else if (!/просроч/u.test((await просрочка.textContent()) ?? "")) {
+  note("воронка", `пилюля просрочки без подписи: «${(await просрочка.textContent()) ?? ""}»`);
+}
+
+await step("воронка заявок", "41-zayavki.png");
+await overflow("воронка, 1440");
+
+/* Переключатель «Открытые / Все». На стенде закрытых заявок нет, поэтому
+   проверяется не рост числа карточек, а то, что выбор вообще применяется:
+   число в подписи «Все» не меньше числа в подписи «Открытые». */
+const подписиОтбора = (await page.locator("#leads-scope option").allTextContents())
+  .map((текст) => Number(/(\d+)/u.exec(текст)?.[1] ?? "-1"));
+if ((подписиОтбора[1] ?? -1) < (подписиОтбора[0] ?? 0)) {
+  note("воронка", `«Все» (${подписиОтбора[1]}) меньше «Открытых» (${подписиОтбора[0]})`);
+}
+
+/*
+ * Лист заявки: ориентир считается сервером и приходит вилкой. Проверяется
+ * независимым пересчётом площадь × тариф ± отклонение — то же правило, по
+ * которому сверяется доля принятого.
+ */
+const сОриентиром = page.locator(".leadcard").filter({ has: page.locator(".leadcard__guide") }).first();
+if ((await сОриентиром.count()) === 0) {
+  note("воронка", "ни одна карточка не несёт вилку ориентира");
+} else {
+  await сОриентиром.click();
+  await page.waitForSelector('.sheet[role="dialog"]');
+  const листЗаявки = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+  for (const нужно of ["Ориентир цены", "Тип ремонта", "Общая площадь", "Превратить в объект"]) {
+    if (!листЗаявки.includes(нужно)) note("лист заявки", `нет блока «${нужно}»`);
+  }
+  /* Снимок тарифа назван прямо: тариф в справочнике могли уже поправить. */
+  if (!/за м²/u.test(листЗаявки)) {
+    note("лист заявки", "вилка показана без тарифа, по которому посчитана");
+  }
+  /* Журнал заявки читается. Запись создаётся тут же сменой стадии: посев
+     журнала не пишет, и проверять читаемость было бы не на чем. Так
+     проверяются обе половины — что запись делается и что её видно.
+     Стадию возвращает наполнение на следующем прогоне. */
+  const былаСтадия = await page.locator("#lead-stage").inputValue();
+  await page.selectOption("#lead-stage", былаСтадия === "MEETING" ? "DECIDING" : "MEETING");
+  await page.waitForTimeout(900);
+  const послеСмены = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+  if (!послеСмены.includes("Журнал заявки")) {
+    note("лист заявки", "после смены стадии журнала в листе нет");
+  }
+  const записиЖурнала = await page.locator('.sheet[role="dialog"] .feed__item').allTextContents();
+  if (!записиЖурнала.some((запись) => запись.includes("стадия"))) {
+    note("лист заявки", `смена стадии не попала в журнал: «${записиЖурнала.join(" | ")}»`);
+  }
+  await step("лист заявки", "42-zayavka-list.png");
+
+  /* Отказ требует причину: кнопка недоступна, пока её не назвали. */
+  await page.click('.sheet button:has-text("Отказ")');
+  await page.waitForTimeout(300);
+  if (await page.locator('.sheet button:has-text("Закрыть отказом")').isEnabled()) {
+    note("лист заявки", "отказ принимается без причины");
+  }
+  await page.click('.sheet button:has-text("Не закрывать")');
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+}
+
+/* Телефон: четыре колонки в его ширину не помещаются, и доска становится
+   лентой стадий. Документ вбок не едет — прокручивается лента. */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+if ((await page.locator(".leads__stages").count()) === 0) {
+  note("воронка", "на 390 px нет ленты стадий");
+}
+const чиповСтадий = await page.locator(".leads__stage").count();
+if (чиповСтадий !== 4) note("воронка", `чипов стадий ${чиповСтадий} вместо четырёх`);
+/* Измерение — только когда есть что мерить: `boundingBox` отсутствующего
+   органа ждёт полминуты и роняет обход, а падение вместо именного
+   замечания отправляет разбирать не туда. */
+if (чиповСтадий > 0) {
+  const чип = await page.locator(".leads__stage").first().boundingBox();
+  if (чип === null || чип.height < 44) {
+    note("воронка", `чип стадии ${чип?.height ?? 0} px при норме 44`);
+  }
+}
+await overflow("воронка, 390");
+await step("воронка на телефоне", "43-zayavki-390.png");
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.waitForTimeout(300);
+
 await page.click('.appbar__link:has-text("Главная")');
 await page.waitForSelector(".statcard");
 
@@ -891,7 +1136,7 @@ await page.click(".appbar__user");
 await page.waitForSelector('.tabs__item:has-text("Организация")');
 const settingsTabs = (await page.locator(".tabs__item").allTextContents())
   .map((text) => text.trim());
-if (settingsTabs.join("|") !== "Организация|Единицы измерения") {
+if (settingsTabs.join("|") !== "Организация|Единицы измерения|Типы ремонта") {
   note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
 }
 await page.waitForSelector('input[name="name"]');
@@ -916,7 +1161,9 @@ await page.waitForSelector(".roadmap__item");
 const roadmap = await page.locator(".roadmap__item").count();
 const stages = await page.locator(".roadmap__item .pill").count();
 console.log(`  строк в «Что дальше»: ${roadmap}`);
-if (roadmap < 8) note("что дальше", `строк ${roadmap} — список неполон`);
+/* Строк стало семь: «Заявки» ушли из списка — у раздела появился свой
+   экран, и обещать его на «Что дальше» значило бы обещать сделанное. */
+if (roadmap < 7) note("что дальше", `строк ${roadmap} — список неполон`);
 if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
 const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {
@@ -1857,108 +2104,118 @@ const brokenIcons = await page.evaluate(() =>
 );
 if (brokenIcons.length > 0) note("иконка без символа", [...new Set(brokenIcons)].join(", "));
 
-// Тёмная тема по системной настройке.
+/*
+ * Тема одна — светлая, решением заказчика от 11.09.2026.
+ *
+ * Проверяется не наличие светлого, а отсутствие тёмного: снятая тёмная
+ * палитра возвращается по кусочкам — правилом под медиазапросом, признаком
+ * на корне, забытым переключателем, — и продукт снова о двух темах, из
+ * которых поддерживается одна.
+ *
+ * Экран смотрится с системной тёмной темой: именно в этом состоянии
+ * недосмотр и виден. Без `color-scheme: light` браузер закрасит поля ввода,
+ * выпадающие списки и полосы прокрутки тёмным поверх нашего светлого
+ * полотна, и продукт станет двухцветным без единой строки тёмной палитры.
+ */
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "12-dark.png");
 
-/**
- * Переключатель темы есть в двух местах: в шапке — чтобы выйти из темы, в
- * которой ничего не видно, одним нажатием, — и в настройках, где он
- * остаётся единственным на ширине до 768 px. Обе копии читают одно
- * состояние: собственное у каждой расходилось бы при нажатии в шапке.
- */
-const шапкаТемы = page.locator(".appbar .themeswitch");
-if ((await шапкаТемы.count()) !== 1) note("тема", "в шапке нет переключателя темы");
-if (!(await шапкаТемы.isVisible())) note("тема", "переключатель темы в шапке скрыт на 1440 px");
-
-await page.click(".appbar__user");
-await page.waitForSelector(".settings__panel .themeswitch");
-
-/**
- * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
- * побеждает системную настройку: браузер здесь эмулирует системную тёмную,
- * и выбранная светлая обязана её перекрыть.
- */
-const themeState = async () =>
-  page.evaluate(() => ({
-    attribute: document.documentElement.getAttribute("data-theme"),
-    background: getComputedStyle(document.body).backgroundColor,
-    scheme: getComputedStyle(document.documentElement).colorScheme,
-  }));
-
-const systemDark = await themeState();
-if (systemDark.attribute !== null) note("тема", `в системном режиме признак не снят: ${systemDark.attribute}`);
-
-await page.click('.settings__panel .themeswitch__option[title="Светлая тема"]');
-await page.waitForTimeout(200);
-const forcedLight = await themeState();
-if (forcedLight.attribute !== "light") note("тема", "выбор светлой не выставил data-theme");
-if (forcedLight.background === systemDark.background) {
-  note("тема", `светлая не перекрыла системную тёмную: фон остался ${forcedLight.background}`);
+const светлая = await page.evaluate(() => {
+  const корень = document.documentElement;
+  return {
+    признак: корень.getAttribute("data-theme"),
+    схема: getComputedStyle(корень).colorScheme,
+    полотно: getComputedStyle(document.body).backgroundColor,
+    переключателей: document.querySelectorAll(".themeswitch").length,
+  };
+});
+if (светлая.признак !== null) {
+  note("тема", `на корне остался признак темы: data-theme="${светлая.признак}"`);
 }
-if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")) {
-  note("тема", `светлая не сообщена браузеру: color-scheme = ${forcedLight.scheme}`);
+if (!светлая.схема.includes("light") || светлая.схема.includes("dark")) {
+  note("тема", `браузеру объявлена схема «${светлая.схема}» вместо light: системные органы управления потемнеют`);
 }
-await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
-
+if (светлая.переключателей > 0) {
+  note("тема", `на экране ${светлая.переключателей} переключателей темы: темы одна`);
+}
+/* Полотно светлое при системной тёмной. Разбор в числа, а не сравнение
+   строк: браузер волен отдать rgb или rgba, и сравнение по написанию
+   сломалось бы на пустом месте. */
+const [r = 0, g = 0, b = 0] = (/rgba?\(([^)]+)\)/u.exec(светлая.полотно)?.[1] ?? "")
+  .split(",").map((часть) => Number(часть.trim()));
+if ((r + g + b) / 3 < 200) {
+  note("тема", `при системной тёмной полотно осталось тёмным: ${светлая.полотно}`);
+}
+await step("светлая тема при системной тёмной", "12-svetlaya.png");
 await page.emulateMedia({ colorScheme: "light" });
-await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
-await page.waitForTimeout(200);
-const forcedDark = await themeState();
-if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной не выставил data-theme");
-if (forcedDark.background === forcedLight.background) {
-  note("тема", `тёмная не перекрыла системную светлую: фон остался ${forcedDark.background}`);
-}
-await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
-await page.click('.settings__panel .themeswitch__option[title="Как в системе"]');
-await page.waitForTimeout(200);
-const backToSystem = await themeState();
-if (backToSystem.attribute !== null) note("тема", "возврат к системной не снял признак");
-if (backToSystem.background !== forcedLight.background) {
-  note("тема", "возврат к системной не вернул системный фон");
-}
-
-/**
- * Копии синхронны. Нажатие в шапке обязано отразиться в настройках: две
- * независимые копии показывали бы разный выбор на одном экране.
+/*
+ * Отбор позиций внутри раздела приёмки.
+ *
+ * Раздел держит до нескольких десятков позиций, и прораб ищет в нём одну
+ * стоя на объекте. Проверяется, что отбор сужает список, что счётчик
+ * называет то же число, что видно, и что пустой отбор объясняется словами,
+ * а не пустотой.
  */
-await page.click('.appbar .themeswitch__option[title="Светлая тема"]');
-await page.waitForTimeout(200);
-const вНастройках = await page
-  .locator('.settings__panel .themeswitch__option[title="Светлая тема"]')
-  .getAttribute("aria-pressed");
-if (вНастройках !== "true") {
-  note("тема", "выбор в шапке не отразился в настройках: копии переключателя разошлись");
-}
-if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "light") {
-  note("тема", "переключатель в шапке не сменил тему");
-}
-
-// Выбор обязан пережить перезагрузку: иначе переключатель бесполезен.
-await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
-await page.reload({ waitUntil: "networkidle" });
+/* Переход делается на широком экране: до 1023 px верхнее меню уступает
+   место нижней полосе, и ссылка шапки там не видна. Ширина телефона
+   выставляется после перехода — проверяется отбор, а не навигация. */
+await page.click('.appbar__link:has-text("Проекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".tabs__item");
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForSelector(".accept__row");
+await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
-const afterReload = await themeState();
-if (afterReload.attribute !== "dark") note("тема", "выбор не пережил перезагрузку страницы");
 
-// Переключатель на узком экране: он стоит в настройках, в блоке
-// «Рабочее место». Перезагрузка выше вернула экран на главную.
-await page.setViewportSize({ width: 360, height: 800 });
-await page.waitForTimeout(300);
-await page.click(".appbar__user");
-await page.waitForSelector(".settings__panel .themeswitch");
-await overflow("настройки с переключателем темы, 360");
-if (await page.locator(".appbar .themeswitch").isVisible()) {
-  note("тема", "переключатель в шапке не скрыт на 360 px: шапке не хватает места на четвёртый орган");
+const всего = await page.locator(".accept__row").count();
+if ((await page.locator(".accept__filter input[type=\"search\"]").count()) === 0) {
+  note("отбор приёмки", "поля поиска позиции в разделе нет");
+} else {
+  const первая = (await page.locator(".accept__name").first().textContent()) ?? "";
+  const кусок = первая.trim().slice(0, 6);
+  await page.fill('.accept__filter input[type="search"]', кусок);
+  await page.waitForTimeout(300);
+  const послеПоиска = await page.locator(".accept__row").count();
+  if (послеПоиска === 0) {
+    note("отбор приёмки", `поиск по «${кусок}» не нашёл даже ту позицию, из которой взят`);
+  }
+  if (послеПоиска >= всего && всего > 1) {
+    note("отбор приёмки", `поиск по «${кусок}» не сузил список: ${послеПоиска} из ${всего}`);
+  }
+  const счётчик = (await page.locator(".accept__filter .num").textContent()) ?? "";
+  if (!счётчик.trim().startsWith(String(послеПоиска))) {
+    note("отбор приёмки", `счётчик показывает «${счётчик.trim()}», а строк ${послеПоиска}`);
+  }
+  /* Пустой отбор объясняется словами: пустота на месте списка не говорит,
+     раздел пуст или запрос ничего не нашёл. */
+  await page.fill('.accept__filter input[type="search"]', "щцъфывапролдж");
+  await page.waitForTimeout(300);
+  if ((await page.locator(".accept__row").count()) !== 0) {
+    note("отбор приёмки", "заведомо несуществующий запрос оставил строки");
+  }
+  const пусто = (await page.locator(".accept__list .empty__text").textContent().catch(() => null)) ?? "";
+  if (!пусто.includes("отбор")) {
+    note("отбор приёмки", `пустой отбор не объяснён: «${пусто.trim()}»`);
+  }
+  await page.fill('.accept__filter input[type="search"]', "");
+  await page.waitForTimeout(300);
 }
-const tap = await page.locator(".settings__panel .themeswitch__option").first().boundingBox();
-if (tap === null || tap.width < 44 || tap.height < 44) {
-  note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
+/* Область нажатия у флажка — строка подписи целиком, а не квадрат: в
+   квадрат 20 px пальцем не попадают, а растянутый до 48 px системный флажок
+   рисуется пустой рамкой и читается как незаполненное поле. */
+const флажок = await page.locator(".accept__filter .checkline").boundingBox();
+if (флажок === null || флажок.height < 44) {
+  note("отбор приёмки", `область нажатия флажка ${флажок?.height ?? 0} px при норме 44`);
 }
-await step("переключатель темы, 360 px", "15-tema-360.png");
+const квадрат = await page.locator(".accept__filter .checkbox").boundingBox();
+if (квадрат !== null && квадрат.height > 32) {
+  note("отбор приёмки", `флажок растянут до ${квадрат.height} px и читается как пустая рамка`);
+}
+await step("приёмка, отбор позиций, 390 px", "35b-priyomka-otbor.png");
+await page.setViewportSize({ width: 1440, height: 900 });
 
 await browser.close();
 

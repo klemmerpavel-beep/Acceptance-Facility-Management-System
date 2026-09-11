@@ -7,3 +7,4 @@ export * from "./schedule.js";
 export * from "./acceptance.js";
 export * from "./tranche.js";
 export * from "./phone.js";
+export * from "./lead.js";

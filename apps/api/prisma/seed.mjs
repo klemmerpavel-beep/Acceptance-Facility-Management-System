@@ -442,6 +442,97 @@ if (Number.isFinite(нагрузка) && нагрузка > объекты.lengt
  * нагрузочного наполнения (коды L-…) при обычном прогоне тоже уходят — они
  * заводятся флагом и живут ровно столько, сколько идёт замер.
  */
+/*
+ * Справочник типов ремонта. Тарифы ОБРАЗЦОВЫЕ и подлежат замене на экране
+ * настроек: заказчик своих цен не называл, а выдуманное число в продукте,
+ * где смета выверена до копейки, обязано быть помечено как выдуманное.
+ * Отклонение вилки — ±15 %, значение по умолчанию домена.
+ */
+const типыРемонта = [
+  { name: "Косметический (образцовый тариф, заменить)", ratePerSqm: 1_200_000n, spread: 1500, order: 0 },
+  { name: "Капитальный (образцовый тариф, заменить)", ratePerSqm: 2_500_000n, spread: 1500, order: 1 },
+  { name: "Дизайнерский (образцовый тариф, заменить)", ratePerSqm: 4_200_000n, spread: 2000, order: 2 },
+];
+const типы = new Map();
+for (const тип of типыРемонта) {
+  const строка = await prisma.repairType.upsert({
+    where: { orgId_name: { orgId: org.id, name: тип.name } },
+    update: { ratePerSqm: тип.ratePerSqm, spread: тип.spread, order: тип.order },
+    create: { orgId: org.id, ...тип },
+  });
+  типы.set(тип.order, строка);
+}
+await prisma.repairType.deleteMany({
+  where: { orgId: org.id, name: { notIn: типыРемонта.map((тип) => тип.name) } },
+});
+
+/*
+ * Заявки воронки. Состав по стадиям повторяет утверждённый макет: 4 / 3 / 3 / 3.
+ * Имена и телефоны вымышлены — телефоны из диапазона 900 000-00-XX, который
+ * операторами не выдаётся.
+ *
+ * Ориентир посчитан не у всех: на первичном контакте площадь ещё не
+ * названа, и заявка без вилки — обычное состояние воронки, а не пробел
+ * наполнения.
+ */
+const заявки = [
+  { number: 1044, name: "Валерий", phone: "+7 900 000-00-11", stage: "FIRST_CONTACT", days: 40 },
+  { number: 1042, name: "Александр", phone: "+7 900 000-00-12", stage: "FIRST_CONTACT", days: 60, area: 54_000n, тип: 0 },
+  { number: 1036, name: "Захар", phone: "+7 900 000-00-13", stage: "FIRST_CONTACT", days: 65 },
+  { number: 1027, name: "Николай", phone: "+7 900 000-00-14", stage: "FIRST_CONTACT", days: 80, area: 38_500n, тип: 0 },
+  { number: 1038, name: "Ирина", phone: "+7 900 000-00-15", stage: "MEETING", days: 63, area: 72_400n, тип: 1,
+    address: "Кольцовская 24б, кв. 91" },
+  { number: 1019, name: "Светлана", phone: "+7 900 000-00-16", stage: "MEETING", days: 87, area: 61_000n, тип: 1,
+    задачи: [{ title: "Отправить смету на согласование", дней: 2 },
+             { title: "Согласовать дату повторного выезда", дней: 5 }] },
+  { number: 986, name: "Валентина", phone: "+7 900 000-00-17", stage: "MEETING", days: 121, area: 45_200n, тип: 0 },
+  { number: 1043, name: "Тимур", phone: "+7 900 000-00-18", stage: "DECIDING", days: 58, area: 88_000n, тип: 2,
+    задачи: [{ title: "Перезвонить по итогам сметы", дней: -3 }] },
+  { number: 1039, name: "Александр", phone: "+7 900 000-00-19", stage: "DECIDING", days: 62, area: 66_700n, тип: 1 },
+  { number: 1033, name: "Никита", phone: "+7 900 000-00-20", stage: "DECIDING", days: 69, area: 51_300n, тип: 0 },
+  { number: 1025, name: "Артём", phone: "+7 900 000-00-21", stage: "CONTRACT", days: 83, area: 94_500n, тип: 2,
+    address: "Бульвар Победы 23б, кв. 204" },
+  { number: 1011, name: "Роман", phone: "+7 900 000-00-22", stage: "CONTRACT", days: 91, area: 57_800n, тип: 1 },
+  { number: 959, name: "Марина", phone: "+7 900 000-00-23", stage: "CONTRACT", days: 144, area: 70_100n, тип: 1 },
+];
+
+const день = 86_400_000;
+const сегодня = Date.now();
+await prisma.leadTask.deleteMany({ where: { orgId: org.id } });
+await prisma.lead.deleteMany({
+  where: { orgId: org.id, number: { notIn: заявки.map((заявка) => заявка.number) } },
+});
+for (const заявка of заявки) {
+  const тип = заявка.тип === undefined ? null : типы.get(заявка.тип);
+  const поля = {
+    name: заявка.name,
+    phone: заявка.phone,
+    address: заявка.address ?? null,
+    stage: заявка.stage,
+    outcome: "OPEN",
+    repairTypeId: тип?.id ?? null,
+    area: заявка.area ?? null,
+    rateSnapshot: тип === null ? null : тип.ratePerSqm,
+    spreadSnapshot: тип === null ? null : тип.spread,
+    createdAt: new Date(сегодня - заявка.days * день),
+  };
+  const строка = await prisma.lead.upsert({
+    where: { orgId_number: { orgId: org.id, number: заявка.number } },
+    update: { ...поля, clientId: null, projectId: null, lostReason: null },
+    create: { orgId: org.id, number: заявка.number, ...поля },
+  });
+  for (const задача of заявка.задачи ?? []) {
+    await prisma.leadTask.create({
+      data: {
+        orgId: org.id,
+        leadId: строка.id,
+        title: задача.title,
+        dueOn: new Date(сегодня + задача.дней * день),
+      },
+    });
+  }
+}
+
 const своиКоды = [...объекты.map((объект) => объект.code), ...нагрузочные];
 await prisma.project.deleteMany({ where: { orgId: org.id, code: { notIn: своиКоды } } });
 await prisma.worker.deleteMany({ where: { orgId: org.id, name: { notIn: бригады } } });
@@ -455,5 +546,7 @@ console.log("Стенд наполнен:", {
   объектов: объекты.length,
   заказчиков: заказчики.length,
   "помещений R-99": объектR99 === null ? 0 : помещения.length,
+  заявок: заявки.length,
+  "типов ремонта": типыРемонта.length,
 });
 await prisma.$disconnect();
