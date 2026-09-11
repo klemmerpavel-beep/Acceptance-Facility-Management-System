@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
-import { fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout } from "./api.js";
+import {
+  fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus,
+} from "./api.js";
 import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
 import { Contacts } from "./Contacts.js";
@@ -9,6 +11,7 @@ import { Accounting } from "./Accounting.js";
 import { NewProjectSheet } from "./NewProjectSheet.js";
 import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
+import { StatusSheet } from "./StatusSheet.js";
 import { ProjectCard } from "./ProjectCard.js";
 import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
 import { Settings } from "./Settings.js";
@@ -30,6 +33,9 @@ export function App(): React.JSX.Element {
   const [feedOpen, setFeedOpen] = useState(false);
   const [events, setEvents] = useState<ProjectEvent[] | null>(null);
   const [adding, setAdding] = useState(false);
+  /** Объект, которому меняют статус из реестра. Лист тот же, что на карточке. */
+  const [статусУ, setСтатусУ] = useState<ProjectSummary | null>(null);
+  const [статусИдёт, setСтатусИдёт] = useState(false);
 
   /** Сегодняшний день считается один раз на сеанс и передаётся вниз:
    *  два экрана не должны разойтись на границе суток. */
@@ -305,6 +311,11 @@ export function App(): React.JSX.Element {
               onFilter={setFilter}
               onOpen={setOpened}
               onAdd={() => { setAdding(true); }}
+              /* Статус меняется из реестра, а не только из карточки: путь
+                 через карточку стоил четырёх нажатий при правиле «три
+                 касания до действия». Лист тот же, что на карточке, и
+                 запрос тот же — меняется место вызова, не логика. */
+              {...(state.user.role === "OWNER" ? { onStatus: setСтатусУ } : {})}
             />
           </main>
         </>
@@ -314,16 +325,23 @@ export function App(): React.JSX.Element {
       {section === "requests" && (
         <>
           {cover("Заявки", ["Главная", "Заявки"])}
-          {state.user.role === "OWNER" ? (
-            <Leads onOpenProject={открытьОбъект} />
-          ) : (
-            <div className="empty">
-              <p className="empty__title">Раздел ведёт руководитель</p>
-              <p className="empty__text">
-                Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
-              </p>
-            </div>
-          )}
+          {/* Доска живёт в общем контейнере, как и прочие разделы. Без него
+              она прижималась к краю окна полем в ноль вместо 24 px, не имела
+              предельной ширины и не получала отбивку от обложки: правило
+              `.cover + main` стоит на элементе, а за обложкой шёл `section`
+              (аудит Г-3). */}
+          <main className="container stack stack--loose">
+            {state.user.role === "OWNER" ? (
+              <Leads onOpenProject={открытьОбъект} />
+            ) : (
+              <div className="empty">
+                <p className="empty__title">Раздел ведёт руководитель</p>
+                <p className="empty__text">
+                  Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
+                </p>
+              </div>
+            )}
+          </main>
         </>
       )}
       {/* Бухгалтерия — раздел руководителя по тому же правилу, что и
@@ -376,6 +394,33 @@ export function App(): React.JSX.Element {
       )}
       {adding && (
         <NewProjectSheet onClose={() => { setAdding(false); }} onCreated={projectAdded} />
+      )}
+      {/* Смена статуса из реестра. Лист и запрос те же, что на карточке
+          объекта; меняется только место вызова. Строка реестра обновляется
+          на месте — перезапрашивать весь список ради одного поля значило бы
+          отдать человеку моргнувшую таблицу вместо изменившейся пилюли. */}
+      {статусУ !== null && (
+        <StatusSheet
+          current={статусУ.status}
+          busy={статусИдёт}
+          onClose={() => { setСтатусУ(null); }}
+          onChoose={(status) => {
+            setСтатусИдёт(true);
+            void setProjectStatus(статусУ.code, status)
+              .then((обновлённый) => {
+                setState((current) =>
+                  current.kind === "signed"
+                    ? {
+                        ...current,
+                        projects: current.projects.map((project) =>
+                          project.code === обновлённый.code ? обновлённый : project),
+                      }
+                    : current);
+                setСтатусУ(null);
+              })
+              .finally(() => { setСтатусИдёт(false); });
+          }}
+        />
       )}
       {feedOpen && (
         <FeedSheet events={events} onClose={() => { setFeedOpen(false); }} />

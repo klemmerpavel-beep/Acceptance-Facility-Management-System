@@ -21,7 +21,12 @@ export function NewContactSheet({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: (next: { clients: ClientRow[]; workers: WorkerRow[]; name: string }) => void;
+  /* Вид заведённой записи возвращается вместе с ней: справочник разведён
+     вкладками, и обещание «запись стоит в списке ниже» держится только
+     тогда, когда открыта та вкладка, где запись лежит. */
+  onCreated: (next: {
+    clients: ClientRow[]; workers: WorkerRow[]; name: string; kind: "client" | "worker";
+  }) => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog(onClose);
   const [kind, setKind] = useState<Kind>("client");
@@ -55,7 +60,7 @@ export function NewContactSheet({
         );
 
     void заведено
-      .then((next) => { onCreated({ ...next, name: name.trim() }); })
+      .then((next) => { onCreated({ ...next, name: name.trim(), kind: kind === "client" ? "client" : "worker" }); })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };

@@ -104,6 +104,17 @@
    «сторно, просрочено, расхождение». Статус объекта ни одним из этих
    слов не является, и общая заливка стирала бы разницу между «объект
    завершён» и «деньги получены». */
+/* Пилюля, которая ведёт. Статус объекта меняется прямо из реестра, и
+   органом здесь служит сама пилюля: вторая кнопка рядом показывала бы одно
+   состояние дважды. Своего вида у обёртки нет — она отдаёт его пилюле
+   внутри и добавляет только область нажатия. */
+.pillbutton {
+  display: inline-flex; align-items: center;
+  min-block-size: var(--tap-min); padding: 0;
+  background: none; border: 0; cursor: pointer;
+}
+.pillbutton:hover .pill { box-shadow: inset 0 0 0 1px var(--line-strong); }
+
 .pill--status-new     { background: var(--status-new-soft);   color: var(--status-new-ink); }
 .pill--status-work    { background: var(--status-work-soft);  color: var(--status-work-ink); }
 .pill--status-wait    { background: var(--status-wait-soft);  color: var(--status-wait-ink); }

@@ -236,7 +236,11 @@ for (const [класс, имя] of [[".plan__row", "полоса плана ра
  * сегменты не сходятся с её шириной, оставляет щель — и щель читается как
  * ещё один статус, которого нет.
  */
-const графики = page.locator("main > section.split").first();
+/* Ряд ищется по классу, а не по прямому потомству: блоки первого экрана
+   собраны в три смысловые группы обёртками, и `main > section.split`
+   перестал бы находить ряд вовсе — проверка сообщила бы «в ряду 0 колонок
+   вместо двух», не имея к графикам никакого отношения. */
+const графики = page.locator("main section.split").first();
 const колонкиГрафиков = await графики.locator("> .stack").all();
 if (колонкиГрафиков.length !== 2) {
   note("графики главной", `в ряду ${колонкиГрафиков.length} колонок вместо двух`);
@@ -319,6 +323,57 @@ if ((await page.locator(".score .meter").count()) > 0) {
   note("главная", "в плитку вернулась дорожка доли");
 }
 console.log(`  числовых карточек: ${cards}, плиток: ${плитки}`);
+
+/* Группировка первого экрана. Пять блоков шли равным шагом и читались как
+   список из пяти равных; группы разведены вдвое большим шагом (аудит В-4).
+
+   Меряются два уровня сразу: шаг между группами и шаг внутри группы.
+   Первое написание проверки смотрело только на прямых потомков полотна и
+   сообщало «блоки идут одним шагом 48 px: групп нет» — на верном коде,
+   потому что между группами шаг и обязан быть одинаковым. Смысл правила в
+   отношении двух уровней, и мерить надо оба. */
+const ритм = await page.evaluate(() => {
+  const шаги = (узлы) => {
+    const значения = [];
+    for (let i = 1; i < узлы.length; i += 1) {
+      const выше = узлы[i - 1]?.getBoundingClientRect();
+      const ниже = узлы[i]?.getBoundingClientRect();
+      if (выше === undefined || ниже === undefined) continue;
+      значения.push(Math.round(ниже.top - выше.bottom));
+    }
+    return значения;
+  };
+  const полотно = document.querySelector("main.container");
+  if (полотно === null) return { внешние: [], внутренние: [] };
+  const дети = [...полотно.children];
+  /* Группой считается прямой потомок полотна, несущий не меньше двух
+     разделов: именно он и есть обёртка группы. Считать шаги внутри любого
+     потомка нельзя — блок «Объекты» тоже потомок, и его заголовок с
+     таблицей дали бы третье значение шага, не имеющее к группам
+     отношения. */
+  const внутренние = [];
+  for (const ребёнок of дети) {
+    const разделы = [...ребёнок.children].filter((узел) => узел.tagName === "SECTION");
+    if (разделы.length > 1) внутренние.push(...шаги(разделы));
+  }
+  return { внешние: шаги(дети), внутренние };
+});
+const между = [...new Set(ритм.внешние)];
+const внутри = [...new Set(ритм.внутренние)];
+if (между.length !== 1) {
+  note("главная", `шаг между группами непостоянен: ${между.join(", ")} px`);
+}
+if (внутри.length !== 1) {
+  note("главная", `шаг внутри групп непостоянен: ${внутри.join(", ")} px`);
+}
+const шагМежду = между[0] ?? 0;
+const шагВнутри = внутри[0] ?? 0;
+if (шагМежду < шагВнутри * 2) {
+  note("главная",
+    `шаг между группами ${шагМежду} px при шаге внутри ${шагВнутри} px: группы не читаются`);
+}
+console.log(`  ритм главной: внутри групп ${шагВнутри} px, между группами ${шагМежду} px`);
+
 
 if ((await page.locator(".duelist__row").count()) === 0) {
   note("главная", "блок ближайших сроков пуст");
@@ -736,6 +791,15 @@ for (const cell of stamp) {
 
 const metrics = await page.locator(".metric").count();
 if (metrics === 0) note("обзор", "метрики графика производства работ не показаны");
+/* Ряд назван сроками и держит меры времени. Счёт позиций стоял в нём
+   четвёртой плиткой и читался как ещё один срок — при том, что та же
+   величина печаталась в сведениях слева (аудит Г-4). */
+const подписиСроков = await page.locator(".metric .metric__label").allTextContents();
+for (const подпись of подписиСроков) {
+  if (/позиц/iu.test(подпись)) {
+    note("обзор", `в ряду сроков плитка «${подпись.trim()}»: это не срок`);
+  }
+}
 
 await page.click('.tabs__item:has-text("Смета")');
 await page.waitForSelector("table.estimate tbody tr");
@@ -744,12 +808,92 @@ const sections = await page.locator("tr.estimate__section").count();
 const items = await page.locator("table.estimate tbody tr").count();
 console.log(`  строк в смете: ${items}, из них заголовков и подытогов разделов: ${sections}`);
 
-// Сворачивание раздела и переключение проекции.
+/*
+ * Вкладка открывается ведомостью разделов, а не полотном позиций.
+ *
+ * До 12.09.2026 множество свёрнутых было пустым: 132 позиции и 44 строки
+ * заголовков с подытогами, страница 9 627 px (аудит Г-5). Решение
+ * заказчика — свёрнуто по умолчанию; проверка стережёт именно это.
+ */
+/*
+ * Сводка объекта следует за чтением.
+ *
+ * Левая колонка кончалась на трети экрана, и под ней оставалось пустое поле
+ * в половину высоты на любой длинной вкладке (аудит Г-2). Проверяется
+ * поведением: после прокрутки вкладки сводка обязана остаться в окне.
+ */
+await page.evaluate(() => { window.scrollTo(0, 0); });
+await page.waitForTimeout(200);
+const сводкаДо = await page.locator(".project-layout > aside").boundingBox();
+await page.evaluate(() => { window.scrollTo(0, 1200); });
+await page.waitForTimeout(300);
+const сводкаПосле = await page.locator(".project-layout > aside").boundingBox();
+if (сводкаДо === null || сводкаПосле === null) {
+  note("сводка объекта", "колонка сводки не найдена");
+} else if (сводкаПосле.y < -8) {
+  note("сводка объекта",
+    `после прокрутки верх сводки на ${Math.round(сводкаПосле.y)} px: колонка уехала за экран`);
+}
+/* Недостижимого содержимого в сводке нет: прилипшая колонка выше окна
+   отрезала бы нижние строки навсегда — прокрутка документа их уже не
+   покажет. */
+const сводкаВысота = await page.evaluate(() => {
+  const узел = document.querySelector(".project-layout > aside");
+  if (узел === null) return null;
+  return {
+    видно: узел.clientHeight,
+    всего: узел.scrollHeight,
+    прокрутка: getComputedStyle(узел).overflowY,
+  };
+});
+if (сводкаВысота !== null
+  && сводкаВысота.всего > сводкаВысота.видно + 1
+  && сводкаВысота.прокрутка === "visible") {
+  note("сводка объекта",
+    `содержимое ${сводкаВысота.всего} px в окне ${сводкаВысота.видно} px без прокрутки`);
+}
+await page.evaluate(() => { window.scrollTo(0, 0); });
+await page.waitForTimeout(200);
+
+const свёрнутоСтрок = await page.locator("table.estimate tbody tr").count();
+if (свёрнутоСтрок > sections) {
+  note("смета", `при открытии ${свёрнутоСтрок} строк при ${sections} строках разделов: `
+    + "вкладка открылась развёрнутой");
+}
+/* Свёрнутый раздел несёт свою сумму: сворачивание скрывает подробность, а
+   не уничтожает сведение. Прежде подытог исчезал вместе с позициями. */
+const подытоги = await page.locator("table.estimate tbody tr.estimate__section td.estimate__num")
+  .allTextContents();
+if (подытоги.filter((текст) => текст.trim() !== "").length < sections / 2) {
+  note("смета", `сумм у свёрнутых разделов ${подытоги.length} при ${sections / 2} разделах`);
+}
+
+// Раскрытие раздела и переключение проекции.
 const before = await page.locator("table.estimate tbody tr").count();
 await page.locator(".estimate__section-toggle").first().click();
 const after = await page.locator("table.estimate tbody tr").count();
-if (after >= before) note("сворачивание раздела", "число строк не уменьшилось");
+/* Проверка двусторонняя: раскрытие обязано прибавить строк, обратное
+   нажатие — вернуть к исходному. Односторонняя («стало меньше») прошла бы
+   и на сломанном переключателе, который просто прячет всё подряд. */
+if (after <= before) note("раскрытие раздела", `число строк ${before} → ${after}: не прибавилось`);
 await page.locator(".estimate__section-toggle").first().click();
+const назад = await page.locator("table.estimate tbody tr").count();
+if (назад !== before) note("сворачивание раздела", `после обратного нажатия ${назад} строк вместо ${before}`);
+
+/* Орган «Развернуть все» — условие сквозного просмотра: свёрнутая по
+   умолчанию смета без него отняла бы поиск глазами по всем позициям. */
+const раскрытьВсе = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+if ((await раскрытьВсе.count()) === 0) {
+  note("смета", "органа «Развернуть все» нет: свёрнутая смета не раскрывается разом");
+} else {
+  await раскрытьВсе.click();
+  await page.waitForTimeout(200);
+  const развёрнуто = await page.locator("table.estimate tbody tr").count();
+  if (развёрнуто <= свёрнутоСтрок) {
+    note("смета", `после «Развернуть все» строк ${развёрнуто} при ${свёрнутоСтрок} свёрнутых`);
+  }
+  console.log(`  смета: свёрнута ${свёрнутоСтрок} строк, развёрнута ${развёрнуто}`);
+}
 
 const internalBefore = await page.locator(".estimate__internal").count();
 await page.click('.segmented__option:has-text("Клиентская")');
@@ -1020,6 +1164,43 @@ await page.click('.sheet .btn--text:has-text("Отмена")');
 await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 
 /*
+ * Смена статуса из реестра: два нажатия вместо трёх.
+ *
+ * Путь через карточку стоил на нажатие больше правила «три касания до
+ * действия» (07_IA, правило 3). Лист и запрос те же — меняется место
+ * вызова. Проверка испытывает и обратное: строка обновляется на месте, без
+ * перехода на карточку. Работает на R-64, чтобы не мешать соседней проверке
+ * смены статуса с карточки, которая ведётся на R-72.
+ */
+await page.click('.appbar__link:has-text("Проекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+const строкаРеестра = page.locator('.datatable__table tbody tr:has(.code-badge:text-is("R-64"))');
+const пилюляРеестра = строкаРеестра.locator(".pillbutton");
+if ((await пилюляРеестра.count()) === 0) {
+  note("статус из реестра", "пилюля статуса не ведёт: смена статуса доступна только с карточки");
+} else {
+  const былоВРеестре = (await пилюляРеестра.innerText()).trim();
+  await пилюляРеестра.click();
+  await page.waitForSelector('.sheet[role="dialog"]');
+  await page.click('.sheet button:has-text("Пауза")');
+  await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+  await page.waitForTimeout(300);
+  if ((await page.locator(".stamp").count()) !== 0) {
+    note("статус из реестра", "смена увела с реестра на карточку объекта");
+  }
+  const сталоВРеестре = (await пилюляРеестра.innerText()).trim();
+  if (сталоВРеестре !== "Пауза") {
+    note("статус из реестра", `в строке «${сталоВРеестре}» вместо «Пауза»`);
+  }
+  /* Объект возвращается в прежний статус: обход следов не оставляет. */
+  await пилюляРеестра.click();
+  await page.waitForSelector('.sheet[role="dialog"]');
+  await page.click(`.sheet button:has-text("${былоВРеестре}")`);
+  await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
+  console.log(`  статус из реестра: ${былоВРеестре} → Пауза → ${былоВРеестре}, два нажатия`);
+}
+
+/*
  * Смена статуса проверяется на объекте R-72, а не на показательном R-99:
  * каждый прогон оставляет в журнале две записи, и лента объекта, который
  * идёт в демонстрацию, заполнялась бы следами проверок вместо работы.
@@ -1043,47 +1224,125 @@ await page.click(`.sheet button:has-text("${statusBefore?.trim() ?? "В рабо
 await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 
 /**
- * Контакты: заказчики и работники одним списком.
+ * Контрагенты: два вида — две вкладки.
  *
- * Проверяется именно сведение: два вида в одной таблице с колонкой типа.
- * Пока они жили разными разделами, «телефон Фархата» и «кто заказчик на
- * Никитинской» искались в разных местах.
+ * До 12.09.2026 оба вида стояли в одной таблице, а различала их колонка
+ * «Тип». Треть таблицы была гарантированными прочерками: у заказчика всегда
+ * пусто «Начислено», у бригады — «Код» и «Итог смет» (аудит Г-6). Решение
+ * заказчика — вкладки; проверка стережёт не имена вкладок, а свойство:
+ * показанная колонка обязана иметь значение хоть в одной строке.
  */
 await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector(".datatable__table tbody tr");
-const виды = await page.locator(".datatable__table tbody .pill").allTextContents();
-const clients = виды.filter((вид) => вид.trim() === "Заказчик").length;
-const brigades = виды.filter((вид) => вид.trim() === "Бригада").length;
-console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
-if (brigades === 0) note("контакты", "бригады не показаны");
-if (clients === 0) note("контакты", "заказчики не показаны");
-/* Свод по рабочему в таблице: у бригады стоят объекты и начисленное, а не
-   прочерк. Заголовки разведены — итог смет заказчика и начисленное бригаде
-   разные величины, и одна колонка на обе врала бы половине строк. */
-const заголовки = (await page.locator(".datatable__table thead th").allTextContents())
+
+const вкладкиКонтактов = await page.locator('main [role="tab"]').allTextContents();
+if (вкладкиКонтактов.length !== 2) {
+  note("контакты", `вкладок ${вкладкиКонтактов.length} вместо двух: ${вкладкиКонтактов.join(", ")}`);
+}
+
+/** Пустая насквозь колонка: все её клетки пусты либо прочерк. */
+const пустыеКолонки = async (где) => {
+  const найдено = await page.evaluate(() => {
+    const таблица = document.querySelector("main .datatable__table");
+    if (таблица === null) return [];
+    const заголовки = [...таблица.querySelectorAll("thead th")]
+      .map((узел) => (узел.textContent ?? "").trim());
+    const строки = [...таблица.querySelectorAll("tbody tr")];
+    const пустые = [];
+    заголовки.forEach((имя, индекс) => {
+      const значения = строки
+        .map((строка) => (строка.children[индекс]?.textContent ?? "").trim())
+        .filter((текст) => текст !== "" && текст !== "—");
+      if (строки.length > 0 && значения.length === 0) пустые.push(имя);
+    });
+    return пустые;
+  });
+  for (const имя of найдено) {
+    note("контакты", `${где}: колонка «${имя}» пуста во всех строках`);
+  }
+  return найдено.length;
+};
+
+const заказчиков = await page.locator(".datatable__table tbody tr").count();
+if (заказчиков === 0) note("контакты", "заказчики не показаны");
+await пустыеКолонки("вкладка заказчиков");
+/* На вкладке лежит один вид, а не оба с прочерками. Опознаётся структурно:
+   код есть у каждого заказчика и нет ни у одной бригады. Проверка «колонка
+   пуста во всех строках» одна этого не ловит — в смешанной таблице колонка
+   пуста ровно наполовину, а не насквозь. */
+const безКода = await page.evaluate(() => [...document.querySelectorAll("main .datatable__table tbody tr")]
+  .filter((строка) => строка.querySelector(".code-badge") === null).length);
+if (безКода > 0) {
+  note("контакты", `на вкладке заказчиков ${безКода} строк без кода: виды смешаны`);
+}
+
+await page.click('main [role="tab"]:has-text("Бригады")');
+await page.waitForTimeout(300);
+const бригад = await page.locator(".datatable__table tbody tr").count();
+if (бригад === 0) note("контакты", "бригады не показаны");
+await пустыеКолонки("вкладка бригад");
+const сКодом = await page.locator("main .datatable__table tbody .code-badge").count();
+if (сКодом > 0) {
+  note("контакты", `на вкладке бригад ${сКодом} строк с кодом заказчика: виды смешаны`);
+}
+console.log(`  контрагенты: заказчиков ${заказчиков}, бригад ${бригад}`);
+
+/* Свод по бригаде остаётся на своём месте: колонка «Начислено» с суммой —
+   то, ради чего бригада вообще стоит в справочнике. */
+const заголовкиБригад = (await page.locator(".datatable__table thead th").allTextContents())
   .map((текст) => текст.trim());
-if (!заголовки.includes("Начислено")) {
-  note("контакты", `в таблице нет колонки «Начислено»: ${заголовки.join(", ")}`);
+if (!заголовкиБригад.includes("Начислено")) {
+  note("контакты", `у бригад нет колонки «Начислено»: ${заголовкиБригад.join(", ")}`);
 } else {
-  const колонка = заголовки.indexOf("Начислено") + 1;
-  const строкаБригады = page.locator('.datatable__table tbody tr:has(.pill:text-is("Бригада"))').first();
-  if ((await строкаБригады.count()) === 0) {
-    note("контакты", "строки бригады нет: свод по рабочему проверять не на чем");
-  } else {
-    const начислено = (await строкаБригады.locator(`td:nth-child(${String(колонка)})`).innerText()).trim();
-    if (!/\d/u.test(начислено)) {
-      note("контакты", `у бригады начислено «${начислено}» вместо суммы`);
-    }
-    const сСуммой = await page
-      .locator('.datatable__table tbody tr:has(.pill:text-is("Бригада"))')
-      .evaluateAll((rows, колонка) => rows
-        .map((row) => row.querySelector(`td:nth-child(${колонка})`)?.textContent?.trim() ?? "")
-        .filter((текст) => /[1-9]/u.test(текст)).length, колонка);
-    if (сСуммой === 0) {
-      note("контакты", "ни у одной бригады нет ненулевого начисления: на стенде оно есть");
-    }
+  const колонка = заголовкиБригад.indexOf("Начислено") + 1;
+  const сСуммой = await page
+    .locator(".datatable__table tbody tr")
+    .evaluateAll((rows, колонка) => rows
+      .map((row) => row.querySelector(`td:nth-child(${колонка})`)?.textContent?.trim() ?? "")
+      .filter((текст) => /[1-9]/u.test(текст)).length, колонка);
+  if (сСуммой === 0) {
+    note("контакты", "ни у одной бригады нет ненулевого начисления: на стенде оно есть");
   }
 }
+
+await page.click('main [role="tab"]:has-text("Заказчики")');
+await page.waitForTimeout(300);
+
+/*
+ * Поле у каждого раздела. Доска заявок была единственным разделом без
+ * `main.container`: колонки упирались в край окна полем в ноль вместо 24 px,
+ * доска не имела предельной ширины и не получала отбивку от обложки (аудит
+ * Г-3). Проверка общая, а не именная: она застережёт и следующий раздел,
+ * который заведут.
+ */
+for (const раздел of ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"]) {
+  await page.click(`.appbar__link:has-text("${раздел}")`);
+  await page.waitForTimeout(400);
+  const поле = await page.evaluate(() => {
+    const полотно = document.querySelector("main.container");
+    if (полотно === null) return null;
+    const рамка = полотно.getBoundingClientRect();
+    const первый = полотно.querySelector("*");
+    const левый = первый === null ? рамка.left : первый.getBoundingClientRect().left;
+    return {
+      полотен: document.querySelectorAll("main.container").length,
+      поле: Math.round(левый - рамка.left),
+      ширина: Math.round(рамка.width),
+      окно: document.documentElement.clientWidth,
+    };
+  });
+  if (поле === null) {
+    note("поле раздела", `${раздел}: нет полотна main.container`);
+    continue;
+  }
+  if (поле.полотен !== 1) note("поле раздела", `${раздел}: полотен ${поле.полотен} вместо одного`);
+  if (поле.поле < 0) note("поле раздела", `${раздел}: содержимое левее полотна на ${-поле.поле} px`);
+  if (поле.ширина > поле.окно) {
+    note("поле раздела", `${раздел}: полотно ${поле.ширина} px шире окна ${поле.окно} px`);
+  }
+}
+await page.click('.appbar__link:has-text("Контрагенты")');
+await page.waitForTimeout(300);
 
 await геометрия(page, "контакты");
 await step("контакты", "09b-kontakty.png");
@@ -1389,6 +1648,39 @@ const подписиОтбора = (await page.locator("#leads-scope option").al
 if ((подписиОтбора[1] ?? -1) < (подписиОтбора[0] ?? 0)) {
   note("воронка", `«Все» (${подписиОтбора[1]}) меньше «Открытых» (${подписиОтбора[0]})`);
 }
+
+/*
+ * Приём заявки: два нажатия, а не три.
+ *
+ * Прежде заведение само открывало лист новой заявки, и человек, заполнив
+ * форму, оказывался в её карточке — третье нажатие уходило на выход.
+ * Подтверждением служит сама запись на доске и строка с номером.
+ */
+const карточекДо = await page.locator(".leadcard").count();
+await page.click('button:has-text("Новая заявка")');
+await page.waitForSelector('.sheet[role="dialog"]');
+const пробаЗаявки = `Проверка ${String(Date.now()).slice(-6)}`;
+await page.locator('.sheet label:has-text("Имя") input').fill(пробаЗаявки);
+await page.locator('.sheet label:has-text("Телефон") input').fill("+7 900 000-00-99");
+await page.click('.sheet button:has-text("Завести заявку")');
+await page.waitForTimeout(900);
+if ((await page.locator('.sheet[role="dialog"]').count()) !== 0) {
+  note("приём заявки", "после сохранения открыт лист: заведение стоит лишнего нажатия");
+  /* Лист закрывается тут же: оставленный открытым, он перекрывает доску
+     затемнением, и следующая проверка умирает по таймауту вместо того,
+     чтобы дать своё замечание. Замечание, потерянное падением, не сообщает
+     ничего — это выяснилось на первом же откате. */
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+}
+if ((await page.locator('main [role="status"]').count()) === 0) {
+  note("приём заявки", "заведение не подтверждено словами");
+}
+const карточекПосле = await page.locator(".leadcard").count();
+if (карточекПосле !== карточекДо + 1) {
+  note("приём заявки", `карточек на доске ${карточекПосле} вместо ${карточекДо + 1}`);
+}
+console.log(`  приём заявки: карточек ${карточекДо} → ${карточекПосле}, лист не навязан`);
 
 /*
  * Лист заявки: ориентир считается сервером и приходит вилкой. Проверяется

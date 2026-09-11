@@ -352,8 +352,18 @@ export function Dashboard({
     .filter((row) => ACTIVE.includes(row.status))
     .reduce((total, row) => total + row.count, 0);
 
+  /* Первый экран собран тремя группами, а не пятью равнозначными блоками.
+     Пять блоков шли равным шагом и читались как список из пяти равных,
+     хотя первые два — одно сведение в двух видах (аудит В-4, перенесена из
+     этапа 3). Группировка идёт ритмом, а не новыми заголовками и рамками:
+     шаг внутри группы прежние 24 px, между группами 48 px — отношение один
+     к двум из действующей шкалы, без единого нового значения.
+
+     Группы названы вопросом, на который отвечают: что с портфелем, что
+     требует действия, где всё лежит. */
   return (
-    <main className="container stack stack--loose">
+    <main className="container stack stack--groups">
+      <div className="stack stack--loose">
       <section className="statrow">
         <StatCard
           icon="#i-object"
@@ -412,7 +422,9 @@ export function Dashboard({
           />
         </div>
       </section>
+      </div>
 
+      <div className="stack stack--loose">
       {/* Воронка на первом экране. Первый экран отвечает на вопрос «что горит
           сегодня», и заявка с просроченной задачей горит сильнее объекта со
           сроком через неделю. Прорабу блок не приходит вовсе — как и сам
@@ -523,6 +535,7 @@ export function Dashboard({
           )}
         </div>
       </section>
+      </div>
 
       <section className="stack">
         <div className="section-head">

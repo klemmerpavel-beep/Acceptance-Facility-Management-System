@@ -80,6 +80,12 @@ export function projectColumns(
   today: string,
   onOpen: (project: ProjectSummary) => void,
   shown: readonly ProjectSummary[],
+  /* Смена статуса прямо из реестра. Обработчик необязателен тем же приёмом,
+     что правка позиции в смете: есть — пилюля становится органом, нет —
+     колонка ровно та же, что была. Без него путь к смене статуса шёл через
+     карточку и стоил на нажатие больше, чем позволяет правило «три касания
+     до действия» с запасом (07_IA, правило 3). */
+  onStatus?: (project: ProjectSummary) => void,
 ): readonly Column<ProjectSummary>[] {
   /* Колонка, пустая во всей выборке, места не занимает: «Прораб» стоял
      прочерком в шести строках из восьми, «Итог сметы» — «сметы нет» в семи
@@ -119,10 +125,21 @@ export function projectColumns(
     {
       key: "status",
       label: "Статус",
+      /* Сортируется подпись, а не орган: с обработчиком и без него колонка
+         сортируется одинаково. */
       value: (project) => STATUS_LABEL[project.status],
-      render: (project) => (
+      render: (project) => (onStatus === undefined ? (
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-      ),
+      ) : (
+        <button
+          type="button"
+          className="pillbutton"
+          aria-label={`Статус объекта ${project.code}: ${STATUS_LABEL[project.status]}. Изменить`}
+          onClick={() => { onStatus(project); }}
+        >
+          <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
+        </button>
+      )),
     },
     /* Две величины двумя колонками, а не одной «готовностью»: их складывает
        разный источник — первую человек, вторую приёмка, — и одна колонка на

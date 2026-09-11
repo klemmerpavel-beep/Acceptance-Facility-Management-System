@@ -414,10 +414,11 @@ export function ProjectCard({
                   {project.estimateVersion === null ? "сметы нет" : project.positions}
                 </dd>
               </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Сопровождение</dt>
-                <dd className="deflist__value">{formatPercent(BigInt(project.supervisionShare))}</dd>
-              </div>
+              {/* Строки «Сопровождение» здесь нет: та же величина стоит
+                  примечанием к итогу сметы выше — «включая сопровождение
+                  объекта 12 % — 455 382,25 ₽», и там она названа вместе с
+                  суммой, которую объясняет. Сводка липкая и живёт в высоту
+                  окна: каждая лишняя строка отнимает место у нужной. */}
             </dl>
           </aside>
 
@@ -661,12 +662,11 @@ function Overview({
                 <span className="metric__label">Календарных по договору</span>
               </span>
             )}
-            {estimate !== null && (
-              <span className="metric">
-                <span className="metric__value">{estimate.positions}</span>
-                <span className="metric__label">Позиций в смете</span>
-              </span>
-            )}
+            {/* Плитки «Позиций в смете» здесь нет намеренно: ряд назван
+                сроками и держит три меры времени, а счёт позиций среди них
+                читается как ещё один срок. Величина не теряется — она стоит
+                в сведениях слева, среди свойств объекта, и до 12.09.2026
+                печаталась дважды на одном экране (аудит Г-4). */}
           </div>
         )}
       </section>
