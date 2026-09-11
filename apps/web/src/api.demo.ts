@@ -200,7 +200,11 @@ export async function createWorker(input: CreateWorker): Promise<WorkerRow[]> {
   if ([...data.workers, ...заведённые.workers].some((row) => row.name === input.name)) {
     throw new Error(`«${input.name}» уже есть в справочнике.`);
   }
-  заведённые.workers.push({ id: новыйId(), name: input.name, kind: input.kind });
+  /* Только что заведённая бригада показывает ноль, а не прочерк: она уже
+     в справочнике, и ноль здесь — сведение «работы не сдавала». */
+  заведённые.workers.push({
+    id: новыйId(), name: input.name, kind: input.kind, projects: 0, wageTotal: "0",
+  });
   return [...data.workers, ...заведённые.workers];
 }
 

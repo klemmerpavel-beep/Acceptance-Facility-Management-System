@@ -675,6 +675,34 @@ const brigades = виды.filter((вид) => вид.trim() === "Бригада")
 console.log(`  заказчиков: ${clients}, бригад: ${brigades}`);
 if (brigades === 0) note("контакты", "бригады не показаны");
 if (clients === 0) note("контакты", "заказчики не показаны");
+/* Свод по рабочему в таблице: у бригады стоят объекты и начисленное, а не
+   прочерк. Заголовки разведены — итог смет заказчика и начисленное бригаде
+   разные величины, и одна колонка на обе врала бы половине строк. */
+const заголовки = (await page.locator(".datatable__table thead th").allTextContents())
+  .map((текст) => текст.trim());
+if (!заголовки.includes("Начислено")) {
+  note("контакты", `в таблице нет колонки «Начислено»: ${заголовки.join(", ")}`);
+} else {
+  const колонка = заголовки.indexOf("Начислено") + 1;
+  const строкаБригады = page.locator('.datatable__table tbody tr:has(.pill:text-is("Бригада"))').first();
+  if ((await строкаБригады.count()) === 0) {
+    note("контакты", "строки бригады нет: свод по рабочему проверять не на чем");
+  } else {
+    const начислено = (await строкаБригады.locator(`td:nth-child(${String(колонка)})`).innerText()).trim();
+    if (!/\d/u.test(начислено)) {
+      note("контакты", `у бригады начислено «${начислено}» вместо суммы`);
+    }
+    const сСуммой = await page
+      .locator('.datatable__table tbody tr:has(.pill:text-is("Бригада"))')
+      .evaluateAll((rows, колонка) => rows
+        .map((row) => row.querySelector(`td:nth-child(${колонка})`)?.textContent?.trim() ?? "")
+        .filter((текст) => /[1-9]/u.test(текст)).length, колонка);
+    if (сСуммой === 0) {
+      note("контакты", "ни у одной бригады нет ненулевого начисления: на стенде оно есть");
+    }
+  }
+}
+
 await геометрия(page, "контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
