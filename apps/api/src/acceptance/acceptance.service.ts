@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
-  AcceptanceBatch, AcceptanceView, CreateAcceptance, Reversal,
+  AcceptanceBatch, AcceptanceView, CreateAcceptance, PhotoReport, Reversal,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
-  accrualsByTranche, kopecks, milliunits, negateQuantity, remainingQty, sum,
+  accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, remainingQty, sum,
   type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
 import { randomUUID } from "node:crypto";
@@ -314,6 +314,92 @@ export class AcceptanceService {
           };
         }),
     }));
+  }
+
+  /**
+   * Фотоотчёт объекта (стадия C.4).
+   *
+   * Снимки приёмки попадают сюда сами: прораб фотографирует один раз, и
+   * второго места, куда их складывать, продукт не заводит.
+   *
+   * Отбора по редакции сметы здесь НЕТ, в отличие от вида приёмки. Вид
+   * приёмки отвечает на вопрос «что принято по действующей смете», а отчёт —
+   * на вопрос «что сделано на объекте», и повторный импорт этого не
+   * отменяет: снимок сделан, работа была. То же правило, по которому счёт
+   * транша не отбирается по редакции.
+   *
+   * Денежных величин в отчёте нет ни одной, ни одной роли: это отчёт о
+   * сделанном, а не о начисленном.
+   */
+  async report(user: RequestUser, code: string): Promise<PhotoReport> {
+    const project = await this.projectOf(user, code);
+
+    const пакеты = await this.prisma.acceptanceBatch.findMany({
+      where: { projectId: project.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, sectionId: true, createdAt: true, comment: true,
+        section: { select: { name: true } },
+        brigade: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        photos: { select: { id: true } },
+        acceptances: {
+          select: {
+            id: true, itemId: true, qty: true, reversesId: true,
+            item: { select: { name: true, unit: { select: { code: true } } } },
+          },
+        },
+      },
+    });
+
+    const отчёт = пакеты.map((пакет) => {
+      /* Сторно приходит обратной записью внутри того же пакета: строка
+         считается отменённой, если её опознаватель кто-то сторнировал. */
+      const отменены = new Set(пакет.acceptances.flatMap((row) =>
+        row.reversesId === null ? [] : [row.reversesId]));
+      const строки = пакет.acceptances
+        .filter((row) => row.reversesId === null)
+        .map((row) => ({
+          positionName: row.item.name,
+          unit: row.item.unit.code,
+          qty: row.qty.toString(),
+          reversed: отменены.has(row.id),
+        }));
+      return {
+        id: пакет.id,
+        sectionId: пакет.sectionId,
+        sectionName: пакет.section.name,
+        brigade: пакет.brigade.name,
+        at: пакет.createdAt.toISOString(),
+        author: пакет.createdBy?.name ?? null,
+        comment: пакет.comment,
+        photos: пакет.photos.map((photo) => photo.id),
+        lines: строки,
+        /* Пакет, все строки которого сторнированы, помечается целиком, но
+           не прячется: история не переписывается (БП-04). Показать его как
+           сделанное значило бы солгать заказчику. */
+        reversed: строки.length > 0 && строки.every((строка) => строка.reversed),
+      };
+    });
+
+
+    /* Раскладка по дням — доменное правило (`groupByDay`): на стенде все
+       приёмки приходятся на один день, и порядок дней поверх HTTP проверить
+       нечем — испытывается он тестом домена. */
+    const дни = groupByDay(отчёт);
+
+    return {
+      days: дни.map((день) => ({ day: день.day, batches: день.items })),
+      /* Разделы отбора «по этапу» — тоже доменное правило: у каждого
+         пакета стенда ровно один снимок, и «считать снимки» там неотличимо
+         от «считать пакеты». Отличимо это в тесте домена. */
+      sections: photoSections(отчёт),
+      totals: {
+        photos: отчёт.reduce((всего, пакет) => всего + пакет.photos.length, 0),
+        batches: отчёт.length,
+        days: дни.length,
+      },
+    };
   }
 
   /**

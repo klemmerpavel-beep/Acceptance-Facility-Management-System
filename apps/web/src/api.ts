@@ -2,6 +2,7 @@ import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
+  photoReportSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema,
@@ -15,7 +16,7 @@ import {
   type UpdateEstimateItem, type UpdateSupervision,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
-  type LeadBoard, type LeadCard, type LoseLead, type RepairType,
+  type LeadBoard, type LeadCard, type LoseLead, type PhotoReport, type RepairType,
   type UpdateLead, type UpdateLeadTask, type UpdateRepairType,
 } from "@priyomka/contracts";
 import { z } from "zod";
@@ -203,6 +204,10 @@ export const reverseAcceptance = (
  * объекта: демонстрационная сборка работает без сервера и подставляет сюда
  * встроенное изображение.
  */
+/** Фотоотчёт объекта: те же снимки приёмки, без отбора по редакции сметы. */
+export const fetchReport = (code: string): Promise<PhotoReport> =>
+  request(`/projects/${code}/acceptance/report`, photoReportSchema);
+
 export const acceptancePhotoUrl = (code: string, id: string): string =>
   `${BASE}/projects/${code}/acceptance/photo/${id}`;
 

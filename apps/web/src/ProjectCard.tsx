@@ -15,6 +15,7 @@ import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
 import { Acceptance } from "./Acceptance.js";
+import { Report } from "./Report.js";
 import { Tranches } from "./Tranches.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
@@ -113,6 +114,7 @@ const TABS = [
   { key: "estimate", label: "Смета" },
   { key: "work", label: "Работа" },
   { key: "acceptance", label: "Приёмка" },
+  { key: "report", label: "Отчёт" },
   { key: "tranches", label: "Транши" },
 ] as const;
 
@@ -459,6 +461,10 @@ export function ProjectCard({
               {tab === "acceptance" && (
                 <Acceptance code={project.code} role={user.role} onEvents={load} />
               )}
+            </div>
+
+            <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>
+              {tab === "report" && <Report code={project.code} />}
             </div>
 
             <div role="tabpanel" id="panel-tranches" aria-labelledby="tab-tranches" hidden={tab !== "tranches"}>
