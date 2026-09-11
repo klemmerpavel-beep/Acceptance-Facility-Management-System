@@ -7,14 +7,18 @@
    Значение мимо токена — дефект. Правка значений допустима только вместе
    с правкой нормативного документа.
 
-   Правило тёмной темы: ни один цвет не определяется только внутри
-   медиазапроса. Базовые значения всегда в :root, тёмная тема их
-   переопределяет — дважды: по системной настройке и по явному
-   переключателю, чтобы переключатель выигрывал в обе стороны.
+   Тема одна — светлая, решением заказчика от 11.09.2026. Тёмной палитры
+   в продукте нет, и переопределений темы здесь быть не должно: цвет
+   определяется ровно один раз, в :root. Правило стережёт механическая
+   проверка в design-system.test.ts.
+
+   `color-scheme: light` объявлен не для красоты: без него браузер у
+   человека с тёмной темой в системе закрасит поля ввода, выпадающие списки
+   и полосы прокрутки тёмным — поверх нашего светлого полотна.
    ========================================================================= */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* --- фон и поверхности ------------------------------------------------ */
   --bg:            #F4F6F8;   /* полотно страницы, холодный нейтрал */
@@ -52,9 +56,9 @@
   --accent-hover:  #3B2E96;
   --accent-soft:   #F0EEFD;   /* заливка выбранного, бейджи */
   --accent-ink:    #FFFFFF;   /* текст на акценте */
-  /* Накладки поверх акцентной заливки. В светлой теме акцент тёмный и
-     накладка светлая, в тёмной — наоборот, поэтому это токены, а не
-     литералы rgba внутри компонента. */
+  /* Накладки поверх акцентной заливки: акцент тёмный, накладка светлая.
+     Токены, а не литералы rgba внутри компонента: правка акцента обязана
+     тянуть за собой и накладку. */
   --on-accent-fill:  rgba(255, 255, 255, .16);   /* бейдж кода на обложке */
   --on-accent-track: rgba(255, 255, 255, .24);   /* дорожка кольца на акценте */
 
@@ -63,15 +67,11 @@
      плана. Смысл в том, чтобы числа замера читались как одно целое и не
      смешивались со сводкой по объекту рядом.
 
-     Это не тема, а материал: в тёмной теме плашка не переворачивается
-     обратно в светлую, а сливается с общей палитрой — там весь экран уже
-     тёмный, и отдельная инверсия смысла не несёт. Поэтому значения ниже
-     переопределяются в тёмной теме на обычные поверхность, чернила и
-     акцент, а плашка отделяется от полотна линией, как всякая другая.
+     Это не тема, а материал: плашка тёмная по назначению, а не потому,
+     что где-то выбрана тёмная тема. Темы в продукте одна.
 
      --line-inv — цвет ЛИНИИ, а не заливки. Заливать им полосу нельзя:
-     числа на нём дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7,
-     а подписи в тёмной — 3,39 при пороге 4,5. На заливке из этого набора
+     числа на нём дают 6,51 при пороге 7. На заливке из этого набора
      держится только основной текст, и заливки поэтому нет вовсе. */
   --surface-inv:   #0E1A28;
   --ink-on-inv:    #E8EDF2;
@@ -196,15 +196,6 @@
   --ease:     cubic-bezier(.2, 0, 0, 1);
 }
 
-/* Явно выбранная светлая тема сообщает схему браузеру: без этого полосы
-   прокрутки, поля ввода и другие системные элементы останутся тёмными,
-   когда тёмная тема выбрана в системе, а в приложении выбрана светлая.
-   Парное объявление для тёмной темы стоит внутри её собственного блока. */
-:root[data-theme="light"] { color-scheme: light; }
-
-/* Тёмная тема по системной настройке.
-   Исключение :root[data-theme="light"] нужно, чтобы явно выбранная светлая
-   тема не переопределялась системной тёмной. */
 /* Размер органа управления зависит от устройства, а не от темы, поэтому
    переопределение стоит здесь, до тем. До 1023 px включительно продукт
    держат в руках: кнопка и поле получают 48 px. На десктопе 40 px остаются
@@ -215,113 +206,6 @@
     --row-h:     48px;
     --tap-min:   48px;
   }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg:            #0D1219;
-    --surface:       #141B24;
-    --surface-2:     #212C39;
-    --overlay:       rgba(3, 7, 12, .62);
-
-    --ink:           #E8EDF2;
-    --ink-2:         #B6C3D0;
-    --ink-3:         #8F9DAF;
-    --ink-inv:       #0D1219;
-
-    --line:          #28323E;
-    --line-strong:   #3C4854;
-
-    /* Инвертированная поверхность сливается с общей палитрой: в тёмной
-       теме инвертировать нечего, плашка отделяется линией. */
-    --surface-inv:   #212C39;
-    --ink-on-inv:    #E8EDF2;
-    --ink-on-inv-2:  #8F9DAF;
-    --line-inv:      #3C4854;
-    --accent-inv:    #B7B0F6;
-
-    --accent:        #B7B0F6;
-    --accent-hover:  #C6C0F9;
-    --accent-soft:   #262251;
-    --accent-ink:    #0D1219;
-    --on-accent-fill:  rgba(13, 18, 25, .14);
-    --on-accent-track: rgba(13, 18, 25, .20);
-
-    --band:            #3E3193;
-    --band-ink:        #E8EDF2;
-    --on-band-fill:    rgba(232, 237, 242, .10);
-    --on-band-track:   rgba(232, 237, 242, .18);
-    --band-active:     #E8EDF2;
-    --band-active-ink: #3E3193;
-
-    --signal:        #E0A155;
-    --signal-soft:   #2E2314;
-
-    --ok:            #63B08A;
-    --ok-soft:       #172A22;
-    --warn:          #D9B24E;
-    --warn-soft:     #2B2517;
-    --danger:        #FFB4AB;
-    --danger-soft:   #412522;
-    --neutral-soft:  #1E2731;
-
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
-    --shadow-2: 0 4px 16px rgba(0, 0, 0, .55);
-  }
-}
-
-/* Явный переключатель. Те же значения — выигрывает у системной светлой. */
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  --bg:            #0D1219;
-  --surface:       #141B24;
-  --surface-2:     #212C39;
-  --overlay:       rgba(3, 7, 12, .62);
-
-  --ink:           #E8EDF2;
-  --ink-2:         #B6C3D0;
-  --ink-3:         #8F9DAF;
-  --ink-inv:       #0D1219;
-
-  --line:          #28323E;
-  --line-strong:   #3C4854;
-
-  /* Инвертированная поверхность сливается с общей палитрой: в тёмной
-     теме инвертировать нечего, плашка отделяется линией. */
-  --surface-inv:   #212C39;
-  --ink-on-inv:    #E8EDF2;
-  --ink-on-inv-2:  #8F9DAF;
-  --line-inv:      #3C4854;
-  --accent-inv:    #B7B0F6;
-
-  --accent:        #B7B0F6;
-  --accent-hover:  #C6C0F9;
-  --accent-soft:   #262251;
-  --accent-ink:    #0D1219;
-  --on-accent-fill:  rgba(13, 18, 25, .14);
-  --on-accent-track: rgba(13, 18, 25, .20);
-
-  --band:            #3E3193;
-  --band-ink:        #E8EDF2;
-  --on-band-fill:    rgba(232, 237, 242, .10);
-  --on-band-track:   rgba(232, 237, 242, .18);
-  --band-active:     #E8EDF2;
-  --band-active-ink: #3E3193;
-
-  --signal:        #E0A155;
-  --signal-soft:   #2E2314;
-
-  --ok:            #63B08A;
-  --ok-soft:       #172A22;
-  --warn:          #D9B24E;
-  --warn-soft:     #2B2517;
-  --danger:        #FFB4AB;
-  --danger-soft:   #412522;
-  --neutral-soft:  #1E2731;
-
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
-  --shadow-2: 0 4px 16px rgba(0, 0, 0, .55);
 }
 
 /* ============================================================================
@@ -885,43 +769,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   transition: background-color var(--dur-fast) var(--ease); }
 .appbar__menu-item:hover { background: var(--surface-2); }
 
-/* Переключатель темы. Три состояния, а не два: «системная» — не то же самое,
-   что «светлая», и пользователь, не менявший тему, должен оставаться на
-   системной. Область нажатия 44 px — норма §7, на всех ширинах.
-   Дорожка на ступень выше опции: при отступе 2 px внешний радиус обязан
-   быть внутренним плюс отступ (8 − 2 = 6), иначе угол опции выпирает
-   за угол дорожки.
-
-   Основные значения — для поверхности, а не для полосы шапки. Прежде было
-   наоборот: подложка --on-band-fill и значки --band-ink рисовали в
-   настройках белое по белому, и два невыбранных состояния из трёх
-   исчезали. Управление, которого не видно, всё равно что отсутствует. */
-.themeswitch { display: inline-flex; gap: 2px; padding: 2px; background: var(--surface-2); border-radius: var(--radius-md); }
-.themeswitch__option {
-  display: grid;
-  place-items: center;
-  width: var(--tap-min); height: var(--tap-min);
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-chip);
-  color: var(--ink-2);
-  cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-.themeswitch__option[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-1); }
-/* В поле настроек дорожка иначе растягивается на всю ширину панели и
-   читается как полоса, а не как переключатель из трёх состояний. */
-.field > .themeswitch { align-self: start; }
-/* В шапке дорожки нет вовсе: три плашки подряд рядом с блоком работающего
-   читались как четвёртый блок навигации. Остаётся ряд значков, из которых
-   плашку носит только выбранный. */
-.appbar .themeswitch { background: none; padding: 0; gap: 0; }
-.appbar .themeswitch__option { color: var(--band-ink); }
-.appbar .themeswitch__option[aria-pressed="true"] { background: var(--band-active); color: var(--band-active-ink); box-shadow: none; }
-/* До 768 px шапка держит знак, блок работающего и колокол; четвёртый орган
-   в неё не помещается. Там переключатель остаётся в настройках. */
-@media (max-width: 767px) { .appbar .themeswitch { display: none; } }
-
 /* Объект в узкой раскладке — строка ведомости, а не карточка. Ссылкой
    служит вся строка: цель нажатия равна её высоте, а не высоте заголовка
    (реестр Д-27, Д-33). */
@@ -1148,6 +995,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   background: var(--surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-2);
+  /* Прокрутка листа не утягивает страницу под ним: докрутив длинный лист
+     до конца, прораб продолжал движение пальца и уезжал по документу,
+     теряя место, к которому вернуться нечем — лист закрывает экран. */
+  overscroll-behavior: contain;
 }
 @media (min-width: 768px) {
   .sheet {
@@ -1432,6 +1283,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Сумма, требующая внимания: расхождение импорта, сторнирующая запись. */
 .num--danger { color: var(--danger); }
+/* Перевыработка — законное состояние, а не ошибка: сигнальный цвет, не
+   тревожный. Тем же правилом окрашены остаток транша и фактическая
+   готовность этапа выше ста процентов. */
+.num--over { color: var(--signal); }
 
 /* Перечень строк исходного файла в находке отчёта. Переносится по словам:
    четырнадцать номеров в одну строку шире мобильного экрана. */
@@ -1525,8 +1380,8 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__search input { flex: 1 1 auto; border: 0; background: none;
   font-family: inherit; font-size: var(--fs-body); color: var(--ink); }
 /* Кольцо фокуса остаётся на самом поле: смена цвета границы обёртки на
-   один пиксель — более слабый указатель, а в тёмной теме он давал 6,56:1
-   (реестр Д-24). Обёртка усиливает, но не заменяет. */
+   один пиксель — более слабый указатель (реестр Д-24). Обёртка усиливает,
+   но не заменяет. */
 .datatable__search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
@@ -1641,11 +1496,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .stamp__cell--wide { grid-column: span 2; }
 }
 
-/* --- 5.18 Шкала готовности -------------------------------------------------
+/* --- 5.18 Шкала объекта ----------------------------------------------------
    Доля принятого показывается размеченной линейкой с делениями, а не
    кольцом. Кольцо из одного значения — украшение: чтобы снять с него долю,
    её всё равно печатают числом в середине. Линейка с делениями по четвертям
-   читается как измерение и принадлежит миру рулетки, а не инфографики.   */
+   читается как измерение и принадлежит миру рулетки, а не инфографики.
+
+   Заполнение — принятое по приёмке. Заявленная готовность стоит риской
+   поперёк линейки: это утверждение человека, а не измерение, и вторым
+   заполнением она выдавала бы себя за измеренное. Риска выше дорожки с
+   обеих сторон — её видно и тогда, когда она стоит вплотную к краю
+   заполнения, то есть ровно в том случае, ради которого нарисована.      */
 .scale { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 140px; }
 .scale__track { position: relative; block-size: 10px; border: 1px solid var(--line-strong); }
 .scale__fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--accent); }
@@ -1659,6 +1520,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .scale--on-accent .scale__tick { background: var(--on-accent-track); }
 .scale--on-accent .scale__legend { color: var(--accent-ink); opacity: .78; }
 .scale--on-accent .scale__value { color: var(--accent-ink); opacity: 1; }
+.scale__claim { position: absolute; inset-block: -3px; inline-size: 2px;
+  background: var(--ink); transform: translateX(-1px); }
+.scale--on-accent .scale__claim { background: var(--accent-ink); }
+/* Перевыработка сигнальным цветом, тем же правилом, что отрицательный
+   остаток транша и фактическая готовность этапа выше ста процентов. */
+.scale__value--over { color: var(--signal); }
+/* На акцентной плитке сигнальный цвет недоступен: «--signal» — тёмная охра
+   на индиго, и она там нечитаема. Перевыработка выделяется обращением
+   пары, контраст которой задан самой парой. */
+.scale--on-accent .scale__value--over { color: var(--accent); background: var(--accent-ink);
+  padding-inline: var(--space-1); }
 
 /* --- 5.19 «Что дальше» -----------------------------------------------------
    Список того, чего в продукте ещё нет. Строки разделены линией, стадия
@@ -1708,8 +1580,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .toggle--inv[aria-checked="true"] .toggle__track { background: var(--accent-inv); }
 .toggle--inv[aria-checked="true"] .toggle__knob  { background: var(--surface-inv); }
 
-/* Инвертированная плашка помещения. Материал, а не тема: в тёмной теме
-   значения токенов сходятся с общей палитрой, и плашку держит линия. */
+/* Инвертированная плашка помещения. Материал, а не тема: она тёмная по
+   назначению — числа замера читаются как одно целое и не смешиваются со
+   сводкой по объекту рядом. Плашку держит линия, а не тень. */
 .measure { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-5);
   padding: var(--space-5); border: 1px solid var(--line-inv); border-radius: var(--radius-lg);
   background: var(--surface-inv); color: var(--ink-on-inv); }
@@ -1751,7 +1624,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
      по объекту, ни органов управления. Экранная часть вкладки скрыта одним
      классом, а не перечислением блоков — перечисление устаревает на первой
      же правке экрана. */
-  .appbar, .tabbar, .themeswitch, .stamp, .stamp__crumbs, .tabs,
+  .appbar, .tabbar, .stamp, .stamp__crumbs, .tabs,
   .measure-screen, .project-layout > aside { display: none !important; }
   .measure-print { display: block; }
   /* Сетка карточки держит ширину колонки даже со скрытой сводкой: на листе
@@ -1911,6 +1784,16 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 /* Карточка позиции. Наименование в две строки, под ним смета и принятое,
    справа отметка — цель нажатия во всю высоту карточки. */
+/* Отбор позиций внутри раздела. Поле растягивается, флажок и счётчик
+   держат свою ширину; на телефоне ряд переносится, и поле занимает строку
+   целиком — печатают в него большим пальцем, стоя на объекте. */
+.accept__filter { display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-3); margin-block-end: var(--space-3); }
+.accept__filter .datatable__search { flex: 1 1 240px; min-inline-size: 0; }
+/* Счётчик отобранного прижат к концу ряда: он подпись к списку, а не орган
+   управления, и в потоке между флажком и списком читался бы как третий
+   орган. */
+.accept__filter .num { margin-inline-start: auto; }
 .accept__list { display: grid; gap: var(--space-2); }
 .accept__row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
@@ -1938,6 +1821,18 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 .accept__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .accept__check:disabled { cursor: not-allowed; opacity: .5; }
+/* Флажок — не отметка приёмки. Класс `.accept__check` принадлежит кнопке
+   отметки позиции, и раздавать его обычным флажкам нельзя: по нему ищут
+   отметку и люди, и проверки.
+
+   Сам квадрат оставлен в своём размере: растянутый до 48 px системный
+   флажок рисуется пустой рамкой во весь орган и читается как незаполненное
+   поле. Норму области нажатия держит подпись — строка целиком, — и это
+   правильнее: попадают в слова, а не в квадрат. */
+.checkbox { inline-size: 20px; block-size: 20px; flex: none;
+  accent-color: var(--accent); cursor: pointer; }
+.checkline { display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); cursor: pointer; }
 
 /* Полоса подтверждения. Прилипает к низу списка и появляется вместе с первой
    отметкой: до неё она заняла бы место, ничего не сообщая. */
@@ -1993,6 +1888,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   .accept__batch { grid-template-columns: 56px minmax(0, 1fr); }
   .accept__photo { inline-size: 56px; block-size: 56px; }
 }
+
+/* Фактическая готовность стоит под заявленной в той же колонке: две
+   величины в строку не помещаются в 72 px, а разводить их по колонкам
+   значило бы отодвинуть дни ещё на одну ширину. Приглушена, потому что
+   заявленную ставит человек, а эта считается и спорить с ней не должна. */
+.gantt__pct { flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
+.gantt__fact { font-size: var(--fs-sm); color: var(--ink-3); }
+.gantt__fact--over { color: var(--signal); }
 
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
@@ -2057,10 +1960,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
     <symbol id="i-search" viewBox="0 0 20 20"><path d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3z"/><path d="M13.5 13.5 17 17"/></symbol>
     <symbol id="i-sort" viewBox="0 0 20 20"><path d="M6 8 10 4l4 4"/><path d="M6 12l4 4 4-4"/></symbol>
     <symbol id="i-sort-asc" viewBox="0 0 20 20"><path d="M6 12 10 8l4 4"/></symbol>
-    <!-- Тема: доля закраски квадрата и есть обозначение режима. -->
-    <symbol id="i-theme-system" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M10 3h7v14h-7z" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="i-theme-light" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/></symbol>
-    <symbol id="i-theme-dark" viewBox="0 0 20 20"><path d="M3 3h14v14H3z"/><path d="M3 3h14v14H3z" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-bell" viewBox="0 0 20 20"><path d="M5 14V9a5 5 0 0 1 10 0v5"/><path d="M3 14h14"/><path d="M8 17h4"/></symbol>
     <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 3 3 16h14z"/><path d="M10 8v4M10 14h.01"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 20 20"><path d="M3 5h14v12H3z"/><path d="M3 9h14M7 3v4M13 3v4"/></symbol>
@@ -2082,11 +1981,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
     </div>
     <details class="appbar__more"><summary class="appbar__link">Ещё<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="appbar__menu"><button type="button" class="appbar__menu-item">Настройки</button><button type="button" class="appbar__menu-item">Что дальше</button><button type="button" class="appbar__menu-item">Выйти</button></div></details>
   </nav>
-  <div class="themeswitch" role="group" aria-label="Тема оформления" id="theme">
-    <button type="button" class="themeswitch__option" data-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-theme-system"/></svg><span class="visually-hidden">Как в системе</span></button>
-    <button type="button" class="themeswitch__option" data-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-light"/></svg><span class="visually-hidden">Светлая тема</span></button>
-    <button type="button" class="themeswitch__option" data-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-theme-dark"/></svg><span class="visually-hidden">Тёмная тема</span></button>
-  </div>
 </header>
 
 <div class="container">
@@ -2813,20 +2707,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   for (const fill of document.querySelectorAll("[data-fill]")) {
     fill.style.width = fill.dataset.fill + "%";
   }
-
-  // Переключатель темы: три состояния. Системное снимает признак —
-  // в этом состоянии тёмную тему включает медиазапрос, а не атрибут.
-  document.getElementById("theme").addEventListener("click", (event) => {
-    const option = event.target.closest(".themeswitch__option");
-    if (!option) return;
-    const mode = option.dataset.mode;
-    const root = document.documentElement;
-    if (mode === "system") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", mode);
-    for (const other of document.querySelectorAll(".themeswitch__option")) {
-      other.setAttribute("aria-pressed", String(other === option));
-    }
-  });
 
   document.querySelectorAll(".tabs").forEach((group) => {
     group.addEventListener("click", (event) => {

@@ -1921,108 +1921,118 @@ const brokenIcons = await page.evaluate(() =>
 );
 if (brokenIcons.length > 0) note("иконка без символа", [...new Set(brokenIcons)].join(", "));
 
-// Тёмная тема по системной настройке.
+/*
+ * Тема одна — светлая, решением заказчика от 11.09.2026.
+ *
+ * Проверяется не наличие светлого, а отсутствие тёмного: снятая тёмная
+ * палитра возвращается по кусочкам — правилом под медиазапросом, признаком
+ * на корне, забытым переключателем, — и продукт снова о двух темах, из
+ * которых поддерживается одна.
+ *
+ * Экран смотрится с системной тёмной темой: именно в этом состоянии
+ * недосмотр и виден. Без `color-scheme: light` браузер закрасит поля ввода,
+ * выпадающие списки и полосы прокрутки тёмным поверх нашего светлого
+ * полотна, и продукт станет двухцветным без единой строки тёмной палитры.
+ */
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.emulateMedia({ colorScheme: "dark" });
 await page.waitForTimeout(300);
-await step("тёмная тема", "12-dark.png");
 
-/**
- * Переключатель темы есть в двух местах: в шапке — чтобы выйти из темы, в
- * которой ничего не видно, одним нажатием, — и в настройках, где он
- * остаётся единственным на ширине до 768 px. Обе копии читают одно
- * состояние: собственное у каждой расходилось бы при нажатии в шапке.
- */
-const шапкаТемы = page.locator(".appbar .themeswitch");
-if ((await шапкаТемы.count()) !== 1) note("тема", "в шапке нет переключателя темы");
-if (!(await шапкаТемы.isVisible())) note("тема", "переключатель темы в шапке скрыт на 1440 px");
-
-await page.click(".appbar__user");
-await page.waitForSelector(".settings__panel .themeswitch");
-
-/**
- * Переключатель темы. Смысл проверки не в атрибуте, а в том, что явный выбор
- * побеждает системную настройку: браузер здесь эмулирует системную тёмную,
- * и выбранная светлая обязана её перекрыть.
- */
-const themeState = async () =>
-  page.evaluate(() => ({
-    attribute: document.documentElement.getAttribute("data-theme"),
-    background: getComputedStyle(document.body).backgroundColor,
-    scheme: getComputedStyle(document.documentElement).colorScheme,
-  }));
-
-const systemDark = await themeState();
-if (systemDark.attribute !== null) note("тема", `в системном режиме признак не снят: ${systemDark.attribute}`);
-
-await page.click('.settings__panel .themeswitch__option[title="Светлая тема"]');
-await page.waitForTimeout(200);
-const forcedLight = await themeState();
-if (forcedLight.attribute !== "light") note("тема", "выбор светлой не выставил data-theme");
-if (forcedLight.background === systemDark.background) {
-  note("тема", `светлая не перекрыла системную тёмную: фон остался ${forcedLight.background}`);
+const светлая = await page.evaluate(() => {
+  const корень = document.documentElement;
+  return {
+    признак: корень.getAttribute("data-theme"),
+    схема: getComputedStyle(корень).colorScheme,
+    полотно: getComputedStyle(document.body).backgroundColor,
+    переключателей: document.querySelectorAll(".themeswitch").length,
+  };
+});
+if (светлая.признак !== null) {
+  note("тема", `на корне остался признак темы: data-theme="${светлая.признак}"`);
 }
-if (!forcedLight.scheme.includes("light") || forcedLight.scheme.includes("dark")) {
-  note("тема", `светлая не сообщена браузеру: color-scheme = ${forcedLight.scheme}`);
+if (!светлая.схема.includes("light") || светлая.схема.includes("dark")) {
+  note("тема", `браузеру объявлена схема «${светлая.схема}» вместо light: системные органы управления потемнеют`);
 }
-await step("светлая тема поверх системной тёмной", "13-svetlaya.png");
-
+if (светлая.переключателей > 0) {
+  note("тема", `на экране ${светлая.переключателей} переключателей темы: темы одна`);
+}
+/* Полотно светлое при системной тёмной. Разбор в числа, а не сравнение
+   строк: браузер волен отдать rgb или rgba, и сравнение по написанию
+   сломалось бы на пустом месте. */
+const [r = 0, g = 0, b = 0] = (/rgba?\(([^)]+)\)/u.exec(светлая.полотно)?.[1] ?? "")
+  .split(",").map((часть) => Number(часть.trim()));
+if ((r + g + b) / 3 < 200) {
+  note("тема", `при системной тёмной полотно осталось тёмным: ${светлая.полотно}`);
+}
+await step("светлая тема при системной тёмной", "12-svetlaya.png");
 await page.emulateMedia({ colorScheme: "light" });
-await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
-await page.waitForTimeout(200);
-const forcedDark = await themeState();
-if (forcedDark.attribute !== "dark") note("тема", "выбор тёмной не выставил data-theme");
-if (forcedDark.background === forcedLight.background) {
-  note("тема", `тёмная не перекрыла системную светлую: фон остался ${forcedDark.background}`);
-}
-await step("тёмная тема поверх системной светлой", "14-tyomnaya.png");
 
-await page.click('.settings__panel .themeswitch__option[title="Как в системе"]');
-await page.waitForTimeout(200);
-const backToSystem = await themeState();
-if (backToSystem.attribute !== null) note("тема", "возврат к системной не снял признак");
-if (backToSystem.background !== forcedLight.background) {
-  note("тема", "возврат к системной не вернул системный фон");
-}
-
-/**
- * Копии синхронны. Нажатие в шапке обязано отразиться в настройках: две
- * независимые копии показывали бы разный выбор на одном экране.
+/*
+ * Отбор позиций внутри раздела приёмки.
+ *
+ * Раздел держит до нескольких десятков позиций, и прораб ищет в нём одну
+ * стоя на объекте. Проверяется, что отбор сужает список, что счётчик
+ * называет то же число, что видно, и что пустой отбор объясняется словами,
+ * а не пустотой.
  */
-await page.click('.appbar .themeswitch__option[title="Светлая тема"]');
-await page.waitForTimeout(200);
-const вНастройках = await page
-  .locator('.settings__panel .themeswitch__option[title="Светлая тема"]')
-  .getAttribute("aria-pressed");
-if (вНастройках !== "true") {
-  note("тема", "выбор в шапке не отразился в настройках: копии переключателя разошлись");
-}
-if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "light") {
-  note("тема", "переключатель в шапке не сменил тему");
-}
-
-// Выбор обязан пережить перезагрузку: иначе переключатель бесполезен.
-await page.click('.settings__panel .themeswitch__option[title="Тёмная тема"]');
-await page.reload({ waitUntil: "networkidle" });
+/* Переход делается на широком экране: до 1023 px верхнее меню уступает
+   место нижней полосе, и ссылка шапки там не видна. Ширина телефона
+   выставляется после перехода — проверяется отбор, а не навигация. */
+await page.click('.appbar__link:has-text("Проекты")');
+await page.waitForSelector(".datatable__table tbody tr");
+await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".tabs__item");
+await page.click('.tabs__item:has-text("Приёмка")');
+await page.waitForSelector(".accept__row");
+await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
-const afterReload = await themeState();
-if (afterReload.attribute !== "dark") note("тема", "выбор не пережил перезагрузку страницы");
 
-// Переключатель на узком экране: он стоит в настройках, в блоке
-// «Рабочее место». Перезагрузка выше вернула экран на главную.
-await page.setViewportSize({ width: 360, height: 800 });
-await page.waitForTimeout(300);
-await page.click(".appbar__user");
-await page.waitForSelector(".settings__panel .themeswitch");
-await overflow("настройки с переключателем темы, 360");
-if (await page.locator(".appbar .themeswitch").isVisible()) {
-  note("тема", "переключатель в шапке не скрыт на 360 px: шапке не хватает места на четвёртый орган");
+const всего = await page.locator(".accept__row").count();
+if ((await page.locator(".accept__filter input[type=\"search\"]").count()) === 0) {
+  note("отбор приёмки", "поля поиска позиции в разделе нет");
+} else {
+  const первая = (await page.locator(".accept__name").first().textContent()) ?? "";
+  const кусок = первая.trim().slice(0, 6);
+  await page.fill('.accept__filter input[type="search"]', кусок);
+  await page.waitForTimeout(300);
+  const послеПоиска = await page.locator(".accept__row").count();
+  if (послеПоиска === 0) {
+    note("отбор приёмки", `поиск по «${кусок}» не нашёл даже ту позицию, из которой взят`);
+  }
+  if (послеПоиска >= всего && всего > 1) {
+    note("отбор приёмки", `поиск по «${кусок}» не сузил список: ${послеПоиска} из ${всего}`);
+  }
+  const счётчик = (await page.locator(".accept__filter .num").textContent()) ?? "";
+  if (!счётчик.trim().startsWith(String(послеПоиска))) {
+    note("отбор приёмки", `счётчик показывает «${счётчик.trim()}», а строк ${послеПоиска}`);
+  }
+  /* Пустой отбор объясняется словами: пустота на месте списка не говорит,
+     раздел пуст или запрос ничего не нашёл. */
+  await page.fill('.accept__filter input[type="search"]', "щцъфывапролдж");
+  await page.waitForTimeout(300);
+  if ((await page.locator(".accept__row").count()) !== 0) {
+    note("отбор приёмки", "заведомо несуществующий запрос оставил строки");
+  }
+  const пусто = (await page.locator(".accept__list .empty__text").textContent().catch(() => null)) ?? "";
+  if (!пусто.includes("отбор")) {
+    note("отбор приёмки", `пустой отбор не объяснён: «${пусто.trim()}»`);
+  }
+  await page.fill('.accept__filter input[type="search"]', "");
+  await page.waitForTimeout(300);
 }
-const tap = await page.locator(".settings__panel .themeswitch__option").first().boundingBox();
-if (tap === null || tap.width < 44 || tap.height < 44) {
-  note("область нажатия", `переключатель темы ${tap?.width ?? 0}×${tap?.height ?? 0} при норме 44×44`);
+/* Область нажатия у флажка — строка подписи целиком, а не квадрат: в
+   квадрат 20 px пальцем не попадают, а растянутый до 48 px системный флажок
+   рисуется пустой рамкой и читается как незаполненное поле. */
+const флажок = await page.locator(".accept__filter .checkline").boundingBox();
+if (флажок === null || флажок.height < 44) {
+  note("отбор приёмки", `область нажатия флажка ${флажок?.height ?? 0} px при норме 44`);
 }
-await step("переключатель темы, 360 px", "15-tema-360.png");
+const квадрат = await page.locator(".accept__filter .checkbox").boundingBox();
+if (квадрат !== null && квадрат.height > 32) {
+  note("отбор приёмки", `флажок растянут до ${квадрат.height} px и читается как пустая рамка`);
+}
+await step("приёмка, отбор позиций, 390 px", "35b-priyomka-otbor.png");
+await page.setViewportSize({ width: 1440, height: 900 });
 
 await browser.close();
 

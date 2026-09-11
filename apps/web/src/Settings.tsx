@@ -3,7 +3,6 @@ import type { Organization, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
 import { fetchOrganization, fetchUnits, logout, saveOrganization, errorMessage } from "./api.js";
 import { tabArrowHandler } from "./tabs.js";
-import { ThemeSwitch } from "./ThemeSwitch.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -201,16 +200,12 @@ export function Settings({
       )}
       </div>
 
-      {/* Тема и выход переехали сюда из шапки: в шапке эталона справа стоят
-          блок пользователя и колокол, и два лишних органа управления рядом
-          с ними сделали бы её длиннее полосы навигации. Оба нужны редко —
-          тему выбирают один раз, выходят в конце дня. */}
+      {/* Выход переехал сюда из шапки: в шапке эталона справа стоят блок
+          пользователя и колокол, и лишний орган управления рядом с ними
+          сделал бы её длиннее полосы навигации. Нужен он редко — выходят в
+          конце дня. Переключателя темы здесь больше нет: тема одна. */}
       <section className="panel panel--pad stack settings__panel">
         <h2 className="t-h2">Рабочее место</h2>
-        <div className="field">
-          <span className="field__label">Тема оформления</span>
-          <ThemeSwitch />
-        </div>
         <div className="row">
           <button
             type="button"

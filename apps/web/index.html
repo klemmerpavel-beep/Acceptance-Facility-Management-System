@@ -5,19 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect width='20' height='20' rx='4' fill='%2317457A'/%3E%3Cpath d='M5.5 10.5 8.5 13.5 14.5 7' fill='none' stroke='white' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E" />
     <title>DOLSTUDIO</title>
-    <script>
-      // Тема применяется до первой отрисовки. Без этого выбранная светлая
-      // тема мигнёт тёмной у того, у кого тёмная выбрана в системе:
-      // разметка появляется только после загрузки модуля.
-      try {
-        var stored = localStorage.getItem("priyomka.theme");
-        if (stored === "light" || stored === "dark") {
-          document.documentElement.setAttribute("data-theme", stored);
-        }
-      } catch (error) {
-        // Хранилище недоступно: остаётся системная тема.
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>
