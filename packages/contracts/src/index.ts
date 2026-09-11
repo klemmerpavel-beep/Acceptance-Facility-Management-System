@@ -1032,6 +1032,59 @@ export type Tranche = z.infer<typeof trancheSchema>;
  * Приписать их первому траншу значило бы переписать историю (БП-04),
  * поэтому они показываются отдельной строкой. Ноль в ней — честный ноль.
  */
+/* --- бухгалтерия: деньги заказчиков по портфелю ---------------------------
+
+   Раздел ведёт запись о деньгах, а не распоряжается ими: налоги, взносы,
+   зарплаты по графику, касса и банковские связи письменно исключены из
+   объёма (01_PROJECT.md, раздел 6.2) и здесь не появляются.
+
+   Единица — транш: это и есть то, что предъявляется заказчику и
+   оплачивается целиком. Второй сущности платежа не заводится — два учёта
+   одних денег разошлись бы на первой частичной оплате. */
+
+export const moneyStateSchema = z.enum(["в работе", "ждёт оплаты", "оплачено"]);
+export type MoneyState = z.infer<typeof moneyStateSchema>;
+
+export const accountingRowSchema = z.object({
+  id: z.string().uuid(),
+  projectCode: projectCodeSchema,
+  address: z.string(),
+  clientId: z.string().uuid(),
+  clientName: z.string(),
+  number: z.number().int().nonnegative(),
+  amount: kopecksString,
+  state: moneyStateSchema,
+  openedAt: z.string(),
+  closedAt: z.string().nullable(),
+  paidAt: z.string().nullable(),
+  /** Сколько дней транш закрыт и не оплачен. `null` — открыт или оплачен. */
+  awaitingDays: z.number().int().nonnegative().nullable(),
+  overdue: z.boolean(),
+  comment: z.string().nullable(),
+});
+export type AccountingRow = z.infer<typeof accountingRowSchema>;
+
+export const accountingViewSchema = z.object({
+  totals: z.object({
+    inWork: kopecksString,
+    awaiting: kopecksString,
+    paid: kopecksString,
+    /** Часть ожидающего, просроченная сверх порога: не слагаемое сверх трёх. */
+    overdue: kopecksString,
+    /** Порог, после которого ожидание названо просрочкой, в днях. */
+    graceDays: z.number().int().positive(),
+  }),
+  rows: z.array(accountingRowSchema),
+  clients: z.array(z.object({
+    clientId: z.string().uuid(),
+    name: z.string(),
+    awaiting: kopecksString,
+    paid: kopecksString,
+    overdue: z.boolean(),
+  })),
+});
+export type AccountingView = z.infer<typeof accountingViewSchema>;
+
 export const trancheViewSchema = z.object({
   /** Надбавка действующей сметы в сотых долях процента: 1200 = 12,00 %. */
   supervisionShare: z.number().int().nonnegative(),

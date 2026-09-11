@@ -5,6 +5,7 @@ import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
 import { Contacts } from "./Contacts.js";
 import { Leads } from "./Leads.js";
+import { Accounting } from "./Accounting.js";
 import { NewProjectSheet } from "./NewProjectSheet.js";
 import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
@@ -320,6 +321,24 @@ export function App(): React.JSX.Element {
               <p className="empty__title">Раздел ведёт руководитель</p>
               <p className="empty__text">
                 Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+      {/* Бухгалтерия — раздел руководителя по тому же правилу, что и
+          заявки: прорабу маршрут закрыт ролью, и показывать ему экран,
+          который ответит отказом, незачем. */}
+      {section === "accounting" && (
+        <>
+          {cover("Бухгалтерия", ["Главная", "Бухгалтерия"])}
+          {state.user.role === "OWNER" ? (
+            <Accounting onOpenProject={открытьОбъект} />
+          ) : (
+            <div className="empty">
+              <p className="empty__title">Раздел ведёт руководитель</p>
+              <p className="empty__text">
+                Деньги заказчика — не ваш контур. Ваша работа кончается принятой позицией.
               </p>
             </div>
           )}

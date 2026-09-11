@@ -18,6 +18,7 @@ import type {
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
+  AccountingView,
   PhotoReport, ReportBatch,
   CloseTranche, CreateTranche, TrancheView,
   UpdateEstimateItem, UpdateSupervision,
@@ -25,6 +26,7 @@ import type {
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
+  awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
   estimateItemFault, kopecks, measureTotals,
   milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
@@ -1020,6 +1022,74 @@ function пересчитатьТранш(транш: TrancheView["tranches"][nu
   транш.client = clientAmount(выработка, доля).toString();
   транш.remainder = trancheRemainder(kopecks(транш.amount), выработка, доля).toString();
   транш.fill = Number(trancheFill(kopecks(транш.amount), выработка, доля));
+}
+
+/**
+ * Бухгалтерия в демонстрации: деньги собираются из тех же траншей, что
+ * показывает карточка объекта, и тем же доменным правилом, что на сервере.
+ *
+ * Объект в демонстрации один, поэтому и ведомость денег в ней об одном
+ * объекте: выдумывать транши остальным значило бы показывать деньги,
+ * которых на стенде нет.
+ */
+export async function fetchAccounting(): Promise<AccountingView> {
+  await pause(220);
+  const сегодня = new Date().toISOString().slice(0, 10);
+  const объект = data["projects-owner"].find((project) => project.code === "R-99");
+  /* Опознаватель заказчика берётся из справочника: в сводке объекта его
+     нет — там заказчик назван кодом и именем, а свод денег группирует по
+     опознавателю, как и сервер. */
+  const заказчик = data["clients-owner"].find((row) => row.code === объект?.client.code);
+  const деньги = траншиR99().tranches.map((транш) => ({
+    status: транш.status,
+    amount: kopecks(транш.amount),
+    closedOn: транш.closedAt === null ? null : транш.closedAt.slice(0, 10),
+  }));
+  const свод = moneyTotals(деньги, сегодня);
+
+  return {
+    totals: {
+      inWork: свод.inWork.toString(),
+      awaiting: свод.awaiting.toString(),
+      paid: свод.paid.toString(),
+      overdue: свод.overdue.toString(),
+      graceDays: PAYMENT_GRACE_DAYS,
+    },
+    rows: траншиR99().tranches.map((транш, индекс) => ({
+      id: транш.id,
+      projectCode: "R-99",
+      address: объект?.address ?? "",
+      clientId: заказчик?.id ?? новыйId(),
+      clientName: заказчик?.name ?? объект?.client.name ?? "",
+      number: транш.number,
+      amount: транш.amount,
+      state: moneyState(транш.status),
+      openedAt: транш.openedAt,
+      closedAt: транш.closedAt,
+      paidAt: транш.paidAt,
+      awaitingDays: awaitingDays(деньги[индекс] ?? деньги[0] ?? {
+        status: "OPEN", amount: kopecks("0"), closedOn: null,
+      }, сегодня),
+      overdue: paymentOverdue(деньги[индекс] ?? {
+        status: "OPEN", amount: kopecks("0"), closedOn: null,
+      }, сегодня),
+      comment: транш.comment,
+    })),
+    clients: clientDebts(
+      траншиR99().tranches.map((_, индекс) => ({
+        clientId: заказчик?.id ?? "",
+        clientName: заказчик?.name ?? объект?.client.name ?? "",
+        tranche: деньги[индекс] ?? { status: "OPEN", amount: kopecks("0"), closedOn: null },
+      })),
+      сегодня,
+    ).map((строка) => ({
+      clientId: строка.clientId,
+      name: строка.name,
+      awaiting: строка.awaiting.toString(),
+      paid: строка.paid.toString(),
+      overdue: строка.overdue,
+    })),
+  };
 }
 
 export async function fetchTranches(code: string): Promise<TrancheView> {
