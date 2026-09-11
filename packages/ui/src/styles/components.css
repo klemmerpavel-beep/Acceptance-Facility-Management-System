@@ -1640,3 +1640,88 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .duelist__project:hover .duelist__address { color: var(--accent); }
 .duelist__address { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
+
+/* --- 5.32 Состав портфеля полосой долей -------------------------------------
+   Пришла на смену плиткам «Объекты по статусам»: плитки называли числа
+   порознь, полоса показывает их отношение. Два представления одних чисел
+   на одном экране заставляют выбирать, какому верить, поэтому плитки сняты,
+   а не поставлены рядом.
+
+   Сегменты разделены зазором 2 px цветом полотна, а не линией: линия — это
+   ещё один цвет на полосе из шести, а зазор читается как разделитель при
+   любой заливке и при чёрно-белой печати.
+
+   Цвет сегмента — ступень жизни объекта (`--stage-1…6`), а не качество его
+   состояния. Опознание держится на подписи и числе под полосой: цвет здесь
+   второй канал, первый — слово.                                          */
+.statusbar { display: flex; gap: 2px; block-size: 28px; inline-size: 100%;
+  border-radius: var(--radius-chip); overflow: hidden; }
+.statusbar__part { min-inline-size: 4px; border: 0; padding: 0; cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease); }
+.statusbar__part:hover { opacity: .82; }
+.statusbar__part--1 { background: var(--stage-1); }
+.statusbar__part--2 { background: var(--stage-2); }
+.statusbar__part--3 { background: var(--stage-3); }
+.statusbar__part--4 { background: var(--stage-4); }
+.statusbar__part--5 { background: var(--stage-5); }
+.statusbar__part--6 { background: var(--stage-6); }
+
+.statusbar__legend { display: flex; flex-direction: column;
+  margin: 0; padding: 0; list-style: none; }
+.statusbar__item { display: grid; grid-template-columns: 10px minmax(0, 1fr) 2rem 4rem;
+  align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min); padding-block: var(--space-1);
+  text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink-2);
+  border-block-end: 1px solid var(--line); }
+.statusbar__legend li:last-child .statusbar__item { border-block-end: 0; }
+.statusbar__name { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar__share { text-align: end; }
+.statusbar__item:hover { color: var(--accent); }
+.statusbar__item .num { text-align: end; }
+.statusbar__mark { inline-size: 10px; block-size: 10px; flex: none;
+  border-radius: var(--radius-sm); }
+.statusbar__mark--1 { background: var(--stage-1); }
+.statusbar__mark--2 { background: var(--stage-2); }
+.statusbar__mark--3 { background: var(--stage-3); }
+.statusbar__mark--4 { background: var(--stage-4); }
+.statusbar__mark--5 { background: var(--stage-5); }
+.statusbar__mark--6 { background: var(--stage-6); }
+
+/* --- 5.33 Готовность работ по объектам --------------------------------------
+   Заявленное и принятое в одной дорожке, а не двумя полосами рядом:
+   содержание — в разрыве между ними, и разведённые по двум дорожкам они
+   заставляли бы сравнивать глазом две длины вместо одной.
+
+   Принятое рисуется поверх заявленного и отделено от него кольцом 2 px
+   цветом полотна: без кольца две заливки сливаются в одну и разрыв
+   пропадает ровно там, где он мал и потому важен.                        */
+.readiness { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.readiness__legend { display: flex; align-items: center; gap: var(--space-2); }
+.readiness__mark { inline-size: 10px; block-size: 10px; flex: none;
+  border-radius: var(--radius-sm); }
+.readiness__mark--claim { background: var(--stage-2); }
+.readiness__mark--fact { background: var(--ok); margin-inline-start: var(--space-3); }
+.readiness__row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 3.5rem;
+  align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min); padding: var(--space-1) 0;
+  text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; color: var(--ink);
+}
+.readiness__row:hover .readiness__value { color: var(--accent); }
+.readiness__track { position: relative; block-size: 10px; inline-size: 100%;
+  background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.readiness__claim { position: absolute; inset-block: 0; inset-inline-start: 0;
+  background: var(--stage-2); border-radius: var(--radius-pill); }
+.readiness__fact { position: absolute; inset-block: 2px; inset-inline-start: 0;
+  background: var(--ok); border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px var(--surface); }
+/* Перевыработка законна и показывается как есть, а не обрезается по
+   заявленному: обрезка скрыла бы ровно то, ради чего две величины рядом. */
+.readiness__fact--over { background: var(--signal); }
+.readiness__value { text-align: end; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  .readiness__row { grid-template-columns: auto minmax(0, 1fr) 3rem; }
+}

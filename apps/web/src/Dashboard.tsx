@@ -8,7 +8,8 @@ import type {
 import { formatKopecks } from "@priyomka/ui";
 import { fetchDashboard, errorMessage } from "./api.js";
 import { ProjectTable } from "./ProjectTable.js";
-import { STATUS_LABEL, formatDay, formatTime, plural } from "./status.js";
+import { formatDay, formatTime, plural } from "./status.js";
+import { ReadinessChart, StatusBar } from "./HomeCharts.js";
 
 /**
  * Главная — первый экран при запуске.
@@ -430,6 +431,32 @@ export function Dashboard({
         />
       </section>
 
+      {/* Два небольших графика сразу под рядом чисел: из чего состоит
+          портфель и где какая работа стоит. Оба — срез на сегодня; периода
+          в них нет, полоса плана работ снята с главной решением заказчика,
+          и возвращать время через заднюю дверь эти блоки не должны. */}
+      <section className="split">
+        <div className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Портфель по статусам</h2>
+            <p className="t-sm t-muted">всего {data.projects.total}</p>
+          </div>
+          <StatusBar statuses={data.statuses} onOpenProjects={onOpenProjects} />
+        </div>
+
+        <div className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Готовность работ</h2>
+            <p className="t-sm t-muted">где отстаёт — сверху</p>
+          </div>
+          <ReadinessChart
+            projects={projects.filter((project) => ACTIVE.includes(project.status))}
+            onOpen={onOpen}
+            onAll={() => { onOpenProjects(null); }}
+          />
+        </div>
+      </section>
+
       {/* Воронка на первом экране. Первый экран отвечает на вопрос «что горит
           сегодня», и заявка с просроченной задачей горит сильнее объекта со
           сроком через неделю. Прорабу блок не приходит вовсе — как и сам
@@ -479,23 +506,11 @@ export function Dashboard({
         </section>
       )}
 
+      {/* Ближайшие сроки и последние события — два коротких списка в ряд.
+          Плитки «Объекты по статусам» сняты: полоса состава портфеля выше
+          отвечает на тот же вопрос, а два представления одних чисел
+          заставляют выбирать, какому верить. */}
       <section className="split">
-        <div className="stack">
-          <div className="section-head">
-            <h2 className="t-h2">Объекты по статусам</h2>
-          </div>
-          <div className="scores">
-            {data.statuses.map((row) => (
-              <Score
-                key={row.status}
-                label={STATUS_LABEL[row.status]}
-                value={row.count}
-                onClick={() => { onOpenProjects(row.status); }}
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="stack">
           <div className="section-head">
             <h2 className="t-h2">Ближайшие сроки</h2>
@@ -534,21 +549,21 @@ export function Dashboard({
             </ul>
           )}
         </div>
-      </section>
 
-      <section className="stack">
-        <div className="section-head">
-          <h2 className="t-h2">Последние события</h2>
-          <p className="t-sm t-muted">смена статуса, импорт сметы, правка обмера</p>
-        </div>
-        {data.feed.length === 0 ? (
-          <div className="empty">
-            <p className="empty__title">Событий пока нет</p>
-            <p className="empty__text">Здесь появятся смены статуса, импорт смет и правки обмера.</p>
+        <div className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Последние события</h2>
+            <p className="t-sm t-muted">четыре свежих</p>
           </div>
-        ) : (
-          <EventFeed events={data.feed} preview />
-        )}
+          {data.feed.length === 0 ? (
+            <div className="empty">
+              <p className="empty__title">Событий пока нет</p>
+              <p className="empty__text">Здесь появятся смены статуса, импорт смет и правки обмера.</p>
+            </div>
+          ) : (
+            <EventFeed events={data.feed} preview />
+          )}
+        </div>
       </section>
 
       <section className="stack">
