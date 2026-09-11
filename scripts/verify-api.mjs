@@ -69,6 +69,25 @@ check(
   `сводка прораба охватывает ${foremanSummary.projects.total} объектов из ${ownerSummary.projects.total}`,
 );
 
+/* Состав портфеля по статусам сходится с независимым пересчётом из списка
+   объектов. Сводка считает его своей выборкой, список — своей; разойдясь,
+   они дали бы на одном экране полосу долей и таблицу, противоречащие друг
+   другу. */
+const объектыДляСостава = await owner("/projects").then((r) => r.json());
+const поСтатусам = new Map();
+for (const project of объектыДляСостава) {
+  поСтатусам.set(project.status, (поСтатусам.get(project.status) ?? 0) + 1);
+}
+check(
+  ownerSummary.statuses.every((row) => поСтатусам.get(row.status) === row.count),
+  "состав портфеля в сводке не сошёлся с пересчётом по списку объектов: "
+  + ownerSummary.statuses.map((row) => `${row.status} ${row.count}/${поСтатусам.get(row.status) ?? 0}`).join(", "),
+);
+check(
+  ownerSummary.statuses.reduce((всего, row) => всего + row.count, 0) === объектыДляСостава.length,
+  "сумма по статусам не равна числу объектов портфеля",
+);
+
 // Справочник заказчиков ограничен объектами, доступными роли.
 const ownerClients = await owner("/clients").then((r) => r.json());
 const foremanClients = await foreman("/clients").then((r) => r.json());
