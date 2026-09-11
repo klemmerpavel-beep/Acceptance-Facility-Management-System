@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Приёмка — аудит и квиз</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect width='20' height='20' rx='4' fill='%234A3AB8'/%3E%3Cpath d='M5.5 10.5 8.5 13.5 14.5 7' fill='none' stroke='white' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Токены продукта. Страница самодостаточна: она публикуется отдельным
+   файлом и стилей приложения не подгружает. Значения совпадают с
+   packages/ui/src/styles/tokens.css — правка там обязана дойти и сюда. */
+:root{
+  color-scheme:light;
+  --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+  --ink:#0E1A28; --ink-2:#3C4C5E; --ink-3:#5A6979; --ink-inv:#FFFFFF;
+  --line:#DCE2E9; --line-strong:#B7C2CE;
+  --accent:#4A3AB8; --accent-hover:#3B2E96; --accent-soft:#F0EEFD;
+  --band:#6C5CE7; --band-ink:#FFFFFF;
+  --ok:#2C7753; --ok-soft:#E1F0E8;
+  --warn:#8E670C; --warn-soft:#FAF0D7;
+  --danger:#A5150D; --danger-soft:#FBE4E2;
+  --font-ui:"Golos Text",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --r-sm:4px; --r-md:6px; --r-lg:8px; --r-xl:12px;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px; --s-8:32px; --s-12:48px;
+  --page-end:100px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.55}
+.band{background:var(--band);color:var(--band-ink);padding:var(--s-6) var(--s-4)}
+.wrap{max-width:920px;margin:0 auto;padding-inline:var(--s-4)}
+.band h1{margin:0;font-size:26px;font-weight:600;letter-spacing:-.01em}
+.band p{margin:var(--s-2) 0 0;opacity:.88;font-size:14px}
+main.wrap{padding-block:var(--s-8) var(--page-end)}
+section{margin-bottom:var(--s-8)}
+h2{font-size:19px;font-weight:600;margin:0 0 var(--s-3)}
+h3{font-size:16px;font-weight:600;margin:var(--s-6) 0 var(--s-2)}
+p{margin:0 0 var(--s-3)}
+.lead{color:var(--ink-2)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s-4)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;font-size:14px}
+th,td{text-align:left;padding:var(--s-2) var(--s-3);border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:13px;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;padding:2px var(--s-2);border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.pill--ok{background:var(--ok-soft);color:var(--ok)}
+.pill--warn{background:var(--warn-soft);color:var(--warn)}
+.pill--danger{background:var(--danger-soft);color:var(--danger)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--s-3)}
+.num{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s-3)}
+.num b{display:block;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.num span{color:var(--ink-3);font-size:13px}
+.finding{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-md);padding:var(--s-3) var(--s-4);margin-bottom:var(--s-3)}
+.finding--open{border-left-color:var(--warn)}
+.finding h4{margin:0 0 var(--s-1);font-size:15px;font-weight:600}
+.finding p{margin:0 0 var(--s-2);color:var(--ink-2);font-size:14px}
+.finding p:last-child{margin-bottom:0}
+fieldset{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:var(--s-4);margin:0 0 var(--s-3)}
+legend{font-weight:600;padding-inline:var(--s-2)}
+.opt{display:block;border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);margin-bottom:var(--s-2);cursor:pointer}
+.opt:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.opt input{margin-right:var(--s-2)}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opt:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.why{font-size:13px;color:var(--ink-3);margin-top:var(--s-2)}
+.rec{font-size:13px;color:var(--accent)}
+.result{position:sticky;bottom:0;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-lg);padding:var(--s-4);box-shadow:0 -2px 12px rgba(14,26,40,.08)}
+.result pre{margin:var(--s-2) 0 0;padding:var(--s-3);background:var(--surface-2);border-radius:var(--r-md);font-size:13px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:var(--ink-inv);border-radius:var(--r-md);padding:var(--s-2) var(--s-4);font:inherit;font-size:14px;cursor:pointer}
+.btn:hover{background:var(--accent-hover)}
+.btn--ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:var(--s-2);flex-wrap:wrap;align-items:center}
+.foot{color:var(--ink-3);font-size:13px;border-top:1px solid var(--line);padding-top:var(--s-4)}
+a{color:var(--accent)}
+@media (max-width:640px){.band h1{font-size:21px}main.wrap{padding-block:var(--s-6) var(--page-end)}}
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <h1>Приёмка — аудит и квиз</h1>
+    <p>Состояние продукта после закрытия всех экранов CRM. 11.09.2026</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <p class="lead">Все пункты навигации и все вкладки карточки объекта получили свой экран,
+  и продукт впервые проверялся целиком. Ниже — чем проверялся, что найдено, что исправлено
+  тем же заходом и какие двенадцать решений нельзя принять без вас.</p>
+  <div class="grid">
+    <div class="num"><b>316</b><span>тестов предметной области</span></div>
+    <div class="num"><b>333</b><span>утверждения о сервере поверх HTTP</span></div>
+    <div class="num"><b>294</b><span>места замечания в обходах браузером</span></div>
+    <div class="num"><b>62</b><span>маршрута API</span></div>
+    <div class="num"><b>5 + 8</b><span>разделов и вкладок объекта</span></div>
+    <div class="num"><b>7 из 9</b><span>модулей первой версии в работе</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Объём первой версии</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Модуль</th><th>Состояние</th><th>Чего нет и почему</th></tr></thead>
+    <tbody>
+      <tr><td>Объект</td><td><span class="pill pill--ok">закрыт</span></td><td>—</td></tr>
+      <tr><td>Смета и справочник расценок</td><td><span class="pill pill--warn">первый срез</span></td><td>дерево «этап → помещение → категория», перетаскивание, шаблоны смет — второй срез</td></tr>
+      <tr><td>Приёмка позиции</td><td><span class="pill pill--ok">закрыт</span></td><td>—</td></tr>
+      <tr><td>Начисление оплаты</td><td><span class="pill pill--ok">закрыт</span></td><td>—</td></tr>
+      <tr><td>Расходы и чеки</td><td><span class="pill pill--danger">не начат</span></td><td>ждёт домена компании и подтверждения подадресации</td></tr>
+      <tr><td>Транши</td><td><span class="pill pill--ok">закрыт</span></td><td>закрытие не сопровождается актом: акта нет</td></tr>
+      <tr><td>Акты и отчёт</td><td><span class="pill pill--warn">фотоотчёт закрыт</span></td><td>акты и PDF ждут бланка с реквизитами исполнителя</td></tr>
+      <tr><td>График производства работ</td><td><span class="pill pill--ok">закрыт</span></td><td>—</td></tr>
+      <tr><td>Роли и доступ</td><td><span class="pill pill--warn">две роли из трёх</span></td><td>«снабжение» объявлена и защищена, но входа у неё нет</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Найдено и исправлено этим же заходом</h2>
+
+  <div class="finding">
+    <h4>А-1. Портфельный раздел проверялся не портфелем</h4>
+    <p>Транши стояли только на действующем объекте: свод по заказчикам состоял из одного
+    заказчика и совпадал с ведомостью тождественно при любой ошибке в отборе. Состояние
+    «просрочено» не воспроизводилось вовсе — транш, закрытый через систему, закрывается
+    сегодняшним днём, а порог просрочки семь дней.</p>
+    <p><b>Сделано:</b> деньги стенда ведутся на четырёх объектах в трёх состояниях, включая
+    просроченный и ждущий внутри порога; семь новых проверок, испытанных двумя откатами.</p>
+  </div>
+
+  <div class="finding">
+    <h4>А-2. Просроченный транш не назывался просроченным</h4>
+    <p>Число просрочки стояло наверху раздела, пилюля — в перечне заказчиков, а в самой
+    ведомости транш, закрытый вчера, и транш, закрытый месяц назад, несли одну пилюлю
+    «ждёт оплаты». Различала их подпись «ждёт 30 дней» — число, которое требовалось сличать
+    с порогом в уме.</p>
+    <p><b>Сделано:</b> просроченная строка несёт пилюлю «просрочено». Опознание словом,
+    цвет — второй канал.</p>
+  </div>
+
+  <div class="finding">
+    <h4>А-3. Демонстрацию не проверял никто</h4>
+    <p>Обход страницы ходит на живой сервер, проверка публикации смотрит файлы на диске.
+    Между ними лежит двойник клиента API, отвечающий из слепка, — и дефект в нём не виден
+    ни одной из двух проверок, зато виден вам: по ссылке открывается именно он.</p>
+    <p><b>Сделано:</b> заведён обход собранной демонстрации браузером — пять разделов, восемь
+    вкладок карточки, портфельность ведомости, отсутствие обращений к серверу, ширина
+    документа, значок страницы. Включён в сборку.</p>
+  </div>
+
+  <div class="finding">
+    <h4>А-4. Шаблон демонстрации разошёлся с шаблоном продукта</h4>
+    <p>Значок страницы объявлен в продукте и не объявлен в демонстрации: браузер запрашивал
+    <code>/favicon.ico</code>, публикация отвечала 404. Расхождение прожило с первой
+    публикации — его нечем было увидеть.</p>
+    <p><b>Сделано:</b> значок объявлен, его отсутствие стережёт проверка.</p>
+  </div>
+
+  <div class="finding">
+    <h4>А-5. Ограничение среды опознавалось по словам сообщения</h4>
+    <p>Список ожидаемых событий кончался оговоркой «смолчать, если в тексте есть 404» — а этими
+    словами браузер объявляет любой отсутствующий ресурс. Опыт со вставленной битой картинкой
+    подтвердил: консольный канал молчал.</p>
+    <p><b>Сделано:</b> опознаётся адрес, а не текст. <b>Честная оговорка:</b> скрытого дефекта
+    не было — тот же случай ловил соседний канал по адресу. Правило снято не потому, что
+    что-то пропустило, а потому, что не стерегло ничего.</p>
+  </div>
+
+  <div class="finding">
+    <h4>А-6. Числа в документах отстали от сборки</h4>
+    <p>Нормативные документы называли 107 и 154 теста при действительных 316 и тринадцать
+    артбордов при пятнадцати. <b>Сделано:</b> выправлено.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Найдено и требует вашего решения</h2>
+  <div class="finding finding--open">
+    <h4>А-7. Роль «снабжение» существует только на бумаге</h4>
+    <p>Объявлена в схеме, защищена проверками — внутренние величины ей не отдаются. Но
+    пользователя этой роли не создаёт ничто: выдать доступ снабжению нечем. Вопрос 2.</p>
+  </div>
+  <div class="finding finding--open">
+    <h4>А-8. Два модуля упираются в данные от вас</h4>
+    <p>Почтовый шлюз чеков ждёт домена и подтверждения подадресации; акты ждут бланка с
+    реквизитами. Разработкой это не снимается. Вопрос 1.</p>
+  </div>
+  <div class="finding finding--open">
+    <h4>А-9. Одна из двух определяющих метрик стала неизмеримой</h4>
+    <p>«Время прораба на отметку позиции ≤ 30 секунд» замерялось секундомером в полевом
+    сценарии на телефоне. Мобильная версия отложена — замер откладывается вместе с ней.
+    Вопрос 10.</p>
+  </div>
+  <div class="finding finding--open">
+    <h4>А-12. Публикация с ветки запроса запрещена окружением</h4>
+    <p>Проверка «Развёртывание» краснеет на каждом запросе слияния: выкладка разрешена только
+    с ветки по умолчанию. Правка — в настройках репозитория. Вопрос 12.</p>
+  </div>
+</section>
+<section id="kviz">
+  <h2>Квиз: двенадцать решений</h2>
+  <p class="lead">Каждый вопрос заведён либо расхождением из аудита, либо решением, которое нельзя принять за вас, не сделав продукт чужим вашему процессу. Рекомендация показывает, что будет сделано при молчании, — чтобы молчание тоже было выбором.</p>
+  <form id="quiz">
+    <fieldset>
+      <legend>1. Что закрывать первым</legend>
+      <label class="opt"><input type="radio" name="q1" value="а"><b>а.</b> Расходы и чеки — почтовый шлюз и ручная форма</label>
+      <label class="opt"><input type="radio" name="q1" value="б"><b>б.</b> Акты выполненных работ и PDF в двух видах</label>
+      <label class="opt"><input type="radio" name="q1" value="в"><b>в.</b> Второй срез сметы: дерево, перетаскивание, шаблоны</label>
+      <label class="opt"><input type="radio" name="q1" value="г"><b>г.</b> Полевой сценарий прораба на телефоне</label>
+      <label class="opt"><input type="radio" name="q1" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Первое и второе упираются в данные от вас, третье — в решение о схеме, четвёртое отменяет решение от 11.09.2026.</p>
+      <p class="rec">Рекомендация: вариант в — он не ждёт ничего снаружи.</p>
+    </fieldset>
+    <fieldset>
+      <legend>2. Роль «снабжение»</legend>
+      <label class="opt"><input type="radio" name="q2" value="а"><b>а.</b> Завести вход и экран расходов</label>
+      <label class="opt"><input type="radio" name="q2" value="б"><b>б.</b> Отложить вместе с почтовым шлюзом</label>
+      <label class="opt"><input type="radio" name="q2" value="в"><b>в.</b> Отказаться: расходы ведёт руководитель</label>
+      <label class="opt"><input type="radio" name="q2" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Роль объявлена и защищена проверками, но выдать её некому. Пустая роль дороже отсутствующей: её учитывает каждое разграничение.</p>
+      <p class="rec">Рекомендация: вариант б.</p>
+    </fieldset>
+    <fieldset>
+      <legend>3. Личный кабинет заказчика</legend>
+      <label class="opt"><input type="radio" name="q3" value="а"><b>а.</b> Нужен в первой версии: клиент смотрит фотоотчёт и акты сам</label>
+      <label class="opt"><input type="radio" name="q3" value="б"><b>б.</b> Не нужен: отчёт отправляется ссылкой</label>
+      <label class="opt"><input type="radio" name="q3" value="в"><b>в.</b> Нужен, но только фотоотчёт, без денег и документов</label>
+      <label class="opt"><input type="radio" name="q3" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Кабинет заводит четвёртую аудиторию, которой не видно ничего внутреннего, и меняет разграничение доступа целиком.</p>
+      <p class="rec">Рекомендация: вариант б.</p>
+    </fieldset>
+    <fieldset>
+      <legend>4. Частичная оплата транша</legend>
+      <label class="opt"><input type="radio" name="q4" value="а"><b>а.</b> Не нужна: транш предъявляется и оплачивается целиком</label>
+      <label class="opt"><input type="radio" name="q4" value="б"><b>б.</b> Нужна: заказчики платят частями</label>
+      <label class="opt"><input type="radio" name="q4" value="в"><b>в.</b> Вместо неё — дробить транши мельче</label>
+      <label class="opt"><input type="radio" name="q4" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Частичная оплата требует решить, что считать закрытым траншем и от какой даты отсчитывать просрочку. Без этого два учёта одних денег разойдутся на первом платеже.</p>
+      <p class="rec">Рекомендация: вариант а; при частых платежах частями — вариант в.</p>
+    </fieldset>
+    <fieldset>
+      <legend>5. Порог просрочки оплаты</legend>
+      <label class="opt"><input type="radio" name="q5" value="а"><b>а.</b> Семь дней — верно</label>
+      <label class="opt"><input type="radio" name="q5" value="б"><b>б.</b> Четырнадцать дней</label>
+      <label class="opt"><input type="radio" name="q5" value="в"><b>в.</b> По договору с конкретным заказчиком</label>
+      <label class="opt"><input type="radio" name="q5" value="г"><b>г.</b> Без порога: просрочка со дня закрытия</label>
+      <label class="opt"><input type="radio" name="q5" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Порог назначен нами и определяет, какие деньги названы просроченными. Третий вариант требует поля в схеме.</p>
+      <p class="rec">Рекомендация: вариант а.</p>
+    </fieldset>
+    <fieldset>
+      <legend>6. Предоплата и надбавка</legend>
+      <label class="opt"><input type="radio" name="q6" value="а"><b>а.</b> Оставить: предоплата 30 % траншем № 0, надбавка 12 % правится на объекте</label>
+      <label class="opt"><input type="radio" name="q6" value="б"><b>б.</b> Предоплата — процентом на объекте, а не фиксированными 30 %</label>
+      <label class="opt"><input type="radio" name="q6" value="в"><b>в.</b> Надбавка едина по компании и на объекте не правится</label>
+      <label class="opt"><input type="radio" name="q6" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Обе величины участвуют в расчёте остатка транша: ошибка даёт расхождение в рублях на каждом объекте.</p>
+      <p class="rec">Рекомендация: вариант а.</p>
+    </fieldset>
+    <fieldset>
+      <legend>7. Кто ведёт деньги</legend>
+      <label class="opt"><input type="radio" name="q7" value="а"><b>а.</b> Только руководитель</label>
+      <label class="opt"><input type="radio" name="q7" value="б"><b>б.</b> Руководитель и бухгалтер (новая роль)</label>
+      <label class="opt"><input type="radio" name="q7" value="в"><b>в.</b> Руководитель, отметку оплаты делает снабжение</label>
+      <label class="opt"><input type="radio" name="q7" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Сейчас раздел закрыт от прораба целиком. Второй вариант заводит четвёртую роль и переписывает разграничение.</p>
+      <p class="rec">Рекомендация: вариант а.</p>
+    </fieldset>
+    <fieldset>
+      <legend>8. Объекты без сметы</legend>
+      <label class="opt"><input type="radio" name="q8" value="а"><b>а.</b> Норма: объект заводится до сметы</label>
+      <label class="opt"><input type="radio" name="q8" value="б"><b>б.</b> Смета обязательна, и продукт должен напоминать об этом на карточке</label>
+      <label class="opt"><input type="radio" name="q8" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">На стенде два объекта из восьми без сметы. Сейчас продукт молчит; если это ошибка ведения, молчание её укрывает.</p>
+      <p class="rec">Рекомендация: вариант б.</p>
+    </fieldset>
+    <fieldset>
+      <legend>9. Первый экран</legend>
+      <label class="opt"><input type="radio" name="q9" value="а"><b>а.</b> Попадание верное: числа портфеля, сроки, события, два графика</label>
+      <label class="opt"><input type="radio" name="q9" value="б"><b>б.</b> Не хватает денег: нужны долги заказчиков</label>
+      <label class="opt"><input type="radio" name="q9" value="в"><b>в.</b> Не хватает работы прораба: что принято за сегодня по всем объектам</label>
+      <label class="opt"><input type="radio" name="q9" value="г"><b>г.</b> Есть лишнее — назову отдельно</label>
+      <label class="opt"><input type="radio" name="q9" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Экран перестроен дважды по вашим замечаниям. Это последняя возможность поправить его до того, как он станет привычкой.</p>
+      <p class="rec">Рекомендация: вариант а.</p>
+    </fieldset>
+    <fieldset>
+      <legend>10. Замер метрики «30 секунд»</legend>
+      <label class="opt"><input type="radio" name="q10" value="а"><b>а.</b> Снять метрику: продукт ведётся как веб для ПК</label>
+      <label class="opt"><input type="radio" name="q10" value="б"><b>б.</b> Мерить на ПК: прораб отмечает с ноутбука</label>
+      <label class="opt"><input type="radio" name="q10" value="в"><b>в.</b> Вернуть мобильную версию ради замера</label>
+      <label class="opt"><input type="radio" name="q10" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Метрика замерялась секундомером в полевом сценарии на телефоне. С отложенной мобильной версией она измеряет то, чего в продукте нет.</p>
+      <p class="rec">Рекомендация: вариант а, с возвратом к вопросу после полевого испытания.</p>
+    </fieldset>
+    <fieldset>
+      <legend>11. Средства замера в продукте</legend>
+      <label class="opt"><input type="radio" name="q11" value="а"><b>а.</b> Не нужны: сверка с прорабом вручную</label>
+      <label class="opt"><input type="radio" name="q11" value="б"><b>б.</b> Нужны: продукт сам считает долю отмеченного и время на позицию</label>
+      <label class="opt"><input type="radio" name="q11" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Обе определяющие метрики считаются руками. Встроенный замер имеет смысл, только если ручная сверка окажется неподъёмной.</p>
+      <p class="rec">Рекомендация: вариант а.</p>
+    </fieldset>
+    <fieldset>
+      <legend>12. Публикация демонстрации</legend>
+      <label class="opt"><input type="radio" name="q12" value="а"><b>а.</b> Разрешить ветки claude/* в окружении публикации</label>
+      <label class="opt"><input type="radio" name="q12" value="б"><b>б.</b> Оставить как есть: публикация после слияния, проверка красная</label>
+      <label class="opt"><input type="radio" name="q12" value="в"><b>в.</b> Обусловить развёртывание веткой по умолчанию</label>
+      <label class="opt"><input type="radio" name="q12" value="своё"><b>—</b> свой ответ, напишу словами</label>
+      <p class="why">Правка в настройках репозитория, доступ к которым только у вас.</p>
+      <p class="rec">Рекомендация: вариант в, если нужна зелёная сборка; вариант а, если нужна обновляемая страница до слияния.</p>
+    </fieldset>
+  </form>
+  <div class="result">
+    <div class="row"><b>Ваши ответы</b><span id="счёт" class="why"></span>
+      <button type="button" class="btn" id="копия">Скопировать</button>
+      <button type="button" class="btn btn--ghost" id="сброс">Очистить</button></div>
+    <pre id="ответ">Ответы не выбраны.</pre>
+  </div>
+</section>
+
+<section class="foot">
+  <p>Аудит целиком — <code>docs/09_AUDIT.md</code>, вопросы — <code>docs/10_QUIZ.md</code> в репозитории продукта. Демонстрация — <a href="./">первая страница публикации</a>.</p>
+</section>
+</main>
+
+<script>
+/* Ответы живут в самой странице: сервера у публикации нет, и отправлять их   некуда. Итог собирается строкой, которую можно вернуть одним сообщением. */
+const форма = document.getElementById("quiz");
+const поле = document.getElementById("ответ");
+const счёт = document.getElementById("счёт");
+const ТЕМЫ = ["Что закрывать первым", "Роль «снабжение»", "Личный кабинет заказчика", "Частичная оплата транша", "Порог просрочки оплаты", "Предоплата и надбавка", "Кто ведёт деньги", "Объекты без сметы", "Первый экран", "Замер метрики «30 секунд»", "Средства замера в продукте", "Публикация демонстрации"];
+const собрать = () => {
+  const данные = new FormData(форма);
+  const строки = [];
+  ТЕМЫ.forEach((тема, индекс) => {
+    const ответ = данные.get("q" + (индекс + 1));
+    if (ответ !== null) строки.push((индекс + 1) + " — " + ответ + "  (" + тема + ")");
+  });
+  счёт.textContent = строки.length + " из " + ТЕМЫ.length;
+  поле.textContent = строки.length === 0 ? "Ответы не выбраны." : строки.join("\n");
+};
+форма.addEventListener("change", собрать);
+document.getElementById("сброс").addEventListener("click", () => { форма.reset(); собрать(); });
+document.getElementById("копия").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(поле.textContent); } catch { /* буфер закрыт — текст виден и так */ }
+});
+собрать();
+</script>
+</body>
+</html>

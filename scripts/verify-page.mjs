@@ -58,20 +58,27 @@ const геометрия = async (page, где) => {
  *   недоступность fonts.googleapis.com — исходящая сеть песочницы закрыта,
  *   на машине пользователя гарнитуры загрузятся, а до тех пор работает
  *   запасной стек, объявленный в токенах.
+ *
+ * Опознаётся только адрес. Прежде список кончался тремя оговорками по
+ * тексту сообщения — «401 (Unauthorized)», «404 (Not Found)»,
+ * «ERR_CONNECTION_RESET», — и последняя из них отменяла все, стоящие
+ * выше: любой отсутствующий ресурс на любой странице браузер объявляет
+ * ровно этими словами, и проверка молчала бы. Опыт: в страницу вставлен
+ * `<img src="/api/net-takogo-resursa.png">` — замечания не было. Адрес
+ * же у таких сообщений есть всегда: `message.location().url` заполнен и
+ * для сорванного запроса, и для ответа с ошибкой.
  */
 /* Снимки приёмки отключаются обходом намеренно — так проверяется, что
    место под них отведено заранее. Пока отключение включено, сорванные
    запросы снимков дефектом не считаются: их сорвала сама проверка. */
 let снимкиОтключены = false;
 
-const expected = (url, text = "") =>
+const expected = (url) =>
   url.endsWith("/auth/me") || url.includes("fonts.googleapis.com") || url.includes("fonts.gstatic.com")
   || (снимкиОтключены && url.includes("/acceptance/photo/"))
   // Объект без сметы отвечает 404 на запрос сметы; карточка показывает
   // честное пустое состояние. Это поведение продукта, а не сбой страницы.
-  || /\/projects\/[A-Z]-\d+\/estimate$/u.test(new URL(url, "http://x").pathname)
-  || text.includes("401 (Unauthorized)") || text.includes("ERR_CONNECTION_RESET")
-  || text.includes("404 (Not Found)");
+  || /\/projects\/[A-Z]-\d+\/estimate$/u.test(new URL(url, "http://x").pathname);
 
 const browser = await chromium.launch(launchOptions());
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
@@ -80,7 +87,7 @@ const page = await context.newPage();
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const text = message.text();
-  if (expected(message.location().url ?? "", text)) environment.push(`консоль: ${text.slice(0, 90)}`);
+  if (expected(message.location().url ?? "")) environment.push(`консоль: ${text.slice(0, 90)}`);
   else note("ошибка консоли", text.slice(0, 160));
 });
 page.on("pageerror", (error) => note("исключение страницы", String(error).slice(0, 160)));
@@ -1096,14 +1103,25 @@ const строкДенег = await page.locator(".money__row:not(.money__row--cl
 if (строкДенег === 0) {
   note("бухгалтерия", "ведомость траншей пуста");
 } else {
-  /* Состояние названо словом: опознание не цветом одним. */
+  /* Состояние названо словом: опознание не цветом одним. Просрочка —
+     четвёртое слово словаря, а не оттенок ожидания: транш, закрытый
+     вчера, и транш, закрытый месяц назад, различаются словом, а не
+     подписью «ждёт 30 дней», которую надо сличать с порогом в уме. */
   const состояния = await page.locator(".money__row:not(.money__row--client) .pill").allTextContents();
-  const допустимые = ["в работе", "ждёт оплаты", "оплачено"];
+  const допустимые = ["в работе", "ждёт оплаты", "просрочено", "оплачено"];
   if (состояния.length !== строкДенег) {
     note("бухгалтерия", `состояние названо у ${состояния.length} строк из ${строкДенег}`);
   }
   if (!состояния.every((текст) => допустимые.includes(текст.trim()))) {
     note("бухгалтерия", `состояния вне словаря: ${состояния.join(", ")}`);
+  }
+
+
+  /* Просрочка на стенде обязана быть видна словом: раздел с просроченным
+     траншем и раздел без него — разные экраны, и проверка, не видевшая
+     просрочки, о ней ничего не говорит. */
+  if (!состояния.some((текст) => текст.trim() === "просрочено")) {
+    note("бухгалтерия", "ни одна строка не названа просроченной: стенд не воспроизводит просрочку");
   }
 
   /* Отбор по состоянию сужает ведомость. Берётся состояние, которое на
@@ -1124,7 +1142,7 @@ if (строкДенег === 0) {
   /* Оплата отмечается из раздела. Кнопка стоит только у ждущего транша:
      открытый ещё копит выработку, и сумма к оплате по нему не определена. */
   const ждущие = page.locator(".money__row:not(.money__row--client)")
-    .filter({ has: page.locator(".pill--warn") });
+    .filter({ has: page.locator(".pill--warn, .pill--danger") });
   const ждущихСтрок = await ждущие.count();
   const кнопокОплаты = await page.locator('button:has-text("Отметить оплату")').count();
   if (ждущихСтрок !== кнопокОплаты) {

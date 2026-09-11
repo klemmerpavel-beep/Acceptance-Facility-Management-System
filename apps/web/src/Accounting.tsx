@@ -26,6 +26,22 @@ const STATE_PILL: Record<MoneyState, string> = {
   "оплачено": "pill pill--ok",
 };
 
+/**
+ * Просроченный транш называется просроченным.
+ *
+ * Прежде строка ведомости несла только состояние: транш, закрытый вчера, и
+ * транш, закрытый месяц назад, стояли под одной пилюлей «ждёт оплаты» и
+ * различались единственно подписью «ждёт 30 дней» — числом, которое нужно
+ * сличать с порогом в уме. Просрочка при этом объявлена числом наверху
+ * раздела и пилюлей в своде по заказчикам, а в самой ведомости, где
+ * решают, кому звонить, её не было. Опознание идёт словом, цвет — второй
+ * канал.
+ */
+function ПИЛЮЛЯ(row: AccountingRow): { className: string; label: string } {
+  if (row.overdue) return { className: "pill pill--danger", label: "просрочено" };
+  return { className: STATE_PILL[row.state], label: row.state };
+}
+
 const ФИЛЬТРЫ: readonly { key: MoneyState | "все"; label: string }[] = [
   { key: "все", label: "Все" },
   { key: "ждёт оплаты", label: "Ждут оплаты" },
@@ -142,7 +158,7 @@ export function Accounting({
                 <span className="money__client t-sm t-muted">{row.clientName}</span>
                 <span className="money__num num">№ {row.number}</span>
                 <span className="money__sum num">{formatKopecks(BigInt(row.amount))}</span>
-                <span className={STATE_PILL[row.state]}>{row.state}</span>
+                <span className={ПИЛЮЛЯ(row).className}>{ПИЛЮЛЯ(row).label}</span>
                 <span className="money__when t-sm t-muted">{ПОДПИСЬ_СРОКА(row)}</span>
                 <span className="money__act">
                   {row.state === "ждёт оплаты" && (
