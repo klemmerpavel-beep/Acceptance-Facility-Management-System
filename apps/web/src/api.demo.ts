@@ -10,6 +10,7 @@
  * данными, которые сервер отдал каждой роли на самом деле.
  */
 import type {
+  DisplacedByImport,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
   CreateClient, CreateProject, CreateWorker,
@@ -314,9 +315,31 @@ export async function logout(): Promise<{ ok: true }> {
   return { ok: true };
 }
 
-export async function previewEstimate(): Promise<{ fileName: string; report: ImportReport }> {
+export async function previewEstimate(): Promise<{
+  fileName: string;
+  report: ImportReport;
+  displaced: DisplacedByImport | null;
+}> {
   await pause(600);
-  return data.preview;
+  /* Что запись новой редакции вытеснит из вида приёмки — по слепку
+     приёмки, тем же счётом, что на сервере. Демонстрация обязана называть
+     то же последствие: молчание обещало бы безопасность, которой нет. */
+  const вид = приёмкаR99("OWNER");
+  const принятые = вид.sections
+    .flatMap((section) => section.positions)
+    .filter((position) => BigInt(position.accepted) > 0n);
+  return {
+    ...data.preview,
+    displaced: {
+      version: data["estimate-owner"].version,
+      acceptedPositions: принятые.length,
+      accepted: acceptedTotal(принятые.map((position) => ({
+        qty: milliunits(BigInt(position.accepted)),
+        unitPrice: kopecks(BigInt(position.unitPrice)),
+      }))).toString(),
+      batches: вид.batches.length,
+    },
+  };
 }
 
 /**

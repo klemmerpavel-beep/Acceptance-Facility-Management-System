@@ -452,9 +452,34 @@ export type ImportReport = z.infer<typeof importReportSchema>;
 /** Подтверждённые оператором сопоставления единиц: написание → каноническая форма. */
 export const unitOverridesSchema = z.record(z.string(), z.string());
 
+/**
+ * Что уйдёт из вида приёмки при записи новой редакции.
+ *
+ * Приёмка привязана к своей редакции (Р11): после импорта принятые позиции
+ * действующей редакции остаются в базе и в журнале, но из вида приёмки
+ * пропадают — вкладка покажет «принято 0 позиций». В счёте транша они при
+ * этом остаются: выработка считается по пакетам приёмки и по редакции не
+ * отбирается (решение стадии E).
+ *
+ * Отдельным полем, а не внутри отчёта: отчёт описывает **файл**, а это —
+ * состояние объекта. У одного и того же файла на разных объектах отчёт был
+ * бы разный, и читатель не понял бы, что именно он читает.
+ *
+ * `null` — сметы у объекта ещё нет, терять нечего.
+ */
+export const displacedByImportSchema = z.object({
+  version: z.number().int(),
+  acceptedPositions: z.number().int().nonnegative(),
+  /** Выполнено на сумму по принятым позициям действующей редакции. */
+  accepted: kopecksString,
+  batches: z.number().int().nonnegative(),
+});
+export type DisplacedByImport = z.infer<typeof displacedByImportSchema>;
+
 export const importPreviewResponseSchema = z.object({
   fileName: z.string(),
   report: importReportSchema,
+  displaced: displacedByImportSchema.nullable(),
 });
 
 export const importResultSchema = z.object({

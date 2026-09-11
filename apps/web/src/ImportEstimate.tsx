@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ImportReport } from "@priyomka/contracts";
+import type { DisplacedByImport, ImportReport } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { plural } from "./status.js";
 import { useModalDialog } from "./modal.js";
@@ -22,6 +22,9 @@ export function ImportEstimate({
 }): React.JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
+  /* Что запись новой редакции вытеснит из вида приёмки. Считает сервер:
+     правило «приёмка привязана к своей редакции» живёт там же, где отбор. */
+  const [displaced, setDisplaced] = useState<DisplacedByImport | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [done, setDone] = useState<{ version: number; positions: number } | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -40,6 +43,7 @@ export function ImportEstimate({
     run(async () => {
       const result = await previewEstimate(code, chosen);
       setReport(result.report);
+      setDisplaced(result.displaced);
       setOverrides(
         Object.fromEntries(
           result.report.unitDecisions.map((decision) => [decision.raw, decision.suggestion !== "" ? decision.suggestion : (units[0] ?? "шт")]),
@@ -204,6 +208,7 @@ export function ImportEstimate({
           positions={report.positions}
           delta={money(report.worksTotalDelta)}
           decisions={report.unitDecisions.length}
+          displaced={displaced}
           busy={busy}
           onCancel={() => setConfirming(false)}
           onConfirm={onImport}
@@ -218,6 +223,7 @@ function ConfirmImport({
   positions,
   delta,
   decisions,
+  displaced,
   busy,
   onCancel,
   onConfirm,
@@ -225,6 +231,7 @@ function ConfirmImport({
   positions: number;
   delta: string;
   decisions: number;
+  displaced: DisplacedByImport | null;
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -249,10 +256,32 @@ function ConfirmImport({
             <dt className="deflist__term">Решений по единицам применится</dt>
             <dd className="deflist__value">{decisions}</dd>
           </div>
+          {/* Приёмка привязана к своей редакции (Р11): принятое по действующей
+              уйдёт из вида приёмки. Импорт от этого не запрещается — он
+              законен, — но последствие называется до нажатия, как у снятия
+              этапа и у сторно. Терять нечего — строки нет: предупреждение о
+              том, чего не произойдёт, обесценивает остальные. Строка стоит
+              внутри списка: dt и dd вне dl теряют связь термина и значения. */}
+          {displaced !== null && displaced.acceptedPositions > 0 && (
+            <div className="deflist__row">
+              <dt className="deflist__term">Уйдёт из вида приёмки</dt>
+              <dd className="deflist__value">
+                {displaced.acceptedPositions}{" "}
+                {plural(displaced.acceptedPositions, "позиция", "позиции", "позиций")} на{" "}
+                {formatKopecks(BigInt(displaced.accepted))}
+              </dd>
+            </div>
+          )}
         </dl>
         <p className="t-sm t-secondary">
           Новая редакция станет действующей. Прежняя останется в протоколе импорта и в журнале
           объекта — история не переписывается.
+          {displaced !== null && displaced.acceptedPositions > 0 && (
+            <>
+              {" "}Принятое по редакции {displaced.version} останется в базе и в счёте транша,
+              но на вкладке приёмки больше не покажется: приёмка привязана к своей редакции.
+            </>
+          )}
         </p>
         <div className="stack stack--tight">
           <button
