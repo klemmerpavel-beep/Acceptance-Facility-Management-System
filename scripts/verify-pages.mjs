@@ -23,10 +23,12 @@ if (!existsSync(site)) {
   process.exit(1);
 }
 
-/* 1. Состав. Страниц ровно пять, и каждая — ответ на отдельный вопрос
+/* 1. Состав. Страниц ровно шесть, и каждая — ответ на отдельный вопрос
       заказчика. Недостача означает, что источник переименовали, а сборку
       не поправили: на сайте вместо страницы будет 404. */
-const REQUIRED = ["index.html", "showcase.html", "screens.html", "canvas.html", "version.txt"];
+const REQUIRED = [
+  "index.html", "showcase.html", "screens.html", "canvas.html", "audit.html", "version.txt",
+];
 for (const name of REQUIRED) {
   const path = join(site, name);
   if (!existsSync(path)) { note(`нет файла site/${name}`); continue; }
@@ -93,9 +95,20 @@ for (const board of layout.artboards) {
   if (!canvas.includes(`canvas/${file}`)) note(`артборд ${board.file} не показан в обзоре канвы`);
 }
 
+/* 6. Квиз. Двенадцать вопросов — не украшение страницы, а то, ради чего
+      она опубликована: ответы назначают очередь работ. Страница, потерявшая
+      вопросы при правке, выглядит целой. */
+const аудит = existsSync(join(site, "audit.html"))
+  ? readFileSync(join(site, "audit.html"), "utf8")
+  : "";
+const вопросов = (аудит.match(/<fieldset>/gu) ?? []).length;
+if (вопросов !== 12) note(`на странице аудита ${вопросов} вопросов вместо двенадцати`);
+if (!аудит.includes("Скопировать")) note("на странице аудита нет кнопки переноса ответов");
+
 if (problems.length > 0) {
   console.error(`Дефектов публикации: ${problems.length}\n`
     + problems.map((p) => `  ${p}`).join("\n"));
   process.exit(1);
 }
-console.log(`Публикация проверена: ${REQUIRED.length} файлов, ${assets.length} ресурсов, ${layout.artboards.length} артбордов. Дефектов нет.`);
+console.log(`Публикация проверена: ${REQUIRED.length} файлов, ${assets.length} ресурсов, `
+  + `${layout.artboards.length} артбордов, ${вопросов} вопросов квиза. Дефектов нет.`);

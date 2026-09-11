@@ -70,6 +70,13 @@ const snapshot = {
   // Транши снимаются один раз: внутренних величин в них нет, и вид у
   // руководителя и прораба совпадает. Различается только право вести.
   tranches: await owner("/projects/R-99/tranches"),
+  /* Деньги портфеля снимаются целиком: раздел «Бухгалтерия» собирает
+     транши всех объектов, и вывести их из траншей одного R-99 нельзя.
+     Вместе со сводом снимается день съёмки: состояния денег отсчитываются
+     от сегодняшнего дня, и без опоры на дату слепка ждущий транш через
+     месяц после съёмки стал бы просроченным сам собой. */
+  accounting: await owner("/accounting"),
+  capturedOn: new Date().toISOString().slice(0, 10),
   imports,
   "leads-owner": await owner("/leads?open=false"),
   "repair-types": await owner("/repair-types"),
@@ -91,5 +98,6 @@ console.log(
   `  объектов у руководителя ${snapshot["projects-owner"].length},`,
   `у прораба ${snapshot["projects-foreman"].length};`,
   `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length};`,
-  `помещений обмера ${snapshot.measure.rooms.length}`,
+  `помещений обмера ${snapshot.measure.rooms.length};`,
+  `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

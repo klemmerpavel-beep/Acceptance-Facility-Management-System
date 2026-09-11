@@ -18,7 +18,7 @@ import type {
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
-  AccountingView,
+  AccountingView, MoneyState, TrancheStatus,
   PhotoReport, ReportBatch,
   CloseTranche, CreateTranche, TrancheView,
   UpdateEstimateItem, UpdateSupervision,
@@ -55,6 +55,10 @@ interface Snapshot {
   "acceptance-owner": AcceptanceView;
   "acceptance-foreman": AcceptanceView;
   tranches: TrancheView;
+  /** Деньги портфеля целиком: раздел собирает транши всех объектов. */
+  accounting: AccountingView;
+  /** День съёмки слепка: от него отсчитываются состояния денег. */
+  capturedOn: string;
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
   imports: ImportRecord[];
@@ -1025,27 +1029,98 @@ function пересчитатьТранш(транш: TrancheView["tranches"][nu
 }
 
 /**
- * Бухгалтерия в демонстрации: деньги собираются из тех же траншей, что
- * показывает карточка объекта, и тем же доменным правилом, что на сервере.
+ * Бухгалтерия в демонстрации: деньги портфеля из слепка, деньги R-99 —
+ * живые.
  *
- * Объект в демонстрации один, поэтому и ведомость денег в ней об одном
- * объекте: выдумывать транши остальным значило бы показывать деньги,
- * которых на стенде нет.
+ * Раздел портфельный, и вывести его из траншей одного объекта нельзя:
+ * прежде демонстрация так и делала — показывала ведомость об одном
+ * объекте, и заказчик видел не тот раздел, который открывает в продукте.
+ * Прочие объекты приходят строками снятого свода, R-99 пересобирается из
+ * демонстрационных траншей: отметка оплаты в демонстрации обязана менять
+ * картину денег, а снятая строка на это не способна.
+ *
+ * Даты слепка сдвигаются на его возраст. Состояния денег отсчитываются от
+ * сегодняшнего дня, и без сдвига транш, снятый ждущим третий день, через
+ * месяц после съёмки сам собой стал бы просроченным, а демонстрация —
+ * показывать вымысел.
  */
+const ДЕНЬ = 86_400_000;
+
+const сдвигДаты = (дата: string | null, дней: number): string | null =>
+  дата === null ? null : new Date(new Date(дата).getTime() + дней * ДЕНЬ).toISOString();
+
+/* Состояние денег — то, что видно в ведомости; статус транша — то, чем
+   считает домен. Снятая строка несёт первое, и обратный перевод нужен,
+   чтобы считать по ней тем же правилом, что и на сервере. */
+const СТАТУС_ПО_СОСТОЯНИЮ: Record<MoneyState, TrancheStatus> = {
+  "в работе": "OPEN",
+  "ждёт оплаты": "CLOSED",
+  оплачено: "PAID",
+};
+
 export async function fetchAccounting(): Promise<AccountingView> {
   await pause(220);
   const сегодня = new Date().toISOString().slice(0, 10);
+  const возраст = Math.round(
+    (new Date(`${сегодня}T00:00:00.000Z`).getTime()
+      - new Date(`${data.capturedOn}T00:00:00.000Z`).getTime()) / ДЕНЬ,
+  );
   const объект = data["projects-owner"].find((project) => project.code === "R-99");
   /* Опознаватель заказчика берётся из справочника: в сводке объекта его
      нет — там заказчик назван кодом и именем, а свод денег группирует по
      опознавателю, как и сервер. */
   const заказчик = data["clients-owner"].find((row) => row.code === объект?.client.code);
-  const деньги = траншиR99().tranches.map((транш) => ({
-    status: транш.status,
-    amount: kopecks(транш.amount),
-    closedOn: транш.closedAt === null ? null : транш.closedAt.slice(0, 10),
-  }));
-  const свод = moneyTotals(деньги, сегодня);
+
+  const срез = (status: TrancheStatus, amount: string, closedAt: string | null) => ({
+    status, amount: kopecks(amount), closedOn: closedAt === null ? null : closedAt.slice(0, 10),
+  });
+
+  /* Каждая строка идёт в паре со своим срезом денег: считать их порознь и
+     сводить по номеру в списке — та же ошибка, что уже стоила раздела,
+     собранного по индексам. */
+  const пары = [
+    ...траншиR99().tranches.map((транш) => {
+      const деньги = срез(транш.status, транш.amount, транш.closedAt);
+      return {
+        деньги,
+        row: {
+          id: транш.id,
+          projectCode: "R-99",
+          address: объект?.address ?? "",
+          clientId: заказчик?.id ?? новыйId(),
+          clientName: заказчик?.name ?? объект?.client.name ?? "",
+          number: транш.number,
+          amount: транш.amount,
+          state: moneyState(транш.status),
+          openedAt: транш.openedAt,
+          closedAt: транш.closedAt,
+          paidAt: транш.paidAt,
+          awaitingDays: awaitingDays(деньги, сегодня),
+          overdue: paymentOverdue(деньги, сегодня),
+          comment: транш.comment,
+        },
+      };
+    }),
+    ...data.accounting.rows
+      .filter((row) => row.projectCode !== "R-99")
+      .map((row) => {
+        const closedAt = сдвигДаты(row.closedAt, возраст);
+        const деньги = срез(СТАТУС_ПО_СОСТОЯНИЮ[row.state], row.amount, closedAt);
+        return {
+          деньги,
+          row: {
+            ...row,
+            openedAt: сдвигДаты(row.openedAt, возраст) ?? row.openedAt,
+            closedAt,
+            paidAt: сдвигДаты(row.paidAt, возраст),
+            awaitingDays: awaitingDays(деньги, сегодня),
+            overdue: paymentOverdue(деньги, сегодня),
+          },
+        };
+      }),
+  ];
+
+  const свод = moneyTotals(пары.map((пара) => пара.деньги), сегодня);
 
   return {
     totals: {
@@ -1055,31 +1130,12 @@ export async function fetchAccounting(): Promise<AccountingView> {
       overdue: свод.overdue.toString(),
       graceDays: PAYMENT_GRACE_DAYS,
     },
-    rows: траншиR99().tranches.map((транш, индекс) => ({
-      id: транш.id,
-      projectCode: "R-99",
-      address: объект?.address ?? "",
-      clientId: заказчик?.id ?? новыйId(),
-      clientName: заказчик?.name ?? объект?.client.name ?? "",
-      number: транш.number,
-      amount: транш.amount,
-      state: moneyState(транш.status),
-      openedAt: транш.openedAt,
-      closedAt: транш.closedAt,
-      paidAt: транш.paidAt,
-      awaitingDays: awaitingDays(деньги[индекс] ?? деньги[0] ?? {
-        status: "OPEN", amount: kopecks("0"), closedOn: null,
-      }, сегодня),
-      overdue: paymentOverdue(деньги[индекс] ?? {
-        status: "OPEN", amount: kopecks("0"), closedOn: null,
-      }, сегодня),
-      comment: транш.comment,
-    })),
+    rows: пары.map((пара) => пара.row),
     clients: clientDebts(
-      траншиR99().tranches.map((_, индекс) => ({
-        clientId: заказчик?.id ?? "",
-        clientName: заказчик?.name ?? объект?.client.name ?? "",
-        tranche: деньги[индекс] ?? { status: "OPEN", amount: kopecks("0"), closedOn: null },
+      пары.map((пара) => ({
+        clientId: пара.row.clientId,
+        clientName: пара.row.clientName,
+        tranche: пара.деньги,
       })),
       сегодня,
     ).map((строка) => ({
