@@ -17,6 +17,7 @@ import { estimateFacts, type EstimateFacts } from "../common/estimate-facts";
 import { acceptedFacts, type AcceptedFacts } from "../common/accepted-facts";
 import { guidelineFacts, type GuidelineFacts } from "../common/guideline-facts";
 import { openTranches, type OpenTranche } from "../common/tranche-facts";
+import { coverPhotos } from "../common/cover-facts";
 
 const STATUS_LABEL: Record<ProjectSummary["status"], string> = {
   NEW: "Новый",
@@ -41,9 +42,12 @@ export class ProjectsService {
       orderBy: { code: "asc" },
     });
     const ids = projects.map((project) => project.id);
-    const [facts, tranches] = await Promise.all([
+    /* Обложки идут в этой же связке, а не отдельным заходом на объект:
+       `coverPhotos` берёт снимки всего списка одним запросом. */
+    const [facts, tranches, обложки] = await Promise.all([
       estimateFacts(this.prisma, ids),
       openTranches(this.prisma, ids),
+      coverPhotos(this.prisma, ids),
     ]);
     /* Принятое — одним запросом на весь портфель, а не по запросу на объект:
        реестр из восьми строк иначе стоил бы восьми обращений, и цена росла
@@ -54,7 +58,7 @@ export class ProjectsService {
     ]);
     return projects.map((project) => toSummary(
       project, facts.get(project.id), tranches.get(project.id),
-      принятое.get(project.id), ориентиры.get(project.id)));
+      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id)));
   }
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
@@ -65,9 +69,10 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
-    const [facts, tranches] = await Promise.all([
+    const [facts, tranches, обложки] = await Promise.all([
       estimateFacts(this.prisma, [project.id]),
       openTranches(this.prisma, [project.id]),
+      coverPhotos(this.prisma, [project.id]),
     ]);
     const [принятое, ориентиры] = await Promise.all([
       acceptedFacts(this.prisma, facts),
@@ -75,7 +80,7 @@ export class ProjectsService {
     ]);
     return toSummary(
       project, facts.get(project.id), tranches.get(project.id),
-      принятое.get(project.id), ориентиры.get(project.id));
+      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id));
   }
 
   /**
@@ -377,6 +382,7 @@ function toSummary(
   tranche: OpenTranche | undefined,
   accepted: AcceptedFacts | undefined,
   guideline: GuidelineFacts | undefined,
+  coverPhotoId: string | undefined,
 ): ProjectSummary {
   // Итог для клиента считается по надбавке самой сметы: у объекта надбавка
   // может быть изменена после того, как смета уже импортирована.
@@ -438,6 +444,11 @@ function toSummary(
       ? null
       : kopecks(accepted.accepted).toString(),
     acceptedPositions: accepted?.positions ?? 0,
+    /* Обложка — производная от приёмки, и собирается она здесь же, из
+       готовой карты: у объекта без снимков это `null`, а не пустой объект.
+       Пустой объект пришлось бы разбирать читателю ответа, а «снимков нет»
+       и «снимок есть, но неизвестен» — разные утверждения. */
+    cover: coverPhotoId === undefined ? null : { photoId: coverPhotoId },
     /* Ориентир и его сверка со сметой. Сверка пуста, пока сметы нет:
        ноль означал бы «сошлось копейка в копейку», а это иное утверждение. */
     guideline: guideline === undefined ? null : {

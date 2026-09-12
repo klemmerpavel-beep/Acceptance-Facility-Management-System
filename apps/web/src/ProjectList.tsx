@@ -1,59 +1,17 @@
 import { useState } from "react";
 import type { ProjectStatus, ProjectSummary } from "@priyomka/contracts";
-import { formatKopecks } from "@priyomka/ui";
-import { DataTable } from "./DataTable.js";
-import { MOBILE, useMediaQuery } from "./media.js";
-import { deadlineCell, projectColumns } from "./ProjectTable.js";
-import { STATUS_LABEL, STATUS_ORDER, STATUS_PILL } from "./status.js";
-
-const money = (value: string): string => formatKopecks(BigInt(value));
+import { acceptancePhotoUrl } from "./api.js";
+import { ObjectTile } from "./ObjectTile.js";
+import { STATUS_LABEL, STATUS_ORDER } from "./status.js";
 
 /**
- * Объект на телефоне — карточка, а не строка таблицы. Таблица из семи
- * колонок на ширине 360 px прокручивается вбок, и половина сведений об
- * объекте оказывается за краем экрана: именно там, где с системой работает
- * прораб. Набор сведений тот же, что в таблице.
+ * Адрес обложки объекта. Пусто — снимков нет, плитка нарисует подложку.
+ *
+ * Величина производная: идентификатор снимка приходит в сводке объекта из
+ * приёмки, второго места хранения под обложку не заводится.
  */
-function ProjectCardRow({
-  project,
-  today,
-  onOpen,
-}: {
-  project: ProjectSummary;
-  today: string;
-  onOpen: (project: ProjectSummary) => void;
-}): React.JSX.Element {
-  /* Строка ведомости, а не карточка. Восемь белых коробок с рамкой на сером
-     полотне — та самая раскладка, от которой продукт отказался на десктопе
-     (реестр Д-27). Ссылкой служит вся строка: у заголовка цель была 294×21
-     при норме 48 (реестр Д-33). */
-  return (
-    <a
-      className="objectrow"
-      href={`#${project.code}`}
-      onClick={(event) => { event.preventDefault(); onOpen(project); }}
-    >
-      <span className="objectrow__head">
-        <span className="code-badge">{project.code}</span>
-        <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-      </span>
-      <span className="objectrow__address t-h3">{project.address}</span>
-      {/* Отсутствующее не называется в каждой строке: восемь подряд
-          «прораб не назначен» — это шум, из-за которого не видно строк,
-          где прораб есть. */}
-      <span className="t-sm t-secondary">
-        {project.client.name}
-        {project.foreman !== null && ` · ${project.foreman.name}`}
-      </span>
-      <span className="objectrow__foot">
-        <span className="t-sm">{deadlineCell(project.deadline, today)}</span>
-        {project.estimateTotal !== null && (
-          <span className="num">{money(project.estimateTotal)}</span>
-        )}
-      </span>
-    </a>
-  );
-}
+const обложка = (project: ProjectSummary): string | null =>
+  project.cover === null ? null : acceptancePhotoUrl(project.code, project.cover.photoId);
 
 export function ProjectList({
   projects,
@@ -73,9 +31,8 @@ export function ProjectList({
   /** Смена статуса прямо из реестра. Нет обработчика — нет и органа. */
   onStatus?: (project: ProjectSummary) => void;
 }): React.JSX.Element {
-  // Подписка объявляется до раннего возврата: порядок вызова хуков не
-  // должен зависеть от того, пуст список или нет.
-  const mobile = useMediaQuery(MOBILE);
+  // Объявляется до раннего возврата: порядок вызова хуков не должен
+  // зависеть от того, пуст список или нет.
   const [query, setQuery] = useState("");
 
   if (projects.length === 0) {
@@ -139,10 +96,12 @@ export function ProjectList({
           <p className="empty__title">В этом статусе объектов нет</p>
           <p className="empty__text">Снимите фильтр, чтобы увидеть весь портфель.</p>
         </div>
-      ) : mobile ? (
-        <div className="stack">
-          {/* Д-19: поиск жил только в табличном представлении, и на телефоне
-              объект приходилось искать прокруткой. */}
+      ) : (
+        <>
+          {/* Поиск остаётся при галерее: отбор по статусу сужает портфель по
+              состоянию, а найти нужный объект среди тридцати в одном
+              состоянии он не помогает. Сортировки по колонкам у галереи нет
+              — это объявленная цена перехода от ведомости к плиткам. */}
           <label className="datatable__search">
             <svg className="icon" aria-hidden="true"><use href="#i-search" /></svg>
             <span className="visually-hidden">Поиск по коду, адресу и заказчику</span>
@@ -159,23 +118,20 @@ export function ProjectList({
               <p className="empty__text">Измените запрос.</p>
             </div>
           ) : (
-            found.map((project) => (
-              <ProjectCardRow key={project.id} project={project} today={today} onOpen={onOpen} />
-            ))
+            <div className="gallery">
+              {found.map((project) => (
+                <ObjectTile
+                  key={project.id}
+                  project={project}
+                  today={today}
+                  coverUrl={обложка(project)}
+                  onOpen={onOpen}
+                  {...(onStatus === undefined ? {} : { onStatus })}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      ) : (
-        <DataTable
-          rows={shown}
-          columns={projectColumns(today, onOpen, shown, onStatus)}
-          rowKey={(project) => project.id}
-          // Ни заголовка, ни счётчика: раздел назван обложкой, число
-          // показанных строк — подвалом таблицы, число по статусам —
-          // переключателем выше. Четвёртый счётчик тех же объектов лишний.
-          searchLabel="Поиск по коду, адресу и заказчику"
-          emptyTitle="Объектов нет"
-          emptyText="Заведите первый объект, чтобы импортировать смету."
-        />
+        </>
       )}
     </div>
   );

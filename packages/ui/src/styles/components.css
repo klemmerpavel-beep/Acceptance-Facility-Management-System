@@ -1587,8 +1587,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    просрочкой и расхождением, и на карточках под чертой стоит красная
    пилюля просрочки: один цвет означал бы разное в двух сантиметрах друг от
    друга. Положение в воронке называет порядок колонок, а не цвет.       */
-.leads__head { padding: var(--space-3) var(--space-4); background: var(--surface-2);
-  border-radius: var(--radius-md); gap: var(--space-4); }
+/* Шапка раздела своей поверхности не имеет. Заливка и радиус достались ей
+   от артборда, но в продукте такая плашка одна: прочие разделы набраны
+   .section-head — волосяной чертой без заливки, — а по шкале уровней
+   поверхностей полоса страницы идёт ступенью 0 и глубины не получает. Оба
+   её жильца, кнопка и отбор, обведены сами по своей роли, и коробка вокруг
+   них ничего не добавляла. */
+.leads__head { padding-block: var(--space-2); gap: var(--space-4); }
 .leadboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-5); align-items: start; }
 .leadboard__column { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
@@ -1889,6 +1894,113 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .readiness__row { grid-template-columns: auto minmax(0, 1fr) 4rem; }
 }
 
+/* --- 5.36 Галерея объектов -------------------------------------------------
+   Портфель читается плитками, а не ведомостью: экран отвечает на вопрос
+   «где что происходит», и объект на нём узнают в лицо. Строка ведомости
+   называет объект кодом и адресом — двумя строками, которые у соседних
+   объектов отличаются одной цифрой и одним словом.
+
+   Число колонок задаёт ширина, а не медиазапрос: портфель бывает из трёх
+   объектов и из тридцати, и вёрстка не должна знать, сколько их сегодня.
+   Нижняя граница плитки 260 px — ширина, при которой адрес в две строки ещё
+   читается, а обложка остаётся узнаваемой.                                */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Плитка — не ссылка: внутри неё живёт орган смены статуса, а кнопка внутри
+   ссылки недопустима и ломает обход с клавиатуры. Ссылкой служит адрес, а
+   цель нажатия растягивается на всю плитку псевдоэлементом. */
+.objecttile {
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease);
+}
+/* Отклик тот же, что у строк списков: плитка — единица того же рода, и
+   второй вид отклика сообщал бы о разнице, которой нет. */
+.objecttile:hover { border-color: var(--accent); box-shadow: var(--shadow-1); }
+/* Подложка та же, что у строк списков: правило одного отклика на продукт
+   исключений не знает, а рамка и тень сами по себе — второй его вид.
+   Красится тело, а не обложка: поверх снимка подложка не видна. */
+.objecttile:hover .objecttile__body { background: var(--accent-soft); }
+/* Кольцо фокуса ставится на плитку, когда фокус внутри неё: фокус стоит на
+   ссылке адреса, а видеть человек должен всю цель, по которой попадёт. */
+.objecttile:has(.objecttile__link:focus-visible) {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.objecttile__link { color: inherit; text-decoration: none; }
+.objecttile__link::after { content: ""; position: absolute; inset: 0; }
+.objecttile__link:hover { color: var(--accent); }
+/* Орган статуса поднимается над растяжкой ссылки: иначе нажатие по нему
+   уходило бы в открытие объекта. */
+.objecttile__status { position: relative; z-index: 1; }
+
+/* Обложка держит пропорцию, а не высоту: при жёсткой высоте снимок с
+   телефона обрезается по-разному на каждой ширине колонки. */
+.objecttile__cover {
+  position: relative; display: block;
+  aspect-ratio: 3 / 2; inline-size: 100%;
+  background: var(--surface-2);
+  border-block-end: 1px solid var(--line);
+}
+.objecttile__photo {
+  inline-size: 100%; block-size: 100%;
+  object-fit: cover; display: block;
+}
+/* Подложка объекта без снимков. Код крупно, тон — тон статуса из тех же
+   токенов, что у пилюли рядом. Ничего не выдаётся за фотографию. */
+.objecttile__plate {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600;
+  letter-spacing: .04em;
+}
+.objecttile__cover--new     { background: var(--status-new-soft); }
+.objecttile__cover--work    { background: var(--status-work-soft); }
+.objecttile__cover--wait    { background: var(--status-wait-soft); }
+.objecttile__cover--pause   { background: var(--status-pause-soft); }
+.objecttile__cover--done    { background: var(--status-done-soft); }
+.objecttile__cover--archive { background: var(--neutral-soft); }
+.objecttile__cover--new     .objecttile__plate { color: var(--status-new-ink); }
+.objecttile__cover--work    .objecttile__plate { color: var(--status-work-ink); }
+.objecttile__cover--wait    .objecttile__plate { color: var(--status-wait-ink); }
+.objecttile__cover--pause   .objecttile__plate { color: var(--status-pause-ink); }
+.objecttile__cover--done    .objecttile__plate { color: var(--status-done-ink); }
+.objecttile__cover--archive .objecttile__plate { color: var(--status-archive-ink); }
+
+.objecttile__body {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  flex: 1 1 auto;
+}
+.objecttile__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+/* Адрес в две строки с усечением: объекты в одном доме отличаются хвостом
+   строки, и обрезка по первой строке сделала бы их неразличимыми. */
+.objecttile__link {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.objecttile__who { min-block-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Подвал прижат к низу: плитки в ряду разной высоты по адресу, и пилюли
+   срока, стоящие на разной высоте, читались бы как разные по важности. */
+.objecttile__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-2); margin-block-start: auto;
+}
+.objecttile__ready { display: flex; align-items: center; gap: var(--space-2); }
+.objecttile__track {
+  position: relative; inline-size: 64px; block-size: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.objecttile__fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--accent); }
+.objecttile__pct { color: var(--ink-2); }
+
 /* --- 5.34 Реестр денег по объектам ------------------------------------------
    Раздел «Бухгалтерия»: транши всех объектов одной ведомостью. Колонки
    стоят на одних вертикалях — суммы читаются столбцом, а разъехавшиеся
@@ -1953,3 +2065,49 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    оплаты», 4 — сумма ожидания (дорожка сумм ведомости), 5 — подпись
    «получено», 6 — сумма полученного, 7 — метка просрочки (дорожка действия). */
 .money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }
+
+/* --- 5.37 Обложка объекта на вкладке «Обзор» --------------------------------
+   Карточку открывают, чтобы вспомнить, что это за объект, и снимок отвечает
+   на это быстрее шести чисел. Пропорция та же, что у плитки портфеля: один
+   и тот же снимок в двух пропорциях обрезается по-разному, и объект на
+   карточке выглядел бы иначе, чем в галерее.
+
+   Орган, а не картинка со ссылкой: нажатие ведёт на фотоотчёт, откуда
+   обложка и взята. Подпись поверх нижнего края называет, куда ведёт, —
+   изображение без подписи о переходе не сообщает ничем.                    */
+.objectcover {
+  position: relative; display: block; inline-size: 100%;
+  aspect-ratio: 3 / 2; max-block-size: 360px;
+  padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface-2); overflow: hidden; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.objectcover:hover { border-color: var(--accent); }
+.objectcover__photo { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.objectcover__plate {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600; letter-spacing: .04em;
+}
+/* Подпись на затемнении, а не на самом снимке: белый текст поверх светлой
+   стены нечитаем, а тёмный поверх тёмной — тем более. */
+.objectcover__label {
+  position: absolute; inset-inline: 0; inset-block-end: 0;
+  display: flex; align-items: center; min-block-size: var(--tap-min);
+  padding: 0 var(--space-3);
+  /* Затемнение — действующим токеном полога: второй тёмный, набранный по
+     месту, разошёлся бы с ним на первой же правке темы. */
+  background: linear-gradient(to top, var(--overlay), transparent);
+  color: var(--ink-inv); font-size: var(--fs-sm); text-align: start;
+}
+.objectcover--new     { background: var(--status-new-soft); }
+.objectcover--work    { background: var(--status-work-soft); }
+.objectcover--wait    { background: var(--status-wait-soft); }
+.objectcover--pause   { background: var(--status-pause-soft); }
+.objectcover--done    { background: var(--status-done-soft); }
+.objectcover--archive { background: var(--neutral-soft); }
+.objectcover--new     .objectcover__plate { color: var(--status-new-ink); }
+.objectcover--work    .objectcover__plate { color: var(--status-work-ink); }
+.objectcover--wait    .objectcover__plate { color: var(--status-wait-ink); }
+.objectcover--pause   .objectcover__plate { color: var(--status-pause-ink); }
+.objectcover--done    .objectcover__plate { color: var(--status-done-ink); }
+.objectcover--archive .objectcover__plate { color: var(--status-archive-ink); }
