@@ -52,8 +52,15 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
   return (
     <main className="signin">
       <div className="signin__brand">
-        <svg className="icon" aria-hidden="true"><use href="#i-acceptance" /></svg>
-        <span className="t-h3">DOLSTUDIO</span>
+        {/* Знак тот же, что в шапке. Прежде вход ставил рядом со словом
+            #i-acceptance — рабочий значок отметки позиции, который на экране
+            приёмки повторяется девять раз подряд: знаком продукта он быть не
+            может. */}
+        <svg className="icon" aria-hidden="true"><use href="#i-mark" /></svg>
+        <span className="signin__lockup">
+          <span className="t-h3">Приёмка</span>
+          <span className="signin__org">DOLGIY STUDIO</span>
+        </span>
       </div>
 
       {step === null ? (

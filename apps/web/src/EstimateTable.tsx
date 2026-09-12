@@ -214,7 +214,7 @@ export function EstimateTable({
         )}
       </div>
 
-      <div className="table-scroll">
+      <div className="table-scroll table-scroll--view">
         <table className="estimate">
           <thead>
             {showInternal && (

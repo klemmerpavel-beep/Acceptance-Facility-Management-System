@@ -135,6 +135,262 @@ const усечение = async (page, где) => {
   return немые.length;
 };
 
+/**
+ * Поверхности по роли. Рамка, заливка и радиус означают «отдельный объект»;
+ * если их получает каждый блок, иерархия исчезает.
+ *
+ * Считаются вычисленные рамки, а не имена классов. Прежняя редакция
+ * перечисляла `.panel` и `.tile` поимённо и стерегла словарь, а не свойство:
+ * обведённый блок под третьим именем она пропускала, а безрамочный под своим —
+ * считала. Правило про рамки, значит и мерить надо рамки.
+ *
+ * Правило стоит помощником, а не куском потока обхода. Встроенным оно
+ * выполнялось ровно один раз и только на сводке, поэтому вкладка приёмки с
+ * двумя десятками обведённых блоков жила под ним невидимой: проверка,
+ * применённая к одному экрану, стережёт один экран.
+ */
+const поверхности = async (page, где, предел = 6) => {
+  const обведённые = await page.evaluate(() => {
+    const полотно = getComputedStyle(document.body).backgroundColor;
+    return [...document.querySelectorAll("main *")].filter((el) => {
+      const style = getComputedStyle(el);
+      if (Number.parseFloat(style.borderRadius) <= 0) return false;
+      /* Прозрачная рамка рамкой не является. Объявляют её затем, чтобы орган
+         не прыгал на пиксель, когда рамка появится при наведении: место под
+         неё держится заранее. Считать её видимой — значит наказывать за
+         правильный приём. */
+      const цветРамки = style.borderTopColor.replace(/[^0-9.,]/gu, "").split(",");
+      const альфаРамки = цветРамки.length === 4 ? Number.parseFloat(цветРамки[3] ?? "1") : 1;
+      const рамка = Number.parseFloat(style.borderTopWidth) > 0
+        && style.borderTopStyle !== "none" && альфаРамки > 0;
+      /* Прозрачность распознаётся по нулевой альфе, а не сравнением с записью
+         цвета: литерал цвета в коде запрещён правилом линта, и правильно
+         запрещён — цвет живёт в токенах. */
+      const части = style.backgroundColor.replace(/[^0-9.,]/gu, "").split(",");
+      const альфа = части.length === 4 ? Number.parseFloat(части[3] ?? "1") : 1;
+      const заливка = альфа > 0 && style.backgroundColor !== полотно;
+      if (!рамка && !заливка) return false;
+      /* Пустой узел — содержимое, а не коробка вокруг содержимого. Снимок и
+         его заглушка несут скруглённый угол по той же причине, по какой его
+         несёт фотография в рамке: это сам предмет. */
+      if (el.children.length === 0 && (el.textContent ?? "").trim() === "") return false;
+      /* Пилюли, бейджи, органы управления и меры обводятся по своей роли: это
+         метки, кнопки и дорожки, а не блоки экрана. Блок отличается размером:
+         то, что ниже пальца, картой не читается ни при каких рамках. */
+      const { height } = el.getBoundingClientRect();
+      if (height < 44) return false;
+      /* Объявленная роль органа сильнее имени класса: вкладка, кнопка,
+         переключатель и пункт списка выбора обводятся и красятся по своей
+         роли. Блоком страницы ни одно из них не является ни при каком имени. */
+      const объявленнаяРоль = el.getAttribute("role") ?? "";
+      if (/^(tab|button|switch|radio|checkbox|option|menuitem)$/u.test(объявленнаяРоль)) return false;
+      const имя = el.className.toString();
+      return !/pill|badge|btn|input|segmented|icon|chip|tag|search|meter|metric/u.test(имя);
+    }).map((el) => (el.className.toString() || el.tagName).split(" ")[0].slice(0, 28));
+  });
+  /* Замечание называет сочтённое поимённо. Одно число не даёт решить, что
+     делать: снимать рамку с блока или признать его блоком по праву, — и
+     подталкивает к подгонке порога, то есть к отмене правила. */
+  if (обведённые.length > предел) {
+    note("поверхности", `${где}: ${обведённые.length} обведённых блоков при пределе ${предел}: `
+      + `карточная каша — ${[...new Set(обведённые)].join(", ")}`);
+  }
+  console.log(`  обведённых блоков, ${где}: ${обведённые.length}`);
+  return обведённые.length;
+};
+
+/**
+ * Видимый фон узла: собственный, а если он прозрачен — ближайшего предка,
+ * который красит. Строка таблицы держит чередование на `tr`, а отклик
+ * наведения — на `td`; человек видит верхний непрозрачный, и мерить надо его.
+ */
+const ВИДЕН = `(el) => {
+  for (let узел = el; узел !== null; узел = узел.parentElement) {
+    const цвет = getComputedStyle(узел).backgroundColor;
+    const части = цвет.replace(/[^0-9.,]/gu, "").split(",");
+    const альфа = части.length === 4 ? Number.parseFloat(части[3] ?? "1") : 1;
+    if (альфа > 0) return цвет;
+  }
+  return "";
+}`;
+
+/**
+ * Отклик на наведение. Собирается в общую карту: правило не в том, что отклик
+ * есть, а в том, что он один на продукт. Список, отвечающий своим цветом,
+ * сообщает о себе как о другом роде списка, каким не является.
+ */
+const отклики = new Map();
+const отклик = async (page, селектор, где) => {
+  const строка = page.locator(селектор).first();
+  if ((await строка.count()) === 0) {
+    note("отклик", `${где}: узла «${селектор}» нет — правило не проверено`);
+    return null;
+  }
+  const мера = `(el) => (${ВИДЕН})(el.firstElementChild ?? el)`;
+  const покой = await строка.evaluate(new Function(`return ${мера}`)());
+  await строка.hover();
+  await page.waitForTimeout(250);
+  const наведение = await строка.evaluate(new Function(`return ${мера}`)());
+  await page.mouse.move(0, 0);
+  if (наведение === покой) {
+    note("отклик", `${где}: строка не отвечает на наведение — фон остаётся ${покой}`);
+    return null;
+  }
+  отклики.set(где, наведение);
+  return наведение;
+};
+
+/**
+ * Выражение выбора. Два требования: выбранная строка отличается от соседней
+ * заливкой И несёт неколорный канал. Цвет в одиночку — не выражение: он
+ * недоступен при дальтонизме и исчезает в печати.
+ */
+const выборы = new Map();
+const выбор = async (page, выбранный, сосед, где) => {
+  const один = page.locator(выбранный).first();
+  const другой = page.locator(сосед).first();
+  if ((await один.count()) === 0 || (await другой.count()) === 0) {
+    note("выбор", `${где}: нет пары «выбранное — соседнее» — правило не проверено`);
+    return null;
+  }
+  /* Класс выбора ставится состоянием, а не нажатием: между нажатием и
+     перерисовкой проходит кадр, и замер без ожидания мерил бы прежний вид.
+
+     Курсор уводится с ряда прежде замера. После нажатия он остаётся на
+     отмеченной строке, и её заливка при наведении маскировала бы отсутствие
+     заливки выбора: правило сработало бы вторым краем вместо первого и
+     назвало бы не тот дефект. */
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(300);
+  const мера = `(el) => ({
+    фон: (${ВИДЕН})(el),
+    канал: getComputedStyle(el).boxShadow,
+    имя: el.className.toString().slice(0, 60),
+  })`;
+  const снят = await один.evaluate(new Function(`return ${мера}`)());
+  const рядом = await другой.evaluate(new Function(`return ${мера}`)());
+  if (снят.фон === рядом.фон) {
+    note("выбор", `${где}: фон выбранной строки равен фону соседней (${снят.фон}); `
+      + `выбранная «${снят.имя}», соседняя «${рядом.имя}»`);
+    return null;
+  }
+  if (снят.канал === "none") {
+    note("выбор", `${где}: состояние выражено только цветом — второго канала нет`);
+  }
+  выборы.set(где, снят.фон);
+  return снят.фон;
+};
+
+/**
+ * Плотность списка. Мерится мода высот, а не среднее и не минимум: строка с
+ * перенесённым адресом законна и не должна ни ронять правило, ни прятать его.
+ *
+ * Сверяется с вычисленным `--row-h`, а не с числом: ниже 1024 px токен равен
+ * зоне касания, и записанное числом правило требовало бы двух записей.
+ */
+const плотность = async (page, селектор, где) => {
+  const замер = await page.evaluate((sel) => {
+    const высоты = [...document.querySelectorAll(sel)]
+      .map((el) => Math.round(el.getBoundingClientRect().height))
+      .filter((h) => h > 0);
+    const счёт = new Map();
+    for (const h of высоты) счёт.set(h, (счёт.get(h) ?? 0) + 1);
+    let мода = 0;
+    let частота = 0;
+    for (const [h, n] of счёт) if (n > частота) { частота = n; мода = h; }
+    const объявлено = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--row-h"));
+    return {
+      мода,
+      объявлено,
+      всего: высоты.length,
+      распределение: [...счёт].sort((a, b) => b[1] - a[1]).slice(0, 4),
+    };
+  }, селектор);
+  if (замер.всего === 0) {
+    note("плотность", `${где}: строк «${селектор}» нет — правило не проверено`);
+    return замер;
+  }
+  if (Math.abs(замер.мода - замер.объявлено) > 1) {
+    note("плотность", `${где}: строка ${замер.мода} px при объявленных ${замер.объявлено}`);
+  }
+  console.log(`  плотность, ${где}: мода ${замер.мода} px при ${замер.объявлено}; `
+    + `высоты ${замер.распределение.map(([h, n]) => `${h}×${n}`).join(", ")}`);
+  return замер;
+};
+
+/**
+ * Орган без видимого текста обязан нести доступное имя. Действующая проверка
+ * стережёт поля ввода; кнопка со значком вместо слова остаётся немой для
+ * человека, который слушает страницу, а не смотрит на неё.
+ */
+const безымянные = async (page, где) => {
+  const немые = await page.evaluate(() => {
+    const найдено = [];
+    for (const орган of document.querySelectorAll(
+      'button, summary, a[href], [role="button"]')) {
+      if ((орган.textContent ?? "").trim() !== "") continue;
+      const имя = орган.getAttribute("aria-label")
+        ?? орган.getAttribute("title")
+        ?? (орган.getAttribute("aria-labelledby") === null ? "" : "есть");
+      if ((имя ?? "").trim() !== "") continue;
+      найдено.push((орган.className.toString() || орган.tagName).slice(0, 40));
+    }
+    return [...new Set(найдено)];
+  });
+  for (const место of немые) note("орган без имени", `${где}: ${место}`);
+  return немые.length;
+};
+
+/**
+ * Зоны нажатия внутри строк списка. Уплотнение строки не вправе сжимать цель:
+ * норма держится отрицательным полем, а не высотой строки, и это надо мерить,
+ * а не объявлять.
+ */
+const цели = async (page, где) => {
+  const мелкие = await page.evaluate(() => {
+    const найдено = [];
+    const строки = document.querySelectorAll(
+      ".datatable__table tbody tr, .money__row, .objectrow, .estimate tbody tr");
+    for (const строка of строки) {
+      for (const орган of строка.querySelectorAll('button, a[href], [role="button"]')) {
+        const { height } = орган.getBoundingClientRect();
+        if (height === 0) continue;
+        if (height >= 44) continue;
+        найдено.push(`${(орган.className.toString() || орган.tagName).slice(0, 32)} — `
+          + `${Math.round(height)} px`);
+      }
+    }
+    return [...new Set(найдено)];
+  });
+  for (const место of мелкие) note("зона касания", `${где}: ${место} вместо 44`);
+  return мелкие.length;
+};
+
+/**
+ * Первичное действие раздела. Стоит в обложке — там, где начинается чтение, —
+ * и ровно в одном числе: прежде кнопка лежала в заголовке рабочего полотна,
+ * на главной это второй-третий экран прокрутки, а в пустом состоянии рядом
+ * жил её двойник.
+ */
+const действиеРаздела = async (page, где, подпись) => {
+  const кнопки = page.locator(`main button:has-text("${подпись}"), .cover button:has-text("${подпись}")`);
+  const сколько = await кнопки.count();
+  if (сколько !== 1) {
+    note("обложка", `${где}: действие «${подпись}»: вхождений ${сколько} вместо одного`);
+    return;
+  }
+  const вОбложке = await кнопки.first().evaluate((el) => el.closest(".cover") !== null);
+  if (!вОбложке) {
+    note("обложка", `${где}: действие «${подпись}» стоит вне обложки`);
+    return;
+  }
+  const коробка = await кнопки.first().boundingBox();
+  if (коробка !== null && коробка.y + коробка.height > 900) {
+    note("обложка", `${где}: действие «${подпись}» на ${Math.round(коробка.y)} px от верха — ниже первого экрана`);
+  }
+};
+
 const overflow = async (label) => {
   const result = await page.evaluate(() => {
     const root = document.documentElement;
@@ -588,44 +844,8 @@ if ((await page.locator('[aria-label="События портфеля"] .feed__d
 await step("события портфеля", "03b-sobytiya.png");
 await page.keyboard.press("Escape");
 
-/**
- * Поверхности по роли. Рамка, заливка и радиус означают «отдельный
- * объект»; если их получает каждый блок, иерархия исчезает. На первом
- * экране обведённых блоков не должно быть больше, чем блоков, которые
- * требуют действия.
- *
- * Считаются вычисленные рамки, а не имена классов. Прежняя редакция
- * перечисляла `.panel` и `.tile` поимённо и стерегла словарь, а не
- * свойство: обведённый блок под третьим именем она пропускала, а
- * безрамочный под своим — считала. Правило про рамки, значит и мерить
- * надо рамки.
- */
-const framed = await page.evaluate(() => {
-  const canvas = getComputedStyle(document.body).backgroundColor;
-  return [...document.querySelectorAll("main *")].filter((el) => {
-    const style = getComputedStyle(el);
-    if (Number.parseFloat(style.borderRadius) <= 0) return false;
-    const рамка = Number.parseFloat(style.borderTopWidth) > 0
-      && style.borderTopStyle !== "none";
-    /* Прозрачность распознаётся по нулевой альфе, а не сравнением с
-       записью цвета: литерал цвета в коде запрещён правилом линта, и
-       правильно запрещён — цвет живёт в токенах. */
-    const части = style.backgroundColor.replace(/[^0-9.,]/gu, "").split(",");
-    const альфа = части.length === 4 ? Number.parseFloat(части[3] ?? "1") : 1;
-    const заливка = альфа > 0 && style.backgroundColor !== canvas;
-    if (!рамка && !заливка) return false;
-    /* Пилюли, бейджи, органы управления и меры обводятся по своей роли:
-       это метки, кнопки и дорожки, а не блоки экрана. Блок отличается
-       размером: то, что ниже пальца, картой не читается ни при каких
-       рамках. */
-    const { height } = el.getBoundingClientRect();
-    if (height < 44) return false;
-    const роль = el.className.toString();
-    return !/pill|badge|btn|input|segmented|icon|chip|tag|search|meter/u.test(роль);
-  }).length;
-});
-if (framed > 6) note("поверхности", `на сводке ${framed} обведённых блоков: карточная каша`);
-console.log(`  обведённых блоков на сводке: ${framed}`);
+await поверхности(page, "сводка", 6);
+await действиеРаздела(page, "главная", "Добавить объект");
 
 // Видимое состояние фокуса.
 await page.keyboard.press("Tab");
@@ -643,6 +863,11 @@ await page.waitForSelector(".datatable__table tbody tr");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
 await усечение(page, "объекты");
+await действиеРаздела(page, "проекты", "Добавить объект");
+await плотность(page, ".datatable__table tbody tr", "проекты");
+await отклик(page, ".datatable__table tbody tr", "проекты");
+await цели(page, "проекты");
+await безымянные(page, "проекты");
 
 const rows = await page.locator(".datatable__table tbody tr").count();
 console.log(`  объектов в списке: ${rows}`);
@@ -894,6 +1119,42 @@ if ((await раскрытьВсе.count()) === 0) {
   }
   console.log(`  смета: свёрнута ${свёрнутоСтрок} строк, развёрнута ${развёрнуто}`);
 }
+
+/* Липкая шапка сметы. Правило position: sticky у thead объявлено нормативом
+   5.4 и три этапа не работало: прилипать было не к чему, потому что обёртка
+   прокрутки не имела предела высоты и прокручивался документ.
+
+   Первой мерится сама прокручиваемость контейнера. Без неё проверка ниже
+   выродилась бы в тавтологию: у непрокручиваемого контейнера шапка «остаётся
+   на месте» всегда, и правило молчало бы на сломанном коде. */
+{
+  const окно = page.locator(".table-scroll--view");
+  if ((await окно.count()) === 0) {
+    note("смета", "окна с собственной прокруткой нет: липкой шапке не к чему прилипать");
+  } else {
+    const запас = await окно.evaluate((el) => el.scrollHeight - el.clientHeight);
+    if (запас < 200) {
+      note("смета", `окно таблицы прокручивается на ${запас} px: проверка прилипания выродилась`);
+    } else {
+      await окно.evaluate((el) => { el.scrollTop = 400; });
+      await page.waitForTimeout(200);
+      const зазор = await page.evaluate(() => {
+        const контейнер = document.querySelector(".table-scroll--view");
+        const шапка = document.querySelector(".estimate thead th");
+        if (контейнер === null || шапка === null) return null;
+        return Math.round(шапка.getBoundingClientRect().top - контейнер.getBoundingClientRect().top);
+      });
+      if (зазор === null || Math.abs(зазор) > 1) {
+        note("смета", `после прокрутки на 400 px шапка отстоит от верха окна на ${зазор} px`);
+      }
+      await окно.evaluate((el) => { el.scrollTop = 0; });
+      await page.waitForTimeout(200);
+    }
+  }
+}
+
+await плотность(page, "table.estimate tbody tr:not(.estimate__section)", "смета");
+await отклик(page, "table.estimate tbody tr:not(.estimate__section)", "смета");
 
 const internalBefore = await page.locator(".estimate__internal").count();
 await page.click('.segmented__option:has-text("Клиентская")');
@@ -1182,6 +1443,41 @@ if ((await пилюляРеестра.count()) === 0) {
   const былоВРеестре = (await пилюляРеестра.innerText()).trim();
   await пилюляРеестра.click();
   await page.waitForSelector('.sheet[role="dialog"]');
+
+  /* Лист выбора — единственное место продукта, где шесть статусов стоят
+     рядом, и именно здесь кодировка не применялась: нажимали на цветную
+     пилюлю реестра и получали шесть одинаковых серых прямоугольников.
+     Текущий статус вдобавок был объявлен только атрибутом aria-pressed,
+     вида у которого не было, — человек выбирал вслепую. */
+  {
+    const кнопки = page.locator('.sheet [role="dialog"], .sheet').first()
+      .locator("button").filter({ has: page.locator(".pill") });
+    const сПилюлей = await кнопки.count();
+    if (сПилюлей !== 6) {
+      note("статусы", `в листе выбора ${сПилюлей} кнопок с пилюлей при шести статусах`);
+    } else {
+      const заливки = await кнопки.evaluateAll((узлы) => узлы.map((узел) => {
+        const пилюля = узел.querySelector(".pill");
+        return пилюля === null ? "" : getComputedStyle(пилюля).backgroundColor;
+      }));
+      const разных = new Set(заливки).size;
+      if (разных !== 6) {
+        note("статусы", `шесть статусов листа дают ${разных} заливок: состояния неразличимы`);
+      }
+    }
+    const текущая = page.locator('.sheet button[aria-pressed="true"]').first();
+    const прочая = page.locator('.sheet button[aria-pressed="false"]').first();
+    if ((await текущая.count()) === 0 || (await прочая.count()) === 0) {
+      note("статусы", "в листе нет пары «текущий — прочий»: правило не проверено");
+    } else {
+      const вид = async (узел) => узел.evaluate((el) => getComputedStyle(el).backgroundColor
+        + " " + getComputedStyle(el).borderTopColor);
+      if ((await вид(текущая)) === (await вид(прочая))) {
+        note("статусы", "текущий статус в листе не отличается от прочих");
+      }
+    }
+  }
+
   await page.click('.sheet button:has-text("Пауза")');
   await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
   await page.waitForTimeout(300);
@@ -1367,9 +1663,9 @@ await page.click('[aria-label="Новый контакт"] .segmented__option:ha
 await page.fill('[aria-label="Новый контакт"] .input', проба);
 await page.click('button:has-text("Завести бригаду")');
 await page.waitForSelector('main [role="status"]');
-const отклик = (await page.locator('main [role="status"]').innerText()).trim();
-if (!отклик.includes(проба)) {
-  note("заведение", `подтверждение не назвало добавленное: «${отклик}»`);
+const подтверждение = (await page.locator('main [role="status"]').innerText()).trim();
+if (!подтверждение.includes(проба)) {
+  note("заведение", `подтверждение не назвало добавленное: «${подтверждение}»`);
 }
 await page.fill(".datatable__search input", проба);
 await page.waitForTimeout(300);
@@ -1470,6 +1766,39 @@ if ((await page.locator(".roadmap__item").count()) > 0) {
  */
 await page.click('.appbar__link:has-text("Бухгалтерия")');
 await page.waitForSelector(".money__row", { timeout: 10_000 }).catch(() => undefined);
+await плотность(page, ".money__row:not(.money__row--client)", "бухгалтерия");
+await отклик(page, ".money__row:not(.money__row--client)", "бухгалтерия");
+await цели(page, "бухгалтерия");
+
+/* Вертикали ведомости. Хвостовая дорожка была объявлена как auto и равнялась
+   ширине кнопки «Отметить оплату» там, где кнопка есть, и нулю там, где её
+   нет; разницу забирали гибкие дорожки, и строки с кнопкой стояли левее
+   соседних. Свод по заказчикам вдобавок имел собственный набор дорожек,
+   обещавший «те же вертикали» словом комментария и не державший их делом.
+
+   Мерится левый край колонки сумм: ведомость открывают затем, чтобы сравнить
+   суммы столбцом, а разъехавшийся столбец сравнивать нечем. */
+{
+  const края = await page.evaluate(() => {
+    const снять = (строки) => [...строки].map((строка) => {
+      const сумма = строка.querySelector(".money__sum");
+      return сумма === null ? null : Math.round(сумма.getBoundingClientRect().left);
+    }).filter((край) => край !== null);
+    return {
+      ведомость: снять(document.querySelectorAll(".money__row:not(.money__row--client)")),
+      свод: снять(document.querySelectorAll(".money__row--client")),
+    };
+  });
+  const разные = [...new Set(края.ведомость)];
+  if (края.ведомость.length === 0) {
+    note("бухгалтерия", "сумм в ведомости нет: вертикали не проверены");
+  } else if (разные.length > 1) {
+    note("бухгалтерия", `колонка суммы стоит на ${разные.length} вертикалях: ${разные.join(", ")} px`);
+  }
+  if (края.свод.length > 0 && разные.length === 1 && края.свод[0] !== разные[0]) {
+    note("бухгалтерия", `свод стоит на своей вертикали: ${края.свод[0]} px против ${разные[0]} у ведомости`);
+  }
+}
 
 const денежныхЧисел = await page.locator(".statcard").count();
 if (денежныхЧисел !== 4) {
@@ -2406,6 +2735,10 @@ const фактыДоПриёмки = await фактыГрафика();
 await page.click('.tabs__item:has-text("Приёмка")');
 await page.waitForSelector(".accept__row");
 
+/* Счёт поверхностей на вкладке приёмки — до первой отметки: заливка
+   выбранной строки и всплывающая полоса подтверждения исказили бы его. */
+await поверхности(page, "приёмка", 6);
+
 /* Три меры шапки обязаны сходиться между собой. Расхождение «принято ноль
    позиций» при «начислено четыреста тысяч» уже случалось: позиции брались
    из действующей редакции сметы, а начисления — за всё время объекта, и
@@ -2449,6 +2782,11 @@ await page.click('.accept__section:not(.accept__section--idle)');
 await page.waitForTimeout(300);
 const свободная = page.locator(".accept__row").filter({ hasNot: page.locator(".pill--ok") }).first();
 await свободная.locator(".accept__check").click();
+
+/* Выражение выбора замеряется сразу после отметки: единственное место
+   продукта, где выбранное и невыбранное стоят рядом в одном списке. */
+await выбор(page, ".accept__row--picked", ".accept__row:not(.accept__row--picked)", "приёмка");
+
 if ((await page.locator(".accept__bar").count()) === 0) {
   note("приёмка", "полосы подтверждения нет: пакет не подтвердить");
 } else {
@@ -2480,8 +2818,21 @@ if ((await page.locator(".sheet").count()) === 0) {
      не является. */
   await полеКоличества.fill("1");
   await page.waitForTimeout(300);
-  if (await page.locator('.sheet button:has-text("Подтвердить")').isEnabled()) {
+  const безСнимка = page.locator('.sheet button:has-text("Подтвердить")');
+  if (await безСнимка.isEnabled()) {
     note("приёмка", "подтверждение доступно без снимка");
+  } else {
+    /* Отключённая кнопка обязана называть, чего ждёт. Прежде она только
+       бледнела на 45 %, и человек не знал, что недостающее — снимок, а не
+       заполненное поле и не право доступа. Проверяется связь: у кнопки есть
+       описание, и описание называет снимок. */
+    const адрес = await безСнимка.getAttribute("aria-describedby");
+    const причина = адрес === null
+      ? ""
+      : ((await page.locator(`#${адрес}`).textContent()) ?? "").trim();
+    if (!причина.toLowerCase().includes("снимок")) {
+      note("приёмка", `первичная кнопка отключена без названной причины: «${причина}»`);
+    }
   }
   await step("приёмка, лист подтверждения", "33-priyomka-list.png");
 
@@ -3089,6 +3440,41 @@ await page.waitForTimeout(400);
 await overflow("отчёт, 390");
 await step("отчёт по объекту, 390 px", "36b-otchyot-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
+
+/**
+ * Сводные правила. Списков в продукте несколько, и правило не в том, что
+ * каждый из них отвечает на наведение и выражает выбор, а в том, что делают
+ * они это одинаково: список, отвечающий своим цветом, сообщает о себе как о
+ * другом роде списка, каким не является.
+ *
+ * Полнота карты проверяется первой. Без неё сводное правило вырождается в
+ * тавтологию: перестал совпадать селектор — карта пуста — множество из нуля
+ * элементов «однородно», и проверка молчит, ничего не стерегая.
+ */
+const ОЖИДАЕМЫЕ_ОТКЛИКИ = ["проекты", "смета", "бухгалтерия"];
+const ОЖИДАЕМЫЕ_ВЫБОРЫ = ["приёмка"];
+
+for (const ключ of ОЖИДАЕМЫЕ_ОТКЛИКИ) {
+  if (!отклики.has(ключ)) note("отклик", `${ключ}: отклик не замерен — правило однородности не проверено`);
+}
+for (const ключ of ОЖИДАЕМЫЕ_ВЫБОРЫ) {
+  if (!выборы.has(ключ)) note("выбор", `${ключ}: выбор не замерен — правило однородности не проверено`);
+}
+if (отклики.size === ОЖИДАЕМЫЕ_ОТКЛИКИ.length) {
+  const виды = new Set(отклики.values());
+  if (виды.size > 1) {
+    const разбор = [...отклики].map(([где, цвет]) => `${где} — ${цвет}`).join("; ");
+    note("отклик", `на одно действие ${виды.size} вида: ${разбор}`);
+  }
+  console.log(`  отклик на наведение: ${[...виды].join(", ")}`);
+}
+if (выборы.size === ОЖИДАЕМЫЕ_ВЫБОРЫ.length) {
+  const виды = new Set(выборы.values());
+  if (виды.size > 1) {
+    const разбор = [...выборы].map(([где, цвет]) => `${где} — ${цвет}`).join("; ");
+    note("выбор", `на одно состояние ${виды.size} вида: ${разбор}`);
+  }
+}
 
 await browser.close();
 

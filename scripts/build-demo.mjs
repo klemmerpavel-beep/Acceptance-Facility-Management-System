@@ -84,7 +84,7 @@ for (;;) {
 const js = readFileSync(join(assets, jsFile), "utf8").replaceAll("</script", "<\\/script");
 const fontLinks = fontUrls.map((url) => `<link rel="stylesheet" href="${url}">`).join("\n");
 
-const page = `<title>DOLSTUDIO</title>
+const page = `<title>Приёмка — DOLGIY STUDIO</title>
 ${fontLinks}
 <style>
 ${css}

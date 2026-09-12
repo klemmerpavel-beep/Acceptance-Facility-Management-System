@@ -105,12 +105,9 @@ export function ProjectList({
 
   return (
     <div className="stack">
+      {/* Кнопка заведения объекта поднята в обложку раздела. */}
       <div className="section-head">
         <h2 className="t-h2">Портфель</h2>
-        <button type="button" className="btn btn--primary" onClick={onAdd}>
-          <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-          Добавить объект
-        </button>
       </div>
 
       {/* Фильтр по статусу. Счётчик стоит рядом с названием: иначе выбор

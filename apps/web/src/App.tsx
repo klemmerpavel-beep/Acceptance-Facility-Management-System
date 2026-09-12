@@ -149,6 +149,10 @@ export function App(): React.JSX.Element {
    * со всеми пунктами и «Ещё», справа блок работающего, переключатель темы
    * и колокол.
    *
+   * Слева знак и двухстрочный лока́п: имя продукта основной строкой, имя
+   * студии подписью. Продукт называется «Приёмка» — его и читают; студия
+   * стоит ниже, одним написанием на весь продукт.
+   *
    * Знак — свой, в языке набора значков. Знак и слово эталона не
    * воспроизводятся: это чужой товарный знак.
    */
@@ -156,7 +160,10 @@ export function App(): React.JSX.Element {
     <header className="appbar">
       <span className="appbar__brand">
         <svg className="icon appbar__mark" aria-hidden="true"><use href="#i-mark" /></svg>
-        DOLSTUDIO
+        <span className="appbar__lockup">
+          <span className="appbar__product">Приёмка</span>
+          <span className="appbar__org">DOLGIY STUDIO</span>
+        </span>
       </span>
       <nav className="appbar__nav" aria-label="Разделы">
         <div className="appbar__nav-scroll">
@@ -255,8 +262,22 @@ export function App(): React.JSX.Element {
    * словом «Главная» ничего не добавляет к тому, что человек и так видит,
    * а число объектов в обложке — это то же число, что стоит в переключателе
    * статусов и в подвале таблицы.
+   *
+   * Третьим доводом — первичное действие раздела. Прежде оно стояло в
+   * заголовке рабочего полотна, и на главной это второй-третий экран
+   * прокрутки: чтобы завести объект, человек сперва пролистывал портфель,
+   * воронку и графики.
+   *
+   * Действие поднимается только там, где его состояние принадлежит оболочке
+   * (`adding` живёт здесь). «Новая заявка» и «Добавить контакт» остаются на
+   * своих экранах: их состояние живёт в дочернем компоненте, а подъём
+   * состояния ради места кнопки — правка устройства, а не обложки.
    */
-  const cover = (title: string, crumbs: readonly string[]): React.JSX.Element => (
+  const cover = (
+    title: string,
+    crumbs: readonly string[] = [],
+    action?: React.JSX.Element,
+  ): React.JSX.Element => (
     <div className="cover">
       <div className="container">
         <p className="cover__crumbs">
@@ -267,7 +288,10 @@ export function App(): React.JSX.Element {
             </span>
           ))}
         </p>
-        <h1 className="t-h1">{title}</h1>
+        <div className="cover__head">
+          <h1 className="t-h1">{title}</h1>
+          {action}
+        </div>
       </div>
     </div>
   );
@@ -289,7 +313,12 @@ export function App(): React.JSX.Element {
       {header}
       {section === "home" && (
         <>
-          {cover("Главная", [state.user.organization.name])}
+          {cover("Главная", [], (
+            <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
+              <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+              Добавить объект
+            </button>
+          ))}
           <Dashboard
             projects={state.projects}
             today={today}
@@ -302,7 +331,12 @@ export function App(): React.JSX.Element {
       )}
       {section === "projects" && (
         <>
-          {cover("Проекты", ["Главная", "Проекты"])}
+          {cover("Проекты", ["Главная", "Проекты"], (
+            <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
+              <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+              Добавить объект
+            </button>
+          ))}
           <main className="container stack stack--loose">
             <ProjectList
               projects={state.projects}
