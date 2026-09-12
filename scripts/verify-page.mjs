@@ -423,6 +423,39 @@ const безымянные = async (page, где) => {
 };
 
 /**
+ * Семантика таблицы: подпись и области заголовков.
+ *
+ * Таблица без подписи не называет себя тому, кто её слушает; заголовок без
+ * `scope` не связан со своими ячейками, и число читается без имени колонки.
+ * Оба правила были в дизайн-системе и не проверялись: `caption` не встречался
+ * во всём хранилище ни разу, `scope` — тоже.
+ *
+ * Прежде подпись бралась из `aria-label={title ?? searchLabel}`, и `title` не
+ * передавал ни один вызывающий: обе таблицы продукта объявлялись подсказкой
+ * поиска. Атрибут стоял, называя не то. Поэтому правило требует `caption` с
+ * непустым текстом, а не «какое-нибудь доступное имя».
+ */
+const таблицы = async (page, где) => {
+  const дефекты = await page.evaluate(() => {
+    const найдено = [];
+    for (const таблица of document.querySelectorAll("table")) {
+      if (таблица.closest("[aria-hidden=\"true\"]") !== null) continue;
+      const имя = (таблица.querySelector("caption")?.textContent ?? "").trim();
+      const класс = таблица.className.toString().slice(0, 24) || "table";
+      if (имя === "") найдено.push(`${класс}: нет подписи`);
+      for (const шапка of таблица.querySelectorAll("thead th")) {
+        if (шапка.getAttribute("scope") === null) {
+          найдено.push(`${класс}: заголовок «${(шапка.textContent ?? "").trim().slice(0, 20)}» без scope`);
+        }
+      }
+    }
+    return [...new Set(найдено)];
+  });
+  for (const место of дефекты) note("таблица", `${где}: ${место}`);
+  return дефекты.length;
+};
+
+/**
  * Зоны нажатия органов экрана. Уплотнение строки не вправе сжимать цель:
  * норма держится отрицательным полем, а не высотой строки, и это надо мерить,
  * а не объявлять.
@@ -940,6 +973,7 @@ await page.keyboard.press("Escape");
 
 await поверхности(page, "сводка", 6);
 await цели(page, "сводка");
+await таблицы(page, "сводка");
 await безымянные(page, "сводка");
 await действиеРаздела(page, "главная", "Добавить объект");
 
@@ -1304,6 +1338,64 @@ await плотность(page, "table.estimate tbody tr:not(.estimate__section)"
 await отклик(page, "table.estimate tbody tr:not(.estimate__section)", "смета");
 
 const internalBefore = await page.locator(".estimate__internal").count();
+
+/* Липкая шапка сметы держится при прокрутке.
+ 
+   Правило было объявлено на ячейках — `.estimate thead th { position: sticky;
+   top: 0 }`, — и замер показал, что так она не работает вовсе: при прокрутке
+   окна на 240 px шапка уезжала ровно на 240 и пропадала из виду. Тот же
+   дефект для подвала был найден этапом раньше и обойдён переносом липкости на
+   группу; соседнее правило прямо объясняет, почему на группе, а не на
+   ячейках, — а шапку при этом оставили как была.
+
+   Первая редакция этой проверки стерегла не то: предполагалось, что две
+   строки шапки при внутренней проекции встанут друг на друга, и правило
+   искало перекрытие коробок. Перекрытия нет ни в одном из состояний — и
+   правило молчало на откате, то есть не стерегло ничего. Свойство, которое
+   нарушается на самом деле: шапка остаётся у верхнего края окна прокрутки, а
+   не уезжает вместе с содержимым. Оно и проверяется. */
+{
+  const окно = page.locator(".table-scroll--view");
+  if ((await окно.count()) > 0 && internalBefore > 0) {
+    await окно.first().evaluate((el) => { el.scrollTop = 0; });
+    await page.waitForTimeout(200);
+    const доПрокрутки = await page.evaluate(() =>
+      Math.round(document.querySelector("table.estimate thead tr")?.getBoundingClientRect().top ?? 0));
+    await окно.first().evaluate((el) => { el.scrollTop = 240; });
+    await page.waitForTimeout(250);
+    const шапка = await page.evaluate(() => {
+      const строки = [...document.querySelectorAll("table.estimate thead tr")];
+      return строки.map((строка) => {
+        const { top, bottom, height } = строка.getBoundingClientRect();
+        return { top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height) };
+      });
+    });
+    const первая = шапка[0];
+    if (первая === undefined) {
+      note("смета", "у сметы нет строки шапки");
+    } else {
+      /* Порог 8 px, а не ноль: при `border-collapse: separate` браузер
+         прибавляет к закреплённой коробке промежуток между ячейками. Уезжание
+         же измеряется двумя сотнями пикселей — эти два случая различаются на
+         порядок, и порог между ними не подгонка, а зазор. */
+      const уехала = Math.abs(первая.top - доПрокрутки);
+      if (уехала > 8) {
+        note("смета", `липкая шапка уехала на ${уехала} px при прокрутке на 240: она не закреплена`);
+      }
+      if (шапка.length === 2) {
+        const низ = шапка[1];
+        if (низ !== undefined && низ.top < первая.bottom - 1) {
+          note("смета", `строки липкой шапки перекрываются: вторая начинается на ${низ.top} `
+            + `при конце первой ${первая.bottom}`);
+        }
+      }
+    }
+    console.log(`  смета, липкая шапка: строк ${шапка.length}, верх ${доПрокрутки} → ${первая?.top ?? "нет"}`);
+    await окно.first().evaluate((el) => { el.scrollTop = 0; });
+    await page.waitForTimeout(200);
+  }
+}
+
 await page.click('.segmented__option:has-text("Клиентская")');
 await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
@@ -1314,6 +1406,7 @@ await step("клиентская проекция", "07-klientskaya.png");
    Помощник замера существовал этап и вызывался только на бухгалтерии:
    помощник, написанный и не вызванный, не стережёт ничего. */
 await цели(page, "смета");
+await таблицы(page, "смета");
 await безымянные(page, "смета");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
@@ -1684,6 +1777,7 @@ await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await поверхности(page, "контрагенты", 6);
 await цели(page, "контакты");
+await таблицы(page, "контакты");
 await безымянные(page, "контакты");
 
 const вкладкиКонтактов = await page.locator('main [role="tab"]').allTextContents();

@@ -213,6 +213,7 @@ export function Contacts(): React.JSX.Element {
             rows={строки}
             columns={колонки}
             rowKey={(row) => row.id}
+            подпись={вкладка === "clients" ? "Заказчики" : "Бригады"}
             searchLabel={вкладка === "clients"
               ? "Поиск по имени, коду и реквизитам"
               : "Поиск по имени бригады"}

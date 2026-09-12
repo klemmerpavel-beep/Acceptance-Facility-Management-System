@@ -536,8 +536,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Плотная таблица: строка 40 px, 13 px, суммы по правому краю.
    Заголовок липкий, разделы — сворачиваемые группы. */
 .estimate { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
+/* Липкость объявлена на группе, а не на ячейках — тем же доводом, каким она
+   объявлена на группе у подвала строкой ниже. При внутренней проекции строк
+   шапки две, и каждая, закреплённая по top: 0, встала бы поверх соседней:
+   надзаголовок «Внутреннее» и имена колонок сошлись бы в одну строку. Тот же
+   капкан для подвала был описан и обойдён, а для шапки — только описан. */
+.estimate thead { position: sticky; top: 0; z-index: 2; }
 .estimate thead th {
-  position: sticky; top: 0; z-index: 2;
   height: var(--row-h);
   padding: 0 var(--space-3);
   background: var(--surface-2);
@@ -595,8 +600,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .estimate__from-measure {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
 }
-.estimate tfoot td { background: var(--surface); font-weight: 600; }
-.estimate tfoot tr:first-child td { border-top: 2px solid var(--line-strong); }
+/* Подпись итога — `th scope="row"`, и оформляется она как соседняя ячейка:
+   разметка сообщает связь величины с её именем, вид при этом не меняется.
+   Без сброса `th` пришёл бы с браузерным выравниванием по центру. */
+.estimate tfoot td, .estimate tfoot th { background: var(--surface); font-weight: 600; }
+.estimate tfoot th { padding: 0 var(--space-3); text-align: left; }
+.estimate tfoot tr:first-child td, .estimate tfoot tr:first-child th { border-top: 2px solid var(--line-strong); }
 
 /* Переключатель проекции — сегментированный контрол. */
 /* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
