@@ -216,31 +216,38 @@ export function EstimateTable({
 
       <div className="table-scroll table-scroll--view">
         <table className="estimate">
+          {/* Подпись таблицы. Прежде её не было вовсе: смета — самая крупная
+              таблица продукта и единственная, у которой шапка двухрядная. */}
+          <caption className="visually-hidden">Смета объекта</caption>
           <thead>
             {showInternal && (
               <tr>
-                <th colSpan={6} />
-                <th colSpan={3} className="estimate__internal estimate__internal-group">
+                <td colSpan={6} />
+                {/* Надзаголовок группы. `colspan` у него объявлен, а области —
+                    нет, и без неё связь с тремя колонками ниже держалась только
+                    видом. Пустые ячейки рядом — `td`, а не `th`: заголовком без
+                    содержимого они не были, а числом заголовков считались. */}
+                <th colSpan={3} scope="colgroup" className="estimate__internal estimate__internal-group">
                   Внутреннее
                 </th>
-                {editable && <th />}
+                {editable && <td />}
               </tr>
             )}
             <tr>
-              <th>№</th>
-              <th>Наименование</th>
-              <th>Ед.</th>
-              <th className="estimate__num">Кол.</th>
-              <th className="estimate__num">Цена ед.</th>
-              <th className="estimate__num">Сумма</th>
+              <th scope="col">№</th>
+              <th scope="col">Наименование</th>
+              <th scope="col">Ед.</th>
+              <th scope="col" className="estimate__num">Кол.</th>
+              <th scope="col" className="estimate__num">Цена ед.</th>
+              <th scope="col" className="estimate__num">Сумма</th>
               {showInternal && (
                 <>
-                  <th className="estimate__num estimate__internal">Ставка ЗП</th>
-                  <th className="estimate__num estimate__internal">ЗП</th>
-                  <th className="estimate__num estimate__internal">Прибыль</th>
+                  <th scope="col" className="estimate__num estimate__internal">Ставка ЗП</th>
+                  <th scope="col" className="estimate__num estimate__internal">ЗП</th>
+                  <th scope="col" className="estimate__num estimate__internal">Прибыль</th>
                 </>
               )}
-              {editable && <th><span className="visually-hidden">Правка</span></th>}
+              {editable && <th scope="col"><span className="visually-hidden">Правка</span></th>}
             </tr>
           </thead>
           <tbody>{rows(estimate.sections)}</tbody>
@@ -250,12 +257,15 @@ export function EstimateTable({
               проекции. */}
           <tfoot>
             <tr>
-              <td colSpan={5}>
+              {/* Подпись итога — заголовок строки, а не ячейка. Прежде все
+                  три итога стояли `td`, и ни один не был связан со своей
+                  подписью разметкой: число читалось без имени. */}
+              <th scope="row" colSpan={5}>
                 Итого по работам
                 {estimate.declaredWorksTotal !== null && (
                   <span className="t-sm t-muted"> · в файле заявлено {money(estimate.declaredWorksTotal)}</span>
                 )}
-              </td>
+              </th>
               <td className="estimate__num">{money(estimate.totals.works)}</td>
               {showInternal && (
                 <>
@@ -267,20 +277,20 @@ export function EstimateTable({
               {editable && <td className="estimate__act" />}
             </tr>
             <tr>
-              <td colSpan={5}>
+              <th scope="row" colSpan={5}>
                 Сопровождение объекта {formatPercent(BigInt(estimate.totals.supervisionShare))}
                 {onEditSupervision !== undefined && (
                   <button type="button" className="btn btn--text" onClick={onEditSupervision}>
                     Изменить надбавку
                   </button>
                 )}
-              </td>
+              </th>
               <td className="estimate__num">{money(estimate.totals.supervision)}</td>
               {showInternal && <td className="estimate__internal" colSpan={3} />}
               {editable && <td className="estimate__act" />}
             </tr>
             <tr>
-              <td colSpan={5}>Итого для заказчика</td>
+              <th scope="row" colSpan={5}>Итого для заказчика</th>
               <td className="estimate__num">{money(estimate.totals.estimate)}</td>
               {showInternal && <td className="estimate__internal" colSpan={3} />}
               {editable && <td className="estimate__act" />}

@@ -68,17 +68,22 @@ export function StatusBar({
   return (
     <div className="stack stack--tight">
       <div className="statusbar" role="img" aria-label={`Портфель: ${String(всего)} объектов`}>
+        {/* Доли — картинка, а не органы. Прежде каждая была кнопкой, и разметка
+            противоречила себе дважды: полоса объявлена `role="img"`, у которой
+            потомки представительны и интерактивными быть не могут, а цель
+            нажатия у доли выходила 85×28 px при норме 44 по обеим сторонам —
+            замер обхода назвал три такие доли. Растянуть их нельзя: ширина
+            доли и есть та величина, которую полоса показывает. Команда от
+            этого не теряется — та же, с той же целью, стоит в легенде ниже,
+            и там зона нажатия держится токеном. */}
         {доли.map((доля) => (
-          <button
+          <span
             key={доля.status}
-            type="button"
             className={STAGE_TONE[доля.status]}
             style={{ inlineSize: ширина(доля.share) }}
             title={`${STATUS_LABEL[доля.status]} — ${String(доля.count)} `
               + `${plural(доля.count, "объект", "объекта", "объектов")}, `
               + formatPercent(BigInt(доля.share))}
-            aria-label={`${STATUS_LABEL[доля.status]}: ${String(доля.count)}`}
-            onClick={() => { onOpenProjects(доля.status); }}
           />
         ))}
       </div>

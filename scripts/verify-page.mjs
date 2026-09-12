@@ -423,27 +423,74 @@ const безымянные = async (page, где) => {
 };
 
 /**
- * Зоны нажатия внутри строк списка. Уплотнение строки не вправе сжимать цель:
- * норма держится отрицательным полем, а не высотой строки, и это надо мерить,
- * а не объявлять.
+ * Семантика таблицы: подпись и области заголовков.
+ *
+ * Таблица без подписи не называет себя тому, кто её слушает; заголовок без
+ * `scope` не связан со своими ячейками, и число читается без имени колонки.
+ * Оба правила были в дизайн-системе и не проверялись: `caption` не встречался
+ * во всём хранилище ни разу, `scope` — тоже.
+ *
+ * Прежде подпись бралась из `aria-label={title ?? searchLabel}`, и `title` не
+ * передавал ни один вызывающий: обе таблицы продукта объявлялись подсказкой
+ * поиска. Атрибут стоял, называя не то. Поэтому правило требует `caption` с
+ * непустым текстом, а не «какое-нибудь доступное имя».
  */
-const цели = async (page, где) => {
-  const мелкие = await page.evaluate(() => {
+const таблицы = async (page, где) => {
+  const дефекты = await page.evaluate(() => {
     const найдено = [];
-    const строки = document.querySelectorAll(
-      ".datatable__table tbody tr, .money__row, .objectrow, .estimate tbody tr");
-    for (const строка of строки) {
-      for (const орган of строка.querySelectorAll('button, a[href], [role="button"]')) {
-        const { height } = орган.getBoundingClientRect();
-        if (height === 0) continue;
-        if (height >= 44) continue;
-        найдено.push(`${(орган.className.toString() || орган.tagName).slice(0, 32)} — `
-          + `${Math.round(height)} px`);
+    for (const таблица of document.querySelectorAll("table")) {
+      if (таблица.closest("[aria-hidden=\"true\"]") !== null) continue;
+      const имя = (таблица.querySelector("caption")?.textContent ?? "").trim();
+      const класс = таблица.className.toString().slice(0, 24) || "table";
+      if (имя === "") найдено.push(`${класс}: нет подписи`);
+      for (const шапка of таблица.querySelectorAll("thead th")) {
+        if (шапка.getAttribute("scope") === null) {
+          найдено.push(`${класс}: заголовок «${(шапка.textContent ?? "").trim().slice(0, 20)}» без scope`);
+        }
       }
     }
     return [...new Set(найдено)];
   });
-  for (const место of мелкие) note("зона касания", `${где}: ${место} вместо 44`);
+  for (const место of дефекты) note("таблица", `${где}: ${место}`);
+  return дефекты.length;
+};
+
+/**
+ * Зоны нажатия органов экрана. Уплотнение строки не вправе сжимать цель:
+ * норма держится отрицательным полем, а не высотой строки, и это надо мерить,
+ * а не объявлять.
+ *
+ * Первая редакция мерила органы ТОЛЬКО внутри строк списков, и это делало её
+ * слепой к самому мелкому органу продукта: сегмент полосы статусов на первом
+ * экране — кнопка шириной от 4 px, и ни в одну строку списка она не входит.
+ * Прогон по всем разделам с прежним селектором дал ноль замечаний — не оттого,
+ * что экраны чисты, а оттого, что проверка смотрела не туда. Область замера
+ * расширена до всего экрана.
+ *
+ * Мерятся обе стороны, а не одна высота: цель, узкая по ширине, промахивается
+ * ровно так же, как низкая.
+ *
+ * Строчная ссылка в тексте из замера исключена — это оговорка самой нормы
+ * (WCAG 2.5.8, inline exception): ссылка внутри предложения наследует строку
+ * абзаца, и растянуть её до 44 px значило бы разорвать текст. Признак —
+ * вычисленный `display: inline`; всё остальное меряется.
+ */
+const цели = async (page, где) => {
+  const мелкие = await page.evaluate(() => {
+    const найдено = [];
+    for (const орган of document.querySelectorAll('button, a[href], [role="button"]')) {
+      const вид = getComputedStyle(орган);
+      if (вид.display === "inline") continue;
+      if (вид.visibility === "hidden" || вид.display === "none") continue;
+      const { height, width } = орган.getBoundingClientRect();
+      if (height === 0 || width === 0) continue;
+      if (height >= 44 && width >= 44) continue;
+      найдено.push(`${(орган.className.toString() || орган.tagName).slice(0, 32)} — `
+        + `${Math.round(width)}×${Math.round(height)} px`);
+    }
+    return [...new Set(найдено)];
+  });
+  for (const место of мелкие) note("зона касания", `${где}: ${место} вместо 44×44`);
   return мелкие.length;
 };
 
@@ -925,6 +972,9 @@ await step("события портфеля", "03b-sobytiya.png");
 await page.keyboard.press("Escape");
 
 await поверхности(page, "сводка", 6);
+await цели(page, "сводка");
+await таблицы(page, "сводка");
+await безымянные(page, "сводка");
 await действиеРаздела(page, "главная", "Добавить объект");
 
 // Видимое состояние фокуса.
@@ -1072,6 +1122,8 @@ const крошка = async () =>
 }
 
 await step("карточка объекта, обзор", "05-kartochka.png");
+await цели(page, "карточка");
+await безымянные(page, "карточка");
 await overflow("карточка, 1440");
 await усечение(page, "карточка");
 
@@ -1286,12 +1338,76 @@ await плотность(page, "table.estimate tbody tr:not(.estimate__section)"
 await отклик(page, "table.estimate tbody tr:not(.estimate__section)", "смета");
 
 const internalBefore = await page.locator(".estimate__internal").count();
+
+/* Липкая шапка сметы держится при прокрутке.
+ 
+   Правило было объявлено на ячейках — `.estimate thead th { position: sticky;
+   top: 0 }`, — и замер показал, что так она не работает вовсе: при прокрутке
+   окна на 240 px шапка уезжала ровно на 240 и пропадала из виду. Тот же
+   дефект для подвала был найден этапом раньше и обойдён переносом липкости на
+   группу; соседнее правило прямо объясняет, почему на группе, а не на
+   ячейках, — а шапку при этом оставили как была.
+
+   Первая редакция этой проверки стерегла не то: предполагалось, что две
+   строки шапки при внутренней проекции встанут друг на друга, и правило
+   искало перекрытие коробок. Перекрытия нет ни в одном из состояний — и
+   правило молчало на откате, то есть не стерегло ничего. Свойство, которое
+   нарушается на самом деле: шапка остаётся у верхнего края окна прокрутки, а
+   не уезжает вместе с содержимым. Оно и проверяется. */
+{
+  const окно = page.locator(".table-scroll--view");
+  if ((await окно.count()) > 0 && internalBefore > 0) {
+    await окно.first().evaluate((el) => { el.scrollTop = 0; });
+    await page.waitForTimeout(200);
+    const доПрокрутки = await page.evaluate(() =>
+      Math.round(document.querySelector("table.estimate thead tr")?.getBoundingClientRect().top ?? 0));
+    await окно.first().evaluate((el) => { el.scrollTop = 240; });
+    await page.waitForTimeout(250);
+    const шапка = await page.evaluate(() => {
+      const строки = [...document.querySelectorAll("table.estimate thead tr")];
+      return строки.map((строка) => {
+        const { top, bottom, height } = строка.getBoundingClientRect();
+        return { top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height) };
+      });
+    });
+    const первая = шапка[0];
+    if (первая === undefined) {
+      note("смета", "у сметы нет строки шапки");
+    } else {
+      /* Порог 8 px, а не ноль: при `border-collapse: separate` браузер
+         прибавляет к закреплённой коробке промежуток между ячейками. Уезжание
+         же измеряется двумя сотнями пикселей — эти два случая различаются на
+         порядок, и порог между ними не подгонка, а зазор. */
+      const уехала = Math.abs(первая.top - доПрокрутки);
+      if (уехала > 8) {
+        note("смета", `липкая шапка уехала на ${уехала} px при прокрутке на 240: она не закреплена`);
+      }
+      if (шапка.length === 2) {
+        const низ = шапка[1];
+        if (низ !== undefined && низ.top < первая.bottom - 1) {
+          note("смета", `строки липкой шапки перекрываются: вторая начинается на ${низ.top} `
+            + `при конце первой ${первая.bottom}`);
+        }
+      }
+    }
+    console.log(`  смета, липкая шапка: строк ${шапка.length}, верх ${доПрокрутки} → ${первая?.top ?? "нет"}`);
+    await окно.first().evaluate((el) => { el.scrollTop = 0; });
+    await page.waitForTimeout(200);
+  }
+}
+
 await page.click('.segmented__option:has-text("Клиентская")');
 await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
 if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
 await step("клиентская проекция", "07-klientskaya.png");
+/* Смета — самая плотная таблица продукта, и находка Ж-3 заведена ради неё.
+   Помощник замера существовал этап и вызывался только на бухгалтерии:
+   помощник, написанный и не вызванный, не стережёт ничего. */
+await цели(page, "смета");
+await таблицы(page, "смета");
+await безымянные(page, "смета");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
 /*
@@ -1660,6 +1776,9 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await поверхности(page, "контрагенты", 6);
+await цели(page, "контакты");
+await таблицы(page, "контакты");
+await безымянные(page, "контакты");
 
 const вкладкиКонтактов = await page.locator('main [role="tab"]').allTextContents();
 if (вкладкиКонтактов.length !== 2) {
@@ -1829,11 +1948,14 @@ if ((await page.locator(".appbar__brand .appbar__mark").count()) !== 1) {
  */
 await page.click(".appbar__more > summary");
 await page.waitForTimeout(200);
-const menu = (await page.locator(".appbar__menu-item").allTextContents()).map((s) => s.trim());
+/* Только список шапки. Тот же перечень стоит шестым пунктом таб-панели, и
+   на широком экране она скрыта правилом, но из разметки не изъята: селектор
+   по классу пункта собирал оба списка и объявлял состав удвоенным. */
+const menu = (await page.locator(".appbar__menu .appbar__menu-item").allTextContents()).map((s) => s.trim());
 if (menu.join("|") !== ["Настройки", "Что дальше", "Выйти"].join("|")) {
   note("навигация", `в списке «Ещё» «${menu.join(", ")}»`);
 }
-await page.click('.appbar__menu-item:has-text("Что дальше")');
+await page.click('.appbar__menu .appbar__menu-item:has-text("Что дальше")');
 await page.waitForTimeout(400);
 if ((await page.locator(".roadmap__item").count()) === 0) {
   note("навигация", "«Что дальше» из списка «Ещё» не открылся");
@@ -1884,6 +2006,8 @@ for (const label of ["Главная", "Заявки", "Проекты", "Кон
 await page.click('.appbar__link:has-text("Заявки")');
 await page.waitForTimeout(400);
 await поверхности(page, "заявки", 6);
+await цели(page, "заявки");
+await безымянные(page, "заявки");
 if ((await page.locator(".roadmap__item").count()) > 0) {
   note("навигация", "раздел «Заявки» ведёт на «Что дальше», а у него есть свой экран");
 }
@@ -1900,6 +2024,7 @@ await page.waitForSelector(".money__row", { timeout: 10_000 }).catch(() => undef
 await плотность(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await отклик(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await цели(page, "бухгалтерия");
+await безымянные(page, "бухгалтерия");
 await поверхности(page, "бухгалтерия", 6);
 
 /* Вертикали ведомости. Хвостовая дорожка была объявлена как auto и равнялась
@@ -2365,6 +2490,8 @@ if (!afterToggle.includes("Периметр потолка")) note("замер",
 if (!afterToggle.includes("Откосы")) note("замер", "подробный вид не раскрыл откосы проёмов");
 await page.click(".toggle");
 await step("замер, обмерный план", "21-zamer.png");
+await цели(page, "замер");
+await безымянные(page, "замер");
 
 /* Внесение помещения и его удаление: итог обязан вернуться к исходному. */
 await page.click('button:has-text("Добавить помещение")');
@@ -2586,6 +2713,8 @@ await page.click('.segmented button[aria-label="Мельче"]');
 await page.waitForTimeout(300);
 
 await step("работа, график", "26-grafik.png");
+await цели(page, "график");
+await безымянные(page, "график");
 
 /* Перестановка строки стрелкой с клавиатуры: номера обязаны разойтись. */
 const доПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
@@ -2890,6 +3019,8 @@ await page.waitForSelector(".accept__row");
 /* Счёт поверхностей на вкладке приёмки — до первой отметки: заливка
    выбранной строки и всплывающая полоса подтверждения исказили бы его. */
 await поверхности(page, "приёмка", 6);
+await цели(page, "приёмка");
+await безымянные(page, "приёмка");
 
 /* Три меры шапки обязаны сходиться между собой. Расхождение «принято ноль
    позиций» при «начислено четыреста тысяч» уже случалось: позиции брались
@@ -3160,6 +3291,8 @@ if ((await page.locator(".tranche__bar").count()) === 0) {
 }
 
 await step("транши", "36-transhi.png");
+await цели(page, "транши");
+await безымянные(page, "транши");
 
 /* Лист открытия: отказ показывается до обращения к сети, тем же правилом,
    что применит сервер. Второй открытый транш при уже открытом отклоняется. */
@@ -3262,6 +3395,78 @@ await overflow("контрагенты, 360");
 await усечение(page, "контрагенты, 360");
 const tabbar = await page.locator(".tabbar__item").count();
 if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
+
+/* Выход с телефона. Полоса разделов ниже 768 px скрыта целиком, а список
+   «Ещё» лежал внутри неё: «Выйти» и «Что дальше» не были достижимы ничем —
+   ни мышью, ни клавиатурой, — и это дефект работоспособности, а не только
+   доступности. Работает на телефоне прораб.
+
+   Проверяется путь целиком, а не наличие узла: узел, накрытый чужим слоем
+   или выехавший за край, «есть» и не нажимается. */
+{
+  const ещё = page.locator(".tabbar__more > summary");
+  if ((await ещё.count()) === 0) {
+    note("мобильная навигация", "в таб-панели нет пункта «Ещё»: выход недостижим");
+  } else {
+    await ещё.click();
+    await page.waitForTimeout(200);
+    for (const пункт of ["Настройки", "Что дальше", "Выйти"]) {
+      const орган = page.locator(`.tabbar__menu button:text-is("${пункт}")`);
+      if ((await орган.count()) === 0) {
+        note("мобильная навигация", `в списке «Ещё» нет пункта «${пункт}»`);
+        continue;
+      }
+      if (!(await орган.isVisible())) {
+        note("мобильная навигация", `пункт «${пункт}» есть в разметке, но не виден`);
+      }
+    }
+    /* Список берётся с клавиатуры: `<details>` даёт это браузером, и правило
+       стережёт именно то, что его оттуда не вынули подменой на `div`. */
+    const берётся = await page.evaluate(() => {
+      const узел = document.querySelector(".tabbar__more > summary");
+      if (узел === null) return false;
+      узел.focus();
+      return document.activeElement === узел;
+    });
+    if (!берётся) note("мобильная навигация", "пункт «Ещё» не берётся фокусом");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  }
+}
+
+/* Подписи таб-панели: замер без утверждения, и это решение, а не упущение.
+   Шестой пункт сузил колонку с 72 до 60 px, и до замера казалось, что самая
+   длинная подпись — «Бухгалтерия» — в неё не станет. Замер показал иное:
+   подписи умещаются, а разницу поглощает сама сетка — колонка длинной
+   подписи растёт за счёт соседних (64 px против 59 у прочих).
+
+   Правило «подпись не переносится» было написано и снято. Опрокинуть его не
+   удалось ни разрядкой, ни кеглем 13 px: колонка и там забирала место у
+   соседей, и перенос не наступал ни при каком реалистичном ухудшении.
+   Непадающая проверка не стережёт ничего, и держать её значило бы выдавать
+   зелёный цвет за гарантию. Горизонтальное переполнение полосы стережёт
+   `overflow`, размер цели — `цели`; замер ниже остаётся записью факта, по
+   которой видно, сколько места осталось. */
+{
+  const замеры = await page.evaluate(() => {
+    const out = [];
+    for (const пункт of document.querySelectorAll(".tabbar__item")) {
+      const подпись = [...пункт.childNodes]
+        .find((узел) => узел.nodeType === Node.TEXT_NODE && (узел.textContent ?? "").trim() !== "");
+      if (подпись === undefined) continue;
+      const отрезок = document.createRange();
+      отрезок.selectNodeContents(подпись);
+      out.push({
+        имя: (подпись.textContent ?? "").trim(),
+        текст: Math.round(отрезок.getBoundingClientRect().width),
+        колонка: Math.round(пункт.getBoundingClientRect().width),
+      });
+    }
+    return out;
+  });
+  console.log(`  таб-панель, 360 px: ${замеры.map((з) => `${з.имя} ${з.текст}/${з.колонка}`).join(", ")}`);
+}
+
 
 /**
  * Панель прибита к низу экрана и перекрывает конец страницы, если под неё

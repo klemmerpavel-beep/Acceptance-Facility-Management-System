@@ -226,6 +226,7 @@ export function ProjectTable({
         rows={shown}
         columns={projectColumns(today, onOpen, shown)}
         rowKey={(project) => project.id}
+        подпись="Объекты портфеля"
         searchLabel="Поиск по коду, адресу и заказчику"
         emptyTitle="Объектов нет"
         emptyText="Заведите первый объект — с него начинается всё остальное."

@@ -50,6 +50,7 @@ export function DataTable<Row>({
   rows,
   columns,
   rowKey,
+  подпись,
   title,
   action,
   searchLabel,
@@ -58,6 +59,12 @@ export function DataTable<Row>({
 }: {
   rows: readonly Row[];
   columns: readonly Column<Row>[];
+  /** Подпись таблицы для того, кто её слушает. Обязательна: прежде имя
+   *  бралось из `title ?? searchLabel`, а `title` не передавал ни один из двух
+   *  вызывающих — и обе таблицы продукта объявлялись подсказкой поиска
+   *  («Поиск по коду, адресу и заказчику»). Запасная ветка снята вовсе: она и
+   *  была дефектом, а не смягчением. */
+  подпись: string;
   rowKey: (row: Row) => string;
   /** Заголовок подраздела. Не задаётся, когда список — единственное
    *  содержимое страницы: обложка уже назвала его, и второй заголовок с тем
@@ -134,7 +141,12 @@ export function DataTable<Row>({
         </div>
       ) : (
         <div className="table-scroll">
-          <table className="datatable__table" aria-label={title ?? searchLabel}>
+          <table className="datatable__table">
+            {/* Подпись, а не `aria-label`: `caption` — родная подпись таблицы,
+                её читают и вслух, и глазами при отключённых стилях. Скрыта
+                визуально: раздел уже назван обложкой, и второе имя над
+                таблицей читалось бы третьим. */}
+            <caption className="visually-hidden">{подпись}</caption>
             <thead>
               <tr>
                 {columns.map((column) => {
@@ -142,6 +154,7 @@ export function DataTable<Row>({
                   return (
                     <th
                       key={column.key}
+                      scope="col"
                       className={column.numeric === true ? "datatable__num" : undefined}
                       aria-sort={active ? (sort.descending ? "descending" : "ascending") : undefined}
                     >
