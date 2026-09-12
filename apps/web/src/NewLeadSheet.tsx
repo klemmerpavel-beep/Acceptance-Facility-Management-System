@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { завести } from "./verbs.js";
 import type { LeadCard } from "@priyomka/contracts";
 import { createLead, errorMessage } from "./api.js";
 import { useModalDialog } from "./modal.js";
@@ -101,7 +102,7 @@ export function NewLeadSheet({
             data-loading={busy || undefined}
             disabled={busy || !ready}
           >
-            Завести заявку
+            {завести("заявка")}
           </button>
           <button type="button" className="btn btn--text btn--block" onClick={onClose}>
             Отмена

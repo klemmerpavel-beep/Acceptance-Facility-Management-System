@@ -1,4 +1,5 @@
 import type { ProjectSummary } from "@priyomka/contracts";
+import { пусто } from "./empty.js";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate } from "./status.js";
@@ -43,7 +44,7 @@ export function deadlineCell(deadline: string | null, today: string): React.JSX.
  * а точное значение живёт в домене и уходит в расчёты.
  */
 export function readinessCell(readiness: number | null): React.JSX.Element {
-  if (readiness === null) return <span className="t-muted">не задано</span>;
+  if (readiness === null) return <span className="t-muted">{пусто("готовность", "краткое")}</span>;
   return <>{Math.round(readiness / 100)} %</>;
 }
 
@@ -182,7 +183,7 @@ export function projectColumns(
       value: (project) => (project.estimateTotal === null ? null : BigInt(project.estimateTotal)),
       render: (project) =>
         project.estimateTotal === null ? (
-          <span className="t-muted">сметы нет</span>
+          <span className="t-muted">{пусто("смета", "краткое")}</span>
         ) : (
           <>
             {money(project.estimateTotal)}

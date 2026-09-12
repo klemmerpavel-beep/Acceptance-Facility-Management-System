@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { завести } from "./verbs.js";
 import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { createClient, createWorker, errorMessage, fetchClients, fetchWorkers } from "./api.js";
 import { useModalDialog } from "./modal.js";
@@ -145,7 +146,7 @@ export function NewContactSheet({
             data-loading={busy || undefined}
             disabled={busy || !ready}
           >
-            {isClient ? "Завести заказчика" : kind === "brigade" ? "Завести бригаду" : "Завести мастера"}
+            {isClient ? завести("заказчик") : kind === "brigade" ? завести("бригада") : завести("мастер")}
           </button>
           <button type="button" className="btn btn--text btn--block" onClick={onClose}>
             Отмена

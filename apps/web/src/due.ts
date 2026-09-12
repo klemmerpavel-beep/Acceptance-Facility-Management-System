@@ -1,4 +1,5 @@
 import { plural } from "./status.js";
+import { пусто } from "./empty.js";
 
 /**
  * Срочность срока объекта — одна шкала на весь продукт.
@@ -72,7 +73,10 @@ const СТУПЕНЬ = (days: number): DueLevel => {
  */
 export function dueByDays(days: number | null): Due {
   if (days === null) {
-    return { level: "none", days: null, words: "срок не задан", pill: ПИЛЮЛЯ.none };
+    /* Слово берётся из словаря отсутствия, а не пишется здесь: та же
+       формулировка стоит в штампе объекта и в плашке срока, и три места для
+       одного слова расходятся на первой же правке. */
+    return { level: "none", days: null, words: пусто("срок"), pill: ПИЛЮЛЯ.none };
   }
   const level = СТУПЕНЬ(days);
   return { level, days, words: СЛОВА(days), pill: ПИЛЮЛЯ[level] };

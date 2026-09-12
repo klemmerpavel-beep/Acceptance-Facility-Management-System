@@ -117,7 +117,7 @@ export function ConvertLeadSheet({
             data-loading={busy || undefined}
             disabled={busy || !ready}
           >
-            Завести заказчика и объект
+            Добавить заказчика и объект
           </button>
           <button type="button" className="btn btn--text btn--block" onClick={onClose}>
             Отмена

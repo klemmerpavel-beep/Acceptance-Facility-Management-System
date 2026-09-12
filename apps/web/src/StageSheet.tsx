@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { завести } from "./verbs.js";
+import { пусто } from "./empty.js";
 import type { CreateWorkStage, WorkerRow, WorkStage } from "@priyomka/contracts";
 import { sectionTitle, stageDateFault, type ProjectRange, type SectionChoice } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
@@ -230,7 +232,7 @@ export function StageSheet({
                   value={brigadeId}
                   onChange={(event) => { setBrigadeId(event.target.value); }}
                 >
-                  <option value="">получатель не назначен</option>
+                  <option value="">{пусто("бригада", "краткое")}</option>
                   {brigades.map((бригада) => (
                     <option key={бригада.id} value={бригада.id}>{бригада.name}</option>
                   ))}
@@ -265,7 +267,7 @@ export function StageSheet({
             {error !== null && <p className="field__error" role="alert">{error}</p>}
 
             <button type="submit" className="btn btn--primary btn--block" disabled={busy || !ready}>
-              {stage === null ? "Завести этап" : "Сохранить"}
+              {stage === null ? завести("этап") : "Сохранить"}
             </button>
             {onDelete !== null && (
               <button type="button" className="btn btn--text btn--block" onClick={() => { setConfirming(true); }}>

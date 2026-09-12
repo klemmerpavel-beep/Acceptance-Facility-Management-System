@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { завести } from "./verbs.js";
 import type {
   Dashboard as DashboardData,
   ProjectEvent,
@@ -341,7 +342,7 @@ export function Dashboard({
           </p>
           <button type="button" className="btn btn--primary" onClick={onAdd}>
             <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-            Добавить объект
+            {завести("объект")}
           </button>
         </div>
       </main>

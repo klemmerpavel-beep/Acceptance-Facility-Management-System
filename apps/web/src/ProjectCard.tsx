@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Пусто, пусто } from "./empty.js";
 import type {
   CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary,
@@ -137,6 +138,7 @@ export function ProjectCard({
   user,
   units,
   today,
+  откуда,
   onBack,
   onChanged,
 }: {
@@ -144,6 +146,8 @@ export function ProjectCard({
   user: CurrentUser;
   units: string[];
   today: string;
+  /** Подпись раздела, куда возвращает крошка. Крошка называет место, а не вещь. */
+  откуда: string;
   onBack: () => void;
   onChanged: (project: ProjectSummary) => void;
 }): React.JSX.Element {
@@ -247,7 +251,13 @@ export function ProjectCard({
           набранные как штамп рабочего чертежа: графа, подпись, значение. */}
       <div className="container">
         <p className="stamp__crumbs">
-          <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>Объекты</a>
+          {/* Крошка называет раздел, в который возвращает, а не сущность, которая
+              в нём лежит. Прежде здесь стояли «Объекты» — слово, которого нет ни
+              в одном пункте навигации: карточка открывается и с «Главной», и с
+              «Проектов», и возвращала крошка туда, откуда пришли, обещая третье
+              место. Находка Е-1: раздел зовётся «Проекты», вещь в нём — объект,
+              и смешаны они были именно здесь. */}
+          <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>{откуда}</a>
           <svg className="icon icon--sm" aria-hidden="true"><use href="#i-crumb" /></svg>
           <span>{project.code}</span>
         </p>
@@ -261,18 +271,24 @@ export function ProjectCard({
             <span className="stamp__value" title={project.address}>{project.address}</span>
           </div>
           <div className="stamp__cell">
-            <span className="t-cap">Стадия</span>
+            {/* Графа называет то поле, которое печатает. «Стадия» была
+                неверной подписью дважды: значение берётся из status — того
+                же поля и того же словаря, что пилюля рядом, — а слово
+                «стадия» в предметной области занято воронкой заявок
+                (LeadStage) и этапом графика (WorkStage). Одно слово на три
+                разные вещи заставляет читателя гадать, о чём речь. */}
+            <span className="t-cap">Статус</span>
             <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Срок</span>
             <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
-              {deadline === null ? "не задан" : deadline.date}
+              {deadline === null ? пусто("срок", "краткое") : deadline.date}
             </span>
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Прораб</span>
-            <span className="stamp__value" title={project.foreman?.name ?? "не назначен"}>{project.foreman?.name ?? "не назначен"}</span>
+            <span className="stamp__value" title={project.foreman?.name ?? пусто("прораб", "краткое")}>{project.foreman?.name ?? пусто("прораб", "краткое")}</span>
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Смета</span>
@@ -375,7 +391,7 @@ export function ProjectCard({
                 </span>
                 <span className="figure__note">
                   {deadline === null
-                    ? "срок не задан"
+                    ? пусто("срок")
                     : plural(deadline.days, "день", "дня", "дней")}
                 </span>
               </div>
@@ -403,7 +419,7 @@ export function ProjectCard({
               <div className="deflist__row">
                 <dt className="deflist__term">Начало работ</dt>
                 <dd className="deflist__value">
-                  {project.startedAt === null ? "не начаты" : formatDate(project.startedAt)}
+                  {project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)}
                 </dd>
               </div>
               <div className="deflist__row">
@@ -413,7 +429,7 @@ export function ProjectCard({
               <div className="deflist__row">
                 <dt className="deflist__term">Позиций в смете</dt>
                 <dd className="deflist__value">
-                  {project.estimateVersion === null ? "сметы нет" : project.positions}
+                  {project.estimateVersion === null ? пусто("смета", "краткое") : project.positions}
                 </dd>
               </div>
               {/* Строки «Сопровождение» здесь нет: та же величина стоит
@@ -652,7 +668,7 @@ function Overview({
           />
         )}
         <span className="objectcover__label">
-          {project.cover === null ? "Снимков объекта пока нет" : "Все снимки объекта"}
+          {project.cover === null ? Пусто("снимки") : "Все снимки объекта"}
         </span>
       </button>
 
@@ -660,12 +676,12 @@ function Overview({
         <div className="section-head">
           <h2 className="t-h2">Сроки объекта</h2>
           <span className="t-sm t-muted">
-            {started === null ? "работы не начаты" : `начало ${formatDate(started)}`}
+            {started === null ? пусто("началоРабот") : `начало ${formatDate(started)}`}
           </span>
         </div>
         {contract === null && passed === null ? (
           <div className="empty">
-            <p className="empty__title">Сроки не заданы</p>
+            <p className="empty__title">{Пусто("сроки")}</p>
             <p className="empty__text">
               Укажите дату начала работ и дедлайн — тогда появится счёт рабочих и календарных дней.
             </p>

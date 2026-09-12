@@ -1,4 +1,5 @@
 import type { ProjectStatus, ProjectSummary } from "@priyomka/contracts";
+import { Пусто, пусто } from "./empty.js";
 import { readinessRows, statusSlices } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
 import { STATUS_LABEL, plural } from "./status.js";
@@ -138,7 +139,7 @@ export function ReadinessChart({
   if (показаны.length === 0) {
     return (
       <p className="t-sm t-muted">
-        Готовность не задана ни у одного действующего объекта: график работ не заведён.
+        {Пусто("готовность")} ни у одного действующего объекта: {пусто("график")}.
       </p>
     );
   }
@@ -163,7 +164,7 @@ export function ReadinessChart({
                 className="readiness__row"
                 title={`${row.code}: заявлено ${formatPercent(BigInt(заявлено))}, `
                   + (row.fact === null
-                    ? "приёмки нет"
+                    ? пусто("приёмка")
                     : `принято ${formatPercent(BigInt(принято))}`)}
                 onClick={() => {
                   const объект = projects.find((project) => project.code === row.code);

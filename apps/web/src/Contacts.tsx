@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { завести } from "./verbs.js";
 import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { errorMessage, fetchClients, fetchWorkers } from "./api.js";
@@ -7,7 +8,7 @@ import { tabArrowHandler } from "./tabs.js";
 import { NewContactSheet } from "./NewContactSheet.js";
 
 /**
- * Контрагенты — заказчики и бригады двумя вкладками одного справочника.
+ * Контакты — заказчики и бригады двумя вкладками одного экрана.
  *
  * Прежде оба вида стояли в одной таблице, а различала их колонка «Тип».
  * Цена этого решения видна в самих данных: у заказчика всегда пусто
@@ -38,7 +39,11 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
     code: client.code,
     note: client.requisites ?? (client.isCompany ? "Юридическое лицо" : "Физическое лицо"),
     projects: client.projects,
-    total: client.estimateTotal === "0" ? null : client.estimateTotal,
+    /* Ноль не подменяется пустотой. Прежде «0» превращался в null, и в
+       колонке «Итог смет» «смет нет» становилось неотличимо от «смет на ноль
+       рублей» — два разных утверждения одним видом. Ноль есть факт: заказчик
+       заведён, объекты на нём есть, а сумма пока нулевая. */
+    total: client.estimateTotal,
     wage: null,
   })),
   ...workers.map<Contact>((worker) => ({
@@ -138,7 +143,7 @@ export function Contacts(): React.JSX.Element {
     return (
       <main className="container">
         <div className="empty">
-          <p className="empty__title">Справочник недоступен</p>
+          <p className="empty__title">Контакты недоступны</p>
           <p className="empty__text">{error}</p>
         </div>
       </main>
@@ -160,11 +165,13 @@ export function Contacts(): React.JSX.Element {
 
   return (
     <main className="container stack stack--loose">
-      <div className="section-head">
-        <h2 className="t-h2">Справочник</h2>
+      {/* Заголовка полотна нет: раздел назван обложкой, вкладки ниже
+          называют содержимое, и третье имя того же экрана — «Справочник» —
+          ничего не добавляло. Ряд держит одно действие. */}
+      <div className="section-head section-head--action">
         <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
           <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-          Добавить контакт
+          {завести("контакт")}
         </button>
       </div>
 
@@ -195,9 +202,9 @@ export function Contacts(): React.JSX.Element {
       <div role="tabpanel" id={`panel-${вкладка}`} aria-labelledby={`tab-${вкладка}`}>
         {rows.length === 0 ? (
           <div className="empty">
-            <p className="empty__title">Справочник пуст</p>
+            <p className="empty__title">Контактов пока нет</p>
             <p className="empty__text">
-              Заказчик нужен, чтобы завести объект; бригада — чтобы начислить за принятую работу.
+              Заказчик нужен, чтобы добавить объект; бригада — чтобы начислить за принятую работу.
               Начните с заказчика.
             </p>
           </div>
@@ -211,7 +218,7 @@ export function Contacts(): React.JSX.Element {
               : "Поиск по имени бригады"}
             emptyTitle={вкладка === "clients" ? "Заказчиков нет" : "Бригад нет"}
             emptyText={вкладка === "clients"
-              ? "Заказчик нужен, чтобы завести объект."
+              ? "Заказчик нужен, чтобы добавить объект."
               : "Бригада нужна, чтобы начислить за принятую работу."}
           />
         )}

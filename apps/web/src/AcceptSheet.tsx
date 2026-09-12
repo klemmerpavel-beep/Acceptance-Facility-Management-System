@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { пусто } from "./empty.js";
 import type { AcceptancePosition, AcceptanceSection } from "@priyomka/contracts";
 import { sectionTitle, acceptanceFault, milliunits } from "@priyomka/domain";
 import { formatMeasure } from "@priyomka/ui";
@@ -96,7 +97,7 @@ export function AcceptSheet({
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Подтверждение приёмки" ref={dialog}>
         <p className="t-h3">Принять {picked.length} поз.</p>
         <p className="t-sm t-secondary">
-          {sectionTitle(section.name)} · {section.stage?.brigade?.name ?? "бригада не назначена"}
+          {sectionTitle(section.name)} · {section.stage?.brigade?.name ?? пусто("бригада")}
         </p>
 
         <form className="stack stack--tight" onSubmit={submit}>
