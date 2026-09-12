@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
   CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
-  ProjectEvent, ProjectStatus, ProjectSummary,
+  ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage,
-  acceptancePhotoUrl,
+  acceptancePhotoUrl, updateProject, fetchForemen,
 } from "./api.js";
+import { FieldEdit } from "./FieldEdit.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
 import { ImportEstimate } from "./ImportEstimate.js";
@@ -167,6 +168,32 @@ export function ProjectCard({
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [measure, setMeasure] = useState<MeasureView | null>(null);
+  /* Прорабы тянутся только тому, кто правит: роль, которой поля не
+     принадлежат, органов правки не видит, и список ей незачем. */
+  const [прорабы, setПрорабы] = useState<Foreman[]>([]);
+  const правит = user.role === "OWNER";
+
+  useEffect(() => {
+    if (!правит) return;
+    void fetchForemen().then(setПрорабы).catch(() => { setПрорабы([]); });
+  }, [правит]);
+
+  /**
+   * Правка поля объекта. Одна на все графы: ответ сервера — карточка целиком,
+   * и поднимать его наверх надо одним способом, иначе после правки адреса
+   * плитка в портфеле останется со старым.
+   *
+   * Отказ не глотается: он всплывает к органу правки, который показывает его
+   * рядом с полем. Общее сообщение наверху заставило бы искать, какое поле
+   * не принято.
+   */
+  const правитель = правит
+    ? async (patch: UpdateProject): Promise<void> => {
+      const обновлён = await updateProject(project.code, patch);
+      onChanged(обновлён);
+      void fetchEvents(project.code).then(setEvents).catch(() => { /* журнал не обязателен */ });
+    }
+    : undefined;
 
   const load = (): void => {
     setLoading(true);
@@ -268,7 +295,16 @@ export function ProjectCard({
           </div>
           <div className="stamp__cell stamp__cell--wide">
             <span className="t-cap">Адрес</span>
-            <span className="stamp__value" title={project.address}>{project.address}</span>
+            {правитель === undefined ? (
+              <span className="stamp__value" title={project.address}>{project.address}</span>
+            ) : (
+              <FieldEdit
+                подпись="Адрес объекта"
+                значение={project.address}
+                показ={<span className="stamp__value" title={project.address}>{project.address}</span>}
+                onSave={(новое) => правитель({ address: новое })}
+              />
+            )}
           </div>
           <div className="stamp__cell">
             {/* Графа называет то поле, которое печатает. «Стадия» была
@@ -282,13 +318,41 @@ export function ProjectCard({
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Срок</span>
-            <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
-              {deadline === null ? пусто("срок", "краткое") : deadline.date}
-            </span>
+            {(() => {
+              const вид = (
+                <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
+                  {deadline === null ? пусто("срок", "краткое") : deadline.date}
+                </span>
+              );
+              if (правитель === undefined) return вид;
+              return (
+                <FieldEdit
+                  подпись="Срок сдачи"
+                  вид="date"
+                  значение={project.deadline ?? ""}
+                  показ={вид}
+                  onSave={(новое) => правитель({ deadline: новое === "" ? null : новое })}
+                />
+              );
+            })()}
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Прораб</span>
-            <span className="stamp__value" title={project.foreman?.name ?? пусто("прораб", "краткое")}>{project.foreman?.name ?? пусто("прораб", "краткое")}</span>
+            {(() => {
+              const имя = project.foreman?.name ?? пусто("прораб", "краткое");
+              const вид = <span className="stamp__value" title={имя}>{имя}</span>;
+              if (правитель === undefined) return вид;
+              return (
+                <FieldEdit
+                  подпись="Прораб объекта"
+                  вид="select"
+                  значение={project.foreman?.id ?? ""}
+                  показ={вид}
+                  варианты={прорабы.map((п) => ({ значение: п.id, подпись: п.name }))}
+                  onSave={(новое) => правитель({ foremanId: новое === "" ? null : новое })}
+                />
+              );
+            })()}
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Смета</span>
@@ -419,12 +483,32 @@ export function ProjectCard({
               <div className="deflist__row">
                 <dt className="deflist__term">Начало работ</dt>
                 <dd className="deflist__value">
-                  {project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)}
+                  {правитель === undefined ? (
+                    project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)
+                  ) : (
+                    <FieldEdit
+                      подпись="Начало работ"
+                      вид="date"
+                      значение={project.startedAt ?? ""}
+                      показ={project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)}
+                      onSave={(новое) => правитель({ startedAt: новое === "" ? null : новое })}
+                    />
+                  )}
                 </dd>
               </div>
               <div className="deflist__row">
                 <dt className="deflist__term">Ключи</dt>
-                <dd className="deflist__value">{project.keysCount} компл.</dd>
+                <dd className="deflist__value">
+                  {правитель === undefined ? `${String(project.keysCount)} компл.` : (
+                    <FieldEdit
+                      подпись="Комплектов ключей"
+                      вид="number"
+                      значение={String(project.keysCount)}
+                      показ={`${String(project.keysCount)} компл.`}
+                      onSave={(новое) => правитель({ keysCount: Number.parseInt(новое, 10) })}
+                    />
+                  )}
+                </dd>
               </div>
               <div className="deflist__row">
                 <dt className="deflist__term">Позиций в смете</dt>

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import type { ProjectEvent, ProjectSummary } from "@priyomka/contracts";
-import { createProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
+import { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
 import { ProjectsService } from "./projects.service";
 import { SessionGuard } from "../auth/session.guard";
 import { Roles, RolesGuard } from "../common/roles.guard";
@@ -45,6 +45,21 @@ export class ProjectsController {
    *
    * Тело проверяется той же схемой, что типизирует клиента.
    */
+  /**
+   * Правка полей объекта на месте. Роль та же, что у смены статуса:
+   * переименовать объект или сдвинуть срок — распоряжение, а не отметка о
+   * ходе работ. Статус правится своим маршрутом и сюда не входит.
+   */
+  @Patch(":code")
+  @Roles("OWNER")
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<ProjectSummary> {
+    return this.projects.update(user, code, updateProjectSchema.parse(body));
+  }
+
   @Patch(":code/status")
   @Roles("OWNER")
   setStatus(

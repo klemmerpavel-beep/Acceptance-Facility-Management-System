@@ -2,7 +2,7 @@ import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
-  photoReportSchema,
+  photoReportSchema, foremenSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -13,7 +13,7 @@ import {
   type EstimateView, type ImportRecord,
   type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
-  type UpdateEstimateItem, type UpdateSupervision,
+  type UpdateEstimateItem, type UpdateSupervision, type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
   type LeadBoard, type LeadCard, type LoseLead, type PhotoReport, type RepairType,
@@ -298,6 +298,23 @@ export const setProjectStatus = (
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status }),
   });
+
+/**
+ * Правка полей объекта на месте. Ответ — обновлённая карточка целиком, а не
+ * признак успеха: правка адреса меняет и штамп, и крошку, и подпись плитки,
+ * и собирать новое состояние на клиенте значило бы завести вторую копию
+ * правил.
+ */
+export const updateProject = (code: string, patch: UpdateProject): Promise<ProjectSummary> =>
+  request(`/projects/${code}`, projectSummarySchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+
+/** Прорабы организации: список для назначения на объект. */
+export const fetchForemen = (): Promise<Foreman[]> =>
+  request("/foremen", foremenSchema);
 
 /* --- правка сметы --------------------------------------------------------
    Оба вызова возвращают вид сметы целиком: правка одной позиции меняет

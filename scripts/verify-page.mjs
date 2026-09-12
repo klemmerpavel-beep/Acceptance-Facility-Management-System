@@ -20,6 +20,7 @@ mkdirSync(SHOTS, { recursive: true });
 
 const problems = [];
 const environment = [];
+const strИмеет = (строка, что) => строка.toLowerCase().includes(что.toLowerCase());
 const note = (kind, detail) => problems.push(`${kind}: ${detail}`);
 
 /**
@@ -1051,6 +1052,52 @@ await геометрия(page, "объекты");
 }
 
 /* Отклик плитки на наведение — тем же правилом, что у строк списков. */
+/* Ничто в плитке не выходит за её край, и колонок не больше четырёх.
+ 
+   Плитка обрезает содержимое (`overflow: hidden`), и вышедшее за край не
+   пропадает заметно, а молча укорачивается: «100%» превращалось в «16», и
+   читатель видел не ошибку вёрстки, а неверное число. Такой дефект не
+   ловится ни проверкой переполнения страницы, ни усечением текста — он
+   внутри коробки, которая сама себя режет. Мерится прямо: правый край
+   любого потомка против правого края плитки.
+
+   Заодно мерится единообразие: плитки одного ряда обязаны быть одной
+   высоты, иначе ряд читается как сбой раскладки. */
+{
+  const дефекты = await page.evaluate(() => {
+    const вышли = [];
+    const ряды = new Map();
+    for (const плитка of document.querySelectorAll(".objecttile")) {
+      const короб = плитка.getBoundingClientRect();
+      for (const узел of плитка.querySelectorAll("*")) {
+        const свой = узел.getBoundingClientRect();
+        if (свой.width === 0 || свой.height === 0) continue;
+        const за = Math.round(свой.right - короб.right);
+        if (за > 1) {
+          вышли.push(`${(узел.className.toString() || узел.tagName).slice(0, 28)}: `
+            + `за краем на ${за} px`);
+        }
+      }
+      const ряд = Math.round(короб.top);
+      ряды.set(ряд, [...(ряды.get(ряд) ?? []), Math.round(короб.height)]);
+    }
+    const неровные = [];
+    for (const [верх, высоты] of ряды) {
+      const набор = [...new Set(высоты)];
+      if (набор.length > 1) неровные.push(`ряд на ${верх}: высоты ${набор.join(", ")}`);
+    }
+    const вРяду = [...ряды.values()].map((в) => в.length);
+    return { вышли: [...new Set(вышли)], неровные, вРяду };
+  });
+  for (const место of дефекты.вышли) note("плитка объекта", `содержимое ${место}`);
+  for (const ряд of дефекты.неровные) note("плитка объекта", `плитки разной высоты — ${ряд}`);
+  const самыйДлинный = Math.max(...дефекты.вРяду);
+  if (самыйДлинный > 4) {
+    note("портфель", `в ряду ${самыйДлинный} плиток при пределе четыре`);
+  }
+  console.log(`  плиток в рядах: ${дефекты.вРяду.join(", ")}`);
+}
+
 await отклик(page, ".objecttile__body", "проекты");
 
 // Отбор по статусу: выбор сужает галерею и снимается обратно.
@@ -1122,6 +1169,59 @@ const крошка = async () =>
 }
 
 await step("карточка объекта, обзор", "05-kartochka.png");
+/* Правка значения на месте. Проверяется путь целиком, а не наличие кнопки:
+   значение меняется, новое видно в карточке, и правка уходит в журнал.
+   Отдельно — отмена: Escape закрывает правку, значение остаётся прежним, а
+   фокус возвращается на кнопку, которая правку открыла. Фокус, упавший на
+   `body`, заставляет начинать обход страницы заново, и заметить это можно
+   только замером. */
+{
+  const графа = page.locator(".deflist__row", { hasText: "Ключи" }).first();
+  const открыть = графа.locator(".fieldedit__open");
+  if ((await открыть.count()) === 0) {
+    note("правка на месте", "у графы «Ключи» нет органа правки");
+  } else {
+    const было = ((await графа.locator(".fieldedit__value").textContent()) ?? "").trim();
+
+    /* Отмена. */
+    await открыть.click();
+    await page.waitForSelector(".fieldedit--open input");
+    await page.fill(".fieldedit--open input", "7");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    const послеОтмены = ((await графа.locator(".fieldedit__value").textContent()) ?? "").trim();
+    if (послеОтмены !== было) {
+      note("правка на месте", `отмена изменила значение: «${было}» → «${послеОтмены}»`);
+    }
+    const вернулся = await page.evaluate(() =>
+      document.activeElement?.classList.contains("fieldedit__open") === true);
+    if (!вернулся) note("правка на месте", "после отмены фокус не вернулся на «Изменить»");
+
+    /* Сохранение. */
+    await открыть.click();
+    await page.waitForSelector(".fieldedit--open input");
+    await page.fill(".fieldedit--open input", "7");
+    await графа.locator('button:has-text("Сохранить")').click();
+    await page.waitForTimeout(600);
+    const стало = ((await графа.locator(".fieldedit__value").textContent()) ?? "").trim();
+    if (!стало.startsWith("7")) {
+      note("правка на месте", `значение не сохранилось: «${стало}» вместо «7 компл.»`);
+    }
+    const вернулсяПосле = await page.evaluate(() =>
+      document.activeElement?.classList.contains("fieldedit__open") === true);
+    if (!вернулсяПосле) note("правка на месте", "после сохранения фокус не вернулся на «Изменить»");
+
+    /* Журнал. Правка без записи в журнал — та же правка втихую: карточка
+       показывает новое значение, а на вопрос «кто и когда» ответа нет. */
+    const журнал = await page.evaluate(() =>
+      [...document.querySelectorAll(".feed__item")].map((у) => (у.textContent ?? "").trim()));
+    if (!журнал.some((строка) => strИмеет(строка, "ключи"))) {
+      note("правка на месте", "правка не попала в журнал объекта");
+    }
+    console.log(`  правка на месте: «${было}» → «${стало}», записей журнала ${журнал.length}`);
+  }
+}
+
 await цели(page, "карточка");
 await безымянные(page, "карточка");
 await overflow("карточка, 1440");

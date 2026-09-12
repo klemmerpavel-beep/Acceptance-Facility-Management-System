@@ -94,10 +94,22 @@ export function ObjectTile({
           {project.foreman !== null && ` · ${project.foreman.name}`}
         </span>
 
+        {/* Подвал в две строки, а не в одну. Одной строкой пилюля срока и
+            полоса готовности не умещались в колонку: «просрочен на 103 дня»
+            занимает почти всю ширину, и число процентов уезжало за край
+            плитки — плитка обрезает по `overflow: hidden`, и читатель видел
+            «16» вместо «100%». Две строки дают каждой величине своё место и
+            держатся на любой ширине колонки. */}
         <span className="objecttile__foot">
           <span className={срок.pill}>{срок.words}</span>
           {project.readiness !== null && (
             <span className="objecttile__ready">
+              {/* Подпись обязательна, и слово выбрано не вольно. Число —
+                  заявленная готовность: её ставит человек, и она законно
+                  опережает приёмку. Назвать её «готовностью» значило бы
+                  стереть различие заявленного и принятого, ради которого
+                  оба числа и заведены. */}
+              <span className="t-cap t-muted objecttile__ready-label">Заявлено</span>
               <span className="objecttile__track" aria-hidden="true">
                 <span
                   className="objecttile__fill"
