@@ -14,7 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
-  ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary,
+  ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
@@ -84,6 +84,17 @@ let signedIn = true;
  * иначе кнопка выглядела бы сломанной.
  */
 const changedStatus = new Map<string, ProjectStatus>();
+
+/**
+ * Правки полей объекта. Живут до перезагрузки, как и смена статуса, и по
+ * тому же доводу: сервера здесь нет, но орган правки, который ничего не
+ * меняет, выглядит сломанным именно там, где показывает своё обещание.
+ *
+ * Хранится только присланное. Слить правку в копию объекта целиком нельзя:
+ * производные величины сводки — готовность, принятое, число позиций —
+ * считаются, и подменённые вручную они разошлись бы с остальным экраном.
+ */
+const changedFields = new Map<string, UpdateProject>();
 
 /**
  * Обмер демонстрации. Правки живут до перезагрузки, как и смена статуса.
@@ -172,7 +183,43 @@ export async function fetchProjects(): Promise<ProjectSummary[]> {
 
 const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
   const status = changedStatus.get(project.code);
-  return status === undefined ? project : { ...project, status };
+  const правка = changedFields.get(project.code);
+  const свежий = status === undefined ? project : { ...project, status };
+  return правка === undefined ? свежий : сПравкой(свежий, правка);
+};
+
+/**
+ * Наложение правки на сводку. Прораб берётся по опознавателю из того же
+ * списка, что показан в выборе: хранить рядом имя значило бы завести второе
+ * место для одной величины.
+ */
+const сПравкой = (project: ProjectSummary, правка: UpdateProject): ProjectSummary => {
+  const прораб = правка.foremanId === undefined
+    ? project.foreman
+    : правка.foremanId === null
+      ? null
+      : прорабыСлепка().find((п) => п.id === правка.foremanId) ?? project.foreman;
+  return {
+    ...project,
+    ...(правка.address === undefined ? {} : { address: правка.address }),
+    ...(правка.deadline === undefined ? {} : { deadline: правка.deadline }),
+    ...(правка.startedAt === undefined ? {} : { startedAt: правка.startedAt }),
+    ...(правка.keysCount === undefined ? {} : { keysCount: правка.keysCount }),
+    foreman: прораб,
+  };
+};
+
+/**
+ * Прорабы демонстрации. Отдельного списка в слепке нет, и заводить его было бы
+ * вторым местом для той же величины: прорабы — это те, кто уже назначен на
+ * объекты портфеля. Список собирается из них.
+ */
+const прорабыСлепка = (): Foreman[] => {
+  const по = new Map<string, Foreman>();
+  for (const project of data["projects-owner"]) {
+    if (project.foreman !== null) по.set(project.foreman.id, project.foreman);
+  }
+  return [...по.values()].sort((а, б) => а.name.localeCompare(б.name, "ru"));
 };
 
 export async function fetchDashboard(): Promise<Dashboard> {
@@ -309,6 +356,28 @@ export async function setProjectStatus(
   if (project === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
   changedStatus.set(code, status);
   return { ...project, status };
+}
+
+export async function updateProject(
+  code: string,
+  patch: UpdateProject,
+): Promise<ProjectSummary> {
+  await pause(240);
+  const rows = [...data["projects-owner"], ...заведённые.projects];
+  const project = rows.find((row) => row.code === code);
+  if (project === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
+  /* Проверки те же, что на сервере: демонстрация показывает продукт, а не
+     его подобие, и принятое здесь обязано быть принято и там. */
+  if (patch.address !== undefined && patch.address.trim().length < 3) {
+    throw new Error("Адрес объекта: не короче трёх знаков.");
+  }
+  changedFields.set(code, { ...changedFields.get(code), ...patch });
+  return withChangedStatus(сОбложкой(project));
+}
+
+export async function fetchForemen(): Promise<Foreman[]> {
+  await pause(60);
+  return прорабыСлепка();
 }
 
 export async function fetchCanonicalUnits(): Promise<string[]> {
