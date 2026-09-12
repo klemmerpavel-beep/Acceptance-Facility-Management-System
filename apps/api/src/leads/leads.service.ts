@@ -4,7 +4,7 @@ import type {
   LoseLead, ProjectEvent, UpdateLead, UpdateLeadTask,
 } from "@priyomka/contracts";
 import {
-  basisPoints, formatKopecks, guidelineRange, kopecks, milliunits, taskState,
+  basisPoints, formatKopecks, guidelineRange, kopecks, looksLikeCompany, milliunits, taskState,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -259,7 +259,7 @@ export class LeadsService {
           orgId: user.orgId,
           code: input.clientCode.trim(),
           name: lead.name,
-          isCompany: /^(ООО|АО|ЗАО|ПАО|ИП)\b/u.test(lead.name),
+          isCompany: looksLikeCompany(lead.name),
         },
         select: { id: true },
       });

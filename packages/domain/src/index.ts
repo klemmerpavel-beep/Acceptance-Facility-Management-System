@@ -12,3 +12,4 @@ export * from "./report.js";
 export * from "./plan.js";
 export * from "./accounting.js";
 export * from "./title.js";
+export * from "./directory.js";

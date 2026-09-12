@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
-import type { ProjectEvent, ProjectSummary } from "@priyomka/contracts";
+import type { NextProjectCode, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
 import { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
 import { ProjectsService } from "./projects.service";
 import { SessionGuard } from "../auth/session.guard";
@@ -14,6 +14,16 @@ export class ProjectsController {
   @Get()
   list(@CurrentUser() user: RequestUser): Promise<ProjectSummary[]> {
     return this.projects.list(user);
+  }
+
+  /* Стоит до `:code` намеренно: «next-code» не проходит выражение номера и
+     был бы отвергнут как несуществующий объект, а не понят как маршрут.
+     Порядок объявления делает это видимым в тексте, а не зависящим от того,
+     как маршрутизатор разбирает путь. */
+  @Get("next-code")
+  @Roles("OWNER")
+  nextCode(@CurrentUser() user: RequestUser): Promise<NextProjectCode> {
+    return this.projects.nextCode(user);
   }
 
   @Get(":code")

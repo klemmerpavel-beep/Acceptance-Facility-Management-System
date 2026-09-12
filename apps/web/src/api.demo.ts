@@ -29,7 +29,8 @@ import {
   awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
   estimateItemFault, kopecks, measureTotals,
-  milliunits, nextTrancheNumber, projectRange, trancheFault, trancheFill, trancheRemainder,
+  milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
+  trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
   type ProjectRange,
 } from "@priyomka/domain";
@@ -256,12 +257,16 @@ export async function fetchWorkers(): Promise<WorkerRow[]> {
 
 export async function createClient(input: CreateClient): Promise<ClientRow[]> {
   await pause(120);
-  if ([...data["clients-owner"], ...заведённые.clients].some((row) => row.code === input.code)) {
-    throw new Error(`Заказчик с кодом ${input.code} уже заведён.`);
+  const справочник = [...data["clients-owner"], ...заведённые.clients];
+  /* Код, которого не прислали, назначается тем же правилом домена, что и на
+     сервере: форма нового объекта заводит заказчика по одному имени. */
+  const код = input.code ?? nextClientCode(справочник.map((row) => row.code));
+  if (справочник.some((row) => row.code === код)) {
+    throw new Error(`Заказчик с кодом ${код} уже заведён.`);
   }
   заведённые.clients.push({
     id: новыйId(),
-    code: input.code,
+    code: код,
     name: input.name,
     isCompany: input.isCompany,
     requisites: input.requisites,
@@ -302,20 +307,24 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     code: input.code,
     address: input.address,
     status: "NEW",
-    startedAt: null,
+    startedAt: input.startedAt ?? null,
     deadline: input.deadline,
     // Объект заводится «сегодня» демонстрации, а не в день открытия страницы:
     // снимок и так живёт в одной дате, и вторая сбила бы сроки.
     createdAt: data["summary-owner"].today,
-    keysCount: 0,
-    supervisionShare: 1200,
+    keysCount: input.keysCount ?? 0,
+    supervisionShare: input.supervisionShare ?? 1200,
     client: {
       code: client?.code ?? "—",
       name: client?.name ?? "—",
       isCompany: client?.isCompany ?? false,
       requisites: client?.requisites ?? null,
     },
-    foreman: null,
+    /* Прораб ищется в том же списке, что показан в выборе: хранить рядом имя
+       значило бы завести второе место для одной величины. */
+    foreman: input.foremanId === undefined || input.foremanId === null
+      ? null
+      : прорабыСлепка().find((прораб) => прораб.id === input.foremanId) ?? null,
     estimateTotal: null,
     estimateVersion: null,
     positions: 0,
@@ -378,6 +387,20 @@ export async function updateProject(
 export async function fetchForemen(): Promise<Foreman[]> {
   await pause(60);
   return прорабыСлепка();
+}
+
+/**
+ * Предложенный номер для нового объекта.
+ *
+ * Считается тем же правилом домена, что и на сервере, и по тем же данным —
+ * портфелю вместе с заведённым в демонстрации. Поэтому два объекта подряд
+ * получают разные номера, а не один и тот же: демонстрация показывает
+ * продукт, а не его подобие.
+ */
+export async function fetchNextProjectCode(): Promise<string | null> {
+  await pause(60);
+  const коды = [...data["projects-owner"], ...заведённые.projects].map((project) => project.code);
+  return nextProjectCode(коды, коды[0]?.slice(0, 1) ?? "R");
 }
 
 export async function fetchCanonicalUnits(): Promise<string[]> {
