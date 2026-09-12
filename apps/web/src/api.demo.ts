@@ -34,6 +34,7 @@ import {
   type ProjectRange,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
+import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
 
 interface Snapshot {
   "me-owner": CurrentUser;
@@ -148,10 +149,25 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
   return data["me-owner"];
 }
 
+/**
+ * Обложка объекта в демонстрации.
+ *
+ * Слепок несёт идентификатор снимка приёмки, но самих файлов приёмки в
+ * демонстрации нет: она раздаётся статикой и сервера не имеет. Поэтому
+ * обложка объявляется по наличию собственного файла в каталоге снимков, а
+ * объект без файла получает пустую обложку и рисуется подложкой. Выдавать
+ * общую заготовку за снимок объекта нельзя: галерея из одинаковых картинок
+ * сообщает неправду о портфеле.
+ */
+const сОбложкой = (project: ProjectSummary): ProjectSummary => ({
+  ...project,
+  cover: естьСнимок(project.code) ? { photoId: project.code } : null,
+});
+
 export async function fetchProjects(): Promise<ProjectSummary[]> {
   await pause(60);
   const rows = [...data["projects-owner"], ...заведённые.projects];
-  return rows.map(withChangedStatus);
+  return rows.map(withChangedStatus).map(сОбложкой);
 }
 
 const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
@@ -234,6 +250,8 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
   );
   const created: ProjectSummary = {
     id: новыйId(),
+    // Только что заведённый объект снимков не имеет по определению.
+    cover: null,
     code: input.code,
     address: input.address,
     status: "NEW",
@@ -616,7 +634,11 @@ function пересчитатьПриёмку(вид: AcceptanceView): void {
 }
 
 /** Снимок пакета: в демонстрации это вшитая заготовка, а не файл на сервере. */
-export const acceptancePhotoUrl = (): string => ЗАГОТОВКА_СНИМКА;
+/* Снимок объекта, если он есть в каталоге демонстрации; иначе общая
+   заготовка — она годится для ленты фотоотчёта, где видно, что это образец,
+   и не годится для обложки портфеля, которая обязана различать объекты. */
+export const acceptancePhotoUrl = (code: string): string =>
+  снимокОбъекта(code) ?? ЗАГОТОВКА_СНИМКА;
 
 /* --- фотоотчёт -----------------------------------------------------------
    Отчёт собирается из того же состояния приёмки, что и вкладка «Приёмка»,

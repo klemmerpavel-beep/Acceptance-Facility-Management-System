@@ -184,19 +184,99 @@ const поверхности = async (page, где, предел = 6) => {
          роли. Блоком страницы ни одно из них не является ни при каком имени. */
       const объявленнаяРоль = el.getAttribute("role") ?? "";
       if (/^(tab|button|switch|radio|checkbox|option|menuitem)$/u.test(объявленнаяРоль)) return false;
+      /* Неявная роль не слабее объявленной. Нативная кнопка и ссылка с
+         адресом — органы по устройству языка разметки, и правило, читавшее
+         только атрибут роли, считало блоком настоящую кнопку и пропускало
+         элемент с объявленной ролью — ровно наоборот. */
+      if (el.tagName === "BUTTON") return false;
+      if (el.tagName === "A" && el.hasAttribute("href")) return false;
       const имя = el.className.toString();
       return !/pill|badge|btn|input|segmented|icon|chip|tag|search|meter|metric/u.test(имя);
-    }).map((el) => (el.className.toString() || el.tagName).split(" ")[0].slice(0, 28));
+    }).map((el) => {
+      const имя = (el.className.toString() || el.tagName).split(" ")[0].slice(0, 28);
+      /* Родитель и признак медийной карточки собираются здесь же: снаружи
+         страницы узлов уже нет, а решать по ним придётся. */
+      const родитель = el.parentElement;
+      const медийная = [...el.querySelectorAll("*")].some((узел) => {
+        if (getComputedStyle(узел).aspectRatio === "auto") return false;
+        const своя = узел.getBoundingClientRect();
+        const общая = el.getBoundingClientRect();
+        return общая.width > 0 && своя.width >= общая.width * 0.8;
+      });
+      const коробка = el.getBoundingClientRect();
+      return {
+        имя,
+        родитель: родитель === null ? "" : `${родитель.tagName}.${родитель.className.toString().split(" ")[0]}`,
+        медийная,
+        верх: Math.round(коробка.top),
+        низ: Math.round(коробка.bottom),
+        лево: Math.round(коробка.left),
+        право: Math.round(коробка.right),
+      };
+    });
   });
+  /* Выводок — три и более обведённых узла одного имени на одном родителе.
+     В предел он входит одной единицей: предел меряет иерархию страницы, а
+     коллекция есть один её блок. Тридцать карточек фотоотчёта не делают
+     экран в тридцать раз сложнее — они делают его одним списком.
+
+     Взамен на выводок ложится своё правило, названное «список, нарисованный
+     карточками»: выводок порочен, когда он одномерен — всё его имя висит на
+     одном-единственном родителе — и ни один член не несёт медийной коробки.
+     Так различаются два случая, которые по числу неразличимы: девять строк
+     приёмки, обведённых без нужды (дефект), и доска заявок, где карточки
+     развешаны по четырём колонкам и горизонтальное место значит стадию, и
+     галерея портфеля, где у каждой плитки своя обложка.
+
+     Признак медийной коробки — объявленное соотношение сторон во всю ширину
+     члена, а не наличие изображения: объект без снимков несёт на том же
+     месте подложку, и правило, смотрящее на img, объявило бы галерею
+     порочной ровно тогда, когда снимков ещё не загрузили. */
+  const выводки = new Map();
+  for (const узел of обведённые) {
+    const ключ = узел.имя;
+    const запись = выводки.get(ключ) ?? { родители: new Set(), медийных: 0, всего: 0, члены: [] };
+    запись.родители.add(узел.родитель);
+    запись.всего += 1;
+    запись.члены.push(узел);
+    if (узел.медийная) запись.медийных += 1;
+    выводки.set(ключ, запись);
+  }
+  let единиц = 0;
+  const имена = [];
+  for (const [имя, запись] of выводки) {
+    if (запись.всего >= 3) {
+      единиц += 1;
+      имена.push(`${имя}×${запись.всего}`);
+      /* «Одним столбцом» — не оборот речи, а условие, и его надо мерить.
+         Ряд числовых плиток портфеля тоже висит на одном родителе и обложек
+         не несёт, но стоит в строку: плитки делят горизонтальную полосу и
+         вниз не читаются. Столбец — это когда члены стоят друг под другом:
+         их вертикальные промежутки не пересекаются, а горизонтальные
+         совпадают. Ровно так стояли девять строк приёмки. */
+      const столбцом = запись.члены.filter((член, i) =>
+        i > 0
+        && член.верх >= (запись.члены[i - 1]?.низ ?? 0) - 1
+        && член.лево === запись.члены[0]?.лево
+        && член.право === запись.члены[0]?.право).length + 1;
+      if (запись.родители.size === 1 && запись.медийных === 0 && столбцом >= 3) {
+        note("поверхности", `${где}: ${запись.всего} обведённых «${имя}» одним столбцом без обложек: `
+          + `список, нарисованный карточками`);
+      }
+    } else {
+      единиц += запись.всего;
+      имена.push(имя);
+    }
+  }
   /* Замечание называет сочтённое поимённо. Одно число не даёт решить, что
      делать: снимать рамку с блока или признать его блоком по праву, — и
      подталкивает к подгонке порога, то есть к отмене правила. */
-  if (обведённые.length > предел) {
-    note("поверхности", `${где}: ${обведённые.length} обведённых блоков при пределе ${предел}: `
-      + `карточная каша — ${[...new Set(обведённые)].join(", ")}`);
+  if (единиц > предел) {
+    note("поверхности", `${где}: ${единиц} обведённых блоков при пределе ${предел}: `
+      + `карточная каша — ${имена.join(", ")}`);
   }
-  console.log(`  обведённых блоков, ${где}: ${обведённые.length}`);
-  return обведённые.length;
+  console.log(`  обведённых блоков, ${где}: ${единиц} (узлов ${обведённые.length})`);
+  return единиц;
 };
 
 /**
@@ -857,91 +937,126 @@ const focusVisible = await page.evaluate(() => {
 });
 if (!focusVisible) note("фокус", "первый элемент в порядке обхода не показывает видимую обводку");
 
-// Переход в список объектов через шапку.
+// Переход в портфель через шапку. Портфель читается галереей плиток:
+// объект узнают в лицо, а не по коду и адресу, отличающимся у соседних
+// объектов одной цифрой и одним словом.
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
+await page.waitForSelector(".objecttile");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
 await усечение(page, "объекты");
+await поверхности(page, "проекты", 6);
 await действиеРаздела(page, "проекты", "Добавить объект");
-await плотность(page, ".datatable__table tbody tr", "проекты");
-await отклик(page, ".datatable__table tbody tr", "проекты");
-await цели(page, "проекты");
 await безымянные(page, "проекты");
 
-const rows = await page.locator(".datatable__table tbody tr").count();
-console.log(`  объектов в списке: ${rows}`);
+const плиток = await page.locator(".objecttile").count();
+console.log(`  объектов в портфеле: ${плиток}`);
+if (плиток === 0) note("портфель", "плиток нет: галерея пуста при непустом портфеле");
+
+/* Ведомости в портфеле не осталось: два представления одного списка на
+   одном экране — это выбор, которого человек не просил. */
+if ((await page.locator("main .datatable__table").count()) > 0) {
+  note("портфель", "на экране осталась таблица объектов рядом с галереей");
+}
 
 await геометрия(page, "объекты");
 
 /**
- * Отклик строки на наведение. Реестр — рабочий список из семи колонок, и
- * без подсветки строки глаз теряет её между кодом и сроком ровно так же,
- * как терял до чередования. Проверяется поведением: фон ячейки под
- * курсором обязан отличаться от фона той же ячейки в покое.
+ * Обложка плитки. У объекта со снимками — изображение, у объекта без них —
+ * подложка с кодом. Пустая рамка недопустима: она читается как поломка.
  */
-const ячейка = page.locator(".datatable__table tbody tr td").first();
-const фонДо = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
-await ячейка.hover();
-await page.waitForTimeout(200);
-const фонПосле = await ячейка.evaluate((el) => getComputedStyle(el).backgroundColor);
-if (фонДо === фонПосле) {
-  note("реестр", `строка не отвечает на наведение: фон остаётся ${фонПосле}`);
-}
-await page.mouse.move(0, 0);
-await page.waitForTimeout(200);
-
-// Фильтр по статусу: выбор сужает таблицу и снимается обратно.
-const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
-await page.click('.segmented__option:has-text("В работе")');
-await page.waitForTimeout(200);
-const filtered = await page.locator(".datatable__table tbody tr").count();
-if (filtered >= rows) note("фильтр по статусу", `после выбора «${inProgress}» строк не убавилось`);
-await page.click('.segmented__option:has-text("Все")');
-await page.waitForTimeout(200);
-if ((await page.locator(".datatable__table tbody tr").count()) !== rows) {
-  note("фильтр по статусу", "снятие фильтра не вернуло полный список");
+{
+  const собложкой = await page.locator(".objecttile__photo").count();
+  const сподложкой = await page.locator(".objecttile__plate").count();
+  if (собложкой + сподложкой !== плиток) {
+    note("портфель", `обложка есть у ${собложкой + сподложкой} плиток из ${плиток}`);
+  }
+  const пустые = await page.locator(".objecttile__photo").evaluateAll((узлы) =>
+    узлы.filter((узел) => (узел.getAttribute("src") ?? "").trim() === "").length);
+  if (пустые > 0) note("портфель", `у ${пустые} плиток обложка с пустым адресом`);
+  const подложки = await page.locator(".objecttile__plate").allTextContents();
+  if (подложки.some((текст) => текст.trim() === "")) {
+    note("портфель", "подложка объекта без снимков не называет код");
+  }
 }
 
 /**
- * Список по единому образцу: сортировка по каждой колонке, поиск,
- * счётчик показанного. Проверяется поведением, а не наличием разметки.
+ * Плитка — одна цель нажатия. Ссылка растянута на всю плитку
+ * псевдоэлементом: цель в 15 px строчных букв адреса мышью берут не с
+ * первого раза, а пальцем не берут вовсе.
  */
-const headers = await page.locator(".datatable__table th").count();
-const sorters = await page.locator(".datatable__sort").count();
-if (sorters !== headers) note("список", `сортировка есть у ${sorters} колонок из ${headers}`);
-
-const firstBefore = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
-await page.click('.datatable__sort:has-text("Адрес")');
-await page.waitForTimeout(150);
-const firstAsc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
-await page.click('.datatable__sort:has-text("Адрес")');
-await page.waitForTimeout(150);
-const firstDesc = await page.locator(".datatable__table tbody tr td:nth-child(2)").first().textContent();
-if (firstAsc === firstDesc) note("сортировка", "смена направления не изменила первую строку");
-if (firstAsc === firstBefore && firstDesc === firstBefore) {
-  note("сортировка", "порядок строк не изменился ни в одном направлении");
+{
+  const плитка = page.locator(".objecttile").first();
+  const коробка = await плитка.boundingBox();
+  const цель = await плитка.locator(".objecttile__link").evaluate((el) => {
+    const после = getComputedStyle(el, "::after");
+    return { position: после.position, inset: после.inset };
+  });
+  if (цель.position !== "absolute") {
+    note("портфель", "ссылка плитки не растянута: цель нажатия — только текст адреса");
+  }
+  if (коробка !== null && коробка.height < 200) {
+    note("портфель", `плитка высотой ${Math.round(коробка.height)} px: обложка не читается`);
+  }
 }
-if ((await page.locator('.datatable__table th[aria-sort]').count()) !== 1) {
-  note("сортировка", "направление не объявлено атрибутом aria-sort ровно на одной колонке");
-}
-await page.click('.datatable__sort:has-text("Адрес")');
 
+/* Отклик плитки на наведение — тем же правилом, что у строк списков. */
+await отклик(page, ".objecttile__body", "проекты");
+
+// Отбор по статусу: выбор сужает галерею и снимается обратно.
+const inProgress = await page.locator('.segmented__option:has-text("В работе")').textContent();
+await page.click('.segmented__option:has-text("В работе")');
+await page.waitForTimeout(200);
+const filtered = await page.locator(".objecttile").count();
+if (filtered >= плиток) note("фильтр по статусу", `после выбора «${inProgress ?? "—"}» плиток не убавилось`);
+await page.click('.segmented__option:has-text("Все")');
+await page.waitForTimeout(200);
+if ((await page.locator(".objecttile").count()) !== плиток) {
+  note("фильтр по статусу", "снятие фильтра не вернуло весь портфель");
+}
+
+/* Поиск остаётся при галерее: отбор по статусу сужает портфель по
+   состоянию и не помогает найти нужный объект среди тридцати в одном
+   состоянии. Сортировки по колонкам у галереи нет — это объявленная цена
+   перехода от ведомости к плиткам, а не упущение. */
 await page.fill(".datatable__search input", "московский");
 await page.waitForTimeout(200);
-const found = await page.locator(".datatable__table tbody tr").count();
-if (found === 0 || found >= rows) note("поиск", `по запросу найдено ${found} строк из ${rows}`);
-const counter = await page.locator(".datatable__foot p").textContent();
-if (counter === null || !counter.includes("Показано")) note("счётчик", `подпись «${counter ?? "—"}»`);
+const found = await page.locator(".objecttile").count();
+if (found === 0 || found >= плиток) note("поиск", `по запросу найдено ${found} плиток из ${плиток}`);
 await page.fill(".datatable__search input", "");
 await page.waitForTimeout(200);
-await step("список по образцу", "04b-spisok.png");
+await step("портфель галереей", "04b-spisok.png");
 
 // Карточка объекта. Открывается объект со сметой: у остальных карточка
 // показывает пустое состояние, и это правильное поведение, а не сбой.
-await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.click('.objecttile:has(.code-badge:text-is("R-99")) .objecttile__link');
 await page.waitForSelector(".stamp");
 await page.waitForSelector(".metric__value");
+/* Обложка объекта первым блоком вкладки. Карточку открывают, чтобы
+   вспомнить, что это за объект, и снимок отвечает на это быстрее шести
+   чисел. Ведёт на фотоотчёт: обложка взята оттуда, и переход к остальным
+   снимкам — единственное осмысленное продолжение нажатия. */
+{
+  const обложка = page.locator(".objectcover");
+  if ((await обложка.count()) === 0) {
+    note("карточка", "на вкладке «Обзор» нет обложки объекта");
+  } else {
+    const свой = await обложка.first().evaluate((el) =>
+      el.querySelector("img") !== null || el.querySelector(".objectcover__plate") !== null);
+    if (!свой) note("карточка", "обложка объекта пуста: ни снимка, ни подложки");
+    const подпись = (await обложка.first().locator(".objectcover__label").textContent()) ?? "";
+    if (подпись.trim() === "") note("карточка", "обложка не называет, куда ведёт");
+    await обложка.first().click();
+    await page.waitForTimeout(400);
+    const вкладка = await page.locator('[role="tab"][aria-selected="true"]').first().textContent();
+    if ((вкладка ?? "").trim() !== "Отчёт") {
+      note("карточка", `обложка ведёт на вкладку «${(вкладка ?? "—").trim()}» вместо «Отчёт»`);
+    }
+    await page.click('.tabs__item:has-text("Обзор")');
+    await page.waitForTimeout(300);
+  }
+}
+
 await step("карточка объекта, обзор", "05-kartochka.png");
 await overflow("карточка, 1440");
 await усечение(page, "карточка");
@@ -1409,8 +1524,8 @@ await step("импорт выполнен", "09-import.png");
  * сметы, обход следов не оставляет.
  */
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
-await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-19")) a');
+await page.waitForSelector(".objecttile");
+await page.click('.objecttile:has(.code-badge:text-is("R-19")) .objecttile__link');
 await page.waitForSelector(".tabs__item");
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
@@ -1434,8 +1549,8 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
  * смены статуса с карточки, которая ведётся на R-72.
  */
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
-const строкаРеестра = page.locator('.datatable__table tbody tr:has(.code-badge:text-is("R-64"))');
+await page.waitForSelector(".objecttile");
+const строкаРеестра = page.locator('.objecttile:has(.code-badge:text-is("R-64"))');
 const пилюляРеестра = строкаРеестра.locator(".pillbutton");
 if ((await пилюляРеестра.count()) === 0) {
   note("статус из реестра", "пилюля статуса не ведёт: смена статуса доступна только с карточки");
@@ -1502,8 +1617,8 @@ if ((await пилюляРеестра.count()) === 0) {
  * идёт в демонстрацию, заполнялась бы следами проверок вместо работы.
  */
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
-await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-72")) a');
+await page.waitForSelector(".objecttile");
+await page.click('.objecttile:has(.code-badge:text-is("R-72")) .objecttile__link');
 await page.waitForSelector("aside .pill");
 const statusBefore = await page.locator("aside .pill").first().textContent();
 await page.click('button:has-text("Изменить статус")');
@@ -1530,6 +1645,7 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
  */
 await page.click('.appbar__link:has-text("Контрагенты")');
 await page.waitForSelector(".datatable__table tbody tr");
+await поверхности(page, "контрагенты", 6);
 
 const вкладкиКонтактов = await page.locator('main [role="tab"]').allTextContents();
 if (вкладкиКонтактов.length !== 2) {
@@ -1753,6 +1869,7 @@ for (const label of ["Главная", "Заявки", "Проекты", "Кон
    означал бы, что раздел выключили правкой навигации. */
 await page.click('.appbar__link:has-text("Заявки")');
 await page.waitForTimeout(400);
+await поверхности(page, "заявки", 6);
 if ((await page.locator(".roadmap__item").count()) > 0) {
   note("навигация", "раздел «Заявки» ведёт на «Что дальше», а у него есть свой экран");
 }
@@ -1769,6 +1886,7 @@ await page.waitForSelector(".money__row", { timeout: 10_000 }).catch(() => undef
 await плотность(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await отклик(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await цели(page, "бухгалтерия");
+await поверхности(page, "бухгалтерия", 6);
 
 /* Вертикали ведомости. Хвостовая дорожка была объявлена как auto и равнялась
    ширине кнопки «Отметить оплату» там, где кнопка есть, и нулю там, где её
@@ -2134,8 +2252,8 @@ await overflow("что дальше, 1440");
 
 // Вкладки карточки объекта: две рабочих и служебный импорт руководителю.
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
-await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".objecttile");
+await page.click('.objecttile:has(.code-badge:text-is("R-99")) .objecttile__link');
 await page.waitForSelector(".tabs__item");
 const cardTabs = (await page.locator(".tabs__item").allTextContents()).map((text) => text.trim());
 if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|Приёмка|Отчёт|Транши|Импорт") {
@@ -3101,7 +3219,7 @@ if (roundest.radius > 12) {
 console.log(`  наибольшее скругление блока: ${roundest.radius} px`);
 
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
+await page.waitForSelector(".objecttile");
 
 // Мобильная ширина. Нижняя таб-панель существует только здесь.
 await page.setViewportSize({ width: 360, height: 800 });
@@ -3145,15 +3263,18 @@ await усечение(page, "главная, 360");
 await page.click('.tabbar__item:has-text("Проекты")');
 await page.waitForSelector(".segmented__option");
 await page.waitForTimeout(300);
+/* Представление одно на все ширины: галерея складывается в одну колонку
+   сама, и вторая вёрстка того же списка была бы вторым местом для одного
+   содержания. */
 const mobileTable = await page.locator("main .datatable__table").count();
-const mobileRows = await page.locator("main .objectrow").count();
-if (mobileTable > 0) note("список объектов, 360", "показана таблица вместо ведомости");
-if (mobileRows === 0) note("список объектов, 360", "строки объектов не отрисованы");
+const mobileRows = await page.locator("main .objecttile").count();
+if (mobileTable > 0) note("портфель, 360", "показана таблица вместо галереи");
+if (mobileRows === 0) note("портфель, 360", "плитки объектов не отрисованы");
 // Д-19: поиск существует и в узкой раскладке.
 if ((await page.locator("main .datatable__search input").count()) === 0) {
   note("список объектов, 360", "поиска нет в узкой раскладке");
 }
-console.log(`  строк объектов на 360 px: ${mobileRows}`);
+console.log(`  плиток объектов на 360 px: ${mobileRows}`);
 await overflow("объекты, 360");
 await усечение(page, "объекты, 360");
 await step("объекты на телефоне", "10b-obekty-360.png");
@@ -3171,7 +3292,10 @@ await overflow("после импорта, 768");
 await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForTimeout(400);
 if ((await page.locator("main .datatable__table").count()) > 0) {
-  note("список объектов, 768", "на планшете показана таблица вместо ведомости");
+  note("портфель, 768", "на планшете показана таблица вместо галереи");
+}
+if ((await page.locator("main .objecttile").count()) === 0) {
+  note("портфель, 768", "плитки объектов не отрисованы");
 }
 await step("объекты на планшете", "11b-obekty-768.png");
 await step("планшет, 768 px", "11-tablet-768.png");
@@ -3243,8 +3367,8 @@ await page.emulateMedia({ colorScheme: "light" });
    место нижней полосе, и ссылка шапки там не видна. Ширина телефона
    выставляется после перехода — проверяется отбор, а не навигация. */
 await page.click('.appbar__link:has-text("Проекты")');
-await page.waitForSelector(".datatable__table tbody tr");
-await page.click('.datatable__table tbody tr:has(.code-badge:text-is("R-99")) a');
+await page.waitForSelector(".objecttile");
+await page.click('.objecttile:has(.code-badge:text-is("R-99")) .objecttile__link');
 await page.waitForSelector(".tabs__item");
 await page.click('.tabs__item:has-text("Приёмка")');
 await page.waitForSelector(".accept__row");

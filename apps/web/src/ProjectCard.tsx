@@ -8,6 +8,7 @@ import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage,
+  acceptancePhotoUrl,
 } from "./api.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
@@ -22,6 +23,7 @@ import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
+import { КРУПНАЯ_ОБЛОЖКА } from "./coverTone.js";
 import { due, type DueLevel } from "./due.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
@@ -451,6 +453,7 @@ export function ProjectCard({
                 estimate={estimate}
                 events={events}
                 today={today}
+                onReport={() => { setTab("report"); }}
               />
               )}
             </div>
@@ -607,11 +610,14 @@ function Overview({
   estimate,
   events,
   today,
+  onReport,
 }: {
   project: ProjectSummary;
   estimate: EstimateView | null;
   events: ProjectEvent[];
   today: string;
+  /** Переход на фотоотчёт: обложка ведёт туда, откуда она взята. */
+  onReport: () => void;
 }): React.JSX.Element {
   const started = project.startedAt;
   const contract =
@@ -628,6 +634,28 @@ function Overview({
 
   return (
     <div className="stack stack--loose">
+      {/* Обложка объекта первым блоком: карточку открывают, чтобы вспомнить,
+          что это за объект, и снимок отвечает на это быстрее шести чисел.
+          Видео не вводится — его нет ни в схеме, ни в объёме работ, а кнопка
+          воспроизведения без воспроизведения есть обман.
+
+          Ведёт на вкладку «Отчёт»: обложка взята оттуда, и переход к
+          остальным снимкам — единственное осмысленное продолжение нажатия. */}
+      <button type="button" className={КРУПНАЯ_ОБЛОЖКА[project.status]} onClick={onReport}>
+        {project.cover === null ? (
+          <span className="objectcover__plate" aria-hidden="true">{project.code}</span>
+        ) : (
+          <img
+            className="objectcover__photo"
+            src={acceptancePhotoUrl(project.code, project.cover.photoId)}
+            alt=""
+          />
+        )}
+        <span className="objectcover__label">
+          {project.cover === null ? "Снимков объекта пока нет" : "Все снимки объекта"}
+        </span>
+      </button>
+
       <section className="stack">
         <div className="section-head">
           <h2 className="t-h2">Сроки объекта</h2>
