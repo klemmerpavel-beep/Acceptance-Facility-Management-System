@@ -423,27 +423,41 @@ const безымянные = async (page, где) => {
 };
 
 /**
- * Зоны нажатия внутри строк списка. Уплотнение строки не вправе сжимать цель:
+ * Зоны нажатия органов экрана. Уплотнение строки не вправе сжимать цель:
  * норма держится отрицательным полем, а не высотой строки, и это надо мерить,
  * а не объявлять.
+ *
+ * Первая редакция мерила органы ТОЛЬКО внутри строк списков, и это делало её
+ * слепой к самому мелкому органу продукта: сегмент полосы статусов на первом
+ * экране — кнопка шириной от 4 px, и ни в одну строку списка она не входит.
+ * Прогон по всем разделам с прежним селектором дал ноль замечаний — не оттого,
+ * что экраны чисты, а оттого, что проверка смотрела не туда. Область замера
+ * расширена до всего экрана.
+ *
+ * Мерятся обе стороны, а не одна высота: цель, узкая по ширине, промахивается
+ * ровно так же, как низкая.
+ *
+ * Строчная ссылка в тексте из замера исключена — это оговорка самой нормы
+ * (WCAG 2.5.8, inline exception): ссылка внутри предложения наследует строку
+ * абзаца, и растянуть её до 44 px значило бы разорвать текст. Признак —
+ * вычисленный `display: inline`; всё остальное меряется.
  */
 const цели = async (page, где) => {
   const мелкие = await page.evaluate(() => {
     const найдено = [];
-    const строки = document.querySelectorAll(
-      ".datatable__table tbody tr, .money__row, .objectrow, .estimate tbody tr");
-    for (const строка of строки) {
-      for (const орган of строка.querySelectorAll('button, a[href], [role="button"]')) {
-        const { height } = орган.getBoundingClientRect();
-        if (height === 0) continue;
-        if (height >= 44) continue;
-        найдено.push(`${(орган.className.toString() || орган.tagName).slice(0, 32)} — `
-          + `${Math.round(height)} px`);
-      }
+    for (const орган of document.querySelectorAll('button, a[href], [role="button"]')) {
+      const вид = getComputedStyle(орган);
+      if (вид.display === "inline") continue;
+      if (вид.visibility === "hidden" || вид.display === "none") continue;
+      const { height, width } = орган.getBoundingClientRect();
+      if (height === 0 || width === 0) continue;
+      if (height >= 44 && width >= 44) continue;
+      найдено.push(`${(орган.className.toString() || орган.tagName).slice(0, 32)} — `
+        + `${Math.round(width)}×${Math.round(height)} px`);
     }
     return [...new Set(найдено)];
   });
-  for (const место of мелкие) note("зона касания", `${где}: ${место} вместо 44`);
+  for (const место of мелкие) note("зона касания", `${где}: ${место} вместо 44×44`);
   return мелкие.length;
 };
 
@@ -925,6 +939,8 @@ await step("события портфеля", "03b-sobytiya.png");
 await page.keyboard.press("Escape");
 
 await поверхности(page, "сводка", 6);
+await цели(page, "сводка");
+await безымянные(page, "сводка");
 await действиеРаздела(page, "главная", "Добавить объект");
 
 // Видимое состояние фокуса.
@@ -1072,6 +1088,8 @@ const крошка = async () =>
 }
 
 await step("карточка объекта, обзор", "05-kartochka.png");
+await цели(page, "карточка");
+await безымянные(page, "карточка");
 await overflow("карточка, 1440");
 await усечение(page, "карточка");
 
@@ -1292,6 +1310,11 @@ const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
 if (internalBefore === 0) note("внутренняя проекция", "внутренних колонок не было и во внутреннем виде");
 await step("клиентская проекция", "07-klientskaya.png");
+/* Смета — самая плотная таблица продукта, и находка Ж-3 заведена ради неё.
+   Помощник замера существовал этап и вызывался только на бухгалтерии:
+   помощник, написанный и не вызванный, не стережёт ничего. */
+await цели(page, "смета");
+await безымянные(page, "смета");
 await page.click('.segmented__option:has-text("Внутренняя")');
 
 /*
@@ -1660,6 +1683,8 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await поверхности(page, "контрагенты", 6);
+await цели(page, "контакты");
+await безымянные(page, "контакты");
 
 const вкладкиКонтактов = await page.locator('main [role="tab"]').allTextContents();
 if (вкладкиКонтактов.length !== 2) {
@@ -1884,6 +1909,8 @@ for (const label of ["Главная", "Заявки", "Проекты", "Кон
 await page.click('.appbar__link:has-text("Заявки")');
 await page.waitForTimeout(400);
 await поверхности(page, "заявки", 6);
+await цели(page, "заявки");
+await безымянные(page, "заявки");
 if ((await page.locator(".roadmap__item").count()) > 0) {
   note("навигация", "раздел «Заявки» ведёт на «Что дальше», а у него есть свой экран");
 }
@@ -1900,6 +1927,7 @@ await page.waitForSelector(".money__row", { timeout: 10_000 }).catch(() => undef
 await плотность(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await отклик(page, ".money__row:not(.money__row--client)", "бухгалтерия");
 await цели(page, "бухгалтерия");
+await безымянные(page, "бухгалтерия");
 await поверхности(page, "бухгалтерия", 6);
 
 /* Вертикали ведомости. Хвостовая дорожка была объявлена как auto и равнялась
@@ -2365,6 +2393,8 @@ if (!afterToggle.includes("Периметр потолка")) note("замер",
 if (!afterToggle.includes("Откосы")) note("замер", "подробный вид не раскрыл откосы проёмов");
 await page.click(".toggle");
 await step("замер, обмерный план", "21-zamer.png");
+await цели(page, "замер");
+await безымянные(page, "замер");
 
 /* Внесение помещения и его удаление: итог обязан вернуться к исходному. */
 await page.click('button:has-text("Добавить помещение")');
@@ -2586,6 +2616,8 @@ await page.click('.segmented button[aria-label="Мельче"]');
 await page.waitForTimeout(300);
 
 await step("работа, график", "26-grafik.png");
+await цели(page, "график");
+await безымянные(page, "график");
 
 /* Перестановка строки стрелкой с клавиатуры: номера обязаны разойтись. */
 const доПерестановки = (await page.locator(".gantt__title").allTextContents()).map((s) => s.trim());
@@ -2890,6 +2922,8 @@ await page.waitForSelector(".accept__row");
 /* Счёт поверхностей на вкладке приёмки — до первой отметки: заливка
    выбранной строки и всплывающая полоса подтверждения исказили бы его. */
 await поверхности(page, "приёмка", 6);
+await цели(page, "приёмка");
+await безымянные(page, "приёмка");
 
 /* Три меры шапки обязаны сходиться между собой. Расхождение «принято ноль
    позиций» при «начислено четыреста тысяч» уже случалось: позиции брались
@@ -3160,6 +3194,8 @@ if ((await page.locator(".tranche__bar").count()) === 0) {
 }
 
 await step("транши", "36-transhi.png");
+await цели(page, "транши");
+await безымянные(page, "транши");
 
 /* Лист открытия: отказ показывается до обращения к сети, тем же правилом,
    что применит сервер. Второй открытый транш при уже открытом отклоняется. */
