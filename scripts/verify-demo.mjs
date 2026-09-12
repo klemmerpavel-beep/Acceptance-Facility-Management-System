@@ -153,6 +153,7 @@ await раздел("Проекты");
 const плиток = await число(".objecttile");
 const обложек = (await число(".objecttile__photo")) + (await число(".objecttile__plate"));
 if (плиток === 0) note("портфель", "галерея объектов пуста");
+console.log(`  портфель: плиток ${плиток}, со снимком ${await число(".objecttile__photo")}, с подложкой ${await число(".objecttile__plate")}`);
 if (обложек !== плиток) {
   note("портфель", `обложка есть у ${обложек} плиток из ${плиток}`);
 }

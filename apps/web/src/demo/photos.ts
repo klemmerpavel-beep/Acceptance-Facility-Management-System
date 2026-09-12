@@ -9,7 +9,7 @@
  * Имя файла — код объекта. Связь по имени, а не по отдельной таблице
  * соответствия: таблица есть второе место для той же величины.
  */
-const файлы = import.meta.glob<string>("./photos/*.{jpg,jpeg,png,webp}", {
+const файлы = import.meta.glob<string>("./photos/*.{jpg,jpeg,png,webp,svg}", {
   eager: true,
   query: "?url",
   import: "default",
