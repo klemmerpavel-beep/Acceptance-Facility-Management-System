@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { завести } from "./verbs.js";
 import type { ClientRow, ProjectSummary } from "@priyomka/contracts";
 import { createProject, errorMessage, fetchClients } from "./api.js";
 import { useModalDialog } from "./modal.js";
@@ -148,7 +149,7 @@ export function NewProjectSheet({
               data-loading={busy || undefined}
               disabled={busy || !ready}
             >
-              Завести объект
+              {завести("объект")}
             </button>
             <button type="button" className="btn btn--text btn--block" onClick={onClose}>
               Отмена

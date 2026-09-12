@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { завести } from "./verbs.js";
 import type { CreateMeasureRoom, MeasureRoom } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
@@ -150,7 +151,7 @@ export function RoomSheet({
             {error !== null && <p className="field__error" role="alert">{error}</p>}
 
             <button type="submit" className="btn btn--primary btn--block" disabled={busy || !ready}>
-              {room === null ? "Внести помещение" : "Сохранить"}
+              {room === null ? завести("помещение") : "Сохранить"}
             </button>
             {onDelete !== null && (
               <button type="button" className="btn btn--text btn--block" onClick={() => { setConfirming(true); }}>

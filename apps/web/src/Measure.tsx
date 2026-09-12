@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { завести } from "./verbs.js";
 import type { CreateMeasureRoom, MeasureRoom, MeasureView, Role } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import {
@@ -180,7 +181,7 @@ export function Measure({
             </p>
             {editable && (
               <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
-                Внести помещение
+                {завести("помещение")}
               </button>
             )}
           </div>
@@ -269,7 +270,7 @@ export function Measure({
             {editable && (
               <div className="row row--wrap">
                 <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
-                  Внести помещение
+                  {завести("помещение")}
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={() => { setEditing({ room: selected }); }}>
                   Править помещение

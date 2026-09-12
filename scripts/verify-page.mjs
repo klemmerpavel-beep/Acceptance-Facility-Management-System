@@ -887,8 +887,8 @@ if ((await firstCounter.count()) === 0) {
  * «не задано», а не ноль: ноль означал бы «работа не начата».
  */
 const строкиТаблицы = await page.locator(".datatable__table tbody tr").allTextContents();
-if (!строкиТаблицы.some((row) => row.includes("не задано"))) {
-  note("главная", "объект без графика не показал «не задано» в готовности");
+if (!строкиТаблицы.some((row) => row.includes("не задана"))) {
+  note("главная", "объект без графика не показал «не задана» в готовности");
 }
 const колонки = await page.locator(".datatable__table thead th").allTextContents();
 for (const нужна of ["Заявлено", "Принято", "Срок", "Статус", "Адрес"]) {
@@ -1032,6 +1032,20 @@ await step("портфель галереей", "04b-spisok.png");
 await page.click('.objecttile:has(.code-badge:text-is("R-99")) .objecttile__link');
 await page.waitForSelector(".stamp");
 await page.waitForSelector(".metric__value");
+
+/* Крошка называет раздел, в который возвращает. Прежде она печатала
+   «Объекты» — слово, которого нет ни в одном пункте навигации, и обещала
+   третье место сверх «Главной» и «Проектов», откуда карточку открывают.
+   Проверяется не текст, а свойство: подпись крошки совпадает с подписью
+   раздела, из которого пришли. Находка Е-1. */
+const крошка = async () =>
+  ((await page.locator(".stamp__crumbs a").first().textContent()) ?? "").trim();
+{
+  const слово = await крошка();
+  if (слово !== "Проекты") {
+    note("карточка", `крошка объекта, открытого из «Проектов», называет «${слово}»`);
+  }
+}
 /* Обложка объекта первым блоком вкладки. Карточку открывают, чтобы
    вспомнить, что это за объект, и снимок отвечает на это быстрее шести
    чисел. Ведёт на фотоотчёт: обложка взята оттуда, и переход к остальным
@@ -1121,7 +1135,7 @@ const stamp = await page.evaluate(() =>
     value: cell.querySelector(".stamp__value")?.textContent?.trim() ?? "",
   })),
 );
-const stampWanted = ["Объект", "Адрес", "Стадия", "Срок", "Прораб", "Смета"];
+const stampWanted = ["Объект", "Адрес", "Статус", "Срок", "Прораб", "Смета"];
 if (stamp.map((cell) => cell.label).join("|") !== stampWanted.join("|")) {
   note("штамп объекта", `графы «${stamp.map((cell) => cell.label).join(", ")}»`);
 }
@@ -1635,7 +1649,7 @@ await page.click(`.sheet button:has-text("${statusBefore?.trim() ?? "В рабо
 await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
 
 /**
- * Контрагенты: два вида — две вкладки.
+ * Контакты: два вида — две вкладки.
  *
  * До 12.09.2026 оба вида стояли в одной таблице, а различала их колонка
  * «Тип». Треть таблицы была гарантированными прочерками: у заказчика всегда
@@ -1643,7 +1657,7 @@ await page.waitForSelector('.sheet[role="dialog"]', { state: "detached" });
  * заказчика — вкладки; проверка стережёт не имена вкладок, а свойство:
  * показанная колонка обязана иметь значение хоть в одной строке.
  */
-await page.click('.appbar__link:has-text("Контрагенты")');
+await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForSelector(".datatable__table tbody tr");
 await поверхности(page, "контрагенты", 6);
 
@@ -1727,7 +1741,7 @@ await page.waitForTimeout(300);
  * Г-3). Проверка общая, а не именная: она застережёт и следующий раздел,
  * который заведут.
  */
-for (const раздел of ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"]) {
+for (const раздел of ["Главная", "Заявки", "Проекты", "Контакты", "Бухгалтерия"]) {
   await page.click(`.appbar__link:has-text("${раздел}")`);
   await page.waitForTimeout(400);
   const поле = await page.evaluate(() => {
@@ -1753,7 +1767,7 @@ for (const раздел of ["Главная", "Заявки", "Проекты", 
     note("поле раздела", `${раздел}: полотно ${поле.ширина} px шире окна ${поле.окно} px`);
   }
 }
-await page.click('.appbar__link:has-text("Контрагенты")');
+await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForTimeout(300);
 
 await геометрия(page, "контакты");
@@ -1777,7 +1791,7 @@ await page.waitForSelector('[aria-label="Новый контакт"]');
 await step("форма контакта", "09c-forma-kontakta.png");
 await page.click('[aria-label="Новый контакт"] .segmented__option:has-text("Бригада")');
 await page.fill('[aria-label="Новый контакт"] .input', проба);
-await page.click('button:has-text("Завести бригаду")');
+await page.click('button:has-text("Добавить бригаду")');
 await page.waitForSelector('main [role="status"]');
 const подтверждение = (await page.locator('main [role="status"]').innerText()).trim();
 if (!подтверждение.includes(проба)) {
@@ -1798,7 +1812,7 @@ await page.fill(".datatable__search input", "");
  */
 const navLabels = (await page.locator(".appbar__nav-scroll .appbar__link").allTextContents())
   .map((text) => text.trim());
-const navWanted = ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"];
+const navWanted = ["Главная", "Заявки", "Проекты", "Контакты", "Бухгалтерия"];
 if (navLabels.join("|") !== navWanted.join("|")) {
   note("навигация", `в шапке «${navLabels.join(", ")}» вместо «${navWanted.join(", ")}»`);
 }
@@ -1857,7 +1871,7 @@ for (const label of navWanted) {
  * силе и сработает, когда в шапку добавят следующий раздел; проверяется
  * обратное — ни один действующий пункт не приводит на служебный экран.
  */
-for (const label of ["Главная", "Заявки", "Проекты", "Контрагенты", "Бухгалтерия"]) {
+for (const label of ["Главная", "Заявки", "Проекты", "Контакты", "Бухгалтерия"]) {
   await page.click(`.appbar__link:has-text("${label}")`);
   await page.waitForTimeout(400);
   if ((await page.locator(".roadmap__item").count()) > 0) {
@@ -2104,12 +2118,12 @@ if ((подписиОтбора[1] ?? -1) < (подписиОтбора[0] ?? 0)
  * Подтверждением служит сама запись на доске и строка с номером.
  */
 const карточекДо = await page.locator(".leadcard").count();
-await page.click('button:has-text("Новая заявка")');
+await page.click('button:has-text("Добавить заявку")');
 await page.waitForSelector('.sheet[role="dialog"]');
 const пробаЗаявки = `Проверка ${String(Date.now()).slice(-6)}`;
 await page.locator('.sheet label:has-text("Имя") input').fill(пробаЗаявки);
 await page.locator('.sheet label:has-text("Телефон") input').fill("+7 900 000-00-99");
-await page.click('.sheet button:has-text("Завести заявку")');
+await page.click('.sheet button:has-text("Добавить заявку")');
 await page.waitForTimeout(900);
 if ((await page.locator('.sheet[role="dialog"]').count()) !== 0) {
   note("приём заявки", "после сохранения открыт лист: заведение стоит лишнего нажатия");
@@ -2202,6 +2216,26 @@ await page.waitForTimeout(300);
 
 await page.click('.appbar__link:has-text("Главная")');
 await page.waitForSelector(".statcard");
+
+/* Второй случай крошки: карточка, открытая с «Главной», возвращает на
+   «Главную». Один случай доказал бы только, что крошка что-то печатает:
+   подпись, зашитая словом «Проекты», прошла бы его насквозь. Свойство
+   «крошка называет раздел, откуда пришли» видно лишь на двух разделах.
+
+   Проверка стоит в настольном проходе намеренно: реестр «Главной» набран
+   таблицей только на широком экране, и на 360 px она не докладывала бы, а
+   падала по истечении ожидания строки. */
+{
+  await page.waitForSelector("main .datatable__table tbody tr a");
+  await page.click("main .datatable__table tbody tr a");
+  await page.waitForSelector(".stamp__crumbs");
+  const слово = await крошка();
+  if (слово !== "Главная") {
+    note("карточка", `крошка объекта, открытого с «Главной», называет «${слово}»`);
+  }
+  await page.click(".stamp__crumbs a");
+  await page.waitForSelector(".statcard");
+}
 
 /**
  * Настройки организации: карточка и справочник единиц. Открываются из
@@ -2333,7 +2367,7 @@ await page.click(".toggle");
 await step("замер, обмерный план", "21-zamer.png");
 
 /* Внесение помещения и его удаление: итог обязан вернуться к исходному. */
-await page.click('button:has-text("Внести помещение")');
+await page.click('button:has-text("Добавить помещение")');
 await page.waitForSelector('.sheet input');
 const sheetInputs = page.locator(".sheet input");
 await sheetInputs.nth(0).fill("Проверка страницы");
@@ -2342,7 +2376,7 @@ await sheetInputs.nth(2).fill("13");
 await sheetInputs.nth(3).fill("14");
 await sheetInputs.nth(4).fill("2,7");
 await step("замер, форма помещения", "22-zamer-forma.png");
-await page.click('.sheet button:has-text("Внести помещение")');
+await page.click('.sheet button:has-text("Добавить помещение")');
 await page.waitForTimeout(700);
 const grown = await page.locator(".spec").first().innerText();
 if (!grown.includes("90,53\u00A0м²")) note("замер", `после внесения площадь «${grown.replace(/\n/g, " ")}»`);
@@ -2626,7 +2660,7 @@ const отказ = (await page.locator(".sheet .field__error").first().textConte
 if (!отказ.includes("раньше начала")) {
   note("график", `лист не отказал перевёрнутым датам: «${отказ}»`);
 }
-if (await page.locator('.sheet button:has-text("Завести этап")').isEnabled()) {
+if (await page.locator('.sheet button:has-text("Добавить этап")').isEnabled()) {
   note("график", "кнопка заведения доступна при перевёрнутых датах");
 }
 await step("работа, отказ валидатора", "27-grafik-otkaz.png");
@@ -2634,7 +2668,7 @@ await step("работа, отказ валидатора", "27-grafik-otkaz.png
 /* Исправленные даты — этап заводится и становится восьмым. */
 await поляЭтапа.nth(2).fill("2026-08-24");
 await page.waitForTimeout(200);
-await page.click('.sheet button:has-text("Завести этап")');
+await page.click('.sheet button:has-text("Добавить этап")');
 await page.waitForTimeout(900);
 const послеЗаведения = await page.locator(".gantt__row").count();
 if (послеЗаведения !== 8) note("график", `после заведения строк ${послеЗаведения} вместо восьми`);

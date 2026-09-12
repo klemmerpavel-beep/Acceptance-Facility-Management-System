@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { closeTranche, createTranche, errorMessage, fetchTranches, payTranche } from "./api.js";
@@ -42,7 +43,7 @@ const день = (iso: string): string => {
 
 /** Заголовок транша: номер и основание, если оно названо. */
 const основание = (транш: Tranche): string =>
-  транш.comment ?? (транш.number === 0 ? "Предоплата" : "Без основания");
+  транш.comment ?? (транш.number === 0 ? "Предоплата" : пусто("основание"));
 
 export function Tranches({
   code,
@@ -92,7 +93,7 @@ export function Tranches({
         <div className="section-head">
           <h3 className="t-h3">
             {открытый === null
-              ? "Открытого транша нет"
+              ? Пусто("транш")
               : `Транш № ${String(открытый.number)} · открыт ${день(открытый.openedAt)}`}
           </h3>
           {ведёт && (

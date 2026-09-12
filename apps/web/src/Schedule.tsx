@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { завести } from "./verbs.js";
 import type { CreateWorkStage, Role, WorkerRow, WorkStage } from "@priyomka/contracts";
 import {
   dayIndex, isDayOff, monthWindow, planWindow, shiftDay, shiftMonth, stageDateFault, windowDays,
@@ -356,7 +357,7 @@ export function Schedule({
         {editable && (
           <button type="button" className="btn btn--primary" onClick={() => { setEditing({ stage: null }); }}>
             <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-            Добавить этап
+            {завести("этап")}
           </button>
         )}
       </div>

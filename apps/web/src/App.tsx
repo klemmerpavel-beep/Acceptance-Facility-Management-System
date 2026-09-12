@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { завести } from "./verbs.js";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
 import {
   fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus,
@@ -247,6 +248,7 @@ export function App(): React.JSX.Element {
           user={state.user}
           units={state.units}
           today={today}
+          откуда={SECTIONS.find((item) => item.key === section)?.label ?? "Главная"}
           onBack={() => setOpened(null)}
           onChanged={replaceProject}
         />
@@ -316,7 +318,7 @@ export function App(): React.JSX.Element {
           {cover("Главная", [], (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-              Добавить объект
+              {завести("объект")}
             </button>
           ))}
           <Dashboard
@@ -334,7 +336,7 @@ export function App(): React.JSX.Element {
           {cover("Проекты", ["Главная", "Проекты"], (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-              Добавить объект
+              {завести("объект")}
             </button>
           ))}
           <main className="container stack stack--loose">
@@ -398,7 +400,7 @@ export function App(): React.JSX.Element {
       )}
       {section === "contacts" && (
         <>
-          {cover("Контрагенты", ["Главная", "Контрагенты"])}
+          {cover("Контакты", ["Главная", "Контакты"])}
           <Contacts />
         </>
       )}

@@ -2111,3 +2111,8 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .objectcover--pause   .objectcover__plate { color: var(--status-pause-ink); }
 .objectcover--done    .objectcover__plate { color: var(--status-done-ink); }
 .objectcover--archive .objectcover__plate { color: var(--status-archive-ink); }
+
+/* Ряд раздела без заголовка: экран уже назван обложкой, и второе имя того же
+   экрана читателю ничего не добавляет. Действие прижимается к концу строки —
+   там же, где оно стоит в рядах с заголовком. */
+.section-head--action { justify-content: flex-end; }

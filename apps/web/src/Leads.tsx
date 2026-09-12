@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { завести } from "./verbs.js";
 import type { LeadBoard, LeadCard, LeadStage } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { errorMessage, fetchLeads } from "./api.js";
@@ -65,7 +66,7 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
       <div className="leads__head row row--between row--wrap">
         <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
           <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-          Новая заявка
+          {завести("заявка")}
         </button>
         <label className="selectwrap">
           <span className="visually-hidden">Показывать заявки</span>
