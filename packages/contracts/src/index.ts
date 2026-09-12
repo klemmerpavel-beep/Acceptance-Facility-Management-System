@@ -362,6 +362,40 @@ export type CreateWorker = z.infer<typeof createWorkerSchema>;
 export const updateProjectStatusSchema = z.object({ status: projectStatusSchema });
 export type UpdateProjectStatus = z.infer<typeof updateProjectStatusSchema>;
 
+/**
+ * Правка полей объекта на месте, в блоках карточки.
+ *
+ * Поля перечислены поимённо, а не взяты частичной копией сводки: сводка
+ * несёт и производные величины — число позиций, итог смет, готовность, — и
+ * частичная копия открыла бы их на запись. Производное не правится: его
+ * считают, и запись в него разошлась бы с источником.
+ *
+ * Каждое поле необязательно, и это не послабление, а смысл правки на месте:
+ * человек меняет одно значение, а не заполняет форму заново. Присланное
+ * поле меняется, отсутствующее остаётся как было; `null` — снятие значения
+ * там, где оно допустимо.
+ *
+ * Статус сюда не входит намеренно. У него свой маршрут, свой лист и свой
+ * довод в журнале: статус меняют часто, и «кто перевёл объект в паузу»
+ * спрашивают через неделю. Свести их значило бы потерять эту разницу.
+ */
+export const updateProjectSchema = z.object({
+  address: z.string().trim().min(3, "Адрес объекта: не короче трёх знаков.").max(200).optional(),
+  deadline: z.string().date("Срок сдачи: дата в формате ГГГГ-ММ-ДД.").nullable().optional(),
+  startedAt: z.string().date("Начало работ: дата в формате ГГГГ-ММ-ДД.").nullable().optional(),
+  foremanId: z.string().uuid("Выберите прораба из списка.").nullable().optional(),
+  keysCount: z.number().int("Ключи: целое число комплектов.").min(0).max(99).optional(),
+});
+export type UpdateProject = z.infer<typeof updateProjectSchema>;
+
+/** Прораб организации: тот, кого можно назначить на объект. */
+export const foremanSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export const foremenSchema = z.array(foremanSchema);
+export type Foreman = z.infer<typeof foremanSchema>;
+
 /** Событие журнала: смена статуса, импорт сметы, правка величины. */
 export const eventSchema = z.object({
   at: z.string(),

@@ -6,6 +6,7 @@ import {
   updateOrganizationSchema,
   updateRepairTypeSchema,
   type ClientRow,
+  type Foreman,
   type Organization,
   type RepairType,
   type Unit,
@@ -48,6 +49,12 @@ export class DirectoryController {
   @Get("units")
   units(@CurrentUser() user: RequestUser): Promise<Unit[]> {
     return this.directory.units(user);
+  }
+
+  /** Прорабы организации: список для назначения на объект. */
+  @Get("foremen")
+  foremen(@CurrentUser() user: RequestUser): Promise<Foreman[]> {
+    return this.directory.foremen(user);
   }
 
   @Get("workers")

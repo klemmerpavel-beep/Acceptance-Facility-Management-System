@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type {
   ClientRow,
   CreateClient,
+  Foreman,
   CreateWorker,
   CreateRepairType,
   Organization,
@@ -204,6 +205,26 @@ export class DirectoryService {
    * Прорабу выборка не делается совсем: запрос ради полей, которые всё
    * равно не уйдут, — это плата за ничто.
    */
+  /**
+   * Прорабы организации: те, кого можно назначить на объект.
+   *
+   * Отдельно от `workers`: там бригады и мастера — сдельные исполнители,
+   * которым начисляют за принятую работу. Прораб — пользователь продукта, он
+   * ведёт объект и заводит приёмку. Свести их в один список значило бы
+   * предложить назначить прорабом бригаду.
+   *
+   * Внутренних полей нет вовсе: имя и опознаватель — всё, что нужно, чтобы
+   * выбрать из списка. Телефон и почта прораба к назначению отношения не
+   * имеют и потому не выдаются.
+   */
+  async foremen(user: RequestUser): Promise<Foreman[]> {
+    return this.prisma.user.findMany({
+      where: { orgId: user.orgId, role: "FOREMAN" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    });
+  }
+
   async workers(user: RequestUser): Promise<WorkerRow[]> {
     const workers = await this.prisma.worker.findMany({
       where: { orgId: user.orgId },

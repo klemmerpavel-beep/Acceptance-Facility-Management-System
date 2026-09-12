@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { CreateProject, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
+import type { CreateProject, ProjectEvent, ProjectSummary, UpdateProject } from "@priyomka/contracts";
 import {
   acceptedShare, basisPoints, clientTotals, estimateAgainstGuideline, kopecks,
   projectReadiness, trancheRemainder,
@@ -162,6 +162,102 @@ export class ProjectsService {
         oldValue: project.status,
         newValue: status,
       });
+    }
+    return this.byCode(user, code);
+  }
+
+  /**
+   * Правка полей объекта на месте.
+   *
+   * Каждое изменённое поле уходит в журнал отдельной записью — тем же
+   * способом, каким это делает смена статуса. Одной записью «объект правлен»
+   * обойтись нельзя: журнал отвечает на вопрос «что именно стало другим»,
+   * и сводная запись заставляет сличать две версии карточки, которых у
+   * читателя нет.
+   *
+   * Непроменявшееся не пишется. Сохранение без изменения — обычное дело:
+   * человек открыл поле, передумал и нажал «Сохранить». Запись о нём
+   * засорила бы журнал строками «адрес: Ленина 1 → Ленина 1».
+   *
+   * Порядок: сперва сверяются все поля, потом пишется одна правка базы и
+   * следом записи журнала. Правка по полю за раз оставила бы карточку в
+   * половинном состоянии, если второе поле не прошло проверку.
+   */
+  async update(
+    user: RequestUser,
+    code: string,
+    patch: UpdateProject,
+  ): Promise<ProjectSummary> {
+    if (user.role !== "OWNER") {
+      throw new ForbiddenException({ message: "Поля объекта правит руководитель." });
+    }
+    const project = await this.prisma.project.findFirst({ where: { ...projectScope(user), code } });
+    if (!project) {
+      throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
+    }
+
+    /* Прораб проверяется до записи: чужой или несуществующий идентификатор
+       иначе ушёл бы в базу и был бы отвергнут уже связью, сообщением
+       драйвера вместо человеческого. */
+    if (patch.foremanId !== undefined && patch.foremanId !== null) {
+      const прораб = await this.prisma.user.findFirst({
+        where: { id: patch.foremanId, orgId: user.orgId, role: "FOREMAN" },
+      });
+      if (!прораб) {
+        throw new BadRequestException({ message: "Такого прораба нет в организации." });
+      }
+    }
+
+    const день = (значение: Date | null): string | null =>
+      значение === null ? null : значение.toISOString().slice(0, 10);
+
+    /* Поля перечислены вместе со своими прежним и новым значением: список
+       ведётся один раз и служит и записи в базу, и записям журнала. Две
+       копии перечня разошлись бы на первом же добавленном поле, и в журнал
+       перестало бы попадать именно оно. */
+    const поля: {
+      имя: string;
+      было: string | null;
+      стало: string | null;
+      данные: Record<string, unknown>;
+    }[] = [];
+    if (patch.address !== undefined && patch.address !== project.address) {
+      поля.push({ имя: "адрес", было: project.address, стало: patch.address,
+        данные: { address: patch.address } });
+    }
+    if (patch.deadline !== undefined && patch.deadline !== день(project.deadline)) {
+      поля.push({ имя: "срок", было: день(project.deadline), стало: patch.deadline,
+        данные: { deadline: patch.deadline === null ? null : new Date(patch.deadline) } });
+    }
+    if (patch.startedAt !== undefined && patch.startedAt !== день(project.startedAt)) {
+      поля.push({ имя: "начало работ", было: день(project.startedAt), стало: patch.startedAt,
+        данные: { startedAt: patch.startedAt === null ? null : new Date(patch.startedAt) } });
+    }
+    if (patch.foremanId !== undefined && patch.foremanId !== project.foremanId) {
+      поля.push({ имя: "прораб", было: project.foremanId, стало: patch.foremanId,
+        данные: { foremanId: patch.foremanId } });
+    }
+    if (patch.keysCount !== undefined && patch.keysCount !== project.keysCount) {
+      поля.push({ имя: "ключи", было: String(project.keysCount), стало: String(patch.keysCount),
+        данные: { keysCount: patch.keysCount } });
+    }
+
+    if (поля.length > 0) {
+      await this.prisma.project.update({
+        where: { id: project.id },
+        data: Object.assign({}, ...поля.map((поле) => поле.данные)) as Record<string, unknown>,
+      });
+      for (const поле of поля) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "Project",
+          entityId: project.id,
+          field: поле.имя,
+          oldValue: поле.было,
+          newValue: поле.стало,
+        });
+      }
     }
     return this.byCode(user, code);
   }
