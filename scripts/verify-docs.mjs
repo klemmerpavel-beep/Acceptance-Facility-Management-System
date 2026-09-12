@@ -16,7 +16,15 @@
  */
 import { readFileSync } from "node:fs";
 
-const вывод = process.argv[2] === undefined ? "" : readFileSync(process.argv[2], "utf8");
+/* Управляющие последовательности цвета снимаются до разбора. На своей машине
+   vitest пишет без цвета, в сборке — с цветом, и выражение, проверенное
+   локально, в сборке не находило ничего: между «Tests» и числом стоят
+   escape-последовательности. Проверка, испытанная в одной среде, стережёт
+   одну среду. */
+const БЕЗ_ЦВЕТА = /\u001B\[[0-9;]*m/gu;
+const вывод = process.argv[2] === undefined
+  ? ""
+  : readFileSync(process.argv[2], "utf8").replace(БЕЗ_ЦВЕТА, "");
 const проблемы = [];
 
 /* Vitest печатает по строке на пакет: «Tests  286 passed (286)». */
