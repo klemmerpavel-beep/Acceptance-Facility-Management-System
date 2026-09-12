@@ -1950,9 +1950,17 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    объектов и из тридцати, и вёрстка не должна знать, сколько их сегодня.
    Нижняя граница плитки 260 px — ширина, при которой адрес в две строки ещё
    читается, а обложка остаётся узнаваемой.                                */
+/* Не более четырёх плиток в ряд. Прежде число колонок задавала только
+   нижняя граница 260 px, и на широком экране их становилось пять и больше:
+   плитки мельчали, а снимок — то, ради чего галерея и заведена, — переставал
+   читаться. Нижняя граница колонки теперь берётся как наибольшее из 260 px и
+   четверти ряда: на широком экране работает четверть и колонок ровно четыре,
+   на узком — 260 px и колонок столько, сколько поместится. */
 .gallery {
+  --колонок: 4;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(
+    max(260px, calc((100% - (var(--колонок) - 1) * var(--space-4)) / var(--колонок))), 1fr));
   gap: var(--space-4);
 }
 
@@ -2025,22 +2033,38 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   flex: 1 1 auto;
 }
 .objecttile__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-/* Адрес в две строки с усечением: объекты в одном доме отличаются хвостом
-   строки, и обрезка по первой строке сделала бы их неразличимыми. */
+/* Адрес занимает две строки всегда, а не по длине текста. Усечение по второй
+   было и раньше — объекты в одном доме отличаются хвостом строки, и обрезка
+   по первой сделала бы их неразличимыми, — но короткий адрес занимал одну
+   строку, и соседние плитки расходились внутренней геометрией: подпись
+   заказчика и пилюля срока вставали на разной высоте. Место резервируется
+   под две строки независимо от содержимого. */
 .objecttile__link {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
+  min-block-size: calc(2 * var(--fs-h3) * var(--lh-h3));
 }
-.objecttile__who { min-block-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Подвал прижат к низу: плитки в ряду разной высоты по адресу, и пилюли
-   срока, стоящие на разной высоте, читались бы как разные по важности. */
+/* Строка людей — ровно одна, и место под неё держится даже когда людей нет:
+   иначе плитка без прораба короче соседней на высоту строки. */
+.objecttile__who {
+  min-block-size: calc(var(--fs-sm) * var(--lh-sm));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Подвал прижат к низу и набран в две строки. Одной строкой пилюля срока и
+   полоса готовности не умещались в колонку: «просрочен на 103 дня» занимает
+   почти всю ширину, и число процентов уходило за край плитки, где его
+   обрезал `overflow: hidden`. */
 .objecttile__foot {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: column; align-items: stretch;
   gap: var(--space-2); margin-block-start: auto;
 }
+.objecttile__foot > .duepill { align-self: flex-start; }
 .objecttile__ready { display: flex; align-items: center; gap: var(--space-2); }
+.objecttile__ready-label { flex: none; }
+.objecttile__track { flex: 1 1 auto; }
+.objecttile__pct { flex: none; margin-inline-start: auto; }
 .objecttile__track {
-  position: relative; inline-size: 64px; block-size: 6px;
+  position: relative; min-inline-size: 40px; block-size: 6px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   overflow: hidden;
 }
