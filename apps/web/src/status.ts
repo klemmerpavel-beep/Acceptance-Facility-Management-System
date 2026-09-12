@@ -13,16 +13,38 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = {
 };
 
 /**
- * Пилюля статуса. Цвет — усиление, не носитель смысла: рядом всегда текст
- * (раздел 7 дизайн-системы), поэтому нейтральный вид здесь не проблема.
+ * Ключ статуса в разметке. Один и тот же в пилюле реестра, сегменте полосы
+ * портфеля и метке её легенды: вид статуса берётся из одной тройки токенов
+ * `--status-<ключ>-bar/-soft/-ink`, и совпадение кодировок держится общим
+ * токеном, а не соглашением между тремя файлами.
+ *
+ * До 12.09.2026 кодировок было две и обе неполные: пилюли брали сигнальные
+ * токены и сводили шесть статусов к трём видам («в работе» и «завершён» —
+ * одна зелёная, «пауза» и «ждёт ответа» — одна жёлтая, «новый» и «архив» —
+ * одна серая), а полоса первого экрана красила те же статусы порядковой
+ * шкалой индиго. Один объект был двух цветов на одном экране.
+ */
+export const STATUS_KEY: Record<ProjectStatus, string> = {
+  NEW: "new",
+  IN_PROGRESS: "work",
+  WAITING_CLIENT: "wait",
+  PAUSED: "pause",
+  DONE: "done",
+  ARCHIVED: "archive",
+};
+
+/**
+ * Пилюля статуса. Цвет — второй канал: рядом всегда слово (раздел 7
+ * дизайн-системы). Но шесть разных состояний обязаны иметь шесть разных
+ * видов: одинаковый вид у двух статусов сообщает о равенстве, которого нет.
  */
 export const STATUS_PILL: Record<ProjectStatus, string> = {
-  NEW: "pill",
-  IN_PROGRESS: "pill pill--ok",
-  PAUSED: "pill pill--warn",
-  WAITING_CLIENT: "pill pill--warn",
-  DONE: "pill pill--ok",
-  ARCHIVED: "pill",
+  NEW: "pill pill--status-new",
+  IN_PROGRESS: "pill pill--status-work",
+  WAITING_CLIENT: "pill pill--status-wait",
+  PAUSED: "pill pill--status-pause",
+  DONE: "pill pill--status-done",
+  ARCHIVED: "pill pill--status-archive",
 };
 
 /** Порядок статусов в переключателе и сводке: от начала жизни объекта к её концу. */

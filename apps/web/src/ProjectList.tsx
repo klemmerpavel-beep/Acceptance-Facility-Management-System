@@ -62,6 +62,7 @@ export function ProjectList({
   onFilter,
   onOpen,
   onAdd,
+  onStatus,
 }: {
   projects: ProjectSummary[];
   today: string;
@@ -69,6 +70,8 @@ export function ProjectList({
   onFilter: (status: ProjectStatus | null) => void;
   onOpen: (project: ProjectSummary) => void;
   onAdd: () => void;
+  /** Смена статуса прямо из реестра. Нет обработчика — нет и органа. */
+  onStatus?: (project: ProjectSummary) => void;
 }): React.JSX.Element {
   // Подписка объявляется до раннего возврата: порядок вызова хуков не
   // должен зависеть от того, пуст список или нет.
@@ -167,7 +170,7 @@ export function ProjectList({
       ) : (
         <DataTable
           rows={shown}
-          columns={projectColumns(today, onOpen, shown)}
+          columns={projectColumns(today, onOpen, shown, onStatus)}
           rowKey={(project) => project.id}
           // Ни заголовка, ни счётчика: раздел назван обложкой, число
           // показанных строк — подвалом таблицы, число по статусам —

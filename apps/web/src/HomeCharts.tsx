@@ -15,23 +15,28 @@ import { STATUS_LABEL, plural } from "./status.js";
  * а правило продукта требует отдельного решения на каждую новую.
  */
 
-/** Ступень шкалы жизни объекта. Порядок тот же, что в `STATUS_ORDER` домена. */
+/**
+ * Вид сегмента и метки берётся из ключа статуса — того же, которым
+ * окрашена пилюля этого статуса в реестре и на карточке. Отдельного
+ * набора цветов у графика нет намеренно: два набора на одни статусы и
+ * были находкой Б-2 аудита.
+ */
 const STAGE_TONE: Record<ProjectStatus, string> = {
-  NEW: "statusbar__part statusbar__part--1",
-  IN_PROGRESS: "statusbar__part statusbar__part--2",
-  WAITING_CLIENT: "statusbar__part statusbar__part--3",
-  PAUSED: "statusbar__part statusbar__part--4",
-  DONE: "statusbar__part statusbar__part--5",
-  ARCHIVED: "statusbar__part statusbar__part--6",
+  NEW: "statusbar__part statusbar__part--new",
+  IN_PROGRESS: "statusbar__part statusbar__part--work",
+  WAITING_CLIENT: "statusbar__part statusbar__part--wait",
+  PAUSED: "statusbar__part statusbar__part--pause",
+  DONE: "statusbar__part statusbar__part--done",
+  ARCHIVED: "statusbar__part statusbar__part--archive",
 };
 
 const MARK_TONE: Record<ProjectStatus, string> = {
-  NEW: "statusbar__mark statusbar__mark--1",
-  IN_PROGRESS: "statusbar__mark statusbar__mark--2",
-  WAITING_CLIENT: "statusbar__mark statusbar__mark--3",
-  PAUSED: "statusbar__mark statusbar__mark--4",
-  DONE: "statusbar__mark statusbar__mark--5",
-  ARCHIVED: "statusbar__mark statusbar__mark--6",
+  NEW: "statusbar__mark statusbar__mark--new",
+  IN_PROGRESS: "statusbar__mark statusbar__mark--work",
+  WAITING_CLIENT: "statusbar__mark statusbar__mark--wait",
+  PAUSED: "statusbar__mark statusbar__mark--pause",
+  DONE: "statusbar__mark statusbar__mark--done",
+  ARCHIVED: "statusbar__mark statusbar__mark--archive",
 };
 
 /** Доля в сотых процента → ширина в процентах строкой: 4444 → «44.44%». */
@@ -175,7 +180,18 @@ export function ReadinessChart({
                     />
                   )}
                 </span>
-                <span className="readiness__value num t-sm">{formatPercent(BigInt(заявлено))}</span>
+                {/* Два числа столбцом, а не одно: принятое стояло только в
+                    подсказке, и график читался как одноцветный — принято на
+                    стенде близко к нулю, и второй заливки на дорожке почти
+                    не видно (аудит З-3). Прочерк вместо нуля там, где
+                    приёмки нет вовсе: ноль означал бы «принято ничего», а
+                    это иное утверждение. */}
+                <span className="readiness__pair">
+                  <span className="readiness__value num t-sm">{formatPercent(BigInt(заявлено))}</span>
+                  <span className="readiness__fact-value num t-sm">
+                    {row.fact === null ? "—" : formatPercent(BigInt(принято))}
+                  </span>
+                </span>
               </button>
             </li>
           );

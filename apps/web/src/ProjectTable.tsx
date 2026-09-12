@@ -1,7 +1,8 @@
 import type { ProjectSummary } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
-import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
+import { STATUS_LABEL, STATUS_PILL, formatDate } from "./status.js";
+import { due } from "./due.js";
 
 /**
  * Объекты таблицей — один набор колонок на главную и на раздел «Проекты».
@@ -14,20 +15,21 @@ import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
-/** Срок объекта в человеческом виде: просрочка называется просрочкой. */
+/**
+ * Срок объекта в человеческом виде: дата и словами, сколько до неё.
+ *
+ * Ступень и слова берутся из общей шкалы срочности (`due.ts`), а не
+ * считаются здесь второй формулой: до 12.09.2026 реестр звал срок «34 дня»,
+ * первый экран — «через 34 дня», а карточка — «Осталось 34 дня», и три
+ * места расходились в словах, порогах и цвете (аудит Б-4).
+ */
 export function deadlineCell(deadline: string | null, today: string): React.JSX.Element {
-  if (deadline === null) return <span className="t-muted">не задан</span>;
-  const days = Math.round(
-    (Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
-  );
+  const срок = due(deadline, today);
+  if (deadline === null) return <span className="t-muted">{срок.words}</span>;
   return (
-    <span className={days < 0 ? "num--danger" : undefined}>
+    <span className={срок.level === "overdue" ? "num--danger" : undefined}>
       {formatDate(deadline)}
-      <span className="t-sm t-muted">
-        {days < 0
-          ? ` · просрочен на ${Math.abs(days)} ${plural(days, "день", "дня", "дней")}`
-          : ` · ${days} ${plural(days, "день", "дня", "дней")}`}
-      </span>
+      <span className="t-sm t-muted"> · {срок.words}</span>
     </span>
   );
 }
@@ -78,6 +80,12 @@ export function projectColumns(
   today: string,
   onOpen: (project: ProjectSummary) => void,
   shown: readonly ProjectSummary[],
+  /* Смена статуса прямо из реестра. Обработчик необязателен тем же приёмом,
+     что правка позиции в смете: есть — пилюля становится органом, нет —
+     колонка ровно та же, что была. Без него путь к смене статуса шёл через
+     карточку и стоил на нажатие больше, чем позволяет правило «три касания
+     до действия» с запасом (07_IA, правило 3). */
+  onStatus?: (project: ProjectSummary) => void,
 ): readonly Column<ProjectSummary>[] {
   /* Колонка, пустая во всей выборке, места не занимает: «Прораб» стоял
      прочерком в шести строках из восьми, «Итог сметы» — «сметы нет» в семи
@@ -117,10 +125,21 @@ export function projectColumns(
     {
       key: "status",
       label: "Статус",
+      /* Сортируется подпись, а не орган: с обработчиком и без него колонка
+         сортируется одинаково. */
       value: (project) => STATUS_LABEL[project.status],
-      render: (project) => (
+      render: (project) => (onStatus === undefined ? (
         <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-      ),
+      ) : (
+        <button
+          type="button"
+          className="pillbutton"
+          aria-label={`Статус объекта ${project.code}: ${STATUS_LABEL[project.status]}. Изменить`}
+          onClick={() => { onStatus(project); }}
+        >
+          <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
+        </button>
+      )),
     },
     /* Две величины двумя колонками, а не одной «готовностью»: их складывает
        разный источник — первую человек, вторую приёмка, — и одна колонка на

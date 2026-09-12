@@ -25,6 +25,10 @@ main.container { padding-block-end: var(--page-end); }
 .stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-4)); }
 .stack--tight { --stack-gap: var(--space-2); }
 .stack--loose { --stack-gap: var(--space-5); }
+/* Шаг между смысловыми группами страницы. Вдвое больше шага внутри группы:
+   ритм 24 / 48 читается как «это вместе, а это отдельно» без единой рамки и
+   без нового заголовка. Ступень из шкалы, нового значения не заводится. */
+.stack--groups { --stack-gap: var(--space-7); }
 
 .row { display: flex; align-items: center; gap: var(--row-gap, var(--space-3)); }
 .row--between { justify-content: space-between; }
@@ -62,5 +66,32 @@ main.container { padding-block-end: var(--page-end); }
   .project-layout {
     grid-template-columns: var(--summary-col) minmax(0, 1fr);
     align-items: start;
+  }
+
+  /* Сводка идёт рядом с содержимым вкладки, а не кончается на трети экрана.
+     `align-items: start` не растягивает колонку по высоте ряда, и под
+     сводкой оставалось пустое поле в половину экрана на любой длинной
+     вкладке — смете, графике, приёмке (аудит Г-2).
+
+     Липкость объявлена только здесь: ниже 1024 px колонка уезжает наверх,
+     и прилипшая сводка отняла бы у прораба весь экран.
+
+     Отступ сверху — ступень шкалы, а не высота шапки: шапка продукта не
+     липкая (`.appbar` не объявляет `position` вовсе) и уезжает вместе с
+     документом. Вычитание её высоты держало бы над сводкой 72 px пустоты
+     всю дорогу.
+
+     Предел высоты обязателен. Сводка действующего объекта — около 710 px:
+     три числа, строка статуса, плашка срока со шкалой и шесть строк
+     сведений. На экране 1366×768 рабочая область ниже, и без предела
+     нижние строки сводки стали бы недостижимы навсегда — прокрутка
+     документа их уже не покажет. */
+  .project-layout > aside {
+    position: sticky;
+    inset-block-start: var(--space-5);
+    align-self: start;
+    max-block-size: calc(100dvh - var(--space-5) * 2);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }

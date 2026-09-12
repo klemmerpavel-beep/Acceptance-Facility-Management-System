@@ -1,3 +1,4 @@
+import { sectionTitle } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type {
   AcceptanceLine, AcceptanceView, Role,
@@ -156,7 +157,7 @@ export function Acceptance({
             className={section.stage === null ? "accept__section accept__section--idle" : "accept__section"}
             onClick={() => { setCurrent(section.id); setPicked([]); }}
           >
-            <span>{section.name}</span>
+            <span>{sectionTitle(section.name)}</span>
             <span className="num t-sm">
               {section.positions.filter((position) => BigInt(position.accepted) > 0n).length}
               {" / "}
@@ -170,7 +171,7 @@ export function Acceptance({
         <div className="accept__list">
           {selected.stage === null && (
             <p className="field__error" role="alert">
-              У раздела «{selected.name}» нет этапа графика с бригадой. Свяжите раздел с этапом
+              У раздела «{sectionTitle(selected.name)}» нет этапа графика с бригадой. Свяжите раздел с этапом
               на вкладке «Работа»: начисление адресуется бригаде этапа.
             </p>
           )}
@@ -287,7 +288,7 @@ export function Acceptance({
               )}
               <div>
                 <p className="t-sm">
-                  {batch.sectionName} · {batch.brigade.name} · {день(batch.createdAt)}
+                  {sectionTitle(batch.sectionName)} · {batch.brigade.name} · {день(batch.createdAt)}
                   {batch.author === null ? "" : ` · ${batch.author}`}
                 </p>
                 {batch.comment !== null && <p className="t-sm t-secondary">{batch.comment}</p>}

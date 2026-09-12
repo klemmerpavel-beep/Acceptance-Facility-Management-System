@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CreateWorkStage, WorkerRow, WorkStage } from "@priyomka/contracts";
-import { stageDateFault, type ProjectRange, type SectionChoice } from "@priyomka/domain";
+import { sectionTitle, stageDateFault, type ProjectRange, type SectionChoice } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
 import { STAGE_NAMES } from "./stageNames.js";
@@ -203,7 +203,7 @@ export function StageSheet({
                        пустое поле: набранное человеком не переписывается. */
                     const раздел = sections.find((row) => row.id === выбран);
                     if (раздел !== undefined && name.trim() === "") {
-                      setName(раздел.name.slice(0, 60));
+                      setName(sectionTitle(раздел.name).slice(0, 60));
                     }
                   }}
                 >
@@ -214,7 +214,7 @@ export function StageSheet({
                       value={раздел.id}
                       disabled={раздел.takenBy !== null}
                     >
-                      {раздел.name}
+                      {sectionTitle(раздел.name)}
                       {раздел.takenBy === null ? "" : ` — ведёт этап «${раздел.takenBy}»`}
                     </option>
                   ))}

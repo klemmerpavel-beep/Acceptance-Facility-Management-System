@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AcceptancePosition, AcceptanceSection } from "@priyomka/contracts";
-import { acceptanceFault, milliunits } from "@priyomka/domain";
+import { sectionTitle, acceptanceFault, milliunits } from "@priyomka/domain";
 import { formatMeasure } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
 
@@ -96,7 +96,7 @@ export function AcceptSheet({
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Подтверждение приёмки" ref={dialog}>
         <p className="t-h3">Принять {picked.length} поз.</p>
         <p className="t-sm t-secondary">
-          {section.name} · {section.stage?.brigade?.name ?? "бригада не назначена"}
+          {sectionTitle(section.name)} · {section.stage?.brigade?.name ?? "бригада не назначена"}
         </p>
 
         <form className="stack stack--tight" onSubmit={submit}>

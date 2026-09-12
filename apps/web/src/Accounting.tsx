@@ -153,9 +153,9 @@ export function Accounting({
                   onClick={() => { onOpenProject(row.projectCode); }}
                 >
                   <span className="code-badge">{row.projectCode}</span>
-                  <span className="money__address">{row.address}</span>
+                  <span className="money__address" title={row.address}>{row.address}</span>
                 </button>
-                <span className="money__client t-sm t-muted">{row.clientName}</span>
+                <span className="money__client t-sm t-muted" title={row.clientName}>{row.clientName}</span>
                 <span className="money__num num">№ {row.number}</span>
                 <span className="money__sum num">{formatKopecks(BigInt(row.amount))}</span>
                 <span className={ПИЛЮЛЯ(row).className}>{ПИЛЮЛЯ(row).label}</span>
@@ -190,7 +190,7 @@ export function Accounting({
           <ul className="money money--clients">
             {view.clients.map((client) => (
               <li className="money__row money__row--client" key={client.clientId}>
-                <span className="money__address">{client.name}</span>
+                <span className="money__address" title={client.name}>{client.name}</span>
                 <span className="money__when t-sm t-muted">ждёт оплаты</span>
                 <span className="money__sum num">
                   {formatKopecks(BigInt(client.awaiting))}

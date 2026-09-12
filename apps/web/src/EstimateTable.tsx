@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { sectionTitle } from "@priyomka/domain";
+import { useMemo, useState } from "react";
 import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
 import { plural } from "./status.js";
@@ -40,7 +41,30 @@ export function EstimateTable({
 }): React.JSX.Element {
   const hasInternal = estimate.totals.wage !== undefined;
   const [projection, setProjection] = useState<Projection>(hasInternal ? "internal" : "client");
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  /**
+   * Опознаватели всех разделов сметы, включая вложенные.
+   *
+   * Нужны дважды: начальным состоянием свёрнутости и органом «Развернуть
+   * все». Считаются от самой сметы, поэтому смена редакции (новый импорт)
+   * пересчитывает их сама собой.
+   */
+  const всеРазделы = useMemo(() => {
+    const собрать = (узлы: readonly EstimateSectionNode[]): string[] =>
+      узлы.flatMap((узел) => [узел.id, ...собрать(узел.children)]);
+    return new Set(собрать(estimate.sections));
+  }, [estimate.sections]);
+
+  /**
+   * Свёрнутые разделы. По умолчанию свёрнуты все.
+   *
+   * Прежде множество было пустым, и вкладка открывалась полотном в 176
+   * строк и 9 627 px: 132 позиции и 44 строки заголовков с подытогами
+   * (аудит Г-5). Свёрнутый вид — не «ничего», а ведомость по разделам:
+   * имя и сумма, 22 строки, и каждая строка — вход в свою подробность.
+   * Это и есть прогрессивное раскрытие: сведение сразу, подробность по
+   * запросу. Решение заказчика от 12.09.2026.
+   */
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(всеРазделы);
 
   const showInternal = hasInternal && projection === "internal";
   const editable = onEditItem !== undefined;
@@ -73,14 +97,12 @@ export function EstimateTable({
                 <use href="#i-chevron" />
               </svg>
               <span className="estimate__row-name" style={{ ["--level" as string]: node.level - 1 }}>
-                {node.name}
+                {sectionTitle(node.name)}
               </span>
             </button>
           </td>
         </tr>
       );
-      if (isCollapsed) return [header];
-
       const items = node.items.map((item) => (
         <tr key={item.id}>
           <td className="estimate__num">{item.order}</td>
@@ -132,6 +154,11 @@ export function EstimateTable({
         </tr>
       );
 
+      /* Свёрнутый раздел несёт свою сумму. Прежде возвращался один
+         заголовок, и вместе с позициями пропадал подытог — сворачивание
+         уничтожало сведение вместо того, чтобы скрыть подробность. */
+      if (isCollapsed) return [header, subtotal];
+
       return [header, ...items, ...rows(node.children), subtotal];
     });
 
@@ -148,6 +175,21 @@ export function EstimateTable({
             <span className="pill pill--danger">
               Расхождение {money(estimate.worksTotalDelta)}
             </span>
+          )}
+          {/* Один орган с двумя состояниями, а не два рядом: «свернуть» и
+              «развернуть» взаимоисключающи, и показывать оба значит
+              предлагать выбор там, где его нет. Подпись называет то, что
+              произойдёт, а не то, что сейчас. */}
+          {всеРазделы.size > 0 && (
+            <button
+              type="button"
+              className="btn btn--text"
+              onClick={() => {
+                setCollapsed((current) => (current.size === 0 ? всеРазделы : new Set()));
+              }}
+            >
+              {collapsed.size === 0 ? "Свернуть все" : "Развернуть все"}
+            </button>
           )}
         </div>
         {hasInternal && (

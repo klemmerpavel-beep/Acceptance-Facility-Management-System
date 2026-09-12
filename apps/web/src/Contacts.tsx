@@ -3,19 +3,23 @@ import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { errorMessage, fetchClients, fetchWorkers } from "./api.js";
 import { DataTable, type Column } from "./DataTable.js";
+import { tabArrowHandler } from "./tabs.js";
 import { NewContactSheet } from "./NewContactSheet.js";
 
 /**
- * Контакты — заказчики и работники в одном справочнике.
+ * Контрагенты — заказчики и бригады двумя вкладками одного справочника.
  *
- * Прежде это были два разных места: «Контрагенты» с таблицей заказчиков и
- * обещанная строкой «Персонал». Разделение шло от учётной системы, а не от
- * человека: руководитель ищет «телефон Фархата» и «кто заказчик на
- * Никитинской» одним движением и в одном списке.
+ * Прежде оба вида стояли в одной таблице, а различала их колонка «Тип».
+ * Цена этого решения видна в самих данных: у заказчика всегда пусто
+ * «Начислено», у бригады — «Код» и «Итог смет». Треть таблицы была
+ * гарантированными прочерками, и заголовок врал половине строк (аудит Г-6).
+ * Вкладка называет вид, и колонки в ней — только те, что этот вид имеет.
  *
- * Различает записи колонка «Тип», а не раздел. Она же сортируется, так что
- * список сводится к одним заказчикам или одним бригадам одним нажатием на
- * заголовок — без фильтра, который пришлось бы объяснять.
+ * Решение заказчика от 12.09.2026. Названная цена — сквозной поиск сразу по
+ * обоим спискам: поиск работает внутри вкладки. Принято сознательно.
+ *
+ * Полоса вкладок — тот же шаблон, что в карточке объекта и настройках
+ * (`tabs.ts`): стрелки переводят выбор, Tab уводит в содержимое.
  */
 
 type Contact =
@@ -51,35 +55,18 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
   })),
 ];
 
-const COLUMNS: readonly Column<Contact>[] = [
-  {
-    key: "name",
-    label: "Контакт",
-    value: (row) => row.name,
-    render: (row) => row.name,
-  },
-  {
-    key: "kind",
-    label: "Тип",
-    value: (row) => (row.kind === "client" ? "Заказчик" : "Бригада"),
-    /* Обе пилюли нейтральные. Зелёный в системе означает «принято», и
-       окрасить им вид контакта значило бы занять сигнальный цвет под
-       категорию: после этого зелёная пилюля перестаёт что-либо значить.
-       Различает виды слово, а не цвет. */
-    render: (row) => <span className="pill">{row.kind === "client" ? "Заказчик" : "Бригада"}</span>,
-  },
+/** Заказчик: код, имя, реквизиты, объекты, итог смет. Начисления ему не идут. */
+const CLIENT_COLUMNS: readonly Column<Contact>[] = [
   {
     key: "code",
     label: "Код",
     value: (row) => row.code,
-    render: (row) => (row.code === null ? <span className="t-muted">—</span> : <span className="code-badge">{row.code}</span>),
+    render: (row) => (row.code === null
+      ? <span className="t-muted">—</span>
+      : <span className="code-badge">{row.code}</span>),
   },
-  {
-    key: "note",
-    label: "Сведения",
-    value: (row) => row.note,
-    render: (row) => row.note,
-  },
+  { key: "name", label: "Заказчик", value: (row) => row.name, render: (row) => row.name },
+  { key: "note", label: "Реквизиты", value: (row) => row.note, render: (row) => row.note },
   {
     key: "projects",
     label: "Объектов",
@@ -94,10 +81,22 @@ const COLUMNS: readonly Column<Contact>[] = [
     render: (row) => (row.total === null ? <span className="t-muted">—</span> : <>{money(row.total)}</>),
     numeric: true,
   },
-  /* Начисленное стоит своей колонкой, а не делит колонку с итогом смет.
-     Итог сметы и начисление бригаде — разные величины; в одной колонке их
-     сортировка сравнивала бы несравнимое, а заголовок врал бы половине
-     строк. Пустая клетка честнее общего имени. */
+];
+
+/** Бригада: имя, вид расчётной единицы, объекты, начислено. Кода и смет у неё нет. */
+const WORKER_COLUMNS: readonly Column<Contact>[] = [
+  { key: "name", label: "Бригада", value: (row) => row.name, render: (row) => row.name },
+  /* Вид расчётной единицы — бригада или мастер. Прежде он уходил в
+     «Сведения», а колонка «Тип» печатала «Бригада» и мастеру тоже: подпись
+     противоречила данным в соседней клетке. */
+  { key: "note", label: "Вид", value: (row) => row.note, render: (row) => row.note },
+  {
+    key: "projects",
+    label: "Объектов",
+    value: (row) => row.projects,
+    render: (row) => (row.projects === null ? <span className="t-muted">—</span> : <>{row.projects}</>),
+    numeric: true,
+  },
   {
     key: "wage",
     label: "Начислено",
@@ -107,11 +106,25 @@ const COLUMNS: readonly Column<Contact>[] = [
   },
 ];
 
+const ВКЛАДКИ = [
+  { key: "clients", label: "Заказчики" },
+  { key: "workers", label: "Бригады" },
+] as const;
+
+type Вкладка = (typeof ВКЛАДКИ)[number]["key"];
+
 export function Contacts(): React.JSX.Element {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [workers, setWorkers] = useState<WorkerRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [вкладка, setВкладка] = useState<Вкладка>("clients");
+  const поКлавише = tabArrowHandler(
+    ВКЛАДКИ.map((item) => item.key),
+    вкладка,
+    setВкладка,
+    (key) => `tab-${key}`,
+  );
   /** Что именно только что добавлено. Подтверждение действия — словами. */
   const [added, setAdded] = useState<string | null>(null);
 
@@ -142,6 +155,8 @@ export function Contacts(): React.JSX.Element {
   }
 
   const rows = toContacts(clients, workers);
+  const строки = rows.filter((row) => (вкладка === "clients" ? row.kind === "client" : row.kind === "worker"));
+  const колонки = вкладка === "clients" ? CLIENT_COLUMNS : WORKER_COLUMNS;
 
   return (
     <main className="container stack stack--loose">
@@ -159,24 +174,48 @@ export function Contacts(): React.JSX.Element {
         </p>
       )}
 
-      {rows.length === 0 ? (
-        <div className="empty">
-          <p className="empty__title">Справочник пуст</p>
-          <p className="empty__text">
-            Заказчик нужен, чтобы завести объект; бригада — чтобы начислить за принятую работу.
-            Начните с заказчика.
-          </p>
-        </div>
-      ) : (
-        <DataTable
-          rows={rows}
-          columns={COLUMNS}
-          rowKey={(row) => row.id}
-          searchLabel="Поиск по имени, коду и сведениям"
-          emptyTitle="Контактов нет"
-          emptyText="Заведите заказчика или бригаду."
-        />
-      )}
+      <div className="tabs" role="tablist" onKeyDown={поКлавише}>
+        {ВКЛАДКИ.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            id={`tab-${item.key}`}
+            className="tabs__item"
+            aria-selected={вкладка === item.key}
+            aria-controls={`panel-${item.key}`}
+            tabIndex={вкладка === item.key ? 0 : -1}
+            onClick={() => { setВкладка(item.key); }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel" id={`panel-${вкладка}`} aria-labelledby={`tab-${вкладка}`}>
+        {rows.length === 0 ? (
+          <div className="empty">
+            <p className="empty__title">Справочник пуст</p>
+            <p className="empty__text">
+              Заказчик нужен, чтобы завести объект; бригада — чтобы начислить за принятую работу.
+              Начните с заказчика.
+            </p>
+          </div>
+        ) : (
+          <DataTable
+            rows={строки}
+            columns={колонки}
+            rowKey={(row) => row.id}
+            searchLabel={вкладка === "clients"
+              ? "Поиск по имени, коду и реквизитам"
+              : "Поиск по имени бригады"}
+            emptyTitle={вкладка === "clients" ? "Заказчиков нет" : "Бригад нет"}
+            emptyText={вкладка === "clients"
+              ? "Заказчик нужен, чтобы завести объект."
+              : "Бригада нужна, чтобы начислить за принятую работу."}
+          />
+        )}
+      </div>
 
       {adding && (
         <NewContactSheet
@@ -186,6 +225,10 @@ export function Contacts(): React.JSX.Element {
             setWorkers(next.workers);
             setAdded(next.name);
             setAdding(false);
+            /* Справочник открывается на той вкладке, куда попала запись:
+               обещание «запись стоит в списке ниже» иначе не держится —
+               заведённая бригада легла бы в скрытую вкладку. */
+            setВкладка(next.kind === "client" ? "clients" : "workers");
           }}
         />
       )}

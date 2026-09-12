@@ -1,3 +1,4 @@
+import { sectionTitle } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type { PhotoReport } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
@@ -94,7 +95,7 @@ export function Report({ code }: { code: string }): React.JSX.Element {
             aria-pressed={section === раздел.name}
             onClick={() => { setSection(раздел.name); }}
           >
-            <span className="segmented__label">{раздел.name}</span>
+            <span className="segmented__label">{sectionTitle(раздел.name)}</span>
             <span className="num t-sm">{раздел.photos}</span>
           </button>
         ))}
@@ -126,7 +127,7 @@ export function Report({ code }: { code: string }): React.JSX.Element {
                 )}
                 <figcaption className="stack stack--tight">
                   <p className="t-sm">
-                    {пакет.sectionName} · {пакет.brigade}
+                    {sectionTitle(пакет.sectionName)} · {пакет.brigade}
                     {пакет.author === null ? "" : ` · принял ${пакет.author}`}
                   </p>
                   {/* Отменённая приёмка не прячется — история не

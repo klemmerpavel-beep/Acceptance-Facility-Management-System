@@ -27,6 +27,8 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
   const [current, setCurrent] = useState<LeadStage>("FIRST_CONTACT");
   const [opened, setOpened] = useState<LeadCard | null>(null);
   const [adding, setAdding] = useState(false);
+  /** Что именно только что заведено. Подтверждение действия — сама запись. */
+  const [заведена, setЗаведена] = useState<string | null>(null);
   const mobile = useMediaQuery(MOBILE);
 
   const load = useCallback(() => {
@@ -81,6 +83,12 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
           <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
         </label>
       </div>
+
+      {заведена !== null && (
+        <p className="t-sm" role="status">
+          Заведена заявка {заведена}. Карточка стоит в первой стадии воронки.
+        </p>
+      )}
 
       {mobile ? (
         <>
@@ -137,7 +145,17 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
       {adding && (
         <NewLeadSheet
           onClose={() => { setAdding(false); }}
-          onCreated={(lead) => { setAdding(false); после(lead); }}
+          /* Заведённая заявка встаёт на доску, а не открывает второй лист.
+             Прежде `onCreated` вызывал `после`, и тот ставил заявку
+             открытой: пользователь, заведя карточку, оказывался в её листе
+             и тратил третье нажатие на выход. Подтверждением служит сама
+             запись на доске и строка с номером — тем же приёмом, что в
+             справочнике контрагентов (аудит, сокращение шагов). */
+          onCreated={(lead) => {
+            setAdding(false);
+            setЗаведена(`№ ${String(lead.number)} · ${lead.name}`);
+            load();
+          }}
         />
       )}
       {opened !== null && (
