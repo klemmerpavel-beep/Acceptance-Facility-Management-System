@@ -1,5 +1,5 @@
 import type { ProjectStatus } from "@priyomka/contracts";
-import { STATUS_LABEL, STATUS_ORDER } from "./status.js";
+import { STATUS_LABEL, STATUS_ORDER, STATUS_PILL } from "./status.js";
 import { useModalDialog } from "./modal.js";
 
 /**
@@ -38,7 +38,7 @@ export function StatusSheet({
               disabled={busy}
               onClick={() => onChoose(status)}
             >
-              {STATUS_LABEL[status]}
+              <span className={STATUS_PILL[status]}>{STATUS_LABEL[status]}</span>
             </button>
           ))}
         </div>

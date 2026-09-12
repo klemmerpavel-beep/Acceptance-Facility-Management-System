@@ -538,12 +538,11 @@ export function Dashboard({
       </div>
 
       <section className="stack">
+        {/* Кнопка заведения объекта поднята в обложку раздела: здесь она
+            лежала на втором-третьем экране прокрутки, за портфелем, воронкой
+            и графиками. Заголовок остаётся — он называет таблицу. */}
         <div className="section-head">
           <h2 className="t-h2">Объекты</h2>
-          <button type="button" className="btn btn--primary" onClick={onAdd}>
-            <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-            Добавить объект
-          </button>
         </div>
         <ProjectTable
           projects={projects}

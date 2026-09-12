@@ -27,6 +27,11 @@
 
 .btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
 .btn--secondary:hover:not([disabled]) { background: var(--surface-2); }
+/* Нажатое состояние второстепенной кнопки было объявлено только в разметке:
+   aria-pressed стоял, а вида у него не было. В листе выбора статуса это
+   означало, что текущий статус объекта ничем не отличается от пяти прочих —
+   человек выбирал вслепую из шести одинаковых прямоугольников. */
+.btn--secondary[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 
 .btn--text      { background: transparent; color: var(--accent); padding: 0 var(--space-2); }
 .btn--text:hover:not([disabled]) { background: var(--accent-soft); }
@@ -112,6 +117,10 @@
   display: inline-flex; align-items: center;
   min-block-size: var(--tap-min); padding: 0;
   background: none; border: 0; cursor: pointer;
+  /* Цель нажатия не равна высоте строки: 44 px держатся отрицательным полем
+     и строку не растягивают. Ниже 1023 px строка сама равна 48 px, поле
+     обращается в ноль, и вычитать нечего. */
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
 }
 .pillbutton:hover .pill { box-shadow: inset 0 0 0 1px var(--line-strong); }
 
@@ -318,6 +327,14 @@
 .appbar__brand { display: inline-flex; align-items: center; gap: var(--space-2); flex: none;
   font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
 .appbar__mark { inline-size: 24px; block-size: 24px; }
+/* Лока́п в две строки, а не в одну. Однострочное «Приёмка · DOLGIY STUDIO»
+   занимает около 210 px и отнимает ширину у капсулы разделов, которая между
+   768 и 1024 px уже прокручивается; две строки вместе со знаком — около
+   122 px. Продукт называется основной строкой, студия — подписью. */
+.appbar__lockup { display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.appbar__product { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
+.appbar__org { font-size: var(--fs-cap); font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; opacity: .78; }
 .appbar__title { margin-inline: auto; font-size: var(--fs-sm); }
 /* Пилюли прокручиваются вбок, а не выталкивают страницу: между 768 и
    1024 px пять подписей и блок пользователя в строку не помещаются.
@@ -405,7 +422,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   transition: background-color var(--dur-fast) var(--ease);
 }
 .objectrow:first-child { border-block-start: 1px solid var(--line); }
-.objectrow:hover { background: var(--surface-2); }
+/* Отклик на наведение один на продукт. Подложка --surface-2 занята
+   чередованием строк реестра и заголовками разделов сметы: на чётной строке
+   и на заголовке раздела отклик ею неотличим от покоя. Список, отвечающий
+   своим цветом, сообщает о себе как о другом роде списка, каким не является. */
+.objectrow:hover { background: var(--accent-soft); }
 .objectrow__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .objectrow__address { color: var(--accent); }
 .objectrow__foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
@@ -481,6 +502,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .cover__crumbs > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .cover__crumbs a { color: inherit; text-decoration: none; }
 /* Рабочее полотно отделено от обложки отступом. */
+/* Заголовок и первичное действие одной строкой: действие принадлежит
+   разделу, а не его первой таблице, и стоит там, где начинается чтение.
+   На узком экране строка переносится, и кнопка встаёт под заголовком. */
+.cover__head { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4); flex-wrap: wrap; }
 .cover + main { padding-block-start: var(--space-5); }
 
 /* Табы внутри карточки объекта: плотная навигация без ухода со страницы. */
@@ -504,7 +530,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   white-space: nowrap;
 }
 .estimate td { height: var(--row-h); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
-.estimate tbody tr:hover td { background: var(--surface-2); }
+.estimate tbody tr:hover td { background: var(--accent-soft); }
 
 .estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -543,6 +569,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    резервировать под неё долю таблицы значило бы отнять её у наименования —
    самой длинной колонки сметы. Появляется только у роли, которая правит. */
 .estimate__act { inline-size: 1%; white-space: nowrap; text-align: end; }
+/* Кнопка правки держит свою высоту органа и растягивала строку сметы до
+   45 px при объявленных 40. Тот же приём, что у пилюли-кнопки реестра. */
+.estimate__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
 
 /* Строка подстановки величин обмера в листе правки позиции. */
 .estimate__from-measure {
@@ -576,6 +605,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Обёртка прокрутки: широкая таблица прокручивается внутри контейнера,
    полотно страницы по горизонтали не двигается. */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Окно с собственной прокруткой — модификатором, а не правкой .table-scroll:
+   обёртка общая с реестром объектов, списком и справочником, у которых своя
+   постраничная разбивка, и предел высоты там породил бы вторую прокрутку без
+   нужды. Смета же идёт одной ведомостью на сотню строк, и её шапка обязана
+   оставаться на виду — иначе колонка числа опознаётся пересчётом столбцов. */
+.table-scroll--view { max-block-size: var(--table-view); overflow: auto; }
 
 /* --- 5.5 Экран приёмки (мобильный) --------------------------------------- */
 .accept-item {
@@ -943,6 +978,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .signin { min-block-size: 100vh; display: flex; flex-direction: column; }
 .signin__brand { display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-5) var(--space-6); color: var(--accent); }
+.signin__lockup { display: flex; flex-direction: column; line-height: 1.15; }
+.signin__org { font-size: var(--fs-cap); font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
 .signin__form { inline-size: 100%; max-inline-size: 420px; margin: auto;
   padding: 0 var(--space-4) calc(var(--space-7) * 2); }
 .signin__title { color: var(--accent); }
@@ -1006,7 +1044,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line-strong); text-align: start; white-space: nowrap; }
-.datatable__table td { padding: var(--space-3); border-bottom: 1px solid var(--line);
+/* Высота строки задаётся токеном, а не обивкой ячейки. При обивке высоту
+   назначал самый высокий орган внутри: реестр объектов давал 69 px там, где
+   статус меняют пилюлей-кнопкой, и 48 там, где не меняют, — одна таблица в
+   двух плотностях. Норму области нажатия держат отрицательные поля у самих
+   органов (см. .pillbutton ниже), тем же приёмом, что в графике и в шапке
+   реестра. */
+.datatable__table td { height: var(--row-h); padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
   font-size: var(--fs-sm); vertical-align: middle; }
 /* Чередование: на семи колонках глаз теряет строку между кодом и итогом. */
 .datatable__table tbody tr:nth-child(even) { background: var(--surface-2); }
@@ -1017,6 +1062,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    теряли до чередования. */
 .datatable__table tbody td { transition: background-color var(--dur-fast) var(--ease); }
 .datatable__table tbody tr:hover td { background: var(--accent-soft); }
+/* Ссылка открытия объекта — основная цель строки реестра, и целью она обязана
+   быть по всей высоте строки, а не по высоте строчных букв: 15 px мышью берут
+   не с первого раза, а пальцем не берут вовсе. Поле отрицательное — строка от
+   цели не растёт, тем же приёмом, что у пилюли-кнопки и кнопки правки сметы.
+   Дефект был и до уплотнения строки: высокая строка цели не делала, она лишь
+   давала промаху больше места. */
+.datatable__table td > a {
+  display: inline-flex; align-items: center;
+  min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+}
 .datatable__num { text-align: end; font-family: var(--font-mono);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
@@ -1390,16 +1446,36 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    управления, и в потоке между флажком и списком читался бы как третий
    орган. */
 .accept__filter .num { margin-inline-start: auto; }
-.accept__list { display: grid; gap: var(--space-2); }
+/* Список, а не лента карточек. Раздел из девяти позиций давал восемнадцать
+   обведённых прямоугольников — девять строк и девять кнопок отметки внутри
+   них, — и то единственное, ради чего экран открывают (что осталось принять),
+   в этой каше пропадало. Решение то же, что принято для ведомости денег
+   этажом ниже: одна поверхность списка, строки разделены линией.
+
+   Строка списка не несёт своего радиуса: --radius-lg принадлежит поднятой
+   поверхности, и строка с ним читалась картой. Единственная поднятая
+   поверхность вкладки — полоса подтверждения, и в этом смысл иерархии. */
+.accept__list {
+  display: grid; gap: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface);
+}
 .accept__row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
   align-items: center; gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line); border-radius: var(--radius-lg);
-  background: var(--surface);
-  transition: border-color var(--dur-fast) var(--ease);
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--line);
+  transition: background-color var(--dur-fast) var(--ease);
 }
-.accept__row--picked { border-color: var(--accent); }
+.accept__row:last-child { border-block-end: 0; }
+.accept__row:hover { background: var(--accent-soft); }
+/* Выбор выражен заливкой и полосой, а не сменой цвета рамки на один пиксель:
+   цвет в одиночку недоступен при дальтонизме и исчезает в печати, а рамка
+   толщиной в пиксель не видна через плечо на стройке. */
+.accept__row--picked {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
 .accept__name {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; font-size: var(--fs-body); color: var(--ink);
@@ -1408,13 +1484,21 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   margin-block-start: var(--space-1);
   font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-2);
 }
+/* Кнопка отметки без рамки в покое: рамка на каждой из девяти строк давала
+   вторую девятку обведённых прямоугольников. Размер 48×48 не трогается — это
+   зона касания прораба в перчатке, и она мерится отдельным правилом. Себя
+   кнопка обнаруживает откликом на наведение и фокус, а не рамкой в покое. */
 .accept__check {
   display: grid; place-items: center;
   inline-size: 48px; block-size: 48px; flex: none;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  border: 1px solid transparent; border-radius: var(--radius-md);
   background: none; color: var(--ink-3); cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
 }
+.accept__check:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line-strong); }
+.accept__check:focus-visible { border-color: var(--accent); }
 .accept__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .accept__check:disabled { cursor: not-allowed; opacity: .5; }
 /* Флажок — не отметка приёмки. Класс `.accept__check` принадлежит кнопке
@@ -1814,17 +1898,35 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    Ведомость, а не карточки: тридцать обведённых строк дают карточную кашу,
    в которой пропадает то единственное, ради чего экран открывают, —
    строка, требующая действия.                                            */
-.money { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+/* Дорожки объявлены один раз на списке: ведомость и свод обязаны стоять на
+   одних вертикалях, а два набора дорожек в двух правилах расходятся при первой
+   же правке одного из них.
+
+   Хвостовая дорожка объявлена шириной, а не auto. При auto она равнялась
+   ширине кнопки «Отметить оплату» там, где кнопка есть, и нулю там, где её
+   нет; разницу забирали гибкие дорожки, и строки с кнопкой стояли левее
+   соседних — в ведомости, которую открывают ровно затем, чтобы сравнить
+   суммы столбцом. */
+.money { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none;
+  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 9rem 11rem; }
 .money__row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 9rem auto;
+  grid-template-columns: var(--money-grid);
   align-items: center; gap: var(--space-3);
-  padding-block: var(--space-2); border-block-end: 1px solid var(--line);
+  /* Та же плотность, что у реестра: ведомость и реестр — один род списка, и
+     разная высота строки сообщала бы о разнице, которой нет. */
+  min-block-size: var(--row-h); padding-block: 0;
+  border-block-end: 1px solid var(--line);
 }
+/* Наведение: ведомость — рабочий список, по которому ведут мышью, и без
+   отклика строка теряется на семи колонках ровно так же, как терялась строка
+   реестра до чередования. Подложка та же, что у прочих списков. */
+.money__row:not(.money__row--client):hover { background: var(--accent-soft); }
 .money__row:last-child { border-block-end: 0; }
 .money__project {
   display: flex; align-items: center; gap: var(--space-2);
   min-block-size: var(--tap-min); min-inline-size: 0;
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
   padding: 0; text-align: start; cursor: pointer;
   background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
 }
@@ -1838,11 +1940,16 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .money__row .pill { justify-self: start; }
 .money__when { white-space: nowrap; }
 .money__act { display: flex; justify-content: flex-end; }
+.money__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
 
-/* Свод по заказчикам: те же вертикали, но без кода объекта и состояния —
-   у заказчика их нет. Колонки перечислены своим набором, а не подогнаны
-   пустыми ячейками: пустая ячейка в ведомости читается как потерянное
-   значение. */
-.money--clients .money__row--client {
-  grid-template-columns: minmax(0, 2fr) 7rem 9rem 7rem 9rem auto;
-}
+/* Свод по заказчикам стоит на дорожках ведомости, а не на своих: набор,
+   объявленный отдельно, обещал «те же вертикали» словом комментария и не
+   держал их делом — сумма свода стояла на 612 px против 764 px у ведомости.
+
+   Ячеек в своде шесть против семи у ведомости: кода объекта и состояния у
+   заказчика нет. Недостающая дорожка добирается подписью, а не пустой
+   ячейкой: пустая ячейка в ведомости читается как потерянное значение.
+   Раскладка по дорожкам после этого: 1 — заказчик, 2–3 — подпись «ждёт
+   оплаты», 4 — сумма ожидания (дорожка сумм ведомости), 5 — подпись
+   «получено», 6 — сумма полученного, 7 — метка просрочки (дорожка действия). */
+.money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }

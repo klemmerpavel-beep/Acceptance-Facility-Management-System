@@ -148,7 +148,22 @@ export function AcceptSheet({
           {отказ !== null && <p className="field__error" role="alert">{отказ}</p>}
           {error !== null && <p className="field__error" role="alert">{error}</p>}
 
-          <button type="submit" className="btn btn--primary btn--block" disabled={busy || !ready}>
+          {/* Отключённая кнопка обязана называть, чего ждёт. Прежде она просто
+              бледнела: человек видел половинную яркость и не знал, что
+              недостающее — снимок, а не заполненное поле и не право доступа.
+              Отказ по составу пакета уже назван выше своим сообщением и здесь
+              не повторяется. */}
+          {отказ === null && photo === null && (
+            <p className="field__hint" id="accept-why" role="status">
+              Кнопка ждёт снимок: пакет без фотографии свидетельством не является.
+            </p>
+          )}
+          <button
+            type="submit"
+            className="btn btn--primary btn--block"
+            disabled={busy || !ready}
+            {...(отказ === null && photo === null ? { "aria-describedby": "accept-why" } : {})}
+          >
             Подтвердить
           </button>
           <button type="button" className="btn btn--text btn--block" onClick={onClose}>
