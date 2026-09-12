@@ -1854,11 +1854,14 @@ if ((await page.locator(".appbar__brand .appbar__mark").count()) !== 1) {
  */
 await page.click(".appbar__more > summary");
 await page.waitForTimeout(200);
-const menu = (await page.locator(".appbar__menu-item").allTextContents()).map((s) => s.trim());
+/* Только список шапки. Тот же перечень стоит шестым пунктом таб-панели, и
+   на широком экране она скрыта правилом, но из разметки не изъята: селектор
+   по классу пункта собирал оба списка и объявлял состав удвоенным. */
+const menu = (await page.locator(".appbar__menu .appbar__menu-item").allTextContents()).map((s) => s.trim());
 if (menu.join("|") !== ["Настройки", "Что дальше", "Выйти"].join("|")) {
   note("навигация", `в списке «Ещё» «${menu.join(", ")}»`);
 }
-await page.click('.appbar__menu-item:has-text("Что дальше")');
+await page.click('.appbar__menu .appbar__menu-item:has-text("Что дальше")');
 await page.waitForTimeout(400);
 if ((await page.locator(".roadmap__item").count()) === 0) {
   note("навигация", "«Что дальше» из списка «Ещё» не открылся");
@@ -3298,6 +3301,78 @@ await overflow("контрагенты, 360");
 await усечение(page, "контрагенты, 360");
 const tabbar = await page.locator(".tabbar__item").count();
 if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
+
+/* Выход с телефона. Полоса разделов ниже 768 px скрыта целиком, а список
+   «Ещё» лежал внутри неё: «Выйти» и «Что дальше» не были достижимы ничем —
+   ни мышью, ни клавиатурой, — и это дефект работоспособности, а не только
+   доступности. Работает на телефоне прораб.
+
+   Проверяется путь целиком, а не наличие узла: узел, накрытый чужим слоем
+   или выехавший за край, «есть» и не нажимается. */
+{
+  const ещё = page.locator(".tabbar__more > summary");
+  if ((await ещё.count()) === 0) {
+    note("мобильная навигация", "в таб-панели нет пункта «Ещё»: выход недостижим");
+  } else {
+    await ещё.click();
+    await page.waitForTimeout(200);
+    for (const пункт of ["Настройки", "Что дальше", "Выйти"]) {
+      const орган = page.locator(`.tabbar__menu button:text-is("${пункт}")`);
+      if ((await орган.count()) === 0) {
+        note("мобильная навигация", `в списке «Ещё» нет пункта «${пункт}»`);
+        continue;
+      }
+      if (!(await орган.isVisible())) {
+        note("мобильная навигация", `пункт «${пункт}» есть в разметке, но не виден`);
+      }
+    }
+    /* Список берётся с клавиатуры: `<details>` даёт это браузером, и правило
+       стережёт именно то, что его оттуда не вынули подменой на `div`. */
+    const берётся = await page.evaluate(() => {
+      const узел = document.querySelector(".tabbar__more > summary");
+      if (узел === null) return false;
+      узел.focus();
+      return document.activeElement === узел;
+    });
+    if (!берётся) note("мобильная навигация", "пункт «Ещё» не берётся фокусом");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  }
+}
+
+/* Подписи таб-панели: замер без утверждения, и это решение, а не упущение.
+   Шестой пункт сузил колонку с 72 до 60 px, и до замера казалось, что самая
+   длинная подпись — «Бухгалтерия» — в неё не станет. Замер показал иное:
+   подписи умещаются, а разницу поглощает сама сетка — колонка длинной
+   подписи растёт за счёт соседних (64 px против 59 у прочих).
+
+   Правило «подпись не переносится» было написано и снято. Опрокинуть его не
+   удалось ни разрядкой, ни кеглем 13 px: колонка и там забирала место у
+   соседей, и перенос не наступал ни при каком реалистичном ухудшении.
+   Непадающая проверка не стережёт ничего, и держать её значило бы выдавать
+   зелёный цвет за гарантию. Горизонтальное переполнение полосы стережёт
+   `overflow`, размер цели — `цели`; замер ниже остаётся записью факта, по
+   которой видно, сколько места осталось. */
+{
+  const замеры = await page.evaluate(() => {
+    const out = [];
+    for (const пункт of document.querySelectorAll(".tabbar__item")) {
+      const подпись = [...пункт.childNodes]
+        .find((узел) => узел.nodeType === Node.TEXT_NODE && (узел.textContent ?? "").trim() !== "");
+      if (подпись === undefined) continue;
+      const отрезок = document.createRange();
+      отрезок.selectNodeContents(подпись);
+      out.push({
+        имя: (подпись.textContent ?? "").trim(),
+        текст: Math.round(отрезок.getBoundingClientRect().width),
+        колонка: Math.round(пункт.getBoundingClientRect().width),
+      });
+    }
+    return out;
+  });
+  console.log(`  таб-панель, 360 px: ${замеры.map((з) => `${з.имя} ${з.текст}/${з.колонка}`).join(", ")}`);
+}
+
 
 /**
  * Панель прибита к низу экрана и перекрывает конец страницы, если под неё

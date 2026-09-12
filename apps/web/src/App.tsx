@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { завести } from "./verbs.js";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
 import {
@@ -17,6 +17,7 @@ import { ProjectCard } from "./ProjectCard.js";
 import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
 import { Settings } from "./Settings.js";
 import { useModalDialog } from "./modal.js";
+import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
 
 type State =
   | { kind: "loading" }
@@ -42,12 +43,6 @@ export function App(): React.JSX.Element {
    *  два экрана не должны разойтись на границе суток. */
   const today = new Date().toISOString().slice(0, 10);
 
-  /* Список «Ещё» закрывается сам после выбора: раскрытый список поверх
-     нового экрана — забытое состояние, а не подсказка. */
-  const moreRef = useRef<HTMLDetailsElement>(null);
-  const closeMore = (): void => {
-    if (moreRef.current !== null) moreRef.current.open = false;
-  };
 
   const load = (): void => {
     void (async () => {
@@ -157,6 +152,14 @@ export function App(): React.JSX.Element {
    * Знак — свой, в языке набора значков. Знак и слово эталона не
    * воспроизводятся: это чужой товарный знак.
    */
+  /* Служебные экраны и выход — один перечень на шапку и на таб-панель.
+     Две копии разошлись бы на первой же правке состава. */
+  const ещё: readonly ПунктЕщё[] = [
+    { label: "Настройки", onSelect: () => { setOpened(null); setSection("settings"); } },
+    { label: "Что дальше", onSelect: () => { setOpened(null); setSection("roadmap"); } },
+    { label: "Выйти", onSelect: () => { void logout().then(load); } },
+  ];
+
   const header = (
     <header className="appbar">
       <span className="appbar__brand">
@@ -180,26 +183,18 @@ export function App(): React.JSX.Element {
             </a>
           ))}
         </div>
-        {/* «Ещё» — не раздел, а список служебных экранов. Собран на
-            <details>: раскрытие, закрытие по Esc и обход с клавиатуры
-            браузер берёт на себя, и своего состояния для этого не нужно. */}
-        <details className="appbar__more" ref={moreRef}>
-          <summary className="appbar__link">
-            Ещё
-            <svg className="icon icon--sm" aria-hidden="true"><use href="#i-chevron" /></svg>
-          </summary>
-          <div className="appbar__menu">
-            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); setOpened(null); setSection("settings"); }}>
-              Настройки
-            </button>
-            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); setOpened(null); setSection("roadmap"); }}>
-              Что дальше
-            </button>
-            <button type="button" className="appbar__menu-item" onClick={() => { closeMore(); void logout().then(load); }}>
-              Выйти
-            </button>
-          </div>
-        </details>
+        {/* «Ещё» — не раздел, а список служебных экранов. Тот же список
+            стоит шестым пунктом таб-панели: на телефоне полоса разделов
+            скрыта целиком, и без него из продукта не было выхода. */}
+        <MoreMenu
+          пункты={ещё}
+          className="appbar__more"
+          классКнопки="appbar__link"
+          классСписка="appbar__menu"
+        >
+          Ещё
+          <svg className="icon icon--sm" aria-hidden="true"><use href="#i-chevron" /></svg>
+        </MoreMenu>
       </nav>
       <button
         type="button"
@@ -236,6 +231,20 @@ export function App(): React.JSX.Element {
           {item.label}
         </a>
       ))}
+      {/* Шестой пункт. Стили таб-панели его уже ждали: колонки объявлены
+          `grid-auto-columns: 1fr` с оговоркой «пунктов столько, сколько их в
+          разметке», а сброс кнопочных значений подписан «пункт „Ещё“ —
+          кнопка, остальные ссылки». Не хватало самой разметки, и из-за этого
+          на телефоне не было выхода. */}
+      <MoreMenu
+        пункты={ещё}
+        className="tabbar__more"
+        классКнопки="tabbar__item"
+        классСписка="tabbar__menu"
+      >
+        <svg className="icon" aria-hidden="true"><use href="#i-chevron" /></svg>
+        Ещё
+      </MoreMenu>
     </nav>
   );
 

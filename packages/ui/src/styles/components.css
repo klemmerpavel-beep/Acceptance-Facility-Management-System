@@ -466,6 +466,19 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 .tabbar__item[aria-current="page"] { color: var(--accent); }
 
+/* Шестой пункт таб-панели — «Ещё». Список раскрывается вверх: вниз ему
+   некуда, панель прижата к нижнему краю окна. Поведение то же, что у «Ещё»
+   в шапке, и код тот же — один компонент на оба места. */
+.tabbar__more { position: relative; display: grid; }
+.tabbar__more > summary { list-style: none; }
+.tabbar__more > summary::-webkit-details-marker { display: none; }
+.tabbar__more[open] > summary { color: var(--accent); }
+.tabbar__menu { position: absolute; inset-block-end: calc(100% + var(--space-2));
+  inset-inline-end: var(--space-3); z-index: 12; min-inline-size: 200px;
+  display: flex; flex-direction: column; padding: var(--space-1);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
+
 /* Таб-панель существует только на мобильном, пилюльная навигация — только
    на десктопе. Правила стоят рядом с компонентом, а не в layout.css:
    при равной специфичности исход решал бы порядок импорта, а не намерение. */
