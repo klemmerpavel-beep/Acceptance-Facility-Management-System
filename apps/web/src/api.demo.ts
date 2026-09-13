@@ -14,6 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
+  CreateExpense, ExpenseView, MaterialExpense,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -28,7 +29,7 @@ import {
   planFromSections, sectionWeights,
   awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
-  estimateItemFault, kopecks, measureTotals,
+  estimateItemFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
@@ -69,6 +70,7 @@ interface Snapshot {
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
   measure: MeasureView;
+  expenses: ExpenseView;
   "measure-replanned": MeasureView;
 }
 
@@ -185,6 +187,13 @@ const сОбложкой = (project: ProjectSummary): ProjectSummary => ({
   ...project,
   cover: естьСнимок(project.code) ? { photoId: project.code } : null,
 });
+
+export async function fetchProject(code: string): Promise<ProjectSummary> {
+  const все = await fetchProjects();
+  const найден = все.find((project) => project.code === code);
+  if (найден === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
+  return найден;
+}
 
 export async function fetchProjects(): Promise<ProjectSummary[]> {
   await pause(60);
@@ -323,6 +332,8 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     // снимок и так живёт в одной дате, и вторая сбила бы сроки.
     createdAt: data["summary-owner"].today,
     keysCount: input.keysCount ?? 0,
+    // Только что заведённый объект чеков не имеет: потрачено ноль.
+    spentMaterials: "0",
     supervisionShare: input.supervisionShare ?? 1200,
     client: {
       code: client?.code ?? "—",
@@ -1284,7 +1295,21 @@ export async function fetchAccounting(): Promise<AccountingView> {
       overdue: свод.overdue.toString(),
       graceDays: PAYMENT_GRACE_DAYS,
     },
+    /* Расходы считаются из тех же чеков, что показывает вкладка: второе
+       место для той же величины разошлось бы с первым после первого же
+       подтверждения. В клиентские деньги выше не входят — те считают
+       движение денег заказчиков, а материалы деньги студии. */
+    materials: {
+      spent: видЧеков().totals.spent,
+      reimbursable: видЧеков().totals.reimbursable,
+    },
     rows: пары.map((пара) => пара.row),
+    expenses: видЧеков().totals.spent === "0" || объект === undefined ? [] : [{
+      projectCode: объект.code,
+      address: объект.address,
+      spent: видЧеков().totals.spent,
+      reimbursable: видЧеков().totals.reimbursable,
+    }],
     clients: clientDebts(
       пары.map((пара) => ({
         clientId: пара.row.clientId,
@@ -1644,3 +1669,98 @@ export async function updateRepairType(): Promise<RepairType[]> {
   await pause(150);
   throw new Error("В демонстрации справочник тарифов только читается.");
 }
+
+/* --- чеки на материалы ------------------------------------------------------
+   Слепок несёт чеки R-99 вместе с итогами. Дальше состояние живёт в памяти:
+   подтверждение и отклонение обязаны работать, иначе ключевое действие
+   вкладки — «подтвердить черновик расхода» — в демонстрации недостижимо.
+
+   Итоги пересчитываются тем же правилом домена, что на сервере. Хранить их
+   рядом со строками значило бы завести второе место для одной величины, и
+   после первого же подтверждения места разошлись бы.
+   -------------------------------------------------------------------------- */
+let чеки: MaterialExpense[] | null = null;
+
+const видЧеков = (): ExpenseView => {
+  const строки = чеки ?? data.expenses.rows;
+  const итоги = expenseTotals(строки.map((строка) => ({
+    status: строка.status,
+    amount: kopecks(строка.amount),
+    reimbursable: строка.reimbursable,
+  })));
+  return {
+    rows: строки,
+    totals: {
+      spent: итоги.spent.toString(),
+      reimbursable: итоги.reimbursable.toString(),
+      own: итоги.own.toString(),
+      drafts: строки.filter((строка) => строка.status === "DRAFT").length,
+    },
+  };
+};
+
+export async function fetchExpenses(code: string): Promise<ExpenseView> {
+  await pause(160);
+  if (code !== "R-99") {
+    return { rows: [], totals: { spent: "0", reimbursable: "0", own: "0", drafts: 0 } };
+  }
+  чеки ??= data.expenses.rows;
+  return видЧеков();
+}
+
+export async function createExpense(
+  _code: string,
+  expense: CreateExpense,
+  photo: File,
+): Promise<ExpenseView> {
+  await pause(320);
+  чеки ??= data.expenses.rows;
+  /* Заведённый в демонстрации чек подтверждён сразу: роль здесь одна —
+     руководитель, и на сервере его чек тоже подтверждается сразу. */
+  чеки = [{
+    id: новыйId(),
+    status: "CONFIRMED",
+    kind: expense.kind,
+    amount: expense.amount,
+    reimbursable: expense.reimbursable,
+    seller: expense.seller,
+    spentAt: expense.spentAt,
+    section: null,
+    note: expense.note,
+    fileName: photo.name,
+    createdBy: data["me-owner"].name,
+    createdAt: new Date().toISOString(),
+    confirmedBy: data["me-owner"].name,
+  }, ...чеки];
+  return видЧеков();
+}
+
+export async function decideExpense(
+  _code: string,
+  id: string,
+  решение: "confirm" | "reject",
+): Promise<ExpenseView> {
+  await pause(240);
+  чеки ??= data.expenses.rows;
+  чеки = чеки.map((строка) => строка.id === id
+    ? {
+      ...строка,
+      status: решение === "confirm" ? "CONFIRMED" as const : "REJECTED" as const,
+      confirmedBy: data["me-owner"].name,
+    }
+    : строка);
+  return видЧеков();
+}
+
+export async function deleteExpense(_code: string, id: string): Promise<ExpenseView> {
+  await pause(200);
+  чеки ??= data.expenses.rows;
+  чеки = чеки.filter((строка) => строка.id !== id);
+  return видЧеков();
+}
+
+/**
+ * Адрес снимка чека. Сервера в демонстрации нет и отдавать нечего: строка
+ * пустая, а экран показывает подложку изображения.
+ */
+export const expensePhotoUrl = (): string => "";

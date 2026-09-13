@@ -8,7 +8,7 @@ import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBet
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
-  setProjectStatus, updateEstimateItem, updateSupervision, errorMessage,
+  setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen,
 } from "./api.js";
 import { FieldEdit } from "./FieldEdit.js";
@@ -18,6 +18,7 @@ import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
 import { Acceptance } from "./Acceptance.js";
+import { Expenses } from "./Expenses.js";
 import { Report } from "./Report.js";
 import { Tranches } from "./Tranches.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
@@ -128,6 +129,7 @@ const TABS = [
   { key: "estimate", label: "Смета" },
   { key: "work", label: "Работа" },
   { key: "acceptance", label: "Приёмка" },
+  { key: "expenses", label: "Чеки" },
   { key: "report", label: "Отчёт" },
   { key: "tranches", label: "Транши" },
 ] as const;
@@ -403,6 +405,21 @@ export function ProjectCard({
               </div>
             )}
 
+            {/* Потрачено на материалы. Стоит рядом с итогом сметы и остатком
+                транша — тремя величинами, ради которых карточку открывают
+                вечером (модуль 1 объёма). Показывается всегда, включая ноль:
+                ноль здесь настоящий — чеков нет, потрачено ноль, и пустоты
+                у этой величины не бывает.
+
+                Считается только по подтверждённым: черновик — заявка, а не
+                расход, и вечерний вопрос «сколько ушло» не должен зависеть
+                от того, разобрал ли руководитель черновики. */}
+            <div className="figure">
+              <span className="figure__label">Потрачено на материалы</span>
+              <span className="figure__value">{money(project.spentMaterials)}</span>
+              <span className="figure__note">по подтверждённым чекам</span>
+            </div>
+
             {/* Остаток текущего транша — та величина, ради которой руководитель
                 открывает систему вечером (объём полевого испытания, решение
                 № 3). Полоса с тремя величинами живёт на своей вкладке: в
@@ -578,6 +595,25 @@ export function ProjectCard({
             <div role="tabpanel" id="panel-acceptance" aria-labelledby="tab-acceptance" hidden={tab !== "acceptance"}>
               {tab === "acceptance" && (
                 <Acceptance code={project.code} role={user.role} onEvents={load} />
+              )}
+            </div>
+
+            <div role="tabpanel" id="panel-expenses" aria-labelledby="tab-expenses" hidden={tab !== "expenses"}>
+              {tab === "expenses" && (
+                /* Сводка перечитывается вместе с журналом: подтверждённый
+                   чек меняет «Потрачено на материалы» на «Обзоре», а сводка
+                   приходит снаружи и сама себя не обновляет. Без этого два
+                   места одной величины показывали бы разные числа, и
+                   заметить расхождение можно было бы только переключив
+                   вкладку. */
+                <Expenses
+                  code={project.code}
+                  role={user.role}
+                  onEvents={() => {
+                    load();
+                    void fetchProject(project.code).then(onChanged).catch(() => { /* сводка не обязательна */ });
+                  }}
+                />
               )}
             </div>
 

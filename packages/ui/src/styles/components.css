@@ -2289,3 +2289,60 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   font: inherit;
   line-height: var(--lh-body);
 }
+
+/* --- 5.40 Чеки на материалы ---------------------------------------------------
+   Строка чека ведёт три вещи рядом: снимок, обстоятельства покупки и сумму.
+   Снимок стоит в строке, а не за ссылкой: он и есть свидетельство расхода, а
+   чек, ради которого надо куда-то перейти, не смотрят.
+
+   Сумма прижата к концу строки и набрана моноширинно — как все деньги
+   продукта: столбец сумм читается сверху вниз, и разъехавшиеся разряды
+   пришлось бы сравнивать глазом.
+   -------------------------------------------------------------------------- */
+.checks { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+
+.check {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--line);
+}
+.check:last-child { border-block-end: 0; }
+
+/* Отклонённый расход остаётся в списке историей, но деньгами не считается:
+   приглушение говорит это раньше пилюли. */
+.check[data-status="REJECTED"] { color: var(--ink-3); }
+
+.check__photo {
+  inline-size: 64px;
+  block-size: 64px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.check__body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.check__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.check__side {
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);
+}
+.check__amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.check__actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* Ниже 600 px сумма и действия уходят под сведения: три колонки на телефоне
+   дают колонку в четыре знака, куда не попадают пальцем. */
+@media (max-width: 599px) {
+  .check { grid-template-columns: 48px minmax(0, 1fr); }
+  .check__photo { inline-size: 48px; block-size: 48px; }
+  /* Ряд сумм и действий занимает вторую колонку целиком. `inline-size: 100%`
+     здесь был бы шире колонки: у строки есть промежуток между колонками, и
+     сотня процентов считается от колонки, а зазор прибавляется сверх неё —
+     полотно уезжало на девять пикселей. Ширину задаёт сама колонка. */
+  .check__side {
+    grid-column: 2; flex-direction: row; align-items: center;
+    justify-content: space-between; min-inline-size: 0; flex-wrap: wrap;
+  }
+  .check__actions { flex-wrap: wrap; }
+}

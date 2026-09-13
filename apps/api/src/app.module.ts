@@ -17,9 +17,11 @@ import { MeasureService } from "./measure/measure.service";
 import { MeasureController } from "./measure/measure.controller";
 import { StagesService } from "./stages/stages.service";
 import { AcceptanceService } from "./acceptance/acceptance.service";
+import { ExpensesService } from "./expenses/expenses.service";
 import { TranchesService } from "./tranches/tranches.service";
 import { StagesController } from "./stages/stages.controller";
 import { AcceptanceController } from "./acceptance/acceptance.controller";
+import { ExpensesController } from "./expenses/expenses.controller";
 import { TranchesController } from "./tranches/tranches.controller";
 import { LeadsService } from "./leads/leads.service";
 import { LeadsController } from "./leads/leads.controller";
@@ -31,13 +33,15 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
   controllers: [
     AuthController, ProjectsController, EstimatesController,
     SummaryController, DirectoryController, MeasureController, StagesController,
-    AcceptanceController, TranchesController, LeadsController, AccountingController,
+    AcceptanceController, ExpensesController, TranchesController, LeadsController,
+    AccountingController,
   ],
   providers: [
     PrismaService, AuthService, SessionGuard, RolesGuard, AuditService,
     ProjectsService, EstimatesService, SummaryService, DirectoryService, MeasureService,
     StagesService,
     AcceptanceService,
+    ExpensesService,
     TranchesService,
     LeadsService,
     AccountingService,

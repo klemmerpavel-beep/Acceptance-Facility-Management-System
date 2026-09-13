@@ -2,7 +2,7 @@ import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
-  photoReportSchema, foremenSchema, nextProjectCodeSchema,
+  photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -11,6 +11,7 @@ import {
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type EstimateView, type ImportRecord,
+  type CreateExpense, type ExpenseView,
   type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
   type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
@@ -73,6 +74,15 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
 
 export const fetchCurrentUser = (): Promise<CurrentUser> =>
   request("/auth/me", currentUserSchema);
+
+/**
+ * Карточка одного объекта. Нужна там, где действие вкладки меняет величину
+ * сводки: подтверждённый чек прибавляет потраченное, а сводка приходит
+ * снаружи и сама себя не обновляет — «Обзор» показывал бы прежнее число
+ * рядом с новым итогом вкладки.
+ */
+export const fetchProject = (code: string): Promise<ProjectSummary> =>
+  request(`/projects/${code}`, projectSummarySchema);
 
 export const fetchProjects = (): Promise<ProjectSummary[]> =>
   request("/projects", z.array(projectSummarySchema));
@@ -211,6 +221,39 @@ export function createAcceptance(
   form.append("file", photo);
   return request(`/projects/${code}/acceptance`, acceptanceViewSchema, { method: "POST", body: form });
 }
+
+/* --- чеки на материалы ---------------------------------------------------
+   Чек уходит одним запросом вместе со снимком: снимок обязателен, и
+   раздельная отправка допускала бы расход без свидетельства. Тот же приём,
+   что у пакета приёмки. */
+
+export const fetchExpenses = (code: string): Promise<ExpenseView> =>
+  request(`/projects/${code}/expenses`, expenseViewSchema);
+
+export function createExpense(
+  code: string,
+  expense: CreateExpense,
+  photo: File,
+): Promise<ExpenseView> {
+  const form = new FormData();
+  form.append("expense", JSON.stringify(expense));
+  form.append("file", photo);
+  return request(`/projects/${code}/expenses`, expenseViewSchema, { method: "POST", body: form });
+}
+
+export const decideExpense = (
+  code: string,
+  id: string,
+  решение: "confirm" | "reject",
+): Promise<ExpenseView> =>
+  request(`/projects/${code}/expenses/${id}/${решение}`, expenseViewSchema, { method: "POST" });
+
+export const deleteExpense = (code: string, id: string): Promise<ExpenseView> =>
+  request(`/projects/${code}/expenses/${id}`, expenseViewSchema, { method: "DELETE" });
+
+/** Адрес снимка чека. Выводится из опознавателя, а не приходит контрактом. */
+export const expensePhotoUrl = (code: string, id: string): string =>
+  `${BASE}/projects/${code}/expenses/${id}/file`;
 
 export const reverseAcceptance = (
   code: string,

@@ -20,6 +20,7 @@ import { acceptedFacts, type AcceptedFacts } from "../common/accepted-facts";
 import { guidelineFacts, type GuidelineFacts } from "../common/guideline-facts";
 import { openTranches, type OpenTranche } from "../common/tranche-facts";
 import { coverPhotos } from "../common/cover-facts";
+import { spentFacts, type SpentFacts } from "../common/expense-facts";
 
 const STATUS_LABEL: Record<ProjectSummary["status"], string> = {
   NEW: "Новый",
@@ -46,10 +47,11 @@ export class ProjectsService {
     const ids = projects.map((project) => project.id);
     /* Обложки идут в этой же связке, а не отдельным заходом на объект:
        `coverPhotos` берёт снимки всего списка одним запросом. */
-    const [facts, tranches, обложки] = await Promise.all([
+    const [facts, tranches, обложки, расходы] = await Promise.all([
       estimateFacts(this.prisma, ids),
       openTranches(this.prisma, ids),
       coverPhotos(this.prisma, ids),
+      spentFacts(this.prisma, ids),
     ]);
     /* Принятое — одним запросом на весь портфель, а не по запросу на объект:
        реестр из восьми строк иначе стоил бы восьми обращений, и цена росла
@@ -60,7 +62,8 @@ export class ProjectsService {
     ]);
     return projects.map((project) => toSummary(
       project, facts.get(project.id), tranches.get(project.id),
-      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id)));
+      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id),
+      расходы.get(project.id)));
   }
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {
@@ -71,10 +74,11 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
-    const [facts, tranches, обложки] = await Promise.all([
+    const [facts, tranches, обложки, расходы] = await Promise.all([
       estimateFacts(this.prisma, [project.id]),
       openTranches(this.prisma, [project.id]),
       coverPhotos(this.prisma, [project.id]),
+      spentFacts(this.prisma, [project.id]),
     ]);
     const [принятое, ориентиры] = await Promise.all([
       acceptedFacts(this.prisma, facts),
@@ -82,7 +86,8 @@ export class ProjectsService {
     ]);
     return toSummary(
       project, facts.get(project.id), tranches.get(project.id),
-      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id));
+      принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id),
+      расходы.get(project.id));
   }
 
   /**
@@ -359,9 +364,12 @@ export class ProjectsService {
      * залить ленту дубликатом того, что рядом показано подробнее.
      */
     const внутренние = user.role === "OWNER";
+    /* Чеки видят обе роли: расход заводит и прораб, и «кто провёл этот
+       чек» спрашивают на объекте, а не в кабинете. Денежных величин
+       разграничения это не касается — сумма чека не ставка и не прибыль. */
     const поОбъекту = внутренние
-      ? ["Project", "MeasureRoom", "MeasurePlan", "EstimateItem", "Estimate"]
-      : ["Project", "MeasureRoom", "MeasurePlan"];
+      ? ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense", "EstimateItem", "Estimate"]
+      : ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense"];
 
     const [этапы, транши] = await Promise.all([
       this.prisma.workStage.findMany({
@@ -467,6 +475,7 @@ const РАЗДЕЛ: Readonly<Record<string, string>> = {
   Estimate: "Смета",
   WorkStage: "График",
   Tranche: "Транш",
+  MaterialExpense: "Чеки",
 };
 
 /**
@@ -530,6 +539,7 @@ function toSummary(
   accepted: AcceptedFacts | undefined,
   guideline: GuidelineFacts | undefined,
   coverPhotoId: string | undefined,
+  расходы: SpentFacts | undefined,
 ): ProjectSummary {
   // Итог для клиента считается по надбавке самой сметы: у объекта надбавка
   // может быть изменена после того, как смета уже импортирована.
@@ -561,6 +571,10 @@ function toSummary(
     createdAt: project.createdAt.toISOString().slice(0, 10),
     keysCount: project.keysCount,
     supervisionShare: project.supervisionShare,
+    /* Ноль здесь настоящий: чеков нет — потрачено ноль. Пустоты у этой
+       величины не бывает, в отличие от остатка транша, где ноль означал бы
+       «выработан ровно до копейки». */
+    spentMaterials: (расходы?.spent ?? 0n).toString(),
     client: {
       code: project.client.code,
       name: project.client.name,
