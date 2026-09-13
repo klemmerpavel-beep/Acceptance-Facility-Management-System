@@ -226,7 +226,9 @@ export class TemplatesService {
     };
 
     return {
-      name: шаблон.name,
+      /* Наименование подставляется наравне с пунктами: оно печатается в шапке
+         документа, и метка там заметнее любой другой. */
+      name: fillTemplate(шаблон.name, значения),
       kind: шаблон.kind,
       issuedAt: сегодня,
       project: { code: project.code, address: project.address },

@@ -107,6 +107,13 @@ export function templateFault(input: {
   readonly clauses: readonly { readonly title: string; readonly body: string }[];
 }): string | null {
   if (input.name.trim() === "") return "У шаблона нет наименования: в списке его будет не найти.";
+  /* Наименование — такой же текст документа, как пункт: «Договор № {{объект.код}}»
+     печатается в шапке. Проверять только пункты значило бы выпустить бумагу,
+     у которой метка стоит в самом заметном месте — в заголовке. */
+  const чужиеВИмени = unknownVariables(input.name);
+  if (чужиеВИмени.length > 0) {
+    return `Неизвестные переменные в наименовании: ${чужиеВИмени.join(", ")}.`;
+  }
   if (input.clauses.length === 0) {
     return "В шаблоне нет ни одного пункта: выпускать нечего.";
   }

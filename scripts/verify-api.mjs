@@ -535,6 +535,42 @@ if (договор === undefined) {
   check(сЧужойМеткой.status === 400,
     `шаблон с неизвестной переменной принят с кодом ${сЧужойМеткой.status}`);
 
+  /* Метка в наименовании подставляется наравне с пунктами: наименование
+     печатается в шапке документа, и метка там заметнее любой другой.
+     Найдено разбором граничных данных: сервер принимал такое имя и печатал
+     его сырым. */
+  const сМеткойВИмени = await owner("/templates", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Проверка API: договор по {{объект.код}}", kind: "OTHER",
+      clauses: [{ title: "Пункт", body: "Объект {{объект.код}}" }],
+    }),
+  });
+  check(сМеткойВИмени.status === 201,
+    `шаблон с меткой в наименовании отвергнут с кодом ${сМеткойВИмени.status}`);
+  if (сМеткойВИмени.status === 201) {
+    const перечень = await owner("/templates").then((r) => r.json());
+    const сИменем = перечень.find((шаблон) => шаблон.name.includes("Проверка API"));
+    const бумага = await owner(`/templates/${сИменем?.id}/issue`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectCode: "R-99" }),
+    }).then((r) => r.json());
+    check(!бумага.name.includes("{{"),
+      `в наименовании выпущенного документа осталась метка: «${бумага.name}»`);
+    check(бумага.name.includes("R-99"), `в наименовании не подставлен код: «${бумага.name}»`);
+  }
+
+  /* Неизвестная метка в наименовании отвергается так же, как в пункте. */
+  const чужаяВИмени = await owner("/templates", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Договор {{объект.цвет}}", kind: "OTHER",
+      clauses: [{ title: "Пункт", body: "текст" }],
+    }),
+  });
+  check(чужаяВИмени.status === 400,
+    `неизвестная метка в наименовании принята с кодом ${чужаяВИмени.status}`);
+
   /* Одноимённый шаблон не заводится: два одинаковых имени неразличимы. */
   const тёзка = await owner("/templates", {
     method: "POST", headers: { "content-type": "application/json" },

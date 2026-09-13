@@ -2304,9 +2304,14 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    продукта: столбец сумм читается сверху вниз, и разъехавшиеся разряды
    пришлось бы сравнивать глазом.
    -------------------------------------------------------------------------- */
-.checks { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+/* Строка перечня — общая форма, а не «чек». Класс назывался по первой
+   сущности, которая его надела, и носил уже три разные: чек, акт и шаблон.
+   Имя по первому жильцу подводит и читателя, и проверку: правило, считающее
+   «.check», на вкладке актов считает акты. Тот же довод, по которому строка
+   расхода получила свой «.spend__row» вместо чужого «.money__row». */
+.records { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
 
-.check {
+.record {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: start;
@@ -2314,13 +2319,13 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   padding-block: var(--space-3);
   border-block-end: 1px solid var(--line);
 }
-.check:last-child { border-block-end: 0; }
+.record:last-child { border-block-end: 0; }
 
 /* Отклонённый расход остаётся в списке историей, но деньгами не считается:
    приглушение говорит это раньше пилюли. */
-.check[data-status="REJECTED"] { color: var(--ink-3); }
+.record[data-status="REJECTED"] { color: var(--ink-3); }
 
-.check__photo {
+.record__photo {
   inline-size: 64px;
   block-size: 64px;
   object-fit: cover;
@@ -2328,28 +2333,28 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
-.check__body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
-.check__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-.check__side {
+.record__body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.record__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.record__side {
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);
 }
-.check__amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.check__actions { display: flex; align-items: center; gap: var(--space-2); }
+.record__amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.record__actions { display: flex; align-items: center; gap: var(--space-2); }
 
 /* Ниже 600 px сумма и действия уходят под сведения: три колонки на телефоне
    дают колонку в четыре знака, куда не попадают пальцем. */
 @media (max-width: 599px) {
-  .check { grid-template-columns: 48px minmax(0, 1fr); }
-  .check__photo { inline-size: 48px; block-size: 48px; }
+  .record { grid-template-columns: 48px minmax(0, 1fr); }
+  .record__photo { inline-size: 48px; block-size: 48px; }
   /* Ряд сумм и действий занимает вторую колонку целиком. `inline-size: 100%`
      здесь был бы шире колонки: у строки есть промежуток между колонками, и
      сотня процентов считается от колонки, а зазор прибавляется сверх неё —
      полотно уезжало на девять пикселей. Ширину задаёт сама колонка. */
-  .check__side {
+  .record__side {
     grid-column: 2; flex-direction: row; align-items: center;
     justify-content: space-between; min-inline-size: 0; flex-wrap: wrap;
   }
-  .check__actions { flex-wrap: wrap; }
+  .record__actions { flex-wrap: wrap; }
 }
 
 /* --- 5.41 Акт выполненных работ -----------------------------------------------

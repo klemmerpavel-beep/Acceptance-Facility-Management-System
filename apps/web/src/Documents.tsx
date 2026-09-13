@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DocumentTemplate, IssuedDocument, ProjectSummary, Role, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
@@ -57,6 +57,11 @@ export function Documents({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [объявление, setОбъявление] = useState<string | null>(null);
+  /* Бланк появляется ниже перечня — за сгибом на любом экране. Нажавший
+     «выпустить» видит прежнюю картину и решает, что ничего не вышло.
+     Документ уводится в поле зрения; живая область объявляет то же самое
+     тому, кто экрана не видит. */
+  const бланк = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     fetchTemplates()
@@ -81,6 +86,9 @@ export function Documents({
         setДокумент(next);
         setError(null);
         setОбъявление(`Документ «${next.name}» выпущен по объекту ${next.project.code}`);
+        window.requestAnimationFrame(() => {
+          бланк.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
       })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
@@ -156,25 +164,25 @@ export function Documents({
 
         {rows.length === 0 ? (
           <div className="empty">
-            <p className="empty__title">Шаблонов нет</p>
+            <p className="empty__title">Шаблонов пока нет</p>
             <p className="empty__text">
               Шаблон — это текст документа с переменными: {"{{объект.код}}"}, {"{{контрагент.наименование}}"}.
               При выпуске переменные заменяются данными выбранного объекта.
             </p>
           </div>
         ) : (
-          <ul className="checks">
+          <ul className="records">
             {rows.map((row) => (
-              <li className="check" key={row.id}>
+              <li className="record" key={row.id}>
                 <span className="pill">{ВИДЫ[row.kind] ?? row.kind}</span>
-                <div className="check__body">
-                  <p className="check__head"><span className="t-strong">{row.name}</span></p>
+                <div className="record__body">
+                  <p className="record__head"><span className="t-strong">{row.name}</span></p>
                   <p className="t-sm t-muted">
                     пунктов {row.clauses} · правлен {дата(row.updatedAt)}
                   </p>
                 </div>
-                <div className="check__side">
-                  <span className="check__actions">
+                <div className="record__side">
+                  <span className="record__actions">
                     <button
                       type="button"
                       className="btn btn--secondary"
@@ -251,7 +259,9 @@ export function Documents({
         )}
       </div>
 
-      {документ !== null && <IssuedSheet документ={документ} />}
+      <div ref={бланк}>
+        {документ !== null && <IssuedSheet документ={документ} />}
+      </div>
 
       {правка !== null && (
         <TemplateSheet
