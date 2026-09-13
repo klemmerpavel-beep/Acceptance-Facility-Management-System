@@ -317,35 +317,65 @@ for (const [имя, ожидалось] of Object.entries(ЭТАЛОН)) {
   }
 }
 
+/**
+ * Обмер после перепланировки. Второй набор рядом с начальным, а не поверх.
+ *
+ * Что произошло на объекте: перегородку между кухней и гостиной сняли —
+ * получилась кухня-гостиная; санузел и ванная объединены в совмещённый.
+ * Семь помещений стали пятью. Начальный набор при этом остаётся: по нему
+ * считалась смета, и вопрос «почему в смете 12,70, а в обмере 36,80»
+ * задают через месяц.
+ *
+ * Числа сходятся, а не подогнаны под красоту:
+ *   — кухня-гостиная 36,80 = кухня 12,70 + гостиная 23,63 + 0,47 м²
+ *     снесённой перегородки;
+ *   — санузел совмещённый 6,41 = санузел 1,80 + ванная 4,40 + 0,21 м²
+ *     снесённой перегородки;
+ *   — коридор 11,90 против 12,30: два дверных проёма ушли вместе с
+ *     перегородками, и стена коридора выпрямилась;
+ *   — итог 80,81 м² против 80,53: прибавка ровно на 0,68 м² перегородок
+ *     минус 0,40 м² коридора.
+ */
+const перепланировка = [
+  // название,          площадь, периметр пола, периметр потолка, окна, двери
+  ["Коридор",            11_900, 13_700, 17_400, null,               [4, 6_860, 20_100]],
+  ["Спальня",            18_400, 17_600, 17_600, [1, 2_100, 5_800],  [1, 1_680, 5_050]],
+  ["Кухня-гостиная",     36_800, 26_400, 28_900, [3, 7_500, 19_000], [1, 1_680, 5_000]],
+  ["Санузел совмещённый", 6_410,  9_900, 10_800, null,               [1, 1_470, 4_900]],
+  ["Лоджия",              7_300,  8_700, 11_600, [1, 5_880, 11_200], null],
+];
+
 const объектR99 = await prisma.project.findFirst({ where: { orgId: org.id, code: "R-99" } });
 if (объектR99 !== null) {
-  let порядок = 0;
-  for (const [name, floorArea, floorPerimeter, ceilingPerimeter, окна, двери] of помещения) {
-    порядок += 1;
-    const величины = {
-      order: порядок,
-      floorArea: BigInt(floorArea),
-      floorPerimeter: BigInt(floorPerimeter),
-      ceilingPerimeter: BigInt(ceilingPerimeter),
-      height: 2700n,
-    };
-    const помещение = await prisma.measureRoom.upsert({
-      where: { projectId_name: { projectId: объектR99.id, name } },
-      update: величины,
-      create: { projectId: объектR99.id, name, ...величины },
-    });
-    for (const [kind, проём] of [[OpeningKind.WINDOW, окна], [OpeningKind.DOOR, двери]]) {
-      if (проём === null) {
-        await prisma.measureOpening.deleteMany({ where: { roomId: помещение.id, kind } });
-        continue;
-      }
-      const [count, area, reveal] = проём;
-      const данные = { count, area: BigInt(area), reveal: BigInt(reveal) };
-      await prisma.measureOpening.upsert({
-        where: { roomId_kind: { roomId: помещение.id, kind } },
-        update: данные,
-        create: { roomId: помещение.id, kind, ...данные },
+  for (const [набор, состав] of [["INITIAL", помещения], ["REPLANNED", перепланировка]]) {
+    let порядок = 0;
+    for (const [name, floorArea, floorPerimeter, ceilingPerimeter, окна, двери] of состав) {
+      порядок += 1;
+      const величины = {
+        order: порядок,
+        floorArea: BigInt(floorArea),
+        floorPerimeter: BigInt(floorPerimeter),
+        ceilingPerimeter: BigInt(ceilingPerimeter),
+        height: 2700n,
+      };
+      const помещение = await prisma.measureRoom.upsert({
+        where: { projectId_set_name: { projectId: объектR99.id, set: набор, name } },
+        update: величины,
+        create: { projectId: объектR99.id, set: набор, name, ...величины },
       });
+      for (const [kind, проём] of [[OpeningKind.WINDOW, окна], [OpeningKind.DOOR, двери]]) {
+        if (проём === null) {
+          await prisma.measureOpening.deleteMany({ where: { roomId: помещение.id, kind } });
+          continue;
+        }
+        const [count, area, reveal] = проём;
+        const данные = { count, area: BigInt(area), reveal: BigInt(reveal) };
+        await prisma.measureOpening.upsert({
+          where: { roomId_kind: { roomId: помещение.id, kind } },
+          update: данные,
+          create: { roomId: помещение.id, kind, ...данные },
+        });
+      }
     }
   }
 }

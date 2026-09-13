@@ -220,6 +220,46 @@ check(bedroom?.wallArea === "47520", `площадь стен спальни ${b
 check(bedroom?.volume === "49680", `объём спальни ${bedroom?.volume} вместо 49680`);
 check(bedroom?.openings.length === 2, `у спальни ${bedroom?.openings.length} видов проёмов вместо двух`);
 
+/**
+ * Второй набор обмера стоит РЯДОМ с начальным, а не поверх него.
+ *
+ * Проверяется именно это, а не наличие второго набора: по начальному
+ * обмеру считалась смета, и перепись его поверх стёрла бы ответ на вопрос
+ * «почему в смете 12,70, а в обмере 36,80». Числа берутся оба сразу — итог
+ * начального набора обязан остаться прежним при существующем втором.
+ */
+check(measure.set === "INITIAL", `обмер без набора в запросе отдан как «${measure.set}»`);
+check(
+  Array.isArray(measure.filled) && measure.filled.includes("REPLANNED"),
+  `наличие перепланировки не объявлено: filled = ${JSON.stringify(measure.filled)}`,
+);
+
+const replanned = await owner("/projects/R-99/measure?set=REPLANNED").then((r) => r.json());
+check(replanned.set === "REPLANNED", `набор перепланировки отдан как «${replanned.set}»`);
+check(replanned.rooms.length === 5, `помещений после перепланировки ${replanned.rooms.length} вместо пяти`);
+check(
+  replanned.totals.floorArea === "80810",
+  `площадь после перепланировки ${replanned.totals.floorArea} вместо 80810 тысячных`,
+);
+/* Кухня-гостиная — сумма двух прежних помещений и снесённой перегородки.
+   Число сходится арифметически, и это единственный способ убедиться, что
+   второй набор — обмер, а не копия первого. */
+const kitchenHall = replanned.rooms.find((room) => room.name === "Кухня-гостиная");
+check(
+  kitchenHall?.floorArea === "36800",
+  `кухня-гостиная ${kitchenHall?.floorArea} вместо 36800 = 12700 + 23630 + 470`,
+);
+check(
+  measure.rooms.some((room) => room.name === "Кухня") && measure.totals.floorArea === "80530",
+  "начальный обмер изменился после заведения перепланировки",
+);
+/* Имя помещения уникально внутри набора, а не внутри объекта: «Спальня»
+   есть в обоих наборах, и это одно помещение в двух состояниях. */
+check(
+  replanned.rooms.some((room) => room.name === "Спальня"),
+  "«Спальня» не попала во второй набор: ключ имени остался по объекту",
+);
+
 /** Обмер чужого объекта прорабу не виден: тот же 404, что у сметы. */
 const foreignMeasure = await foreman("/projects/R-19/measure");
 check(foreignMeasure.status === 404, `обмер чужого объекта отдан прорабу с кодом ${foreignMeasure.status}`);

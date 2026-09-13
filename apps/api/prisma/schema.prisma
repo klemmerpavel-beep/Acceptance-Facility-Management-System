@@ -60,6 +60,21 @@ enum OpeningKind {
   DOOR
 }
 
+/// Набор обмера. Их ровно два, и это не заготовка под список: заказчик
+/// назвал задачу «второй набор — после перепланировки, рядом с начальным».
+/// Перечисление из двух значений отвечает на этот вопрос и ни на какой
+/// другой; список наборов с именами и порядком отвечал бы на вопрос,
+/// которого никто не задавал, и стоил бы отдельного экрана управления ими.
+///
+/// INITIAL — обмер до работ, по нему считалась смета.
+/// REPLANNED — обмер после перепланировки: снесённые перегородки меняют
+/// площади, и прежние величины перестают быть правдой, не переставая быть
+/// историей. Поэтому второй набор именно рядом с первым, а не поверх него.
+enum MeasureSet {
+  INITIAL
+  REPLANNED
+}
+
 enum WorkerKind {
   BRIGADE
   PERSON
@@ -189,7 +204,8 @@ model Project {
   foreman           User?             @relation("ProjectForeman", fields: [foremanId], references: [id], onDelete: SetNull)
   estimates         Estimate[]
   measureRooms      MeasureRoom[]
-  measurePlan       MeasurePlan?
+  /// Планов столько же, сколько наборов обмера: по одному на набор.
+  measurePlans      MeasurePlan[]
   workStages        WorkStage[]
   acceptanceBatches AcceptanceBatch[]
   tranches          Tranche[]
@@ -422,8 +438,11 @@ model AuditLog {
 /// первый — длина плинтуса, второй — замкнутая линия примыкания стен к
 /// потолку. Обе величины измеряются, ни одна не выводится из площади.
 model MeasureRoom {
-  id               String   @id @default(uuid()) @db.Uuid
-  projectId        String   @db.Uuid
+  id               String     @id @default(uuid()) @db.Uuid
+  projectId        String     @db.Uuid
+  /// Набор, к которому относится помещение. Значение по умолчанию делает
+  /// миграцию безоговорочной: всё, что уже обмерено, — обмер начальный.
+  set              MeasureSet @default(INITIAL)
   name             String
   order            Int
   /// Тысячные доли единицы, как количества сметы: 18,40 м² → 18400.
@@ -431,16 +450,19 @@ model MeasureRoom {
   floorPerimeter   BigInt
   ceilingPerimeter BigInt
   height           BigInt
-  createdAt        DateTime @default(now())
+  createdAt        DateTime   @default(now())
 
   project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   openings MeasureOpening[]
 
   /// Имя помещения — то, чем прораб его называет; два «Санузла» в одном
-  /// объекте это ошибка замера, а не данные. Заодно естественный ключ
-  /// для наполнения стенда.
-  @@unique([projectId, name])
-  @@index([projectId, order])
+  /// наборе это ошибка замера, а не данные. Заодно естественный ключ для
+  /// наполнения стенда.
+  ///
+  /// Набор входит в ключ обязательно: «Санузел» есть и до перепланировки,
+  /// и после, и это одно помещение в двух состояниях, а не ошибка.
+  @@unique([projectId, set, name])
+  @@index([projectId, set, order])
   @@map("measure_rooms")
 }
 
@@ -463,8 +485,12 @@ model MeasureOpening {
   @@map("measure_openings")
 }
 
-/// Изображение плана объекта. Один файл на объект, не на помещение:
+/// Изображение плана объекта. Один файл на набор обмера, не на помещение:
 /// рисованного контура помещения в продукте нет.
+///
+/// На набор, а не на объект: перепланировка меняет чертёж так же, как меняет
+/// площади, и старый план рядом с новыми помещениями сообщал бы неправду
+/// уверенно — хуже, чем не сообщал бы ничего.
 ///
 /// В базе только ключ файла; сам файл лежит в хранилище за портом
 /// FileStorage. Отдельная таблица, а не колонки в projects: таблица
@@ -473,18 +499,20 @@ model MeasureOpening {
 /// появится вместе с фотоотчётами стадии C.4 — тогда эта модель станет
 /// её частным случаем.
 model MeasurePlan {
-  id           String   @id @default(uuid()) @db.Uuid
-  projectId    String   @unique @db.Uuid
-  storageKey   String   @unique
+  id           String     @id @default(uuid()) @db.Uuid
+  projectId    String     @db.Uuid
+  set          MeasureSet @default(INITIAL)
+  storageKey   String     @unique
   fileName     String
   contentType  String
   byteSize     Int
-  uploadedById String?  @db.Uuid
-  uploadedAt   DateTime @default(now())
+  uploadedById String?    @db.Uuid
+  uploadedAt   DateTime   @default(now())
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
+  @@unique([projectId, set])
   @@map("measure_plans")
 }
 

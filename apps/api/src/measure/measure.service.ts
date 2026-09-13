@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { MeasureRoom, MeasureView, CreateMeasureRoom, UpdateMeasureRoom } from "@priyomka/contracts";
+import type {
+  MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom,
+} from "@priyomka/contracts";
 import { measureTotals, milliunits, roomVolume, wallArea, type RoomMeasure } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -69,6 +71,18 @@ const toRoomDto = (row: RoomRow): MeasureRoom => {
   };
 };
 
+/**
+ * Пометка набора в записи журнала.
+ *
+ * У начального набора пометки нет: он был единственным, и приписка «набор
+ * начальный» к каждой записи прошлого журнала сделала бы правкой прошлого
+ * то, что правкой не является. Помечается только то, что отличается.
+ */
+const НАБОР_В_ЖУРНАЛ: Record<MeasureSetKind, string> = {
+  INITIAL: "",
+  REPLANNED: " (после перепланировки)",
+};
+
 @Injectable()
 export class MeasureService {
   constructor(
@@ -101,20 +115,37 @@ export class MeasureService {
     return room;
   }
 
-  async view(user: RequestUser, code: string): Promise<MeasureView> {
+  /**
+   * Обмер одного набора.
+   *
+   * Набор приходит запросом, а не выводится сервером из наличия
+   * перепланировки: человек смотрит то, что выбрал, и «сервер сам решил
+   * показать вам другой обмер» — это не помощь, а потеря места.
+   *
+   * Рядом с набором идёт перечень заполненных: экран отличает
+   * «перепланировки не было» от «перепланировка есть, но не выбрана».
+   */
+  async view(user: RequestUser, code: string, set: MeasureSetKind): Promise<MeasureView> {
     const project = await this.projectOf(user, code);
     const rooms = await this.prisma.measureRoom.findMany({
-      where: { projectId: project.id },
+      where: { projectId: project.id, set },
       include: { openings: true },
       orderBy: { order: "asc" },
     });
-    const plan = await this.prisma.measurePlan.findUnique({
-      where: { projectId: project.id },
+    const plan = await this.prisma.measurePlan.findFirst({
+      where: { projectId: project.id, set },
       include: { uploadedBy: { select: { name: true } } },
+    });
+    const заполнены = await this.prisma.measureRoom.findMany({
+      where: { projectId: project.id },
+      select: { set: true },
+      distinct: ["set"],
     });
 
     const totals = measureTotals(rooms.map(asMeasure));
     return {
+      set,
+      filled: заполнены.map((строка) => строка.set),
       rooms: rooms.map(toRoomDto),
       totals: {
         rooms: totals.rooms,
@@ -134,21 +165,29 @@ export class MeasureService {
     };
   }
 
-  async createRoom(user: RequestUser, code: string, input: CreateMeasureRoom): Promise<MeasureView> {
+  async createRoom(
+    user: RequestUser,
+    code: string,
+    set: MeasureSetKind,
+    input: CreateMeasureRoom,
+  ): Promise<MeasureView> {
     const project = await this.projectOf(user, code);
     const last = await this.prisma.measureRoom.findFirst({
-      where: { projectId: project.id },
+      where: { projectId: project.id, set },
       orderBy: { order: "desc" },
       select: { order: true },
     });
 
+    /* Занятость имени проверяется внутри набора, а не по объекту:
+       «Санузел» есть и до перепланировки, и после — это одно помещение в
+       двух состояниях, а не ошибка замера. */
     const taken = await this.prisma.measureRoom.findFirst({
-      where: { projectId: project.id, name: input.name },
+      where: { projectId: project.id, set, name: input.name },
       select: { id: true },
     });
     if (taken !== null) {
       throw new BadRequestException({
-        message: `Помещение «${input.name}» на объекте уже есть. Два одинаковых названия в обмере — ошибка замера: назовите «${input.name} 2».`,
+        message: `Помещение «${input.name}» в этом наборе обмера уже есть. Два одинаковых названия в одном наборе — ошибка замера: назовите «${input.name} 2».`,
       });
     }
 
@@ -156,6 +195,7 @@ export class MeasureService {
       await tx.measureRoom.create({
         data: {
           projectId: project.id,
+          set,
           name: input.name,
           order: (last?.order ?? 0) + 1,
           floorArea: BigInt(input.floorArea),
@@ -177,13 +217,13 @@ export class MeasureService {
         actorId: user.id,
         entity: "MeasureRoom",
         entityId: project.id,
-        field: `${input.name} — помещение внесено`,
+        field: `${input.name} — помещение внесено${НАБОР_В_ЖУРНАЛ[set]}`,
         oldValue: null,
         newValue: `${input.floorArea} тысячных м², высота ${input.height}`,
       });
     });
 
-    return this.view(user, code);
+    return this.view(user, code, set);
   }
 
   async updateRoom(
@@ -247,7 +287,9 @@ export class MeasureService {
       }
     });
 
-    return this.view(user, code);
+    /* Набор берётся у самого помещения, а не запросом: правят то, что
+       открыто, и разойтись эти два ответа не могут по построению. */
+    return this.view(user, code, before.set);
   }
 
   async deleteRoom(user: RequestUser, code: string, id: string): Promise<MeasureView> {
@@ -261,23 +303,24 @@ export class MeasureService {
         actorId: user.id,
         entity: "MeasureRoom",
         entityId: project.id,
-        field: `${room.name} — помещение удалено`,
+        field: `${room.name} — помещение удалено${НАБОР_В_ЖУРНАЛ[room.set]}`,
         oldValue: `${room.floorArea.toString()} тысячных м², высота ${room.height.toString()}`,
         newValue: null,
       });
     });
 
-    return this.view(user, code);
+    return this.view(user, code, room.set);
   }
 
   /**
-   * Загрузка плана объекта. Прежний файл снимается с диска: план один на
-   * объект, и оставлять предыдущий значит копить мусор, на который уже
+   * Загрузка плана набора. Прежний файл снимается с диска: план один на
+   * набор, и оставлять предыдущий значит копить мусор, на который уже
    * ничто не ссылается.
    */
   async savePlan(
     user: RequestUser,
     code: string,
+    set: MeasureSetKind,
     fileName: string,
     body: Buffer,
   ): Promise<MeasureView> {
@@ -290,56 +333,62 @@ export class MeasureService {
       });
     }
 
-    const previous = await this.prisma.measurePlan.findUnique({ where: { projectId: project.id } });
+    const previous = await this.prisma.measurePlan.findFirst({ where: { projectId: project.id, set } });
     const key = `projects/${project.id}/plan/${randomUUID()}.${IMAGE_EXTENSION[contentType]}`;
     await this.storage.put(key, body, contentType);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.measurePlan.upsert({
-        where: { projectId: project.id },
+        where: { projectId_set: { projectId: project.id, set } },
         update: { storageKey: key, fileName, contentType, byteSize: body.byteLength, uploadedById: user.id },
         create: {
-          projectId: project.id, storageKey: key, fileName, contentType,
+          projectId: project.id, set, storageKey: key, fileName, contentType,
           byteSize: body.byteLength, uploadedById: user.id,
         },
       });
       await this.audit.record({
         orgId: user.orgId, actorId: user.id,
-        entity: "MeasurePlan", entityId: project.id, field: "план объекта",
+        entity: "MeasurePlan", entityId: project.id,
+        field: `план объекта${НАБОР_В_ЖУРНАЛ[set]}`,
         oldValue: previous?.fileName ?? null, newValue: fileName,
       });
     });
 
     if (previous !== null) await this.storage.remove(previous.storageKey);
-    return this.view(user, code);
+    return this.view(user, code, set);
   }
 
-  async readPlan(user: RequestUser, code: string): Promise<{ body: Buffer; contentType: string; fileName: string }> {
+  async readPlan(
+    user: RequestUser,
+    code: string,
+    set: MeasureSetKind,
+  ): Promise<{ body: Buffer; contentType: string; fileName: string }> {
     const project = await this.projectOf(user, code);
-    const plan = await this.prisma.measurePlan.findUnique({ where: { projectId: project.id } });
+    const plan = await this.prisma.measurePlan.findFirst({ where: { projectId: project.id, set } });
     if (plan === null) {
       throw new NotFoundException({ message: "План объекта не загружен." });
     }
     return { body: await this.storage.get(plan.storageKey), contentType: plan.contentType, fileName: plan.fileName };
   }
 
-  async deletePlan(user: RequestUser, code: string): Promise<MeasureView> {
+  async deletePlan(user: RequestUser, code: string, set: MeasureSetKind): Promise<MeasureView> {
     const project = await this.projectOf(user, code);
-    const plan = await this.prisma.measurePlan.findUnique({ where: { projectId: project.id } });
+    const plan = await this.prisma.measurePlan.findFirst({ where: { projectId: project.id, set } });
     if (plan === null) {
       throw new NotFoundException({ message: "План объекта не загружен." });
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.measurePlan.delete({ where: { projectId: project.id } });
+      await tx.measurePlan.delete({ where: { projectId_set: { projectId: project.id, set } } });
       await this.audit.record({
         orgId: user.orgId, actorId: user.id,
-        entity: "MeasurePlan", entityId: project.id, field: "план объекта",
+        entity: "MeasurePlan", entityId: project.id,
+        field: `план объекта${НАБОР_В_ЖУРНАЛ[set]}`,
         oldValue: plan.fileName, newValue: null,
       });
     });
 
     await this.storage.remove(plan.storageKey);
-    return this.view(user, code);
+    return this.view(user, code, set);
   }
 }
