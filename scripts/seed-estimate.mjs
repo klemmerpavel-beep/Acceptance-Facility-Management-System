@@ -151,3 +151,70 @@ if (позиция !== undefined) {
     ? `  приёмка стенда: «${позиция.name}», ${(BigInt(позиция.remaining) / 4n).toString()} тысячных`
     : `  приёмка стенда не прошла: код ${ответ.status}`);
 }
+
+/* --- чеки на материалы ------------------------------------------------------
+   Три чека на R-99, и каждый заведён тем, кто его в жизни заводит: два
+   руководителем (значит сразу подтверждены), один прорабом (значит остаётся
+   черновиком и ждёт разбора).
+
+   Без черновика вкладка показывала бы только разобранное, а ключевое
+   действие экрана — «подтвердить черновик расхода» (`07_IA.md`, раздел 4) —
+   было бы недостижимо на стенде: проверить его было бы нечем.
+
+   Суммы разные по виду и по возмещению: один расход остаётся на студии, и
+   без него разделение «к возмещению / своё» показывало бы два одинаковых
+   числа — состояние, в котором подмена одного другим неразличима.
+   -------------------------------------------------------------------------- */
+const снимокЧека = () =>
+  new Blob([readFileSync(new URL("./fixtures/snimok.png", import.meta.url))]);
+
+const разделыСметы = await fetch(`${BASE}/projects/${CODE}/estimate`, { headers: { cookie } })
+  .then((ответ) => ответ.json())
+  .then((вид) => вид.sections ?? []);
+const разделЧека = разделыСметы[0]?.id ?? null;
+
+const завестиЧек = async (кука, чек) => {
+  const форма = new FormData();
+  форма.append("expense", JSON.stringify(чек));
+  форма.append("file", снимокЧека(), "chek.png");
+  const ответ = await fetch(`${BASE}/projects/${CODE}/expenses`, {
+    method: "POST", headers: { cookie: кука }, body: форма,
+  });
+  if (!ответ.ok) console.error(`  чек «${чек.seller}» не заведён: код ${ответ.status}`);
+  return ответ.ok;
+};
+
+/* Вход прораба — тот же порядок, что у проверки API: одноразовая ссылка и
+   кука из ответа. Заводить черновик от имени руководителя нельзя: он
+   подтверждается сразу, и черновика на стенде не возникнет. */
+const ссылкаПрораба = await fetch(`${BASE}/auth/magic-link`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ email: "foreman@dolgiy.studio" }),
+}).then((ответ) => ответ.json());
+const входПрораба = await fetch(`${BASE}/auth/consume?token=${ссылкаПрораба.token}`, {
+  redirect: "manual",
+});
+const кукаПрораба = входПрораба.headers.getSetCookie()
+  .map((значение) => значение.split(";")[0]).join("; ");
+
+let чеков = 0;
+if (await завестиЧек(cookie, {
+  kind: "MATERIALS", amount: "4870000", reimbursable: true,
+  seller: "Петрович", spentAt: "2026-08-14", sectionId: разделЧека,
+  note: "Гипсокартон, профиль, крепёж",
+})) чеков += 1;
+
+if (await завестиЧек(cookie, {
+  kind: "DELIVERY", amount: "350000", reimbursable: true,
+  seller: "Газель на час", spentAt: "2026-08-14", sectionId: null,
+  note: "Доставка гипсокартона на объект",
+})) чеков += 1;
+
+if (await завестиЧек(кукаПрораба, {
+  kind: "TOOLS", amount: "128000", reimbursable: false,
+  seller: "Всеинструменты", spentAt: "2026-09-02", sectionId: null,
+  note: "Диски отрезные, расходник",
+})) чеков += 1;
+
+console.log(`  чеков заведено: ${чеков}, из них черновиком 1`);

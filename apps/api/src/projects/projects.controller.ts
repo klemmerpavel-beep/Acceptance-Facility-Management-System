@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import type { NextProjectCode, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
 import { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
 import { ProjectsService } from "./projects.service";
@@ -37,9 +37,25 @@ export class ProjectsController {
     return this.projects.create(user, createProjectSchema.parse(body));
   }
 
+  /**
+   * Журнал объекта. Страница — двадцать записей; больше просят явно.
+   *
+   * Предел вынесен в запрос не ради экрана — тот берёт страницу, — а ради
+   * проверки состава. Записи восьми видов ложатся в одну ленту по времени,
+   * и на объекте с живой работой двадцать последних могут не содержать ни
+   * одной записи графика: она просто старше. Проверка, читающая страницу,
+   * стережёт страницу, а не журнал, и падает от появления нового вида
+   * записей — что и случилось при заведении чеков.
+   */
   @Get(":code/events")
-  events(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ProjectEvent[]> {
-    return this.projects.events(user, code);
+  events(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Query("limit") limit?: string,
+  ): Promise<ProjectEvent[]> {
+    const предел = limit === undefined ? undefined : Number.parseInt(limit, 10);
+    const годен = предел !== undefined && Number.isInteger(предел) && предел > 0;
+    return this.projects.events(user, code, годен ? Math.min(предел, 200) : undefined);
   }
 
   /**

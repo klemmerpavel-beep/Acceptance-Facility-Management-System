@@ -244,6 +244,15 @@ export const projectSummarySchema = z.object({
   createdAt: z.string().date(),
   keysCount: z.number().int().nonnegative(),
   supervisionShare: z.number().int().nonnegative(),
+  /**
+   * Потрачено на материалы по подтверждённым чекам.
+   *
+   * Величина обещана модулем 1 объёма («первым экраном — деньги: выполнено
+   * на сумму, потрачено, остаток текущего транша») и до появления чеков не
+   * существовала нигде. Ноль здесь — настоящий ноль: чеков нет, потрачено
+   * ноль. Пустоты у этой величины не бывает.
+   */
+  spentMaterials: kopecksString,
   client: z.object({
     code: z.string(),
     name: z.string(),
@@ -1092,6 +1101,68 @@ export const createAcceptanceSchema = z.object({
 });
 export type CreateAcceptance = z.infer<typeof createAcceptanceSchema>;
 
+/* --- чеки на материалы (стадия D) ------------------------------------------
+   Расход по объекту, подтверждённый чеком. Не входит ни в смету, ни в транш,
+   ни в приёмку: это учёт потраченного, а не изменение цены работ. Смета
+   отвечает на вопрос «сколько стоит», расход — «сколько ушло».
+   ------------------------------------------------------------------------ */
+
+export const expenseStatusSchema = z.enum(["DRAFT", "CONFIRMED", "REJECTED"]);
+export type ExpenseStatus = z.infer<typeof expenseStatusSchema>;
+
+export const expenseKindSchema = z.enum(["MATERIALS", "DELIVERY", "TOOLS", "OTHER"]);
+export type ExpenseKind = z.infer<typeof expenseKindSchema>;
+
+export const materialExpenseSchema = z.object({
+  id: z.string().uuid(),
+  status: expenseStatusSchema,
+  kind: expenseKindSchema,
+  amount: kopecksString,
+  reimbursable: z.boolean(),
+  seller: z.string(),
+  /** Дата покупки с чека, а не дата заведения записи. */
+  spentAt: z.string().date(),
+  /** Раздел сметы, к которому отнесён расход; пусто — не отнесён. */
+  section: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  note: z.string().nullable(),
+  /** Имя приложенного файла. Адрес снимка выводится из опознавателя. */
+  fileName: z.string(),
+  createdBy: z.string().nullable(),
+  createdAt: z.string(),
+  confirmedBy: z.string().nullable(),
+});
+export type MaterialExpense = z.infer<typeof materialExpenseSchema>;
+
+export const expenseViewSchema = z.object({
+  rows: z.array(materialExpenseSchema),
+  totals: z.object({
+    /** Потрачено по подтверждённым. Черновик — заявка, а не расход. */
+    spent: kopecksString,
+    /** Из потраченного — то, что предъявляется заказчику. */
+    reimbursable: kopecksString,
+    /** Из потраченного — то, что остаётся на студии. */
+    own: kopecksString,
+    /** Сколько черновиков ждёт разбора. Единственная работа на экране. */
+    drafts: z.number().int().nonnegative(),
+  }),
+});
+export type ExpenseView = z.infer<typeof expenseViewSchema>;
+
+/**
+ * Заведение расхода. Снимок чека приходит тем же запросом отдельной частью,
+ * поэтому в схеме его нет — тот же приём, что у пакета приёмки.
+ */
+export const createExpenseSchema = z.object({
+  kind: expenseKindSchema,
+  amount: kopecksString,
+  reimbursable: z.boolean(),
+  seller: z.string().trim().min(2, "Назовите, где куплено.").max(120),
+  spentAt: z.string().date("Дата покупки: ГГГГ-ММ-ДД."),
+  sectionId: z.string().uuid().nullable(),
+  note: z.string().trim().max(280, "Комментарий длиннее 280 знаков").nullable(),
+});
+export type CreateExpense = z.infer<typeof createExpenseSchema>;
+
 /**
  * Сторно приёмки. Причина обязательна: обратная запись без причины
  * неотличима от ошибки ввода, а история не переписывается — значит,
@@ -1185,7 +1256,25 @@ export const accountingViewSchema = z.object({
     /** Порог, после которого ожидание названо просрочкой, в днях. */
     graceDays: z.number().int().positive(),
   }),
+  /**
+   * Потрачено на материалы по портфелю и сколько из этого предъявляется
+   * заказчикам. **В четыре величины выше не входит и слагаемым им не
+   * является**: те считают движение клиентских денег, а материалы — деньги
+   * студии. Сложить их значило бы получить число, которым никто не
+   * распоряжается.
+   */
+  materials: z.object({
+    spent: kopecksString,
+    reimbursable: kopecksString,
+  }),
   rows: z.array(accountingRowSchema),
+  /** Расходы по объектам: только те, где есть подтверждённые чеки. */
+  expenses: z.array(z.object({
+    projectCode: z.string(),
+    address: z.string(),
+    spent: kopecksString,
+    reimbursable: kopecksString,
+  })),
   clients: z.array(z.object({
     clientId: z.string().uuid(),
     name: z.string(),

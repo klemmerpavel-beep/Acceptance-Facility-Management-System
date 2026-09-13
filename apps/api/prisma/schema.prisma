@@ -75,6 +75,26 @@ enum MeasureSet {
   REPLANNED
 }
 
+/// Состояние расхода по чеку.
+///
+/// Три значения, а не два. Отклонённый не удаляется: история не
+/// переписывается (БП-04), и «почему этот чек не возместили» спрашивают
+/// через месяц — так же, как «кто перевёл объект в паузу». Удаление
+/// допускается только для черновика: он ещё ничего не значит.
+enum ExpenseStatus {
+  DRAFT
+  CONFIRMED
+  REJECTED
+}
+
+/// Вид расхода. Список закрытый — решение заказчика от 13.09.2026.
+enum ExpenseKind {
+  MATERIALS
+  DELIVERY
+  TOOLS
+  OTHER
+}
+
 enum WorkerKind {
   BRIGADE
   PERSON
@@ -158,6 +178,8 @@ model User {
   acceptances       Acceptance[]
   acceptancePhotos  AcceptancePhoto[]
   tranches          Tranche[]
+  expensesCreated   MaterialExpense[] @relation("ExpenseAuthor")
+  expensesConfirmed MaterialExpense[] @relation("ExpenseConfirmer")
 
   @@unique([orgId, email])
   @@index([orgId, role])
@@ -206,6 +228,7 @@ model Project {
   measureRooms      MeasureRoom[]
   /// Планов столько же, сколько наборов обмера: по одному на набор.
   measurePlans      MeasurePlan[]
+  expenses          MaterialExpense[]
   workStages        WorkStage[]
   acceptanceBatches AcceptanceBatch[]
   tranches          Tranche[]
@@ -285,6 +308,7 @@ model EstimateSection {
   items    EstimateItem[]
   stage    WorkStage?
   batches  AcceptanceBatch[]
+  expenses MaterialExpense[]
 
   @@index([estimateId, order])
   @@map("estimate_sections")
@@ -681,6 +705,56 @@ model AcceptancePhoto {
 
   @@index([batchId])
   @@map("acceptance_photos")
+}
+
+/// Расход по объекту, подтверждённый чеком на материалы.
+///
+/// Отдельная модель, а не `OtherExpense`: тот означает строку
+/// импортированной сметы без объёма, её пишет только парсер книги и правке
+/// она не подлежит. Смешать их значило бы смешать «цену в смете» и «деньги,
+/// потраченные по факту» — величины разных вопросов.
+///
+/// Расход не входит ни в смету, ни в транш, ни в приёмку: это учёт
+/// потраченного, а не изменение цены работ.
+///
+/// Снимок чека обязателен и лежит теми же шестью колонками, что снимок
+/// обмерного плана и фотография пакета приёмки. Это третье повторение
+/// одного набора: общая сущность вложения обещана комментарием к
+/// `MeasurePlan` и до сих пор не заведена — долг записан в `11_UI_AUDIT.md`.
+model MaterialExpense {
+  id            String        @id @default(uuid()) @db.Uuid
+  projectId     String        @db.Uuid
+  status        ExpenseStatus @default(DRAFT)
+  kind          ExpenseKind
+  /// Копейки целым числом, как все деньги продукта (БП-08).
+  amount        BigInt
+  /// Возмещается ли заказчиком. Ложь — расход остаётся на студии.
+  reimbursable  Boolean       @default(true)
+  /// Где куплено. По чеку без продавца расход не проверить.
+  seller        String
+  /// Дата покупки с чека. Отличается от даты заведения записи.
+  spentAt       DateTime      @db.Date
+  /// Раздел сметы, к которому отнесён расход. Необязателен: не всякая
+  /// покупка ложится на раздел, и принуждать к выбору значило бы получать
+  /// неверный раздел вместо пустого.
+  sectionId     String?       @db.Uuid
+  note          String?
+  storageKey    String        @unique
+  fileName      String
+  contentType   String
+  byteSize      Int
+  createdById   String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+  confirmedById String?       @db.Uuid
+  confirmedAt   DateTime?
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section     EstimateSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  createdBy   User?            @relation("ExpenseAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  confirmedBy User?            @relation("ExpenseConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, spentAt])
+  @@map("material_expenses")
 }
 
 /// Транш — сумма платежа клиента, в счёт которой идёт выработка.

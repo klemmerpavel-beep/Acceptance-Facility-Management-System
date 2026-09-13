@@ -5,6 +5,7 @@ import {
   PAYMENT_GRACE_DAYS, type TrancheMoney,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
+import { spentFacts, type SpentFacts } from "../common/expense-facts";
 import type { RequestUser } from "../common/current-user";
 
 /**
@@ -38,6 +39,26 @@ export class AccountingService {
       },
     });
 
+    /* Расходы берутся отдельной выборкой и в клиентские деньги не входят:
+       реестр отвечает на вопрос «сколько должны заказчики», а материалы —
+       деньги студии. Колонка рядом, слагаемым — нет. */
+    const объекты = await this.prisma.project.findMany({
+      where: { orgId: user.orgId },
+      select: { id: true, code: true, address: true },
+      orderBy: { code: "asc" },
+    });
+    const расходы = await spentFacts(this.prisma, объекты.map((объект) => объект.id));
+    const расходыПортфеля = объекты
+      .map((объект) => ({ объект, факт: расходы.get(объект.id) }))
+      .filter((пара): пара is { объект: typeof объекты[number]; факт: SpentFacts } =>
+        пара.факт !== undefined)
+      .map(({ объект, факт }) => ({
+        projectCode: объект.code,
+        address: объект.address,
+        spent: факт.spent.toString(),
+        reimbursable: факт.reimbursable.toString(),
+      }));
+
     const iso = (date: Date | null): string | null =>
       date === null ? null : date.toISOString().slice(0, 10);
 
@@ -65,6 +86,12 @@ export class AccountingService {
           graceDays: PAYMENT_GRACE_DAYS,
         };
       })(),
+      materials: {
+        spent: расходыПортфеля.reduce((всего, с) => всего + BigInt(с.spent), 0n).toString(),
+        reimbursable: расходыПортфеля
+          .reduce((всего, с) => всего + BigInt(с.reimbursable), 0n).toString(),
+      },
+      expenses: расходыПортфеля,
       rows: пары.map(({ row, money: транш }) => {
         return {
           id: row.id,

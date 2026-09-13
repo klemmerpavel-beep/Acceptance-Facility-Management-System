@@ -178,6 +178,50 @@ export function Accounting({
         )}
       </section>
 
+      {view.expenses.length > 0 && (
+        <section className="stack">
+          <div className="section-head">
+            <h2 className="t-h2">Расходы на материалы</h2>
+            <p className="t-sm t-muted">деньги студии, а не заказчиков</p>
+          </div>
+          {/* Раздел стоит ОТДЕЛЬНО от четырёх величин наверху и слагаемым им
+              не является. Реестр отвечает на вопрос «сколько должны
+              заказчики»; материалы — деньги студии, и сложенные вместе они
+              дали бы число, которым никто не распоряжается. Подпись раздела
+              говорит это словами, а не оставляет догадываться по вёрстке. */}
+          <p className="spec">
+            <span className="spec__item">
+              Потрачено
+              <span className="spec__value">{formatKopecks(BigInt(view.materials.spent))}</span>
+            </span>
+            <span className="spec__item">
+              К возмещению заказчиками
+              <span className="spec__value">
+                {formatKopecks(BigInt(view.materials.reimbursable))}
+              </span>
+            </span>
+          </p>
+          {/* Свой класс, а не `money__row`: у строки расхода нет состояния
+              оплаты, и правило «состояние названо словом» к ней не
+              относится. Чужой класс сделал бы её девятой строкой реестра
+              клиентских денег — для проверки и для читателя одинаково. */}
+          <ul className="money spend">
+            {view.expenses.map((строка) => (
+              <li className="money__row spend__row" key={строка.projectCode}>
+                <span className="code-badge">{строка.projectCode}</span>
+                <span className="money__address" title={строка.address}>{строка.address}</span>
+                <span className="money__when t-sm t-muted">потрачено</span>
+                <span className="money__sum num">{formatKopecks(BigInt(строка.spent))}</span>
+                <span className="money__when t-sm t-muted">к возмещению</span>
+                <span className="money__sum num t-muted">
+                  {formatKopecks(BigInt(строка.reimbursable))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {view.clients.length > 0 && (
         <section className="stack">
           <div className="section-head">
