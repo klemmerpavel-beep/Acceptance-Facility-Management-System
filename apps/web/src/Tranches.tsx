@@ -3,6 +3,7 @@ import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { closeTranche, createTranche, errorMessage, fetchTranches, payTranche } from "./api.js";
+import { Announce } from "./Announce.js";
 import { TrancheSheet } from "./TrancheSheet.js";
 import { TrancheStrip } from "./TrancheStrip.js";
 
@@ -58,6 +59,9 @@ export function Tranches({
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Закрытие и оплата меняют пилюлю состояния — перерисовку чтением с
+     экрана не объявляют. */
+  const [объявление, setОбъявление] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
 
   const load = useCallback(() => {
@@ -68,13 +72,14 @@ export function Tranches({
 
   useEffect(() => { load(); }, [load]);
 
-  const run = (action: Promise<TrancheView>): void => {
+  const run = (action: Promise<TrancheView>, сказать: string): void => {
     setBusy(true);
     action
       .then((next) => {
         setView(next);
         setOpening(false);
         setSheetError(null);
+        setОбъявление(сказать);
         onEvents();
       })
       .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
@@ -89,6 +94,7 @@ export function Tranches({
 
   return (
     <div className="stack stack--loose">
+      <Announce text={объявление} />
       <section className="stack stack--tight">
         <div className="section-head">
           <h3 className="t-h3">
@@ -103,7 +109,7 @@ export function Tranches({
                   type="button"
                   className="btn btn--secondary"
                   disabled={busy}
-                  onClick={() => { run(closeTranche(code, открытый.id, {})); }}
+                  onClick={() => { run(closeTranche(code, открытый.id, {}), `Транш № ${String(открытый.number)} закрыт`); }}
                 >
                   Закрыть транш
                 </button>
@@ -163,7 +169,7 @@ export function Tranches({
                     type="button"
                     className="btn btn--text"
                     disabled={busy}
-                    onClick={() => { run(payTranche(code, транш.id)); }}
+                    onClick={() => { run(payTranche(code, транш.id), `Транш № ${String(транш.number)} отмечен оплаченным`); }}
                   >
                     Отметить оплату
                   </button>
@@ -197,7 +203,7 @@ export function Tranches({
           hasPrepayment={view.tranches.some((транш) => транш.number === 0)}
           busy={busy}
           error={sheetError}
-          onSubmit={(input) => { run(createTranche(code, input)); }}
+          onSubmit={(input) => { run(createTranche(code, input), "Транш открыт"); }}
           onClose={() => { setOpening(false); setSheetError(null); }}
         />
       )}

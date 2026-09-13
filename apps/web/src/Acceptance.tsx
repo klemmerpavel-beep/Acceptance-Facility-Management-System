@@ -8,6 +8,8 @@ import {
   acceptancePhotoUrl, createAcceptance, errorMessage, fetchAcceptance, reverseAcceptance,
 } from "./api.js";
 import { AcceptSheet } from "./AcceptSheet.js";
+import { tabArrowHandler } from "./tabs.js";
+import { Announce } from "./Announce.js";
 import { ReversalSheet } from "./ReversalSheet.js";
 
 /**
@@ -58,6 +60,9 @@ export function Acceptance({
   const [толькоОстаток, setТолькоОстаток] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reversing, setReversing] = useState<{ line: AcceptanceLine; brigade: string } | null>(null);
+  /* Что объявить тому, кто экран не видит. Результат приёмки виден
+     перерисовкой чисел — а перерисовка чтением с экрана не объявляется. */
+  const [объявление, setОбъявление] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchAcceptance(code)
@@ -76,10 +81,10 @@ export function Acceptance({
     onEvents();
   };
 
-  const run = (action: Promise<AcceptanceView>): void => {
+  const run = (action: Promise<AcceptanceView>, сказать: string): void => {
     setBusy(true);
     action
-      .then(apply)
+      .then((next) => { apply(next); setОбъявление(сказать); })
       .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };
@@ -147,13 +152,31 @@ export function Acceptance({
       </div>
 
       <div className="accept__work">
-      <div className="accept__sections" role="tablist" aria-label="Разделы сметы">
+      {/* Полоса разделов объявлена вкладками, и контракт вкладок держится
+          целиком: стрелки переводят выбор, Tab уводит из полосы в список
+          позиций, а не перебирает одиннадцать разделов по одному. Обработчик
+          общий с карточкой объекта и настройками — второй такой разошёлся бы
+          с первым на первой же правке. */}
+      <div
+        className="accept__sections"
+        role="tablist"
+        aria-label="Разделы сметы"
+        onKeyDown={tabArrowHandler(
+          sections.map((section) => section.id),
+          selected?.id ?? sections[0]?.id ?? "",
+          (id) => { setCurrent(id); setPicked([]); },
+          (id) => `accept-section-${id}`,
+        )}
+      >
         {sections.map((section) => (
           <button
             key={section.id}
+            id={`accept-section-${section.id}`}
             type="button"
             role="tab"
             aria-selected={section.id === selected?.id}
+            aria-controls="accept-section-panel"
+            tabIndex={section.id === selected?.id ? 0 : -1}
             className={section.stage === null ? "accept__section accept__section--idle" : "accept__section"}
             onClick={() => { setCurrent(section.id); setPicked([]); }}
           >
@@ -168,7 +191,7 @@ export function Acceptance({
       </div>
 
       {selected !== null && (
-        <div className="accept__list">
+        <div className="accept__list" id="accept-section-panel" role="tabpanel">
           {selected.stage === null && (
             <p className="field__error" role="alert">
               У раздела «{sectionTitle(selected.name)}» нет этапа графика с бригадой. Свяжите раздел с этапом
@@ -344,6 +367,8 @@ export function Acceptance({
         <p className="field__error" role="alert">{sheetError}</p>
       )}
 
+      <Announce text={объявление} />
+
       {confirming && selected !== null && (
         <AcceptSheet
           section={selected}
@@ -355,7 +380,7 @@ export function Acceptance({
               sectionId: selected.id,
               positions: input.positions,
               ...(input.comment === "" ? {} : { comment: input.comment }),
-            }, input.photo));
+            }, input.photo), `Принято позиций: ${String(input.positions.length)}`);
           }}
           onClose={() => { setConfirming(false); setSheetError(null); }}
         />
@@ -367,7 +392,10 @@ export function Acceptance({
           brigade={reversing.brigade}
           busy={busy}
           error={sheetError}
-          onSubmit={(reason) => { run(reverseAcceptance(code, reversing.line.id, { reason })); }}
+          onSubmit={(reason) => {
+            run(reverseAcceptance(code, reversing.line.id, { reason }),
+              `Сторнировано: ${reversing.line.positionName}`);
+          }}
           onClose={() => { setReversing(null); setSheetError(null); }}
         />
       )}

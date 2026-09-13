@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AccountingRow, AccountingView, MoneyState } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { errorMessage, fetchAccounting, payTranche } from "./api.js";
+import { Announce } from "./Announce.js";
 import { formatDate, plural } from "./status.js";
 
 /**
@@ -56,6 +57,7 @@ export function Accounting({
 }): React.JSX.Element {
   const [view, setView] = useState<AccountingView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [объявление, setОбъявление] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [фильтр, setФильтр] = useState<MoneyState | "все">("все");
 
@@ -96,7 +98,11 @@ export function Accounting({
   const отметить = (row: AccountingRow): void => {
     setBusy(row.id);
     payTranche(row.projectCode, row.id)
-      .then(() => { load(); setError(null); })
+      .then(() => {
+        load();
+        setError(null);
+        setОбъявление(`Транш № ${String(row.number)} по объекту ${row.projectCode} отмечен оплаченным`);
+      })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
       .finally(() => { setBusy(null); });
   };
@@ -106,6 +112,7 @@ export function Accounting({
 
   return (
     <main className="container stack stack--loose">
+      <Announce text={объявление} />
       <section className="statrow">
         <MoneyCard label="Оплачено" value={view.totals.paid} note="получено от заказчиков" />
         <MoneyCard

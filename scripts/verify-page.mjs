@@ -535,6 +535,68 @@ const step = async (name, file) => {
   console.log(`  снято: ${name} → ${file}`);
 };
 
+/**
+ * Разметка текущего экрана — три правила, общие для всего продукта.
+ *
+ * Правило на класс дефектов, а не на место: экранов много, и правило,
+ * названное по имени файла, стережёт один экран и молчит на следующем,
+ * написанном по тому же образцу. Все три дефекта, из-за которых правила
+ * заведены, стояли каждый на своём экране и ни один не был единственным.
+ *
+ * 1. `aria-selected` вне `role="tab"` недействителен: чтение с экрана
+ *    молча его теряет, и выбранный пункт ничем не отличается от прочих.
+ * 2. Полоса вкладок обязана держать контракт целиком — ровно одна вкладка
+ *    в порядке обхода, остальные достижимы стрелками. Иначе Tab перебирает
+ *    одиннадцать разделов по одному вместо того, чтобы уйти в содержимое.
+ * 3. Вкладка ссылается на существующую панель: `aria-controls`, ведущий в
+ *    пустоту, объявляет выбор, за которым ничего не стоит.
+ * 4. Прямым потомком `dl` допустимы `dt`, `dd` и `div`; абзац внутри
+ *    списка определений браузеры разбирают по-своему.
+ */
+const разметка = async (экран) => {
+  const найдено = await page.evaluate(() => {
+    const беды = [];
+    const имя = (el) => (el.className.toString() || el.tagName).split(" ")[0].slice(0, 32);
+    const порядок = (el) => {
+      const записано = el.getAttribute("tabindex");
+      return записано === null ? 0 : Number.parseInt(записано, 10);
+    };
+
+    for (const el of document.querySelectorAll("[aria-selected]")) {
+      if (el.getAttribute("role") !== "tab") {
+        беды.push(`«aria-selected» вне вкладки: ${имя(el)}`);
+      }
+    }
+
+    for (const полоса of document.querySelectorAll('[role="tablist"]')) {
+      const вкладки = [...полоса.querySelectorAll('[role="tab"]')];
+      if (вкладки.length === 0) continue;
+      const вПорядке = вкладки.filter((таб) => порядок(таб) !== -1);
+      if (вПорядке.length !== 1) {
+        беды.push(
+          `в полосе ${имя(полоса)} вкладок в порядке обхода ${String(вПорядке.length)} вместо одной`);
+      }
+      for (const таб of вкладки) {
+        const цель = таб.getAttribute("aria-controls");
+        if (цель === null) { беды.push(`вкладка ${имя(таб)} не названа панелью`); continue; }
+        if (document.getElementById(цель) === null) {
+          беды.push(`вкладка ${имя(таб)} ссылается на несуществующую панель «${цель}»`);
+        }
+      }
+    }
+
+    for (const список of document.querySelectorAll("dl")) {
+      for (const ребёнок of список.children) {
+        if (!["DT", "DD", "DIV", "SCRIPT", "TEMPLATE"].includes(ребёнок.tagName)) {
+          беды.push(`в списке определений прямой потомок <${ребёнок.tagName.toLowerCase()}>`);
+        }
+      }
+    }
+    return беды;
+  });
+  for (const беда of найдено) note("разметка", `${экран}: ${беда}`);
+};
+
 console.log(`Браузер: ${browserSource()}`);
 console.log("Сценарий:");
 await page.goto(BASE, { waitUntil: "networkidle" });
@@ -579,6 +641,7 @@ await page.click('button[type="submit"]');
 
 // Первый экран — главная.
 await page.waitForSelector(".statcard");
+await разметка("главная");
 await step("главная", "03-glavnaya.png");
 await overflow("главная, 1440");
 await усечение(page, "главная");
@@ -1308,6 +1371,7 @@ const крошка = async () =>
   }
 }
 
+await разметка("карточка объекта");
 await step("карточка объекта, обзор", "05-kartochka.png");
 /* Правка значения на месте. Проверяется путь целиком, а не наличие кнопки:
    значение меняется, новое видно в карточке, и правка уходит в журнал.
@@ -2372,6 +2436,7 @@ if (строкДенег === 0) {
 if ((await page.locator(".money__row--client").count()) === 0) {
   note("бухгалтерия", "свода по заказчикам нет");
 }
+await разметка("бухгалтерия");
 await step("бухгалтерия", "44-buhgalteriya.png");
 await overflow("бухгалтерия, 1440");
 await усечение(page, "бухгалтерия");
@@ -2671,6 +2736,10 @@ if (cardTabs.join("|") !== "Обзор|Замер|Смета|Работа|При
 for (const tab of cardTabs) {
   await page.click(`.tabs__item:has-text("${tab}")`);
   await page.waitForTimeout(300);
+  /* Разметка проверяется на каждой вкладке: полоса разделов приёмки,
+     список помещений замера и список определений «Обзора» живут порознь, и
+     правило, снятое на одной, ничего не говорит о соседней. */
+  await разметка(`вкладка «${tab}»`);
   if ((await page.locator("main .empty__title").count()) > 0) {
     const title = await page.locator("main .empty__title").first().textContent();
     note("вкладки карточки", `вкладка «${tab}» показывает пустое состояние «${title?.trim() ?? ""}»`);
@@ -3480,11 +3549,25 @@ if ((await page.locator(".sheet").count()) === 0) {
   }
 
   const пакетовДо = await page.locator(".accept__batch").count();
+  /* Живая область обязана стоять в разметке ДО действия. Область, попавшая
+     в дерево вместе с текстом, читалкой не объявляется: она замечает
+     изменение внутри существующей области, а не появление новой. Правило
+     найдено на правке поля объекта и потому проверяется, а не помнится. */
+  const областьДо = await page.locator('.accept-screen [role="status"], main [role="status"]').count();
+  if (областьДо === 0) {
+    note("приёмка", "живой области нет до подтверждения: объявлять изменение будет некуда");
+  }
   await page.click('.sheet button:has-text("Подтвердить")');
   await page.waitForTimeout(1200);
   const пакетовПосле = await page.locator(".accept__batch").count();
   if (пакетовПосле !== пакетовДо + 1) {
     note("приёмка", `пакетов ${пакетовПосле} вместо ${пакетовДо + 1}`);
+  }
+  /* И несёт текст после: пустая область — это область, которая молчит. */
+  const сказано = (await page.locator('main [role="status"]').allTextContents())
+    .map((текст) => текст.trim()).filter((текст) => текст !== "");
+  if (сказано.length === 0) {
+    note("приёмка", "подтверждение пакета ничего не объявило: экран изменился молча");
   }
 }
 
