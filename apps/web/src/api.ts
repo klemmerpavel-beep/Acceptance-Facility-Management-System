@@ -1,9 +1,12 @@
-import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
+import type {
+  CurrentUser, DocumentTemplate, IssuedDocument, ProjectSummary, SaveTemplate, TemplateRow,
+} from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
   photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
   actListSchema, actViewSchema,
+  documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -276,6 +279,31 @@ export const fetchAct = (
 
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
+
+/* --- шаблоны документов организации ----------------------------------------- */
+
+/* Схема массива собирается здесь, а не в контрактах: сервер отдаёт перечень
+   массивом, и заводить ради этого второе имя в общем словаре незачем. */
+const templateListSchema = z.array(templateRowSchema);
+
+export const fetchTemplates = (): Promise<TemplateRow[]> =>
+  request("/templates", templateListSchema);
+
+export const fetchTemplate = (id: string): Promise<DocumentTemplate> =>
+  request(`/templates/${id}`, documentTemplateSchema);
+
+export const createTemplate = (input: SaveTemplate): Promise<TemplateRow[]> =>
+  request("/templates", templateListSchema, json(input));
+
+export const updateTemplate = (id: string, input: SaveTemplate): Promise<TemplateRow[]> =>
+  request(`/templates/${id}`, templateListSchema, { ...json(input), method: "PUT" });
+
+export const deleteTemplate = (id: string): Promise<TemplateRow[]> =>
+  request(`/templates/${id}`, templateListSchema, { method: "DELETE" });
+
+/** Выпуск документа: метки заменяются значениями на сервере, где лежат данные. */
+export const issueDocument = (id: string, projectCode: string): Promise<IssuedDocument> =>
+  request(`/templates/${id}/issue`, issuedDocumentSchema, json({ projectCode }));
 
 export const reverseAcceptance = (
   code: string,

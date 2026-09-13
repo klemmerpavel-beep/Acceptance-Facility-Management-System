@@ -2256,9 +2256,52 @@ await page.waitForTimeout(200);
    на широком экране она скрыта правилом, но из разметки не изъята: селектор
    по классу пункта собирал оба списка и объявлял состав удвоенным. */
 const menu = (await page.locator(".appbar__menu .appbar__menu-item").allTextContents()).map((s) => s.trim());
-if (menu.join("|") !== ["Настройки", "Что дальше", "Выйти"].join("|")) {
+if (menu.join("|") !== ["Настройки", "Документы", "Что дальше", "Выйти"].join("|")) {
   note("навигация", `в списке «Ещё» «${menu.join(", ")}»`);
 }
+
+/*
+ * Документы организации: шаблон открывается, документ выпускается, метки
+ * заменяются значениями.
+ *
+ * Стережётся не вид бланка, а два свойства. Первое: в шаблоне метки есть —
+ * это и есть шаблон, и шаблон, отданный уже подставленным, править нечем.
+ * Второе: в выпущенном документе меток не осталось — метка, дошедшая до
+ * подписи, читается заказчиком как брак бумаги.
+ */
+await page.click('.appbar__menu .appbar__menu-item:has-text("Документы")');
+await page.waitForSelector(".docs-screen");
+const шаблоновНаЭкране = await page.locator(".docs-screen .check").count();
+if (шаблоновНаЭкране === 0) {
+  note("документы организации", "перечень шаблонов пуст: выпускать нечего");
+} else {
+  await page.click('.docs-screen .check button:has-text("Открыть")');
+  await page.waitForSelector(".doc__clauses");
+  const текстШаблона = await page.locator(".doc__clauses").first().innerText();
+  if (!/\{\{[^}]+\}\}/u.test(текстШаблона)) {
+    note("документы организации", "в шаблоне не осталось меток: править нечем");
+  }
+
+  await page.selectOption(".docs-screen select.input", "R-99");
+  await page.waitForTimeout(900);
+  const бланк = page.locator(".doc.act");
+  if ((await бланк.count()) === 0) {
+    note("документы организации", "документ по объекту не выпустился");
+  } else {
+    const текстДокумента = await бланк.first().innerText();
+    if (/\{\{[^}]+\}\}/u.test(текстДокумента)) {
+      note("документы организации", "в выпущенном документе осталась метка");
+    }
+    if (!текстДокумента.includes("R-99")) {
+      note("документы организации", "код объекта в документ не подставлен");
+    }
+  }
+  await разметка("документы организации");
+  await overflow("документы организации, 1440");
+  await step("документы организации", "46-dokumenty-org.png");
+}
+await page.click(".appbar__more > summary");
+await page.waitForTimeout(200);
 await page.click('.appbar__menu .appbar__menu-item:has-text("Что дальше")');
 await page.waitForTimeout(400);
 if ((await page.locator(".roadmap__item").count()) === 0) {
@@ -2715,7 +2758,7 @@ console.log(`  строк в «Что дальше»: ${roadmap}`);
 
    Порог держится снизу и сверху: список, из которого пункт пропал не по
    выполнению, а по недосмотру, проверкой «не меньше» не ловится. */
-if (roadmap !== 2) note("что дальше", `строк ${roadmap} вместо двух`);
+if (roadmap !== 1) note("что дальше", `строк ${roadmap} вместо одной`);
 if (stages !== roadmap) note("что дальше", `стадию называют ${stages} строк из ${roadmap}`);
 const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {

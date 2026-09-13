@@ -19,11 +19,13 @@ import { StagesService } from "./stages/stages.service";
 import { AcceptanceService } from "./acceptance/acceptance.service";
 import { ExpensesService } from "./expenses/expenses.service";
 import { ActsService } from "./acts/acts.service";
+import { TemplatesService } from "./templates/templates.service";
 import { TranchesService } from "./tranches/tranches.service";
 import { StagesController } from "./stages/stages.controller";
 import { AcceptanceController } from "./acceptance/acceptance.controller";
 import { ExpensesController } from "./expenses/expenses.controller";
 import { ActsController } from "./acts/acts.controller";
+import { TemplatesController } from "./templates/templates.controller";
 import { TranchesController } from "./tranches/tranches.controller";
 import { LeadsService } from "./leads/leads.service";
 import { LeadsController } from "./leads/leads.controller";
@@ -35,7 +37,8 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
   controllers: [
     AuthController, ProjectsController, EstimatesController,
     SummaryController, DirectoryController, MeasureController, StagesController,
-    AcceptanceController, ExpensesController, ActsController, TranchesController, LeadsController,
+    AcceptanceController, ExpensesController, ActsController,
+    TemplatesController, TranchesController, LeadsController,
     AccountingController,
   ],
   providers: [
@@ -45,6 +48,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     AcceptanceService,
     ExpensesService,
     ActsService,
+    TemplatesService,
     TranchesService,
     LeadsService,
     AccountingService,

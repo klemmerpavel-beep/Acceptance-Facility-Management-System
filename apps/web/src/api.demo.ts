@@ -15,6 +15,7 @@ import type {
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
+  DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -33,6 +34,7 @@ import {
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
+  fillTemplate, formatKopecks, templateFault,
   type ProjectRange,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
@@ -71,6 +73,7 @@ interface Snapshot {
   import: ImportResult;
   measure: MeasureView;
   acts: ActRow[];
+  templates: DocumentTemplate[];
   "act-client": ActView | null;
   "act-internal": ActView | null;
   expenses: ExpenseView;
@@ -1811,4 +1814,129 @@ export async function signAct(
   await pause(240);
   подписи.set(trancheId, signedAt);
   return data.acts.map(сПодписью);
+}
+
+/* --- шаблоны документов организации ------------------------------------------
+   Демонстрация правится в памяти вкладки и снимком не переживает перезагрузку:
+   слепок — снимок стенда, а не хранилище. Выпуск документа подставляет
+   значения тем же доменным правилом, что и сервер, по данным слепка.
+   -------------------------------------------------------------------------- */
+
+const шаблоныДемо = new Map<string, { name: string; kind: TemplateKind; clauses: DocumentClause[] }>(
+  data.templates.map((шаблон) => [
+    шаблон.id,
+    { name: шаблон.name, kind: шаблон.kind, clauses: шаблон.clauses.map((пункт) => ({ ...пункт })) },
+  ]),
+);
+
+const строкаШаблона = (id: string): TemplateRow => {
+  const шаблон = шаблоныДемо.get(id);
+  return {
+    id,
+    name: шаблон?.name ?? "",
+    kind: шаблон?.kind ?? "OTHER",
+    clauses: шаблон?.clauses.length ?? 0,
+    updatedAt: new Date().toISOString(),
+  };
+};
+
+const переченьШаблонов = (): TemplateRow[] =>
+  [...шаблоныДемо.keys()].map(строкаШаблона)
+    .sort((слева, справа) => слева.name.localeCompare(справа.name, "ru"));
+
+export async function fetchTemplates(): Promise<TemplateRow[]> {
+  await pause(180);
+  return переченьШаблонов();
+}
+
+export async function fetchTemplate(id: string): Promise<DocumentTemplate> {
+  await pause(180);
+  const шаблон = шаблоныДемо.get(id);
+  if (шаблон === undefined) throw new Error("Шаблон не найден или недоступен.");
+  return {
+    id,
+    name: шаблон.name,
+    kind: шаблон.kind,
+    clauses: шаблон.clauses.map((пункт) => ({ ...пункт })),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function createTemplate(input: SaveTemplate): Promise<TemplateRow[]> {
+  await pause(240);
+  const отказ = templateFault(input);
+  if (отказ !== null) throw new Error(отказ);
+  if ([...шаблоныДемо.values()].some((шаблон) => шаблон.name === input.name)) {
+    throw new Error(`Шаблон «${input.name}» уже заведён. `
+      + "Два одинаковых имени в списке неразличимы.");
+  }
+  шаблоныДемо.set(`demo-${String(шаблоныДемо.size + 1)}`, {
+    name: input.name, kind: input.kind, clauses: input.clauses.map((пункт) => ({ ...пункт })),
+  });
+  return переченьШаблонов();
+}
+
+export async function updateTemplate(id: string, input: SaveTemplate): Promise<TemplateRow[]> {
+  await pause(240);
+  const отказ = templateFault(input);
+  if (отказ !== null) throw new Error(отказ);
+  if (!шаблоныДемо.has(id)) throw new Error("Шаблон не найден или недоступен.");
+  шаблоныДемо.set(id, {
+    name: input.name, kind: input.kind, clauses: input.clauses.map((пункт) => ({ ...пункт })),
+  });
+  return переченьШаблонов();
+}
+
+export async function deleteTemplate(id: string): Promise<TemplateRow[]> {
+  await pause(240);
+  шаблоныДемо.delete(id);
+  return переченьШаблонов();
+}
+
+export async function issueDocument(id: string, projectCode: string): Promise<IssuedDocument> {
+  await pause(320);
+  const шаблон = шаблоныДемо.get(id);
+  if (шаблон === undefined) throw new Error("Шаблон не найден или недоступен.");
+  const объект = data["projects-owner"].find((project) => project.code === projectCode);
+  if (объект === undefined) {
+    throw new Error(`Объект ${projectCode} не найден или недоступен.`);
+  }
+
+  const сегодня = new Date().toISOString().slice(0, 10);
+  const значения: Record<string, string | null> = {
+    "организация.наименование": data.organization.name,
+    "организация.телефон": data.organization.phone,
+    "организация.почта": data.organization.email,
+    "исполнитель.наименование": data.organization.name,
+    "исполнитель.реквизиты": data.organization.requisites,
+    "контрагент.наименование": объект.client.name,
+    "контрагент.реквизиты": объект.client.requisites,
+    "документ.номер": объект.code,
+    "документ.дата": сегодня,
+    "объект.код": объект.code,
+    "объект.адрес": объект.address,
+    /* Площадь и итог сметы берутся у того объекта, по которому слепок снят:
+       у прочих их в слепке нет, и прочерк здесь честнее выдуманного числа. */
+    "объект.площадь": projectCode === "R-99"
+      ? `${(Number(data.measure.totals.floorArea) / 1000).toFixed(2)} м²`
+      : null,
+    "объект.смета": projectCode === "R-99"
+      ? formatKopecks(BigInt(data["estimate-owner"].totals.estimate))
+      : null,
+    "система.сегодня": сегодня,
+    "система.автор": data["me-owner"].name,
+  };
+
+  return {
+    name: шаблон.name,
+    kind: шаблон.kind,
+    issuedAt: сегодня,
+    project: { code: объект.code, address: объект.address },
+    contractor: { name: data.organization.name, requisites: data.organization.requisites },
+    client: { name: объект.client.name, requisites: объект.client.requisites },
+    clauses: шаблон.clauses.map((пункт) => ({
+      title: fillTemplate(пункт.title, значения),
+      body: fillTemplate(пункт.body, значения),
+    })),
+  };
 }
