@@ -91,6 +91,7 @@ export class DirectoryService {
       currency: "RUB",
       phone: organization.phone,
       email: organization.email,
+      requisites: organization.requisites,
       logoKey: organization.logoKey,
     };
   }
@@ -122,6 +123,7 @@ export class DirectoryService {
         ...(patch.timeZone === undefined ? {} : { timeZone: patch.timeZone }),
         ...(storedPhone === undefined ? {} : { phone: storedPhone }),
         ...(blank(patch.email) === undefined ? {} : { email: blank(patch.email) }),
+        ...(blank(patch.requisites) === undefined ? {} : { requisites: blank(patch.requisites) }),
       },
     });
     return this.organization(user);

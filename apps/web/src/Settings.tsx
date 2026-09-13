@@ -97,6 +97,7 @@ export function Settings({
       timeZone: text(form, "timeZone"),
       phone: text(form, "phone"),
       email: text(form, "email"),
+      requisites: text(form, "requisites"),
     })
       .then((updated) => { setOrganization(updated); setSaved(true); })
       .catch((cause: unknown) => setError(errorMessage(cause)))
@@ -170,6 +171,26 @@ export function Settings({
                   <input className="input" name="email" type="email" defaultValue={organization.email ?? ""} />
                 </label>
               </div>
+
+              {/* Реквизиты — одно поле свободного текста, решение заказчика
+                  от 13.09.2026. Набор граф (ИНН, счёт, банк, БИК) пришлось
+                  бы придумывать за компанию, а печатается всё равно то, что
+                  вписал руководитель. То же устройство, что у реквизитов
+                  заказчика в «Контактах». */}
+              <label className="field">
+                <span className="field__label">Реквизиты для акта</span>
+                <textarea
+                  className="input settings__requisites"
+                  name="requisites"
+                  rows={3}
+                  maxLength={600}
+                  placeholder="ИП Долгий П. С., ИНН 366000000000, р/с 40802810000000000000"
+                  defaultValue={organization.requisites ?? ""}
+                />
+                <span className="field__hint">
+                  Печатаются в шапке акта выполненных работ со стороны исполнителя.
+                </span>
+              </label>
 
               <div className="row">
                 <button className="btn btn--primary" type="submit" data-loading={busy || undefined}>

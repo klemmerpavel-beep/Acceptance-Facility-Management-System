@@ -64,6 +64,7 @@ const snapshot = {
      сторон — иначе заказчик увидит кнопку, за которой пусто. */
   "measure-replanned": await owner("/projects/R-99/measure?set=REPLANNED"),
   expenses: await owner("/projects/R-99/expenses"),
+  acts: await owner("/projects/R-99/acts"),
   /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
      несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
      связь с разделом, бригада и фактическая готовность по приёмке. */
@@ -95,6 +96,19 @@ const snapshot = {
     report: last.report,
   },
 };
+
+/* Акт снимается вторым заходом: опознаватель транша известен только из
+   перечня актов, а тот уже в слепке. Снимаются оба вида — они различаются
+   составом полей, и подменить один другим в демонстрации значило бы
+   показать заказчику внутренние величины. Закрытого транша может не быть
+   вовсе — тогда акта нет, и это честное состояние, а не отказ съёмки. */
+const первыйАкт = snapshot.acts[0];
+snapshot["act-client"] = первыйАкт === undefined
+  ? null
+  : await owner(`/projects/R-99/acts/${первыйАкт.trancheId}`);
+snapshot["act-internal"] = первыйАкт === undefined
+  ? null
+  : await owner(`/projects/R-99/acts/${первыйАкт.trancheId}?view=internal`);
 
 /*
  * Слепок снимается со стенда — с любого, в том числе с того, по которому
@@ -138,5 +152,6 @@ console.log(
   `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length};`,
   `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `чеков ${snapshot.expenses.rows.length}, из них черновиков ${snapshot.expenses.totals.drafts};`,
+  `актов ${snapshot.acts.length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

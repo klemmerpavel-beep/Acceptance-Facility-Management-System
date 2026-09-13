@@ -103,7 +103,7 @@ export class TranchesService {
         orderBy: { number: "asc" },
         select: {
           id: true, number: true, amount: true, status: true,
-          openedAt: true, closedAt: true, paidAt: true, comment: true,
+          openedAt: true, closedAt: true, paidAt: true, signedAt: true, comment: true,
         },
       }),
       this.prisma.acceptanceBatch.findMany({
@@ -146,7 +146,8 @@ export class TranchesService {
   private toTranche(
     row: {
       id: string; number: number; amount: bigint; status: "OPEN" | "CLOSED" | "PAID";
-      openedAt: Date; closedAt: Date | null; paidAt: Date | null; comment: string | null;
+      openedAt: Date; closedAt: Date | null; paidAt: Date | null; signedAt: Date | null;
+      comment: string | null;
     },
     выработка: Kopecks,
     share: BasisPoints,
@@ -160,6 +161,7 @@ export class TranchesService {
       openedAt: row.openedAt.toISOString(),
       closedAt: iso(row.closedAt),
       paidAt: iso(row.paidAt),
+      signedAt: row.signedAt === null ? null : row.signedAt.toISOString().slice(0, 10),
       comment: row.comment,
       produced: выработка.toString(),
       client: clientAmount(выработка, share).toString(),
