@@ -844,7 +844,28 @@ export const measurePlanSchema = z.object({
 export type MeasurePlan = z.infer<typeof measurePlanSchema>;
 
 /** Вкладка «Замер» одним запросом: помещения, итоги, сведения о плане. */
+/**
+ * Набор обмера: до работ и после перепланировки.
+ *
+ * Их ровно два, и это не заготовка под список. Перепланировка меняет
+ * площади, и прежние величины перестают быть правдой, не переставая быть
+ * историей: по ним считалась смета, и вопрос «почему в смете 18,40, а в
+ * обмере 22,10» задают через месяц. Поэтому второй набор рядом с первым, а
+ * не поверх него.
+ */
+export const measureSetSchema = z.enum(["INITIAL", "REPLANNED"]);
+export type MeasureSetKind = z.infer<typeof measureSetSchema>;
+
 export const measureViewSchema = z.object({
+  /** Какой набор показан. */
+  set: measureSetSchema,
+  /**
+   * Наборы, в которых есть помещения. Нужны экрану, чтобы отличить
+   * «перепланировки не было» от «перепланировка есть, но не выбрана»: без
+   * этого переключатель либо всегда показывает пустой второй набор, либо
+   * не показывает существующий.
+   */
+  filled: z.array(measureSetSchema),
   rooms: z.array(measureRoomSchema),
   totals: measureTotalsSchema,
   plan: measurePlanSchema.nullable(),

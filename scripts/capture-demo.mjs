@@ -59,6 +59,10 @@ const snapshot = {
   "estimate-owner": estimateOwner,
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
   measure: await owner("/projects/R-99/measure"),
+  /* Второй набор обмера снимается отдельным запросом: наборов два, и
+     демонстрация обязана показывать переключатель заполненным с обеих
+     сторон — иначе заказчик увидит кнопку, за которой пусто. */
+  "measure-replanned": await owner("/projects/R-99/measure?set=REPLANNED"),
   /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
      несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
      связь с разделом, бригада и фактическая готовность по приёмке. */
@@ -131,6 +135,6 @@ console.log(
   `  объектов у руководителя ${snapshot["projects-owner"].length},`,
   `у прораба ${snapshot["projects-foreman"].length};`,
   `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length};`,
-  `помещений обмера ${snapshot.measure.rooms.length};`,
+  `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

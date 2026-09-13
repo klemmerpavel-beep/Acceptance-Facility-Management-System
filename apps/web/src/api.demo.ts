@@ -14,7 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
-  ImportResult, MeasureRoom, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
+  ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
   AcceptanceView, CreateAcceptance, Reversal,
@@ -69,6 +69,7 @@ interface Snapshot {
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
   measure: MeasureView;
+  "measure-replanned": MeasureView;
 }
 
 const data = snapshot as unknown as Snapshot;
@@ -102,8 +103,12 @@ const changedFields = new Map<string, UpdateProject>();
  * Производные величины считает тот же домен, что и сервер: показывать в
  * демонстрации другое число, чем в продукте, — обман, а не упрощение.
  */
-let measureRooms: MeasureRoom[] = [];
-let measurePlan: MeasureView["plan"] = null;
+/* Обмер в демонстрации ведётся по наборам — как и на сервере. Один
+   изменяемый набор на оба вида означал бы, что переключатель ничего не
+   переключает, и заказчик увидел бы это первым же нажатием. */
+let measureRooms: Record<MeasureSetKind, MeasureRoom[]> = { INITIAL: [], REPLANNED: [] };
+let measurePlan: Record<MeasureSetKind, MeasureView["plan"]> = { INITIAL: null, REPLANNED: null };
+let обмерВзят = false;
 
 const measured = (room: MeasureRoom): MeasureRoom => {
   const values = {
@@ -119,15 +124,20 @@ const measured = (room: MeasureRoom): MeasureRoom => {
   };
 };
 
-const measureView = (): MeasureView => {
-  const totals = measureTotals(measureRooms.map((room) => ({
+const measureView = (set: MeasureSetKind): MeasureView => {
+  const комнаты = measureRooms[set];
+  const totals = measureTotals(комнаты.map((room) => ({
     floorArea: milliunits(room.floorArea),
     floorPerimeter: milliunits(room.floorPerimeter),
     ceilingPerimeter: milliunits(room.ceilingPerimeter),
     height: milliunits(room.height),
   })));
   return {
-    rooms: measureRooms,
+    set,
+    /* Заполненные наборы считаются по составу, а не помечаются отдельно:
+       вторая правда о том же разошлась бы с первой при первом удалении. */
+    filled: (["INITIAL", "REPLANNED"] as const).filter((вид) => measureRooms[вид].length > 0),
+    rooms: комнаты,
     totals: {
       rooms: totals.rooms,
       floorArea: totals.floorArea.toString(),
@@ -136,7 +146,7 @@ const measureView = (): MeasureView => {
       ceilingPerimeter: totals.ceilingPerimeter.toString(),
       volume: totals.volume.toString(),
     },
-    plan: measurePlan,
+    plan: measurePlan[set],
   };
 };
 
@@ -1036,26 +1046,44 @@ export async function reorderStages(_code: string, ids: string[]): Promise<WorkS
 
 /* --- обмерный план ------------------------------------------------------ */
 
-export async function fetchMeasure(code: string): Promise<MeasureView> {
+export async function fetchMeasure(
+  code: string,
+  set: MeasureSetKind = "INITIAL",
+): Promise<MeasureView> {
   await pause(220);
-  if (code !== "R-99") return { rooms: [], totals: measureView().totals, plan: null };
-  if (measureRooms.length === 0 && measurePlan === null) {
-    measureRooms = data.measure.rooms;
-    measurePlan = data.measure.plan;
+  if (code !== "R-99") {
+    return { set, filled: [], rooms: [], totals: measureView(set).totals, plan: null };
   }
-  return measureView();
+  /* Слепок берётся один раз: дальше в памяти живёт правленое состояние, и
+     повторное присвоение стёрло бы внесённое человеком. */
+  if (!обмерВзят) {
+    обмерВзят = true;
+    measureRooms = {
+      INITIAL: data.measure.rooms,
+      REPLANNED: data["measure-replanned"].rooms,
+    };
+    measurePlan = {
+      INITIAL: data.measure.plan,
+      REPLANNED: data["measure-replanned"].plan,
+    };
+  }
+  return measureView(set);
 }
 
 /** Правка обмера в демонстрации: сервера нет, но кнопка обязана работать. */
-export async function createRoom(_code: string, room: CreateMeasureRoom): Promise<MeasureView> {
+export async function createRoom(
+  _code: string,
+  set: MeasureSetKind,
+  room: CreateMeasureRoom,
+): Promise<MeasureView> {
   await pause(260);
-  if (measureRooms.some((existing) => existing.name === room.name)) {
-    throw new Error(`Помещение «${room.name}» на объекте уже есть.`);
+  if (measureRooms[set].some((existing) => existing.name === room.name)) {
+    throw new Error(`Помещение «${room.name}» в этом наборе обмера уже есть.`);
   }
-  measureRooms = [...measureRooms, measured({
-    id: `demo-${String(measureRooms.length + 1)}`,
+  measureRooms[set] = [...measureRooms[set], measured({
+    id: `demo-${set}-${String(measureRooms[set].length + 1)}`,
     name: room.name,
-    order: measureRooms.length + 1,
+    order: measureRooms[set].length + 1,
     floorArea: room.floorArea,
     floorPerimeter: room.floorPerimeter,
     ceilingPerimeter: room.ceilingPerimeter,
@@ -1064,7 +1092,7 @@ export async function createRoom(_code: string, room: CreateMeasureRoom): Promis
     volume: "0",
     openings: room.openings ?? [],
   })];
-  return measureView();
+  return measureView(set);
 }
 
 export async function updateRoom(
@@ -1078,34 +1106,46 @@ export async function updateRoom(
   const patch = Object.fromEntries(
     Object.entries(room).filter(([, value]) => value !== undefined),
   ) as Partial<MeasureRoom>;
-  measureRooms = measureRooms.map((existing) =>
+  /* Набор ищется по помещению — тем же правилом, что на сервере: правят
+     то, что открыто, и называть набор вторым местом незачем. */
+  const где = наборПомещения(id);
+  measureRooms[где] = measureRooms[где].map((existing) =>
     existing.id === id ? measured({ ...existing, ...patch }) : existing,
   );
-  return measureView();
+  return measureView(где);
 }
+
+/** В каком наборе лежит помещение. Не нашлось — начальный, как на сервере. */
+const наборПомещения = (id: string): MeasureSetKind =>
+  measureRooms.REPLANNED.some((room) => room.id === id) ? "REPLANNED" : "INITIAL";
 
 export async function deleteRoom(_code: string, id: string): Promise<MeasureView> {
   await pause(220);
-  measureRooms = measureRooms.filter((room) => room.id !== id);
-  return measureView();
+  const где = наборПомещения(id);
+  measureRooms[где] = measureRooms[где].filter((room) => room.id !== id);
+  return measureView(где);
 }
 
-export async function uploadPlan(_code: string, file: File): Promise<MeasureView> {
+export async function uploadPlan(
+  _code: string,
+  set: MeasureSetKind,
+  file: File,
+): Promise<MeasureView> {
   await pause(400);
-  measurePlan = {
+  measurePlan[set] = {
     fileName: file.name,
     contentType: file.type,
     byteSize: file.size,
     uploadedAt: new Date().toISOString(),
     uploadedBy: data["me-owner"].name,
   };
-  return measureView();
+  return measureView(set);
 }
 
-export async function deletePlan(code: string): Promise<MeasureView> {
+export async function deletePlan(code: string, set: MeasureSetKind): Promise<MeasureView> {
   await pause(220);
-  if (code === "R-99") measurePlan = null;
-  return measureView();
+  if (code === "R-99") measurePlan[set] = null;
+  return measureView(set);
 }
 
 /**

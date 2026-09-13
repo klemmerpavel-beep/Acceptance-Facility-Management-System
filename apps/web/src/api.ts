@@ -11,7 +11,8 @@ import {
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type EstimateView, type ImportRecord,
-  type ImportReport, type ImportResult, type MeasureView, type Organization, type ProjectEvent,
+  type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
+  type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
   type UpdateEstimateItem, type UpdateSupervision, type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
@@ -145,12 +146,29 @@ export const fetchEstimate = (code: string): Promise<EstimateView> =>
 
 /* --- обмерный план ------------------------------------------------------ */
 
-export const fetchMeasure = (code: string): Promise<MeasureView> =>
-  request(`/projects/${code}/measure`, measureViewSchema);
+/**
+ * Набор обмера в запросе.
+ *
+ * Начальный набор не приписывается: у объекта без перепланировки адрес
+ * остаётся прежним, и прежние ссылки продолжают работать. Сервер понимает
+ * отсутствие набора тем же значением.
+ */
+const наборВЗапросе = (set: MeasureSetKind): string =>
+  set === "INITIAL" ? "" : `?set=${set}`;
 
-export const createRoom = (code: string, room: CreateMeasureRoom): Promise<MeasureView> =>
-  request(`/projects/${code}/measure/rooms`, measureViewSchema, json(room));
+export const fetchMeasure = (code: string, set: MeasureSetKind = "INITIAL"): Promise<MeasureView> =>
+  request(`/projects/${code}/measure${наборВЗапросе(set)}`, measureViewSchema);
 
+export const createRoom = (
+  code: string,
+  set: MeasureSetKind,
+  room: CreateMeasureRoom,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/rooms${наборВЗапросе(set)}`, measureViewSchema, json(room));
+
+/* Правка и удаление набора не называют: помещение принадлежит набору
+   само, и сервер берёт набор у него. Второе место для той же величины
+   разошлось бы с первым. */
 export const updateRoom = (
   code: string,
   id: string,
@@ -165,14 +183,16 @@ export const updateRoom = (
 export const deleteRoom = (code: string, id: string): Promise<MeasureView> =>
   request(`/projects/${code}/measure/rooms/${id}`, measureViewSchema, { method: "DELETE" });
 
-export function uploadPlan(code: string, file: File): Promise<MeasureView> {
+export function uploadPlan(code: string, set: MeasureSetKind, file: File): Promise<MeasureView> {
   const form = new FormData();
   form.append("file", file);
-  return request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "PUT", body: form });
+  return request(`/projects/${code}/measure/plan${наборВЗапросе(set)}`, measureViewSchema, {
+    method: "PUT", body: form,
+  });
 }
 
-export const deletePlan = (code: string): Promise<MeasureView> =>
-  request(`/projects/${code}/measure/plan`, measureViewSchema, { method: "DELETE" });
+export const deletePlan = (code: string, set: MeasureSetKind): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/plan${наборВЗапросе(set)}`, measureViewSchema, { method: "DELETE" });
 
 /* --- приёмка выполненных работ --------------------------------------------
    Пакет уходит одним запросом вместе со снимком: фотография обязательна, и
@@ -254,7 +274,8 @@ export const reorderStages = (code: string, ids: string[]): Promise<WorkStage[]>
  * работает без сервера и подставляет сюда встроенное изображение, а
  * контракт не должен знать о её существовании.
  */
-export const planUrl = (code: string): string => `${BASE}/projects/${code}/measure/plan/file`;
+export const planUrl = (code: string, set: MeasureSetKind = "INITIAL"): string =>
+  `${BASE}/projects/${code}/measure/plan/file${наборВЗапросе(set)}`;
 
 export const fetchImports = (code: string): Promise<ImportRecord[]> =>
   request(`/projects/${code}/estimate/imports`, z.array(importRecordSchema));

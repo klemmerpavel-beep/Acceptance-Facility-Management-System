@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { завести } from "./verbs.js";
-import type { CreateMeasureRoom, MeasureRoom, MeasureView, Role } from "@priyomka/contracts";
+import type {
+  CreateMeasureRoom, MeasureRoom, MeasureSetKind, MeasureView, Role,
+} from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import {
   createRoom, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl, updateRoom, uploadPlan,
@@ -17,10 +19,25 @@ import { RoomSheet } from "./RoomSheet.js";
  * план читается столбцом, и «18,4» рядом с «18,40» заставляет проверять,
  * одно ли это число.
  *
- * Переключателя «Начальный / Перепланировки» здесь нет: второго набора
- * обмера в продукте не существует, а правило допуска (07_IA.md, раздел 7)
- * запрещает показывать неработающее.
+ * **Наборов обмера два: начальный и после перепланировки.** Переключатель
+ * между ними появился 13.09.2026; до того набор был один, и переключателя
+ * не было по правилу допуска (`07_IA.md`, раздел 7) — показывать нечего.
+ *
+ * Второй набор стоит рядом с первым, а не поверх него. Довод: по начальному
+ * обмеру считалась смета, и вопрос «почему в смете 18,40, а в обмере 22,10»
+ * задают через месяц. Перепись начального набора поверх стёрла бы ответ.
+ *
+ * Переключатель показывается не всегда. Читателю, у которого объект без
+ * перепланировки, переключать нечего — и пустая вторая вкладка сообщала бы
+ * о существовании того, чего нет. Правящему он нужен всегда: иначе завести
+ * второй набор не с чего начать.
  */
+
+/** Подписи наборов. Порядок — хронологический, а не алфавитный. */
+const НАБОРЫ = [
+  ["INITIAL", "Начальный"],
+  ["REPLANNED", "После перепланировки"],
+] as const;
 
 /** Кто вправе править обмер. Замер снимается на объекте — это работа прораба. */
 const canEdit = (role: Role): boolean => role === "OWNER" || role === "FOREMAN";
@@ -59,6 +76,7 @@ export function Measure({
   onEvents: () => void;
 }): React.JSX.Element {
   const [view, setView] = useState<MeasureView | null>(null);
+  const [set, setSet] = useState<MeasureSetKind>("INITIAL");
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [detailed, setDetailed] = useState(false);
@@ -67,12 +85,21 @@ export function Measure({
   const [sheetError, setSheetError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetchMeasure(code)
+    fetchMeasure(code, set)
       .then((next) => { setView(next); setError(null); })
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
-  }, [code]);
+  }, [code, set]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Смена набора снимает выбор помещения: «Кухня» начального набора и
+     «Кухня» после перепланировки — разные записи, и оставленный
+     опознаватель показал бы пустую карточку. */
+  const выбратьНабор = (следующий: MeasureSetKind): void => {
+    setSet(следующий);
+    setCurrent(null);
+    setView(null);
+  };
 
   const apply = (next: MeasureView): void => {
     setView(next);
@@ -117,7 +144,7 @@ export function Measure({
                 disabled={busy}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
-                  if (file !== undefined) run(uploadPlan(code, file));
+                  if (file !== undefined) run(uploadPlan(code, set, file));
                 }}
               />
               <span className="filefield__button">
@@ -130,7 +157,7 @@ export function Measure({
         </>
       ) : (
         <>
-          <img className="measure__plan" src={planUrl(code)} alt={`План объекта ${code}`} />
+          <img className="measure__plan" src={planUrl(code, set)} alt={`План объекта ${code}`} />
           <p className="t-sm t-muted">
             {view.plan.fileName}
             {view.plan.uploadedBy === null ? "" : `, загрузил ${view.plan.uploadedBy}`}
@@ -140,7 +167,7 @@ export function Measure({
               type="button"
               className="btn btn--text"
               disabled={busy}
-              onClick={() => { run(deletePlan(code)); }}
+              onClick={() => { run(deletePlan(code, set)); }}
             >
               Снять план
             </button>
@@ -156,6 +183,22 @@ export function Measure({
           Перечислять на листе всё, чего там не должно быть, — значит
           забыть очередной блок на следующей правке. */}
       <div className="measure-screen stack stack--loose">
+      {(editable || view.filled.includes("REPLANNED")) && (
+        <div className="segmented" role="group" aria-label="Набор обмера">
+          {НАБОРЫ.map(([значение, подпись]) => (
+            <button
+              key={значение}
+              type="button"
+              className="segmented__option"
+              aria-pressed={set === значение}
+              onClick={() => { выбратьНабор(значение); }}
+            >
+              {подпись}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="stack stack--tight">
         <p className="field__label--cap">Общее</p>
         <p className="spec">
@@ -173,11 +216,21 @@ export function Measure({
 
       {rooms.length === 0 || selected === null ? (
           <div className="empty">
-            <p className="empty__title">Обмер не внесён</p>
+            <p className="empty__title">
+              {set === "REPLANNED" ? "Перепланировку не обмеряли" : "Обмер не внесён"}
+            </p>
+            {/* У второго набора довод свой: он заводится не «потому что
+                пусто», а тогда, когда перегородки уже снесены. Приглашать
+                внести его на объекте без перепланировки было бы указанием
+                сделать то, чего не делали. */}
             <p className="empty__text">
-              {editable
-                ? "Помещения, их площади, периметры и высоты. Отсюда площади уйдут в смету количествами позиций — на стадии C.2."
-                : "Помещения вносит прораб или руководитель на объекте."}
+              {set === "REPLANNED"
+                ? (editable
+                  ? "Второй набор заводят после того, как перегородки сняты и площади изменились. Начальный обмер остаётся на месте: по нему считалась смета."
+                  : "Перепланировку обмеряет прораб или руководитель на объекте.")
+                : (editable
+                  ? "Помещения, их площади, периметры и высоты. Отсюда площади уйдут в смету количествами позиций."
+                  : "Помещения вносит прораб или руководитель на объекте.")}
             </p>
             {editable && (
               <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
@@ -344,7 +397,7 @@ export function Measure({
           busy={busy}
           error={sheetError}
           onSave={(room: CreateMeasureRoom) => {
-            run(editing.room === null ? createRoom(code, room) : updateRoom(code, editing.room.id, room));
+            run(editing.room === null ? createRoom(code, set, room) : updateRoom(code, editing.room.id, room));
           }}
           onDelete={editing.room === null ? null : () => {
             const id = editing.room?.id;

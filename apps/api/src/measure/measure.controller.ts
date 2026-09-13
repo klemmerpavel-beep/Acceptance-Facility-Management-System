@@ -1,9 +1,10 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, Res, UseGuards,
+  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res,
+  UseGuards,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { MeasureView } from "@priyomka/contracts";
-import { createMeasureRoomSchema, updateMeasureRoomSchema } from "@priyomka/contracts";
+import type { MeasureSetKind, MeasureView } from "@priyomka/contracts";
+import { createMeasureRoomSchema, measureSetSchema, updateMeasureRoomSchema } from "@priyomka/contracts";
 import { MeasureService } from "./measure.service";
 import { SessionGuard } from "../auth/session.guard";
 import { Roles, RolesGuard } from "../common/roles.guard";
@@ -15,6 +16,17 @@ import { CurrentUser, type RequestUser } from "../common/current-user";
  * числом, чтобы отказ был осмысленным, а не обрывом соединения.
  */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Набор обмера из запроса.
+ *
+ * Отсутствие набора — начальный, а не отказ: так прежние ссылки и прежние
+ * вызовы продолжают работать, а объект без перепланировки не заставляет
+ * называть очевидное. Неопознанное значение — отказ: тихая подмена на
+ * начальный показала бы не тот обмер, и заметить это было бы нечем.
+ */
+const набор = (значение: unknown): MeasureSetKind =>
+  значение === undefined ? "INITIAL" : measureSetSchema.parse(значение);
 
 /**
  * Обмерный план объекта.
@@ -31,10 +43,14 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export class MeasureController {
   constructor(private readonly measure: MeasureService) {}
 
-  /** Вкладка целиком: помещения, итоги, сведения о плане. */
+  /** Вкладка целиком: помещения, итоги, сведения о плане одного набора. */
   @Get()
-  view(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<MeasureView> {
-    return this.measure.view(user, code);
+  view(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Query("set") set?: string,
+  ): Promise<MeasureView> {
+    return this.measure.view(user, code, набор(set));
   }
 
   @Post("rooms")
@@ -43,8 +59,9 @@ export class MeasureController {
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,
     @Body() body: unknown,
+    @Query("set") set?: string,
   ): Promise<MeasureView> {
-    return this.measure.createRoom(user, code, createMeasureRoomSchema.parse(body));
+    return this.measure.createRoom(user, code, набор(set), createMeasureRoomSchema.parse(body));
   }
 
   @Patch("rooms/:id")
@@ -74,9 +91,10 @@ export class MeasureController {
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,
     @Req() request: FastifyRequest,
+    @Query("set") set?: string,
   ): Promise<MeasureView> {
     const upload = await readImage(request);
-    return this.measure.savePlan(user, code, upload.fileName, upload.buffer);
+    return this.measure.savePlan(user, code, набор(set), upload.fileName, upload.buffer);
   }
 
   /**
@@ -89,8 +107,9 @@ export class MeasureController {
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,
     @Res({ passthrough: true }) reply: FastifyReply,
+    @Query("set") set?: string,
   ): Promise<Buffer> {
-    const plan = await this.measure.readPlan(user, code);
+    const plan = await this.measure.readPlan(user, code, набор(set));
     void reply
       .header("content-type", plan.contentType)
       // nosniff: тип определён сервером по сигнатуре, и браузеру не за чем
@@ -106,8 +125,12 @@ export class MeasureController {
 
   @Delete("plan")
   @Roles("OWNER", "FOREMAN")
-  deletePlan(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<MeasureView> {
-    return this.measure.deletePlan(user, code);
+  deletePlan(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Query("set") set?: string,
+  ): Promise<MeasureView> {
+    return this.measure.deletePlan(user, code, набор(set));
   }
 }
 
