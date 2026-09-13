@@ -1928,7 +1928,7 @@ export async function issueDocument(id: string, projectCode: string): Promise<Is
   };
 
   return {
-    name: шаблон.name,
+    name: fillTemplate(шаблон.name, значения),
     kind: шаблон.kind,
     issuedAt: сегодня,
     project: { code: объект.code, address: объект.address },

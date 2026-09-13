@@ -18,7 +18,7 @@ import { ExpenseSheet } from "./ExpenseSheet.js";
  * нет в системе, — это деньги, которых студия не получит.
  *
  * **Почтового адреса здесь нет.** Бизнес-правило 12 описывает приём писем на
- * `checks+<код>@<домен>`; приёма на сервере не существует, и показанный
+ * `records+<код>@<домен>`; приёма на сервере не существует, и показанный
  * адрес обещал бы работу, которой нет (правило допуска, `07_IA.md`,
  * раздел 7). Он вернётся вместе с почтовым шлюзом, не раньше.
  *
@@ -128,7 +128,7 @@ export function Expenses({
           )}
         </div>
       ) : (
-        <ul className="checks">
+        <ul className="records">
           {view.rows.map((row) => (
             <Чек
               key={row.id}
@@ -172,16 +172,16 @@ function Чек({
   const черновик = row.status === "DRAFT";
   const отклонён = row.status === "REJECTED";
   return (
-    <li className="check" data-status={row.status}>
+    <li className="record" data-status={row.status}>
       {/* Снимок — само свидетельство расхода, поэтому он в строке, а не за
           ссылкой: чек, ради которого надо куда-то перейти, не смотрят. */}
       <img
-        className="check__photo"
+        className="record__photo"
         src={expensePhotoUrl(code, row.id)}
         alt={`Чек ${row.seller} от ${дата(row.spentAt)}`}
       />
-      <div className="check__body">
-        <p className="check__head">
+      <div className="record__body">
+        <p className="record__head">
           <span className="t-strong">{row.seller}</span>
           {черновик && <span className="pill pill--warn">Черновик</span>}
           {отклонён && <span className="pill pill--danger">Отклонён</span>}
@@ -194,10 +194,10 @@ function Чек({
         </p>
         {row.note !== null && <p className="t-sm">{row.note}</p>}
       </div>
-      <div className="check__side">
-        <span className="check__amount num">{formatKopecks(BigInt(row.amount))}</span>
+      <div className="record__side">
+        <span className="record__amount num">{formatKopecks(BigInt(row.amount))}</span>
         {черновик && role === "OWNER" && (
-          <span className="check__actions">
+          <span className="record__actions">
             <button
               type="button"
               className="btn btn--primary"

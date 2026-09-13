@@ -84,12 +84,12 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
     <div className="stack stack--loose">
       <div className="acts-screen stack stack--loose">
         <Announce text={объявление} />
-        <ul className="checks">
+        <ul className="records">
           {rows.map((row) => (
-            <li className="check" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>
+            <li className="record" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>
               <span className="code-badge">№ {row.number}</span>
-              <div className="check__body">
-                <p className="check__head">
+              <div className="record__body">
+                <p className="record__head">
                   <span className="t-strong">Акт № {row.number} по объекту {code}</span>
                   {row.signedAt === null
                     ? <span className="pill pill--warn">Не подписан</span>
@@ -100,9 +100,9 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   закрыт {дата(row.closedAt)} · позиций {row.positions}
                 </p>
               </div>
-              <div className="check__side">
-                <span className="check__amount num">{formatKopecks(BigInt(row.total))}</span>
-                <span className="check__actions">
+              <div className="record__side">
+                <span className="record__amount num">{formatKopecks(BigInt(row.total))}</span>
+                <span className="record__actions">
                   <button
                     type="button"
                     className="btn btn--secondary"

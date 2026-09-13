@@ -2271,11 +2271,11 @@ if (menu.join("|") !== ["Настройки", "Документы", "Что да
  */
 await page.click('.appbar__menu .appbar__menu-item:has-text("Документы")');
 await page.waitForSelector(".docs-screen");
-const шаблоновНаЭкране = await page.locator(".docs-screen .check").count();
+const шаблоновНаЭкране = await page.locator(".docs-screen .record").count();
 if (шаблоновНаЭкране === 0) {
   note("документы организации", "перечень шаблонов пуст: выпускать нечего");
 } else {
-  await page.click('.docs-screen .check button:has-text("Открыть")');
+  await page.click('.docs-screen .record button:has-text("Открыть")');
   await page.waitForSelector(".doc__clauses");
   const текстШаблона = await page.locator(".doc__clauses").first().innerText();
   if (!/\{\{[^}]+\}\}/u.test(текстШаблона)) {
@@ -2299,6 +2299,15 @@ if (шаблоновНаЭкране === 0) {
   await разметка("документы организации");
   await overflow("документы организации, 1440");
   await step("документы организации", "46-dokumenty-org.png");
+
+  /* Бумага живёт длинными строками: наименование договора, реквизиты и текст
+     пункта — всё это не помещается в 390 px, если его не переносить. Разбор
+     граничных данных проверяется там, где он и ломается, — на телефоне. */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  await overflow("документы организации, 390");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(300);
 }
 await page.click(".appbar__more > summary");
 await page.waitForTimeout(200);
@@ -2803,15 +2812,15 @@ for (const tab of cardTabs) {
  * когда внутренний вид перестал работать вовсе.
  */
 await page.click('.tabs__item:has-text("Документы")');
-await page.waitForSelector(".acts-screen .check");
+await page.waitForSelector(".acts-screen .record");
 /* Число актов не закрепляется: проверка API работает на том же стенде и
    закрывает транши своими правилами, а закрытый транш — это акт. Правило,
    опирающееся на «ровно один», сторожило бы не документ, а порядок запуска
    проверок. Закрепляется свойство: акт есть, и он сходится сам с собой. */
-const строкАктов = await page.locator(".acts-screen .check").count();
+const строкАктов = await page.locator(".acts-screen .record").count();
 if (строкАктов === 0) note("документы", "перечень актов пуст: закрытых траншей на стенде нет");
-const суммаСтроки = ((await page.locator(".acts-screen .check__amount").first().textContent()) ?? "").trim();
-await page.click('.acts-screen .check button:has-text("Открыть акт")');
+const суммаСтроки = ((await page.locator(".acts-screen .record__amount").first().textContent()) ?? "").trim();
+await page.click('.acts-screen .record button:has-text("Открыть акт")');
 await page.waitForSelector(".act__table");
 
 const подвалАкта = ((await page.locator('.act__table tfoot tr:has-text("Итого к оплате") td')
@@ -3716,11 +3725,11 @@ await page.click('.tabs__item:has-text("Обзор")');
     note("чеки", "вкладки «Чеки» нет в карточке объекта");
   } else {
     await вкладка.click();
-    await page.waitForSelector(".check");
+    await page.waitForSelector(".record");
     await page.waitForTimeout(400);
 
-    const строк = await page.locator(".check").count();
-    const черновиков = await page.locator('.check[data-status="DRAFT"]').count();
+    const строк = await page.locator(".record").count();
+    const черновиков = await page.locator('.record[data-status="DRAFT"]').count();
     if (строк < 3) note("чеки", `чеков на стенде ${строк} вместо трёх`);
     if (черновиков !== 1) note("чеки", `черновиков ${черновиков} вместо одного`);
 
@@ -3732,7 +3741,7 @@ await page.click('.tabs__item:has-text("Обзор")');
 
     /* Черновик несёт пилюлю состояния: без неё разобранный и неразобранный
        расход в списке неразличимы, и подтверждать нечего. */
-    const пилюля = await page.locator('.check[data-status="DRAFT"] .pill').first()
+    const пилюля = await page.locator('.record[data-status="DRAFT"] .pill').first()
       .textContent().catch(() => null);
     if (!strИмеет(пилюля ?? "", "Черновик")) {
       note("чеки", `черновик помечен «${пилюля ?? "ничем"}» вместо «Черновик»`);
@@ -3742,7 +3751,7 @@ await page.click('.tabs__item:has-text("Обзор")');
        где черновик мог быть разобран предыдущим прогоном, и щелчок по
        отсутствующей кнопке умирал бы на тридцатисекундном ожидании, ничего
        не сообщив. Проверка обязана назвать дефект, а не повиснуть на нём. */
-    const подтвердить = page.locator('.check[data-status="DRAFT"] button:has-text("Подтвердить")');
+    const подтвердить = page.locator('.record[data-status="DRAFT"] button:has-text("Подтвердить")');
     let послеПодтверждения = доПодтверждения;
     if ((await подтвердить.count()) === 0) {
       note("чеки", "у черновика нет кнопки подтверждения: разобрать расход нечем");
@@ -3753,7 +3762,7 @@ await page.click('.tabs__item:has-text("Обзор")');
       if (послеПодтверждения === доПодтверждения) {
         note("чеки", `подтверждение не изменило потраченное («${доПодтверждения}»): черновик уже считался деньгами`);
       }
-      if ((await page.locator('.check[data-status="DRAFT"]').count()) !== 0) {
+      if ((await page.locator('.record[data-status="DRAFT"]').count()) !== 0) {
         note("чеки", "после подтверждения черновик остался черновиком");
       }
     }
