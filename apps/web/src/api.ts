@@ -3,6 +3,7 @@ import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
   photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
+  actListSchema, actViewSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -11,7 +12,7 @@ import {
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type EstimateView, type ImportRecord,
-  type CreateExpense, type ExpenseView,
+  type ActRow, type ActView, type CreateExpense, type ExpenseView,
   type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
   type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
@@ -254,6 +255,27 @@ export const deleteExpense = (code: string, id: string): Promise<ExpenseView> =>
 /** Адрес снимка чека. Выводится из опознавателя, а не приходит контрактом. */
 export const expensePhotoUrl = (code: string, id: string): string =>
   `${BASE}/projects/${code}/expenses/${id}/file`;
+
+/* --- акты выполненных работ ----------------------------------------------
+   Акт есть представление закрытого транша; отдельной записи у него нет.
+   Вид по умолчанию клиентский: он уходит заказчику, и ошибиться в сторону
+   показа внутренних величин должно быть труднее, чем наоборот. */
+
+export const fetchActs = (code: string): Promise<ActRow[]> =>
+  request(`/projects/${code}/acts`, actListSchema);
+
+export const fetchAct = (
+  code: string,
+  trancheId: string,
+  audience: "client" | "internal" = "client",
+): Promise<ActView> =>
+  request(
+    `/projects/${code}/acts/${trancheId}${audience === "internal" ? "?view=internal" : ""}`,
+    actViewSchema,
+  );
+
+export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
+  request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
 
 export const reverseAcceptance = (
   code: string,

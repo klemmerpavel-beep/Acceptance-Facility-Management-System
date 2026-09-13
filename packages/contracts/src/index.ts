@@ -92,6 +92,8 @@ export const organizationSchema = z.object({
   currency: z.literal("RUB"),
   phone: z.string().nullable(),
   email: z.string().nullable(),
+  /** Реквизиты исполнителя для шапки акта: ИНН, счёт, банк — одним полем. */
+  requisites: z.string().nullable(),
   logoKey: z.string().nullable(),
 });
 export type Organization = z.infer<typeof organizationSchema>;
@@ -104,6 +106,7 @@ export const updateOrganizationSchema = z.object({
   // Пустая строка означает «стереть»: форма присылает очищенное поле,
   // а не отсутствие ключа, и это не повод отказывать в правке.
   email: z.union([z.literal(""), z.string().email("Нужен адрес почты")]).nullable().optional(),
+  requisites: z.string().max(600).nullable().optional(),
 });
 export type UpdateOrganization = z.infer<typeof updateOrganizationSchema>;
 
@@ -1202,6 +1205,8 @@ export const trancheSchema = z.object({
   client: kopecksString,
   /** Остаток. Отрицательный при перевыработке — законное состояние. */
   remainder: kopecksString,
+  /** Дата подписания акта заказчиком; пусто — не подписан. */
+  signedAt: z.string().date().nullable(),
   /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
   fill: z.number().int(),
 });
@@ -1245,6 +1250,80 @@ export const accountingRowSchema = z.object({
   comment: z.string().nullable(),
 });
 export type AccountingRow = z.infer<typeof accountingRowSchema>;
+
+/* --- акт выполненных работ --------------------------------------------------
+   Акт есть представление ЗАКРЫТОГО транша, а не отдельная запись: «выработали
+   сумму → акт → подписание → оплата» (`01_PROJECT.md`, раздел 4, шаг 5).
+   Вторая запись тех же строк разошлась бы с первой при первом же сторно
+   приёмки.
+
+   Два вида, и они различаются составом полей, а не оформлением: в клиентском
+   виде внутренних величин нет ВОВСЕ — ключей нет в ответе, а не значения
+   пусты. То же правило, что у сметы (`projection.ts`).
+   ------------------------------------------------------------------------ */
+
+export const actLineSchema = z.object({
+  name: z.string(),
+  unit: z.string(),
+  qty: milliunitsString,
+  unitPrice: kopecksString,
+  total: kopecksString,
+  /** Только внутреннему виду. */
+  unitWage: kopecksString.optional(),
+  wageTotal: kopecksString.optional(),
+  profit: kopecksString.optional(),
+  profitShare: z.number().int().optional(),
+});
+export type ActLine = z.infer<typeof actLineSchema>;
+
+export const actViewSchema = z.object({
+  /** Вид: клиентский или внутренний. */
+  audience: z.enum(["client", "internal"]),
+  /** Номер акта — номер транша, который он закрывает. Нумерация по объекту. */
+  number: z.number().int().nonnegative(),
+  trancheId: z.string().uuid(),
+  /** Дата закрытия транша: ею акт и датируется. */
+  closedAt: z.string().date(),
+  signedAt: z.string().date().nullable(),
+  project: z.object({ code: z.string(), address: z.string() }),
+  client: z.object({ name: z.string(), requisites: z.string().nullable() }),
+  contractor: z.object({
+    name: z.string(),
+    phone: z.string().nullable(),
+    email: z.string().nullable(),
+    requisites: z.string().nullable(),
+  }),
+  lines: z.array(actLineSchema),
+  totals: z.object({
+    works: kopecksString,
+    supervisionShare: z.number().int().nonnegative(),
+    supervision: kopecksString,
+    total: kopecksString,
+    /** Только внутреннему виду: начислено бригадам и прибыль. */
+    wage: kopecksString.optional(),
+    profit: kopecksString.optional(),
+  }),
+});
+export type ActView = z.infer<typeof actViewSchema>;
+
+/** Перечень актов объекта: по одному на закрытый транш. */
+export const actRowSchema = z.object({
+  trancheId: z.string().uuid(),
+  number: z.number().int().nonnegative(),
+  closedAt: z.string().date(),
+  signedAt: z.string().date().nullable(),
+  paidAt: z.string().nullable(),
+  positions: z.number().int().nonnegative(),
+  total: kopecksString,
+});
+export const actListSchema = z.array(actRowSchema);
+export type ActRow = z.infer<typeof actRowSchema>;
+
+/** Отметка подписания. Дата ставится вручную — акт подписывают на бумаге. */
+export const signActSchema = z.object({
+  signedAt: z.string().date("Дата подписания: ГГГГ-ММ-ДД."),
+});
+export type SignAct = z.infer<typeof signActSchema>;
 
 export const accountingViewSchema = z.object({
   totals: z.object({

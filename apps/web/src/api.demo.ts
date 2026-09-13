@@ -14,7 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
-  CreateExpense, ExpenseView, MaterialExpense,
+  ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -70,6 +70,9 @@ interface Snapshot {
   preview: { fileName: string; report: ImportReport };
   import: ImportResult;
   measure: MeasureView;
+  acts: ActRow[];
+  "act-client": ActView | null;
+  "act-internal": ActView | null;
   expenses: ExpenseView;
   "measure-replanned": MeasureView;
 }
@@ -1360,6 +1363,8 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     openedAt: now,
     closedAt: null,
     paidAt: prepayment ? now : null,
+    // Только что открытый транш не закрыт, значит и акта у него нет.
+    signedAt: null,
     comment: input.comment ?? null,
     produced: "0",
     client: "0",
@@ -1764,3 +1769,46 @@ export async function deleteExpense(_code: string, id: string): Promise<ExpenseV
  * пустая, а экран показывает подложку изображения.
  */
 export const expensePhotoUrl = (): string => "";
+
+/* --- акты выполненных работ -------------------------------------------------
+   Акт снимается слепком целиком, а не пересобирается двойником из слепка
+   приёмки: тот несёт принятые позиции без цены и ставки — их там нет по
+   разграничению полей, — и восстановить из него ведомость акта нельзя.
+   Попытка пересобрать дала бы второй, неполный источник тех же строк.
+
+   Отметка подписания живёт в памяти: ключевое действие экрана обязано
+   работать, иначе демонстрация показывает документ, но не работу с ним.
+   -------------------------------------------------------------------------- */
+const подписи = new Map<string, string>();
+
+const сПодписью = (акт: ActRow): ActRow => {
+  const дата = подписи.get(акт.trancheId);
+  return дата === undefined ? акт : { ...акт, signedAt: дата };
+};
+
+export async function fetchActs(code: string): Promise<ActRow[]> {
+  await pause(180);
+  return code === "R-99" ? data.acts.map(сПодписью) : [];
+}
+
+export async function fetchAct(
+  code: string,
+  trancheId: string,
+  audience: "client" | "internal" = "client",
+): Promise<ActView> {
+  await pause(220);
+  const снимок = audience === "internal" ? data["act-internal"] : data["act-client"];
+  if (code !== "R-99" || снимок === null) throw new Error("Акт не найден: транш ещё открыт.");
+  const дата = подписи.get(trancheId);
+  return дата === undefined ? снимок : { ...снимок, signedAt: дата };
+}
+
+export async function signAct(
+  _code: string,
+  trancheId: string,
+  signedAt: string,
+): Promise<ActRow[]> {
+  await pause(240);
+  подписи.set(trancheId, signedAt);
+  return data.acts.map(сПодписью);
+}

@@ -19,6 +19,7 @@ import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
 import { Acceptance } from "./Acceptance.js";
 import { Expenses } from "./Expenses.js";
+import { Acts } from "./Acts.js";
 import { Report } from "./Report.js";
 import { Tranches } from "./Tranches.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
@@ -132,6 +133,7 @@ const TABS = [
   { key: "expenses", label: "Чеки" },
   { key: "report", label: "Отчёт" },
   { key: "tranches", label: "Транши" },
+  { key: "documents", label: "Документы" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"] | "import";
@@ -615,6 +617,10 @@ export function ProjectCard({
                   }}
                 />
               )}
+            </div>
+
+            <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" hidden={tab !== "documents"}>
+              {tab === "documents" && <Acts code={project.code} role={user.role} />}
             </div>
 
             <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>

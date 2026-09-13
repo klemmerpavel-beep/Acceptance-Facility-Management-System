@@ -2346,3 +2346,45 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   }
   .check__actions { flex-wrap: wrap; }
 }
+
+/* --- 5.41 Акт выполненных работ -----------------------------------------------
+   Бланк, а не экран: шапка сторон, ведомость работ, итог, подписи. Материал
+   тот же, что у обмерного плана в печати, — продукт набран как рабочий
+   документ, и акт из него не выпадает.
+   -------------------------------------------------------------------------- */
+.act {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.act__title { font-family: var(--font-ui); font-size: var(--fs-h3); font-weight: 600; }
+.act__parties { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.act__party { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.act__signs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);
+  margin-block-start: var(--space-5);
+}
+.act__sign { font-size: var(--fs-sm); }
+/* Предупреждение внутреннего вида — сигнальным цветом: лист, попавший
+   заказчику, обязан называть себя раньше, чем его прочтут. */
+.act__warning { color: var(--danger); }
+
+@media (max-width: 599px) {
+  .act { padding: var(--space-4); }
+  .act__parties, .act__signs { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Поле реквизитов в настройках растёт по содержимому, как поле замечания. */
+.settings__requisites {
+  height: auto; padding: var(--space-2) var(--space-3);
+  resize: vertical; font: inherit; line-height: var(--lh-body);
+}
+
+@media print {
+  /* На листе остаётся акт и ничего больше — тем же приёмом, что у
+     обмерного плана: экранная часть скрыта одним классом. */
+  .acts-screen { display: none !important; }
+  .act { border: 0; padding: 0; }
+}
