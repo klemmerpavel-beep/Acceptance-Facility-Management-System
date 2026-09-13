@@ -16,6 +16,7 @@ import type {
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
+  InviteIssued, InviteUser, PersonRow,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -74,6 +75,7 @@ interface Snapshot {
   measure: MeasureView;
   acts: ActRow[];
   templates: DocumentTemplate[];
+  people: PersonRow[];
   "act-client": ActView | null;
   "act-internal": ActView | null;
   expenses: ExpenseView;
@@ -1939,4 +1941,57 @@ export async function issueDocument(id: string, projectCode: string): Promise<Is
       body: fillTemplate(пункт.body, значения),
     })),
   };
+}
+
+/* --- люди организации --------------------------------------------------------
+   Демонстрация показывает состав ролей и выдачу ссылки, но доступа не создаёт:
+   слепок — снимок стенда, а не хранилище. Выданная «ссылка» в демонстрации
+   ведёт туда же, куда и настоящая, и ровно так же ничего не открывает без
+   сервера — показывать вместо неё прочерк значило бы скрыть, что именно
+   получает руководитель.
+   -------------------------------------------------------------------------- */
+
+const людиДемо: PersonRow[] = [...data.people];
+
+export async function fetchPeople(): Promise<PersonRow[]> {
+  await pause(180);
+  return [...людиДемо];
+}
+
+export async function invitePerson(input: InviteUser): Promise<InviteIssued> {
+  await pause(260);
+  if (input.role === "CLIENT" && input.clientId === null) {
+    throw new Error("Заказчику нужна запись справочника: без неё непонятно, чьи объекты он видит.");
+  }
+  if (input.email === null && input.phone === null) {
+    throw new Error("Нужен хотя бы один способ входа: почта или телефон.");
+  }
+  if (людиДемо.some((человек) => человек.email !== null && человек.email === input.email)) {
+    throw new Error("Эта почта или телефон уже заведены. Вход по ним был бы неоднозначным.");
+  }
+  людиДемо.push({
+    id: `demo-${String(людиДемо.length + 1)}`,
+    name: input.name,
+    role: input.role,
+    email: input.email,
+    phone: input.phone,
+    client: input.clientId === null ? null : "заказчик справочника",
+    entered: false,
+  });
+  return { token: `demo-${String(Date.now())}` };
+}
+
+/* Опознаватель не нужен: демонстрация доступа не создаёт и выдаёт всем
+   одинаковую условную ссылку. Ставить его в подпись ради вида значило бы
+   обещать, что ссылка чем-то отличается. */
+export async function relinkPerson(): Promise<InviteIssued> {
+  await pause(200);
+  return { token: `demo-${String(Date.now())}` };
+}
+
+export async function revokePerson(id: string): Promise<PersonRow[]> {
+  await pause(220);
+  const где = людиДемо.findIndex((человек) => человек.id === id);
+  if (где >= 0) людиДемо.splice(где, 1);
+  return [...людиДемо];
 }

@@ -7,9 +7,17 @@ import type { RequestUser } from "./current-user";
  *
  * Условие уходит в запрос к базе, а не проверяется после выборки:
  * обработчик физически не может получить недоступный объект.
+ *
+ * Заказчик видит объекты своей записи справочника. Связь берётся у
+ * пользователя, а не у роли: роль говорит «он заказчик», а не «чей».
+ * Заказчик без связи не видит ничего — опознаватель, которого не бывает,
+ * не совпадёт ни с одной строкой. Это верный исход: доступ, выданный по
+ * недосмотру, открыл бы чужие объекты.
  */
-export function projectScope(user: RequestUser): { orgId: string; foremanId?: string } {
-  return user.role === "FOREMAN"
-    ? { orgId: user.orgId, foremanId: user.id }
-    : { orgId: user.orgId };
+export function projectScope(
+  user: RequestUser,
+): { orgId: string; foremanId?: string; clientId?: string } {
+  if (user.role === "FOREMAN") return { orgId: user.orgId, foremanId: user.id };
+  if (user.role === "CLIENT") return { orgId: user.orgId, clientId: user.clientId ?? "нет связи" };
+  return { orgId: user.orgId };
 }

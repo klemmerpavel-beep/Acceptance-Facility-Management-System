@@ -2421,3 +2421,15 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 /* На печати остаётся бланк: экранная часть скрыта одним классом, а не
    перечислением блоков, которое устаревает на первой правке. */
 @media print { .docs-screen { display: none !important; } }
+
+/* --- 5.43 Люди организации и выданная ссылка --------------------------------
+   Ссылка равна доступу: она выделена как отдельный блок, а не набрана строкой
+   в перечне. Показывается один раз и не хранится — место ей в переписке
+   руководителя, а не на экране, где её видно мимоходом.
+   -------------------------------------------------------------------------- */
+.invite { display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-4); border: 1px solid var(--accent);
+  border-radius: var(--radius-md); background: var(--accent-soft); }
+.invite__link { font-family: var(--font-mono); font-size: var(--fs-sm);
+  padding: var(--space-2); border-radius: var(--radius-sm); background: var(--surface);
+  overflow-wrap: anywhere; }

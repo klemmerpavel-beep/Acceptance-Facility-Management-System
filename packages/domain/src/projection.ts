@@ -17,7 +17,7 @@ import {
   type BasisPoints, type Kopecks, type Milliunits,
 } from "./money.js";
 
-export type Role = "OWNER" | "FOREMAN" | "SUPPLY";
+export type Role = "OWNER" | "FOREMAN" | "CLIENT";
 
 /** Кому предназначен документ: внутреннему обороту или клиенту. */
 export type Audience = "internal" | "client";

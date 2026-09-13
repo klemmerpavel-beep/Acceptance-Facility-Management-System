@@ -28,7 +28,7 @@ describe("разграничение на уровне полей", () => {
     expect(видимое.profitShare).toBe(6111n); // 61,11 %
   });
 
-  it.each<Role>(["FOREMAN", "SUPPLY"])("роль %s не получает внутренних ключей", (роль) => {
+  it.each<Role>(["FOREMAN", "CLIENT"])("роль %s не получает внутренних ключей", (роль) => {
     const видимое = projectEstimateItem(позиция, роль);
     // Ключи отсутствуют, а не равны undefined: JSON.stringify опускает
     // undefined, но структурное сравнение и журналы — нет.

@@ -28,6 +28,9 @@ export class EstimatesController {
   constructor(private readonly estimates: EstimatesService) {}
 
   /** Действующая редакция сметы, спроецированная по роли. */
+  /* Смета отдаётся клиентской проекцией: ставки и прибыли в ней нет по
+     составу ответа, а не скрыта показом (`projection.ts`). */
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   @Get()
   view(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<EstimateView> {
     return this.estimates.view(user, code);

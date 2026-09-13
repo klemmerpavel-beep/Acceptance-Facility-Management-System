@@ -1,5 +1,6 @@
 import type {
-  CurrentUser, DocumentTemplate, IssuedDocument, ProjectSummary, SaveTemplate, TemplateRow,
+  CurrentUser, DocumentTemplate, InviteIssued, InviteUser, IssuedDocument, PersonRow,
+  ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
@@ -7,6 +8,7 @@ import {
   photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
   actListSchema, actViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
+  inviteIssuedSchema, personRowSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -279,6 +281,22 @@ export const fetchAct = (
 
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
+
+/* --- люди организации -------------------------------------------------------- */
+
+const peopleListSchema = z.array(personRowSchema);
+
+export const fetchPeople = (): Promise<PersonRow[]> => request("/people", peopleListSchema);
+
+/** Заведение человека. Ответ несёт личную ссылку — её передаёт руководитель. */
+export const invitePerson = (input: InviteUser): Promise<InviteIssued> =>
+  request("/people", inviteIssuedSchema, json(input));
+
+export const relinkPerson = (id: string): Promise<InviteIssued> =>
+  request(`/people/${id}/link`, inviteIssuedSchema, json({}));
+
+export const revokePerson = (id: string): Promise<PersonRow[]> =>
+  request(`/people/${id}`, peopleListSchema, { method: "DELETE" });
 
 /* --- шаблоны документов организации ----------------------------------------- */
 

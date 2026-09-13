@@ -66,6 +66,7 @@ const snapshot = {
   expenses: await owner("/projects/R-99/expenses"),
   acts: await owner("/projects/R-99/acts"),
   templates: [],
+  people: await owner("/people"),
   /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
      несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
      связь с разделом, бригада и фактическая готовность по приёмке. */
@@ -160,5 +161,6 @@ console.log(
   `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `чеков ${snapshot.expenses.rows.length}, из них черновиков ${snapshot.expenses.totals.drafts};`,
   `актов ${snapshot.acts.length}; шаблонов ${snapshot.templates.length};`,
+  `людей ${snapshot.people.length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

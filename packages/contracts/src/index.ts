@@ -17,7 +17,7 @@ export const milliunitsString = z
   .string()
   .regex(/^-?\d+$/, "Количество передаётся в тысячных долях целым числом в строке");
 
-export const roleSchema = z.enum(["OWNER", "FOREMAN", "SUPPLY"]);
+export const roleSchema = z.enum(["OWNER", "FOREMAN", "CLIENT"]);
 export type Role = z.infer<typeof roleSchema>;
 
 export const projectStatusSchema = z.enum([
@@ -1601,3 +1601,36 @@ export const issuedDocumentSchema = z.object({
   clauses: z.array(documentClauseSchema),
 });
 export type IssuedDocument = z.infer<typeof issuedDocumentSchema>;
+
+/* --- люди организации --------------------------------------------------------
+   Самостоятельной регистрации нет: человека заводит руководитель и выдаёт ему
+   личную ссылку. Решение заказчика от 13.09.2026.
+   -------------------------------------------------------------------------- */
+
+export const personRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  role: roleSchema,
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  /** Наименование записи справочника у заказчика; у прочих ролей пусто. */
+  client: z.string().nullable(),
+  /** Входил ли человек хоть раз. Не время входа: учёта времени в продукте нет. */
+  entered: z.boolean(),
+});
+export type PersonRow = z.infer<typeof personRowSchema>;
+
+export const inviteUserSchema = z.object({
+  name: z.string().min(1, "Нужно имя").max(200),
+  role: roleSchema,
+  email: z.union([z.literal(""), z.string().email("Нужен адрес почты")]).nullable()
+    .transform((значение) => (значение === "" ? null : значение)),
+  phone: z.union([z.literal(""), z.string().max(32)]).nullable()
+    .transform((значение) => (значение === "" ? null : значение)),
+  /** Запись справочника для заказчика. У прочих ролей обязана быть пуста. */
+  clientId: z.string().uuid().nullable(),
+});
+export type InviteUser = z.infer<typeof inviteUserSchema>;
+
+export const inviteIssuedSchema = z.object({ token: z.string() });
+export type InviteIssued = z.infer<typeof inviteIssuedSchema>;
