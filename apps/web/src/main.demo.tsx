@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@priyomka/ui/styles.css";
 import { App } from "./App.js";
+import { Feedback } from "./Feedback.js";
 import { Sprite } from "./Sprite.js";
 
 /**
@@ -15,6 +16,10 @@ import { Sprite } from "./Sprite.js";
  * переключать нечего. Разграничение полей на сервере при этом осталось и
  * проверяется на стенде (`scripts/verify-api.mjs`), а не показывается
  * органом управления, которому в продукте нет соответствия.
+ *
+ * Приём замечаний живёт здесь, а не в `App`: он относится к обзору
+ * демонстрации, а не к продукту. В продукте его нет вовсе — там замечание
+ * идёт в работу, а не в таблицу обзора.
  */
 const container = document.getElementById("root");
 if (!container) throw new Error("Разметка страницы не содержит корневого узла");
@@ -22,5 +27,6 @@ createRoot(container).render(
   <StrictMode>
     <Sprite />
     <App />
+    <Feedback />
   </StrictMode>,
 );

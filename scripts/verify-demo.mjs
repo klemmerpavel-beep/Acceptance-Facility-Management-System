@@ -35,8 +35,30 @@ const TYPES = {
   ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8",
 };
 
+/* Что приняла заглушка приёмника замечаний. Сервер раздачи и приёмник —
+   один процесс намеренно: адрес приёмника запекается в сборку, и второй
+   порт пришлось бы согласовывать с ней отдельно. */
+const принятое = [];
+
 const server = createServer((request, response) => {
   const адрес = new URL(request.url ?? "/", "http://x").pathname;
+
+  /* Заглушка приёмника замечаний. Настоящий приёмник — веб-приложение
+     Apps Script, дописывающее строку в Google-таблицу; сюда он не ходит и
+     ходить не должен: проверка стережёт форму и то, что она отправляет, а
+     не работоспособность Google. */
+  if (адрес === "/__feedback") {
+    if (request.method !== "POST") { response.writeHead(405); response.end("нет"); return; }
+    let тело = "";
+    request.on("data", (кусок) => { тело += String(кусок); });
+    request.on("end", () => {
+      try { принятое.push(JSON.parse(тело)); } catch { принятое.push({ битое: тело }); }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+    });
+    return;
+  }
+
   const путь = join(site, normalize(decodeURIComponent(адрес)).replace(/^(\.\.[/\\])+/u, ""));
   const файл = existsSync(путь) && extname(путь) !== "" ? путь : join(путь, "index.html");
   if (!existsSync(файл)) { response.writeHead(404); response.end("нет"); return; }
@@ -226,6 +248,67 @@ const узкая = await page.evaluate(() => ({
 }));
 if (узкая.scroll > узкая.viewport + 1) {
   note("аудит", `на 390 px полотно ${узкая.scroll} при окне ${узкая.viewport}`);
+}
+
+/* 9. Приём замечаний по демонстрации.
+
+      Виджет ставится ради обзора заказчиком, и цена его отказа выше
+      обычной: заказчик пишет замечание, видит, что окно закрылось, и
+      считает сказанное переданным. Поэтому проверяется не наличие кнопки,
+      а путь целиком — до строки, дошедшей до приёмника.
+
+      Приёмник здесь подменён заглушкой в том же процессе; адрес ей
+      задаётся переменной сборки `VITE_FEEDBACK_URL`. Собранная без этой
+      переменной демонстрация виджета не показывает вовсе — и проверка
+      обязана это назвать, а не промолчать: молчание означало бы, что
+      заказчику отдали страницу без того, ради чего её отдавали. */
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+await page.waitForTimeout(600);
+{
+  const кнопка = page.locator(".feedback__open");
+  if ((await кнопка.count()) === 0) {
+    note("замечания", "виджета нет: демонстрация собрана без VITE_FEEDBACK_URL");
+  } else {
+    await кнопка.click();
+    await page.waitForSelector('.sheet[aria-label="Замечание по демонстрации"]');
+    const лист = page.locator('.sheet[aria-label="Замечание по демонстрации"]');
+
+    /* Пустое замечание не отправляется: строка «» в таблице обзора —
+       это работа человеку, который будет гадать, что имелось в виду. */
+    const отправить = лист.locator('button[type="submit"]');
+    if (!(await отправить.isDisabled())) {
+      note("замечания", "пустое замечание можно отправить");
+    }
+
+    await лист.locator('.segmented__option:has-text("Дефект")').click();
+    await лист.locator("textarea").fill("Проверка приёма: цифра готовности читается неоднозначно.");
+    await лист.locator('.field:has(.field__label:text-is("Кто пишет")) input').fill("Обход проверки");
+    await отправить.click();
+    await page.waitForTimeout(700);
+
+    const подтверждение = await лист.innerText().catch(() => "");
+    if (!подтверждение.toLowerCase().includes("записано")) {
+      note("замечания", `отправка не подтверждена: «${подтверждение.slice(0, 80).replace(/\n/gu, " ")}»`);
+    }
+
+    const строка = принятое.at(-1) ?? {};
+    if (!String(строка.text ?? "").includes("цифра готовности")) {
+      note("замечания", "приёмник не получил текста замечания");
+    }
+    if (строка.kind !== "Дефект") {
+      note("замечания", `вид замечания не дошёл: «${String(строка.kind ?? "—")}»`);
+    }
+    /* Обстановка — половина ценности замечания: «непонятно» без экрана
+       стоит столько же, сколько молчание. */
+    if (String(строка.section ?? "").trim() === "") {
+      note("замечания", "к замечанию не приложен экран, на котором оно написано");
+    }
+    if (!(Number(строка.width) > 0)) {
+      note("замечания", "к замечанию не приложена ширина окна");
+    }
+    console.log(`  замечание принято: ${String(строка.kind ?? "—")}, экран «${String(строка.section ?? "—")}», ширина ${String(строка.width ?? "—")}`);
+  }
 }
 
 await browser.close();

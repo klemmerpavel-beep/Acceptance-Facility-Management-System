@@ -60,8 +60,15 @@ jobs:
       - name: Клиент Prisma
         run: pnpm --filter @priyomka/api exec prisma generate
 
+      # Приёмник замечаний по демонстрации. Адрес лежит переменной
+      # репозитория `FEEDBACK_URL`, а не в исходном тексте: развёрнутое
+      # заново веб-приложение Apps Script получает новый адрес, и менять
+      # ради этого код незачем. Переменная не задана — виджета на странице
+      # нет вовсе: форма, которая ничего не отправляет, хуже её отсутствия.
       - name: Сборка демонстрации
         run: pnpm --filter @priyomka/web run build:demo
+        env:
+          VITE_FEEDBACK_URL: ${{ vars.FEEDBACK_URL }}
 
       - name: Сборка каталога публикации
         run: node scripts/build-pages.mjs
