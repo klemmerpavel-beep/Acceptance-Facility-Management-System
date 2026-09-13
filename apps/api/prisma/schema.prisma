@@ -17,10 +17,18 @@ datasource db {
 
 /// Роли системы. Клиент личного кабинета в первой версии не имеет
 /// и в таблице пользователей не заводится.
+/// Три рабочие роли продукта.
+///
+/// `SUPPLY` снята решением заказчика от 13.09.2026: она была объявлена в схеме
+/// и защищена проекцией, но входа не имела ни на одном экране (дефект А-7).
+/// Объявленная и не выданная роль обещает доступ, которого нет.
+///
+/// `CLIENT` — заказчик объекта. Видит ход работ по своему объекту и бумаги по
+/// нему; внутренних величин не получает наравне с прорабом (`projection.ts`).
 enum Role {
   OWNER
   FOREMAN
-  SUPPLY
+  CLIENT
 }
 
 /// Текущий рабочий статус объекта.
@@ -224,9 +232,18 @@ model User {
   name      String
   email     String?
   phone     String?
+  /// Запись справочника, от лица которой входит заказчик.
+  ///
+  /// Обязательна для роли `CLIENT` и пуста у прочих: видимость объектов
+  /// заказчика строится по ней (`project-scope.ts`). Заказчик без связи с
+  /// записью справочника видел бы либо всё, либо ничего — оба исхода неверны.
+  clientId  String?  @db.Uuid
   createdAt DateTime @default(now())
 
   organization      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  /// Запись справочника заказчика. Удаление записи уносит доступ вместе с ней:
+  /// вход, переживший заказчика, открывал бы объекты, которых он лишился.
+  client            Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   authTokens        AuthToken[]
   sessions          Session[]
   projectsAsForeman Project[]         @relation("ProjectForeman")
@@ -256,6 +273,7 @@ model Client {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   projects     Project[]
   leads        Lead[]
+  users        User[]
 
   @@unique([orgId, code])
   @@map("clients")

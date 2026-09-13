@@ -28,6 +28,9 @@ import { CurrentUser, type RequestUser } from "../common/current-user";
 export class StagesController {
   constructor(private readonly stages: StagesService) {}
 
+  /* График — ответ на вопрос «когда закончат», и он же первое, о чём
+     заказчик спрашивает. Только чтение: правит его руководитель. */
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   @Get()
   view(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<WorkStage[]> {
     return this.stages.view(user, code);

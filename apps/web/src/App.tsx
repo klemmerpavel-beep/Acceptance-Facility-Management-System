@@ -153,14 +153,29 @@ export function App(): React.JSX.Element {
    * Знак — свой, в языке набора значков. Знак и слово эталона не
    * воспроизводятся: это чужой товарный знак.
    */
+  /* Разделы по роли. Заказчику открыт один — его объекты; прочие ведут
+     внутреннюю работу компании, и показанный раздел, отвечающий отказом,
+     был бы обещанием доступа, которого нет.
+
+     Состав повторяет разметку маршрутов сервера, но её не заменяет: скрытый
+     раздел — удобство, а запрет стоит в страже ролей. */
+  const разделы = state.user.role === "CLIENT"
+    ? SECTIONS.filter((item) => item.key === "projects")
+    : SECTIONS;
+
   /* Служебные экраны и выход — один перечень на шапку и на таб-панель.
      Две копии разошлись бы на первой же правке состава. */
-  const ещё: readonly ПунктЕщё[] = [
+  const служебные: readonly ПунктЕщё[] = [
     { label: "Настройки", onSelect: () => { setOpened(null); setSection("settings"); } },
     { label: "Документы", onSelect: () => { setOpened(null); setSection("documents"); } },
     { label: "Что дальше", onSelect: () => { setOpened(null); setSection("roadmap"); } },
-    { label: "Выйти", onSelect: () => { void logout().then(load); } },
   ];
+  /* Заказчику из служебного открыт только выход: настройки организации,
+     шаблоны её документов и дорожная карта продукта — внутренняя работа
+     компании, а не сведения о его объекте. */
+  const ещё: readonly ПунктЕщё[] = state.user.role === "CLIENT"
+    ? [{ label: "Выйти", onSelect: () => { void logout().then(load); } }]
+    : [...служебные, { label: "Выйти", onSelect: () => { void logout().then(load); } }];
 
   const header = (
     <header className="appbar">
@@ -173,7 +188,7 @@ export function App(): React.JSX.Element {
       </span>
       <nav className="appbar__nav" aria-label="Разделы">
         <div className="appbar__nav-scroll">
-          {SECTIONS.map((item) => (
+          {разделы.map((item) => (
             <a
               key={item.key}
               className="appbar__link"
@@ -223,7 +238,7 @@ export function App(): React.JSX.Element {
 
   const tabbar = (
     <nav className="tabbar" aria-label="Разделы">
-      {SECTIONS.map((item) => (
+      {разделы.map((item) => (
         <a
           key={item.key}
           className="tabbar__item"
@@ -261,7 +276,7 @@ export function App(): React.JSX.Element {
           user={state.user}
           units={state.units}
           today={today}
-          откуда={SECTIONS.find((item) => item.key === section)?.label ?? "Главная"}
+          откуда={разделы.find((item) => item.key === section)?.label ?? "Проекты"}
           onBack={() => setOpened(null)}
           onChanged={replaceProject}
         />

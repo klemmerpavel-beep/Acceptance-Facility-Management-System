@@ -2733,12 +2733,49 @@ await page.click(".appbar__user");
 await page.waitForSelector('.tabs__item:has-text("Организация")');
 const settingsTabs = (await page.locator(".tabs__item").allTextContents())
   .map((text) => text.trim());
-if (settingsTabs.join("|") !== "Организация|Единицы измерения|Типы ремонта") {
+if (settingsTabs.join("|") !== "Организация|Люди|Единицы измерения|Типы ремонта") {
   note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
 }
 await page.waitForSelector('input[name="name"]');
 const orgName = await page.inputValue('input[name="name"]');
 if (orgName.trim() === "") note("настройки", "название организации пришло пустым");
+/*
+ * Люди организации: вход выдаёт руководитель.
+ *
+ * Стережётся не вид перечня, а два свойства. Первое: три роли продукта
+ * различимы на экране — перечень, в котором все «пользователи», не отвечает
+ * на вопрос «кто что видит». Второе: выданная ссылка показывается — выдача
+ * без показа равна невыданной, и руководителю нечего передать.
+ */
+await page.click('.tabs__item:has-text("Люди")');
+await page.waitForSelector(".records .record");
+const людейНаЭкране = await page.locator(".records .record").count();
+if (людейНаЭкране < 3) {
+  note("люди", `в перечне ${людейНаЭкране} человек: ожидались три роли`);
+}
+const ролиНаЭкране = (await page.locator(".records .record > .pill").allTextContents())
+  .map((текст) => текст.trim());
+for (const роль of ["Руководитель", "Прораб", "Заказчик"]) {
+  if (!ролиНаЭкране.includes(роль)) {
+    note("люди", `роль «${роль}» на экране не названа: «${ролиНаЭкране.join(", ")}»`);
+  }
+}
+await page.click('.records .record:has-text("Заказчик") button:has-text("Выдать ссылку")');
+await page.waitForTimeout(900);
+if ((await page.locator(".invite__link").count()) === 0) {
+  note("люди", "ссылка выдана, но не показана: руководителю нечего передать");
+} else {
+  const адрес = ((await page.locator(".invite__link").first().textContent()) ?? "").trim();
+  if (!/\/auth\/consume\?token=.+/u.test(адрес)) {
+    note("люди", `выданная ссылка не ведёт на обмен входа: «${адрес.slice(0, 60)}»`);
+  }
+}
+await разметка("люди организации");
+await overflow("люди, 1440");
+await step("люди организации", "47-lyudi.png");
+await page.click('.tabs__item:has-text("Организация")');
+await page.waitForTimeout(300);
+
 await step("настройки организации", "17-nastroyki.png");
 await overflow("настройки, 1440");
 

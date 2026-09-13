@@ -41,6 +41,135 @@ async function signIn(email) {
 const owner = await signIn("owner@dolgiy.studio");
 const foreman = await signIn("foreman@dolgiy.studio");
 
+const client = await signIn("client@dolgiy.studio");
+const яРуководитель = await owner("/auth/me").then((r) => r.json());
+
+/* --- три роли: руководитель, прораб, заказчик --------------------------------
+   Заказчик — сторона вне компании, и правило стража обратное прочим: ему
+   закрыто всё, что не названо прямо. Проверяется обеими сторонами — и что
+   открытое открыто, и что закрытое закрыто: правило «доступа нет» в
+   одиночку держится и тогда, когда роль не работает вовсе.
+   -------------------------------------------------------------------------- */
+const яЗаказчик = await client("/auth/me").then((r) => r.json());
+check(яЗаказчик.role === "CLIENT", `роль заказчика «${яЗаказчик.role}» вместо CLIENT`);
+
+const объектыЗаказчика = await client("/projects").then((r) => r.json());
+check(Array.isArray(объектыЗаказчика) && объектыЗаказчика.length > 0,
+  "заказчику не пришло ни одного объекта: вход есть, смотреть нечего");
+check(Array.isArray(объектыЗаказчика) && объектыЗаказчика.length < 8,
+  `заказчику пришло ${объектыЗаказчика.length} объектов — столько же, сколько руководителю`);
+check(Array.isArray(объектыЗаказчика) && объектыЗаказчика.some((p) => p.code === "R-99"),
+  "заказчику не пришёл его собственный объект R-99");
+
+/* Открыто: ход работ и бумаги по своему объекту. */
+for (const [имя, путь] of [
+  ["карточка объекта", "/projects/R-99"],
+  ["журнал объекта", "/projects/R-99/events"],
+  ["график работ", "/projects/R-99/stages"],
+  ["смета", "/projects/R-99/estimate"],
+  ["фотоотчёт", "/projects/R-99/acceptance/report"],
+  ["перечень актов", "/projects/R-99/acts"],
+]) {
+  const ответ = await client(путь);
+  check(ответ.status === 200, `заказчику закрыт ${имя}: код ${ответ.status}`);
+}
+
+/* Закрыто: внутренняя работа компании. Непомеченный маршрут заказчику
+   недоступен по умолчанию — забытый декоратор оборачивается отказом, а не
+   утечкой. */
+for (const [имя, путь] of [
+  ["приёмка", "/projects/R-99/acceptance"],
+  ["чеки", "/projects/R-99/expenses"],
+  ["транши", "/projects/R-99/tranches"],
+  ["бухгалтерия", "/accounting"],
+  ["заявки", "/leads"],
+  ["шаблоны документов", "/templates"],
+  ["люди организации", "/people"],
+  ["справочник заказчиков", "/clients"],
+]) {
+  const ответ = await client(путь);
+  check(ответ.status === 403, `заказчику открыт ${имя}: код ${ответ.status}`);
+}
+
+/* Чужой объект — тот же 404, что у прораба: отбор задаётся запросом к базе. */
+const чужойЗаказчику = await client("/projects/R-42");
+check(чужойЗаказчику.status === 404,
+  `чужой объект отдан заказчику с кодом ${чужойЗаказчику.status}`);
+
+/* Внутренних величин заказчику не приходит нигде — наравне с прорабом. */
+const сметаЗаказчику = await client("/projects/R-99/estimate").then((r) => r.json());
+const утечкаЗаказчику = findInternal(сметаЗаказчику);
+check(утечкаЗаказчику.length === 0,
+  `заказчику утекли внутренние поля сметы: ${утечкаЗаказчику.slice(0, 5).join(", ")}`);
+
+const актыЗаказчику = await client("/projects/R-99/acts").then((r) => r.json());
+if (Array.isArray(актыЗаказчику) && актыЗаказчику[0] !== undefined) {
+  const внутрьЗаказчику = await client(`/projects/R-99/acts/${актыЗаказчику[0].trancheId}?view=internal`);
+  check(внутрьЗаказчику.status === 403,
+    `заказчик получил внутренний вид акта с кодом ${внутрьЗаказчику.status}`);
+}
+
+/* --- люди организации: вход выдаёт руководитель ------------------------------
+   Самостоятельной регистрации нет. Проверяется, что доступ выдаётся и
+   снимается, и что выдать его может только руководитель.
+   -------------------------------------------------------------------------- */
+const люди = await owner("/people").then((r) => r.json());
+check(Array.isArray(люди) && люди.length >= 3,
+  `людей в организации ${люди.length}: ожидались хотя бы руководитель, прораб и заказчик`);
+check(Array.isArray(люди) && люди.some((человек) => человек.role === "CLIENT"),
+  "среди людей организации нет заказчика");
+
+const прорабЗаводит = await foreman("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Свой", role: "FOREMAN", email: "own@x.ru", phone: null, clientId: null }),
+});
+check(прорабЗаводит.status === 403, `прораб завёл человека с кодом ${прорабЗаводит.status}`);
+
+const заказчикБезСвязи = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Без связи", role: "CLIENT", email: "no@x.ru", phone: null, clientId: null }),
+});
+check(заказчикБезСвязи.status === 400,
+  `заказчик без записи справочника заведён с кодом ${заказчикБезСвязи.status}`);
+
+const безВхода = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Немой", role: "FOREMAN", email: null, phone: null, clientId: null }),
+});
+check(безВхода.status === 400, `человек без почты и телефона заведён с кодом ${безВхода.status}`);
+
+const занятаяПочта = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    name: "Двойник", role: "FOREMAN", email: "owner@dolgiy.studio", phone: null, clientId: null,
+  }),
+});
+check(занятаяПочта.status === 400, `занятая почта принята с кодом ${занятаяПочта.status}`);
+
+const справочникДляДоступа = await owner("/clients").then((r) => r.json());
+const доступВыдан = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    name: "Проверка API: заказчик", role: "CLIENT",
+    email: "proverka-api@dolgiy.studio", phone: null, clientId: справочникДляДоступа[0]?.id ?? null,
+  }),
+});
+check(доступВыдан.status === 201, `заведение заказчика дало код ${доступВыдан.status}`);
+if (доступВыдан.status === 201) {
+  const { token } = await доступВыдан.json();
+  check(typeof token === "string" && token.length > 0, "ссылка входа не выдана");
+  /* Ссылка обменивается на вход: выданная и неработающая — это не доступ. */
+  const вход = await fetch(`${BASE}/auth/consume?token=${token}`, { redirect: "manual" });
+  check(вход.status === 302, `ссылка не обменялась на вход: код ${вход.status}`);
+}
+
+/* Себе доступ не снимают: организация осталась бы без руководителя. */
+const себе = await owner(`/people/${яРуководитель.id}`, { method: "DELETE" });
+check(себе.status === 400, `руководитель снял доступ себе с кодом ${себе.status}`);
+
+console.log(`Роли: заказчику объектов ${объектыЗаказчика.length} из 8;`,
+  `людей в организации ${люди.length}; внутренних полей заказчику ${утечкаЗаказчику.length}`);
+
 const ownerEstimate = await owner("/projects/R-99/estimate").then((r) => r.json());
 check(ownerEstimate.positions === 132, `руководителю пришло ${ownerEstimate.positions} позиций вместо 132`);
 check(findInternal(ownerEstimate).length > 0, "руководителю не пришли внутренние величины");

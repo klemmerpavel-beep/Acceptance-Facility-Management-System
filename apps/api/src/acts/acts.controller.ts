@@ -20,6 +20,8 @@ import { CurrentUser, type RequestUser } from "../common/current-user";
 export class ActsController {
   constructor(private readonly acts: ActsService) {}
 
+  /* Акт — бумага заказчика, и видеть её он вправе. */
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   @Get()
   list(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ActRow[]> {
     return this.acts.list(user, code);
@@ -30,6 +32,7 @@ export class ActsController {
    * в сторону показа внутренних величин должно быть труднее, чем наоборот.
    */
   @Get(":id")
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   view(
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,

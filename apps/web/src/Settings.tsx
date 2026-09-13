@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import type { Organization, RepairType, Unit } from "@priyomka/contracts";
+import type { ClientRow, Organization, RepairType, Unit } from "@priyomka/contracts";
 import { formatPhone, isPhoneNumber } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   createRepairType, errorMessage, fetchOrganization, fetchRepairTypes, fetchUnits,
-  logout, saveOrganization, updateRepairType,
+  fetchClients, logout, saveOrganization, updateRepairType,
 } from "./api.js";
 import { useModalDialog } from "./modal.js";
 import { plural } from "./status.js";
 import { tabArrowHandler } from "./tabs.js";
+import { People } from "./People.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -26,6 +27,9 @@ import { tabArrowHandler } from "./tabs.js";
  */
 const TABS = [
   { key: "overview", label: "Организация" },
+  /* Люди стоят рядом с организацией, а не отдельным разделом: выдача входа —
+     настройка компании, и шестого пункта в полосе разделов она не стоит. */
+  { key: "people", label: "Люди" },
   { key: "estimate", label: "Единицы измерения" },
   { key: "tariffs", label: "Типы ремонта" },
 ] as const;
@@ -66,9 +70,18 @@ export function Settings({
   const [tab, setTab] = useState<Tab>("overview");
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [units, setUnits] = useState<Unit[] | null>(null);
+  /* Справочник заказчиков нужен листу заведения: заказчику ставится связь
+     с записью, и выбирать её по опознавателю руками никто не станет. */
+  const [клиенты, setКлиенты] = useState<ClientRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    /* Отказ проглатывается: справочник нужен одной вкладке из четырёх, и
+       падать всем экраном из-за него значило бы закрыть настройки целиком. */
+    fetchClients().then(setКлиенты).catch(() => { setКлиенты([]); });
+  }, []);
 
   useEffect(() => {
     void fetchOrganization().then(setOrganization).catch((cause: unknown) => setError(errorMessage(cause)));
@@ -226,6 +239,10 @@ export function Settings({
           )}
         </section>
       )}
+      </div>
+
+      <div role="tabpanel" id="settings-panel-people" aria-labelledby="settings-tab-people" hidden={tab !== "people"}>
+        {tab === "people" && <People clients={клиенты} />}
       </div>
 
       <div role="tabpanel" id="settings-panel-tariffs" aria-labelledby="settings-tab-tariffs" hidden={tab !== "tariffs"}>

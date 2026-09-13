@@ -11,6 +11,9 @@ import { CurrentUser, type RequestUser } from "../common/current-user";
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
+  /* Заказчику приходят только его объекты: отбор задаётся `projectScope`,
+     а не фильтром после выборки. */
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   @Get()
   list(@CurrentUser() user: RequestUser): Promise<ProjectSummary[]> {
     return this.projects.list(user);
@@ -27,6 +30,7 @@ export class ProjectsController {
   }
 
   @Get(":code")
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   byCode(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ProjectSummary> {
     return this.projects.byCode(user, code);
   }
@@ -48,6 +52,7 @@ export class ProjectsController {
    * записей — что и случилось при заведении чеков.
    */
   @Get(":code/events")
+  @Roles("OWNER", "FOREMAN", "CLIENT")
   events(
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,

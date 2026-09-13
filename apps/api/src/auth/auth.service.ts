@@ -216,6 +216,7 @@ export class AuthService {
       name: session.user.name,
       orgId: session.user.orgId,
       orgName: session.user.organization.name,
+      clientId: session.user.clientId,
     };
   }
 
