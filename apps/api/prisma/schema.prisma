@@ -162,8 +162,59 @@ model Organization {
   leads       Lead[]
   leadTasks   LeadTask[]
   repairTypes RepairType[]
+  templates   DocumentTemplate[]
 
   @@map("organizations")
+}
+
+/// Вид документа организации. Закрытый список: конструктор выпускает бумаги
+/// определённого назначения, а не «любой текст». Акт в списке отсутствует
+/// намеренно — он собирается из принятых позиций и шаблоном не правится
+/// (решение заказчика от 13.09.2026).
+enum TemplateKind {
+  CONTRACT
+  ANNEX
+  OTHER
+}
+
+/// Шаблон документа: договор, дополнительное соглашение, прочая бумага.
+///
+/// Тело хранится пунктами, а не одним полотном текста: пункт нумеруется,
+/// переставляется и правится отдельно, и документ на двадцать пунктов,
+/// лежащий одной строкой, правится только целиком.
+///
+/// Оформления в шаблоне нет. Бланк задаёт система — тот же, что у акта; иначе
+/// вид документа уходит из-под дизайн-системы к тому, кто последним правил
+/// шаблон.
+model DocumentTemplate {
+  id        String       @id @default(uuid()) @db.Uuid
+  orgId     String       @db.Uuid
+  name      String
+  kind      TemplateKind @default(CONTRACT)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  org     Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  clauses DocumentClause[]
+
+  /// Имя шаблона уникально в организации: два «Договора подряда» в списке
+  /// неразличимы, и выбирают из них наугад.
+  @@unique([orgId, name])
+  @@map("document_templates")
+}
+
+/// Пункт шаблона. Заголовок и текст; метки переменных стоят прямо в тексте.
+model DocumentClause {
+  id         String @id @default(uuid()) @db.Uuid
+  templateId String @db.Uuid
+  order      Int
+  title      String
+  body       String
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, order])
+  @@map("document_clauses")
 }
 
 model User {

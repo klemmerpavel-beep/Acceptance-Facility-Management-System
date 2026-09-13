@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
+import { Announce } from "./Announce.js";
 
 /**
  * Вкладка «Документы» карточки объекта.
@@ -35,6 +36,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
   const [act, setAct] = useState<ActView | null>(null);
   const [вид, setВид] = useState<"client" | "internal">("client");
   const [busy, setBusy] = useState(false);
+  const [объявление, setОбъявление] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchActs(code)
@@ -54,7 +56,11 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
   const отметить = (trancheId: string, signedAt: string): void => {
     setBusy(true);
     void signAct(code, trancheId, signedAt)
-      .then((next) => { setRows(next); setError(null); })
+      .then((next) => {
+        setRows(next);
+        setError(null);
+        setОбъявление(`Акт отмечен подписанным ${дата(signedAt)}`);
+      })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };
@@ -77,6 +83,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
   return (
     <div className="stack stack--loose">
       <div className="acts-screen stack stack--loose">
+        <Announce text={объявление} />
         <ul className="checks">
           {rows.map((row) => (
             <li className="check" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>

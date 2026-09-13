@@ -12,6 +12,7 @@ import {
 } from "./api.js";
 import { StageSheet, type StageSection } from "./StageSheet.js";
 import { PlanSheet } from "./PlanSheet.js";
+import { Announce } from "./Announce.js";
 
 /**
  * Вкладка «Работа» карточки объекта — правка графика производства работ.
@@ -145,6 +146,7 @@ export function Schedule({
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [объявление, setОбъявление] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ stage: WorkStage | null } | null>(null);
   const [planning, setPlanning] = useState(false);
   /* Справочник бригад тянется здесь, а не приходит сверху: он нужен одному
@@ -186,10 +188,10 @@ export function Schedule({
     onEvents();
   };
 
-  const run = (action: Promise<WorkStage[]>): void => {
+  const run = (action: Promise<WorkStage[]>, сказать: string): void => {
     setBusy(true);
     action
-      .then(apply)
+      .then((next) => { apply(next); setОбъявление(сказать); })
       .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };
@@ -254,7 +256,10 @@ export function Schedule({
     /* Тот же валидатор, что на сервере: отказ виден до обращения к сети. */
     const отказ = stageDateFault(next, range);
     if (отказ !== null) { setFault({ id: текущий.id, text: отказ }); return; }
-    run(updateStage(code, текущий.id, next));
+    /* Имя берётся у этапа, а не у записи перетаскивания: та несёт
+       опознаватель и границы, имени в ней нет. */
+    const имя = stages.find((stage) => stage.id === текущий.id)?.name ?? "этап";
+    run(updateStage(code, текущий.id, next), `${имя}: ${next.startsOn} — ${next.endsOn}`);
   };
 
   const move = (id: string, delta: number): void => {
@@ -266,7 +271,7 @@ export function Schedule({
     const [taken] = next.splice(at, 1);
     if (taken === undefined) return;
     next.splice(to, 0, taken);
-    run(reorderStages(code, next));
+    run(reorderStages(code, next), `Этап переставлен на позицию ${String(to + 1)} из ${String(order.length)}`);
   };
 
   /* Ручка перестановки работает и указателем, и с клавиатуры. Мышью
@@ -366,6 +371,7 @@ export function Schedule({
 
   return (
     <div className="stack" ref={panel}>
+      <Announce text={объявление} />
       {head}
 
       {stages.length === 0 ? (
@@ -448,6 +454,11 @@ export function Schedule({
                         type="button"
                         className="gantt__title"
                         title={`${stage.name}: ${stage.startsOn} — ${stage.endsOn}`}
+                        /* Сроки названы подписью, а не только всплывающим
+                           текстом: «title» читалки объявляют по-разному, а
+                           иные не объявляют вовсе. Это же и клавиатурный
+                           путь к датам — кнопка открывает лист правки. */
+                        aria-label={`${stage.name}: ${stage.startsOn} — ${stage.endsOn}. Открыть правку этапа`}
                         onClick={() => { setEditing({ stage }); }}
                       >
                         {stage.name}
@@ -467,7 +478,21 @@ export function Schedule({
                         </button>
                       )}
                       {внутри && (
+                        /* Отрезок помечен служебным: он показывает те же
+                           сроки, что уже названы подписью этапа, и своего
+                           содержания не несёт — пустая группа в дереве
+                           доступности лишь удлиняет обход.
+
+                           Перетаскивание клавишами не воспроизводится, и
+                           этого не требуется: те же даты правятся в листе
+                           этапа (кнопка названия), а порядок — стрелками на
+                           ручке переноса. Требование «у перетаскивания есть
+                           путь одним указателем» (WCAG 2.5.7) закрывает тот
+                           же лист. Дублировать тягу клавишами значило бы
+                           завести второй способ делать то же самое — и
+                           второй набор краевых случаев к нему. */
                         <div
+                          aria-hidden="true"
                           className={`gantt__bar${просрочен ? " gantt__bar--late" : ""}${тянут ? " gantt__bar--drag" : ""}`}
                           style={{ "--gantt-from": left, "--gantt-span": right - left } as React.CSSProperties}
                           onPointerDown={startDrag(stage, "move")}
@@ -538,7 +563,8 @@ export function Schedule({
           onSave={(stage: CreateWorkStage) => {
             run(editing.stage === null
               ? createStage(code, stage)
-              : updateStage(code, editing.stage.id, stage));
+              : updateStage(code, editing.stage.id, stage),
+            editing.stage === null ? `Этап «${stage.name}» добавлен` : `Этап «${stage.name}» изменён`);
           }}
           onMove={editing.stage === null ? null : (place: number) => {
             const текущий = editing.stage;
@@ -548,7 +574,7 @@ export function Schedule({
           onDelete={editing.stage === null ? null : () => {
             const текущий = editing.stage;
             if (текущий === null) return;
-            run(deleteStage(code, текущий.id));
+            run(deleteStage(code, текущий.id), `Этап «${текущий.name}» удалён`);
           }}
           onClose={() => { setEditing(null); setSheetError(null); }}
         />
@@ -561,7 +587,7 @@ export function Schedule({
           after={последнийДень}
           busy={busy}
           error={sheetError}
-          onPlan={(from, to) => { run(planStages(code, from, to)); }}
+          onPlan={(from, to) => { run(planStages(code, from, to), "График построен из разделов сметы"); }}
           onClose={() => { setPlanning(false); setSheetError(null); }}
         />
       )}

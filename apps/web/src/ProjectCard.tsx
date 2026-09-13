@@ -487,8 +487,14 @@ export function ProjectCard({
               )}
             </div>
 
-            <dl className="deflist">
-              <p className="deflist__head">Информация</p>
+            {/* Заголовок вынесен из списка: прямым потомком «dl» допустимы
+                только «dt», «dd» и «div», и абзац внутри списка определений
+                браузер разбирает по-своему. Список назван заголовком через
+                «aria-labelledby» — связь остаётся, разметка становится
+                действительной. */}
+            <div className="deflist">
+              <p className="deflist__head" id="card-info-head">Информация</p>
+              <dl className="deflist__body" aria-labelledby="card-info-head">
               <div className="deflist__row">
                 <dt className="deflist__term">Заказчик</dt>
                 <dd className="deflist__value">{project.client.name}</dd>
@@ -540,7 +546,8 @@ export function ProjectCard({
                   объекта 12 % — 455 382,25 ₽», и там она названа вместе с
                   суммой, которую объясняет. Сводка липкая и живёт в высоту
                   окна: каждая лишняя строка отнимает место у нужной. */}
-            </dl>
+              </dl>
+            </div>
           </aside>
 
           <div className="stack stack--loose">
@@ -865,8 +872,11 @@ function Overview({
                 <dd className="deflist__value num">{money(section.subtotal)}</dd>
               </div>
             ))}
-            <hr className="rule" />
-            <div className="deflist__row">
+            {/* Черта перед итогом — не отдельный элемент внутри списка
+                («hr» прямым потомком «dl» недопустим), а граница самой
+                строки итога. Она и по смыслу принадлежит итогу: отделяет
+                его от слагаемых, а не разрывает список надвое. */}
+            <div className="deflist__row deflist__row--total">
               <dt className="deflist__term">Итого по работам</dt>
               <dd className="deflist__value num">{money(estimate.totals.works)}</dd>
             </div>

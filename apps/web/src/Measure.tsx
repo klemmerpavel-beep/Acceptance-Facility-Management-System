@@ -8,6 +8,7 @@ import {
   createRoom, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl, updateRoom, uploadPlan,
 } from "./api.js";
 import { RoomSheet } from "./RoomSheet.js";
+import { Announce } from "./Announce.js";
 
 /**
  * Вкладка «Замер» карточки объекта.
@@ -82,6 +83,9 @@ export function Measure({
   const [detailed, setDetailed] = useState(false);
   const [editing, setEditing] = useState<{ room: MeasureRoom | null } | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Добавленное и удалённое помещение видно перерисовкой списка —
+     перерисовка чтением с экрана не объявляется. */
+  const [объявление, setОбъявление] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -108,10 +112,10 @@ export function Measure({
     onEvents();
   };
 
-  const run = (action: Promise<MeasureView>): void => {
+  const run = (action: Promise<MeasureView>, сказать: string): void => {
     setBusy(true);
     action
-      .then(apply)
+      .then((next) => { apply(next); setОбъявление(сказать); })
       .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };
@@ -144,7 +148,7 @@ export function Measure({
                 disabled={busy}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
-                  if (file !== undefined) run(uploadPlan(code, set, file));
+                  if (file !== undefined) run(uploadPlan(code, set, file), "Обмерный план загружен");
                 }}
               />
               <span className="filefield__button">
@@ -167,7 +171,7 @@ export function Measure({
               type="button"
               className="btn btn--text"
               disabled={busy}
-              onClick={() => { run(deletePlan(code, set)); }}
+              onClick={() => { run(deletePlan(code, set), "Обмерный план снят"); }}
             >
               Снять план
             </button>
@@ -183,6 +187,7 @@ export function Measure({
           Перечислять на листе всё, чего там не должно быть, — значит
           забыть очередной блок на следующей правке. */}
       <div className="measure-screen stack stack--loose">
+      <Announce text={объявление} />
       {(editable || view.filled.includes("REPLANNED")) && (
         <div className="segmented" role="group" aria-label="Набор обмера">
           {НАБОРЫ.map(([значение, подпись]) => (
@@ -241,13 +246,17 @@ export function Measure({
         ) : (
           <div className="stack stack--tight">
             <div className="measure">
+              {/* Список помещений — навигация, а не вкладки: «aria-selected»
+                  вне «role="tab"» недействителен, и чтение с экрана его
+                  молча теряет. Выбранное помещение помечается «aria-current»
+                  — тем же атрибутом, что выбранный раздел в шапке. */}
               <nav className="measure__nav" aria-label="Помещения">
                 {rooms.map((room) => (
                   <button
                     key={room.id}
                     type="button"
                     className="measure__item"
-                    aria-selected={room.id === selected.id}
+                    aria-current={room.id === selected.id ? "true" : undefined}
                     onClick={() => { setCurrent(room.id); }}
                   >
                     {room.name}
@@ -397,11 +406,12 @@ export function Measure({
           busy={busy}
           error={sheetError}
           onSave={(room: CreateMeasureRoom) => {
-            run(editing.room === null ? createRoom(code, set, room) : updateRoom(code, editing.room.id, room));
+            run(editing.room === null ? createRoom(code, set, room) : updateRoom(code, editing.room.id, room),
+              editing.room === null ? `Помещение «${room.name}» добавлено` : `Помещение «${room.name}» изменено`);
           }}
           onDelete={editing.room === null ? null : () => {
             const id = editing.room?.id;
-            if (id !== undefined) { setCurrent(null); run(deleteRoom(code, id)); }
+            if (id !== undefined) { setCurrent(null); run(deleteRoom(code, id), "Помещение удалено"); }
           }}
           onClose={() => { setEditing(null); setSheetError(null); }}
         />

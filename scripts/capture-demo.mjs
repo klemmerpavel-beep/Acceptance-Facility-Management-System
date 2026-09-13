@@ -65,6 +65,7 @@ const snapshot = {
   "measure-replanned": await owner("/projects/R-99/measure?set=REPLANNED"),
   expenses: await owner("/projects/R-99/expenses"),
   acts: await owner("/projects/R-99/acts"),
+  templates: [],
   /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
      несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
      связь с разделом, бригада и фактическая готовность по приёмке. */
@@ -102,6 +103,12 @@ const snapshot = {
    составом полей, и подменить один другим в демонстрации значило бы
    показать заказчику внутренние величины. Закрытого транша может не быть
    вовсе — тогда акта нет, и это честное состояние, а не отказ съёмки. */
+/* Шаблоны снимаются с пунктами: перечень отдаёт строки без тела, а двойник
+   демонстрации показывает сам шаблон — метками, как в продукте. */
+const переченьШаблонов = await owner("/templates");
+snapshot.templates = await Promise.all(
+  переченьШаблонов.map((шаблон) => owner(`/templates/${шаблон.id}`)));
+
 const первыйАкт = snapshot.acts[0];
 snapshot["act-client"] = первыйАкт === undefined
   ? null
@@ -152,6 +159,6 @@ console.log(
   `позиций сметы ${estimateOwner.positions}; событий ${snapshot["events-owner"].length};`,
   `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `чеков ${snapshot.expenses.rows.length}, из них черновиков ${snapshot.expenses.totals.drafts};`,
-  `актов ${snapshot.acts.length};`,
+  `актов ${snapshot.acts.length}; шаблонов ${snapshot.templates.length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

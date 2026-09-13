@@ -472,6 +472,83 @@ if (!Array.isArray(акты) || акты.length !== 1) {
     `после отметки дата подписания «${подписан[0]?.signedAt}» вместо 2026-09-12`);
 }
 
+/* --- шаблоны документов организации ------------------------------------------
+   Главное здесь — что метка заменяется значением объекта, а неизвестная
+   метка остаётся видимой. Документ, из которого молча пропал реквизит,
+   подписывают не глядя: пустое место читается как «здесь ничего и не было».
+   -------------------------------------------------------------------------- */
+const шаблоны = await owner("/templates").then((r) => r.json());
+check(Array.isArray(шаблоны) && шаблоны.length === 2,
+  `шаблонов на стенде ${JSON.stringify(шаблоны).slice(0, 120)} вместо двух`);
+const договор = Array.isArray(шаблоны)
+  ? шаблоны.find((шаблон) => шаблон.kind === "CONTRACT")
+  : undefined;
+if (договор === undefined) {
+  check(false, "среди шаблонов стенда нет договора");
+} else {
+  check(договор.clauses > 0, `у договора пунктов ${договор.clauses}`);
+
+  /* Шаблон отдаётся метками: подстановка — отдельное действие. */
+  const видШаблона = await owner(`/templates/${договор.id}`).then((r) => r.json());
+  const естьМетки = видШаблона.clauses.some((пункт) => /\{\{[^}]+\}\}/u.test(пункт.body));
+  check(естьМетки, "в шаблоне не осталось ни одной метки: шаблон отдан уже подставленным");
+
+  const документ = await owner(`/templates/${договор.id}/issue`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectCode: "R-99" }),
+  }).then((r) => r.json());
+  const текст = документ.clauses.map((пункт) => `${пункт.title}\n${пункт.body}`).join("\n");
+  check(!/\{\{[^}]+\}\}/u.test(текст), "в выпущенном документе осталась неподставленная метка");
+  check(текст.includes("R-99"), "код объекта в документ не подставлен");
+  check(документ.client.name.length > 0, "в документе не названа сторона заказчика");
+  /* Внутренних величин в документе нет по составу — он уходит заказчику. */
+  const утечкаДокумента = findInternal(документ);
+  check(утечкаДокумента.length === 0,
+    `в документе организации внутренние поля: ${утечкаДокумента.join(", ")}`);
+
+  /* Чужой объект документом не выпускается: та же видимость, что у сметы. */
+  const чужойДокумент = await owner(`/templates/${договор.id}/issue`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectCode: "НЕТ-ТАКОГО" }),
+  });
+  check(чужойДокумент.status === 404,
+    `документ по несуществующему объекту отдан с кодом ${чужойДокумент.status}`);
+
+  /* Правит шаблоны руководитель; читают и выпускают обе роли. */
+  const прорабПравит = await foreman(`/templates/${договор.id}`, {
+    method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Свой договор", kind: "CONTRACT", clauses: [{ title: "П", body: "" }] }),
+  });
+  check(прорабПравит.status === 403, `прораб правит шаблон с кодом ${прорабПравит.status}`);
+  const прорабЧитает = await foreman("/templates");
+  check(прорабЧитает.status === 200, `прорабу отказан перечень шаблонов: ${прорабЧитает.status}`);
+
+  /* Неизвестная переменная отвергается при записи: иначе метка доходит до
+     подписи, и замечает её уже заказчик. */
+  const сЧужойМеткой = await owner("/templates", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Проверка API", kind: "OTHER",
+      clauses: [{ title: "Пункт", body: "Цвет {{объект.цвет}}" }],
+    }),
+  });
+  check(сЧужойМеткой.status === 400,
+    `шаблон с неизвестной переменной принят с кодом ${сЧужойМеткой.status}`);
+
+  /* Одноимённый шаблон не заводится: два одинаковых имени неразличимы. */
+  const тёзка = await owner("/templates", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: договор.name, kind: "CONTRACT",
+      clauses: [{ title: "Пункт", body: "Объект {{объект.код}}" }],
+    }),
+  });
+  check(тёзка.status === 400, `одноимённый шаблон заведён с кодом ${тёзка.status}`);
+
+  console.log(`Шаблоны организации: ${String(шаблоны.length)}, в договоре пунктов`,
+    `${String(договор.clauses)}; меток в выпущенном документе не осталось`);
+}
+
 /** Обмер чужого объекта прорабу не виден: тот же 404, что у сметы. */
 const foreignMeasure = await foreman("/projects/R-19/measure");
 check(foreignMeasure.status === 404, `обмер чужого объекта отдан прорабу с кодом ${foreignMeasure.status}`);

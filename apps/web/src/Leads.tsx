@@ -113,6 +113,8 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
                 type="button"
                 role="tab"
                 aria-selected={column.stage === выбранная?.stage}
+                aria-controls="leads-stage-panel"
+                tabIndex={column.stage === выбранная?.stage ? 0 : -1}
                 className="leads__stage"
                 onClick={() => { setCurrent(column.stage); }}
               >
@@ -121,7 +123,12 @@ export function Leads({ onOpenProject }: { onOpenProject: (code: string) => void
               </button>
             ))}
           </div>
-          <Column leads={выбранная?.leads ?? []} opened={opened} onOpen={setOpened} />
+          {/* Панель названа вкладкой: без неё «aria-controls» ссылается в
+              пустоту, и чтение с экрана объявляет выбор, за которым ничего
+              не стоит. */}
+          <div id="leads-stage-panel" role="tabpanel">
+            <Column leads={выбранная?.leads ?? []} opened={opened} onOpen={setOpened} />
+          </div>
         </>
       ) : (
         <div className="leadboard">

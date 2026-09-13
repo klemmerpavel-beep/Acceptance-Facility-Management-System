@@ -1538,3 +1538,66 @@ export type CreateRepairType = z.infer<typeof createRepairTypeSchema>;
 
 export const updateRepairTypeSchema = createRepairTypeSchema.partial();
 export type UpdateRepairType = z.infer<typeof updateRepairTypeSchema>;
+
+/* --- шаблоны документов организации ----------------------------------------
+   Договоры и дополнительные соглашения с переменными. Акта здесь нет: он
+   собирается из принятых позиций и шаблоном не правится — редактируемый текст
+   смог бы вынести ставку оплаты труда в клиентский документ.
+   -------------------------------------------------------------------------- */
+
+export const templateKindSchema = z.enum(["CONTRACT", "ANNEX", "OTHER"]);
+export type TemplateKind = z.infer<typeof templateKindSchema>;
+
+export const documentClauseSchema = z.object({
+  title: z.string().min(1, "У пункта нет заголовка").max(200),
+  body: z.string().max(20_000),
+});
+export type DocumentClause = z.infer<typeof documentClauseSchema>;
+
+export const documentTemplateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  kind: templateKindSchema,
+  clauses: z.array(documentClauseSchema),
+  updatedAt: z.string(),
+});
+export type DocumentTemplate = z.infer<typeof documentTemplateSchema>;
+
+/** Строка перечня: тело пунктов в списке не нужно, число пунктов — нужно. */
+export const templateRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  kind: templateKindSchema,
+  clauses: z.number().int().nonnegative(),
+  updatedAt: z.string(),
+});
+export type TemplateRow = z.infer<typeof templateRowSchema>;
+
+export const saveTemplateSchema = z.object({
+  name: z.string().min(1, "У шаблона нет наименования").max(200),
+  kind: templateKindSchema,
+  clauses: z.array(documentClauseSchema).min(1, "В шаблоне нет ни одного пункта"),
+});
+export type SaveTemplate = z.infer<typeof saveTemplateSchema>;
+
+/** Выпуск документа: шаблон и объект, по которому подставляются значения. */
+export const issueDocumentSchema = z.object({
+  projectCode: z.string().min(1, "Не выбран объект"),
+});
+export type IssueDocument = z.infer<typeof issueDocumentSchema>;
+
+/**
+ * Выпущенный документ. Пункты уже с подставленными значениями — подстановка
+ * идёт на сервере, где лежат данные, а не на экране: второе правило
+ * подстановки разошлось бы с первым на первой же новой переменной.
+ */
+export const issuedDocumentSchema = z.object({
+  name: z.string(),
+  kind: templateKindSchema,
+  issuedAt: z.string(),
+  project: z.object({ code: z.string(), address: z.string() }),
+  contractor: z.object({ name: z.string(), requisites: z.string().nullable() }),
+  client: z.object({ name: z.string(), requisites: z.string().nullable() }),
+  clauses: z.array(documentClauseSchema),
+});
+export type IssuedDocument = z.infer<typeof issuedDocumentSchema>;

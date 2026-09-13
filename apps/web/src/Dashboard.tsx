@@ -152,7 +152,7 @@ export function EventFeed({
   }
 
   return (
-    <div className="feed feed--byday">
+    <div className="feed feed--byday" id="feed-list">
       {days.map((group) => (
         <div key={group.day}>
           <p className="feed__day">{formatDay(group.day)}</p>
@@ -176,10 +176,15 @@ export function EventFeed({
       {preview && !open && rest > 0 && (
         /* Кнопка называет число: «показать ещё» не говорит, сколько за ней,
            и человек жмёт вслепую. */
+        /* «aria-expanded» здесь не стоит: кнопка не раскрывает и не
+           сворачивает, а показывает остаток и исчезает — свернуть ленту
+           обратно нечем. Атрибут раскрытия у органа, у которого нет
+           второго состояния, обещает поведение, которого нет. Связь с
+           лентой названа «aria-controls». */
         <button
           type="button"
           className="btn btn--text btn--block"
-          aria-expanded={false}
+          aria-controls="feed-list"
           onClick={() => { setOpen(true); }}
         >
           Показать ещё {rest} {plural(rest, "событие", "события", "событий")}

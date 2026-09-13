@@ -15,6 +15,7 @@ import { ProjectList } from "./ProjectList.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { ProjectCard } from "./ProjectCard.js";
 import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
+import { Documents } from "./Documents.js";
 import { Settings } from "./Settings.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
@@ -156,6 +157,7 @@ export function App(): React.JSX.Element {
      Две копии разошлись бы на первой же правке состава. */
   const ещё: readonly ПунктЕщё[] = [
     { label: "Настройки", onSelect: () => { setOpened(null); setSection("settings"); } },
+    { label: "Документы", onSelect: () => { setOpened(null); setSection("documents"); } },
     { label: "Что дальше", onSelect: () => { setOpened(null); setSection("roadmap"); } },
     { label: "Выйти", onSelect: () => { void logout().then(load); } },
   ];
@@ -199,7 +201,9 @@ export function App(): React.JSX.Element {
       <button
         type="button"
         className="appbar__user"
-        aria-current={section === "settings" || section === "roadmap" ? "page" : undefined}
+        aria-current={section === "settings" || section === "roadmap" || section === "documents"
+          ? "page"
+          : undefined}
         onClick={() => { setOpened(null); setSection("settings"); }}
       >
         <span className="appbar__name">{state.user.name}</span>
@@ -435,6 +439,12 @@ export function App(): React.JSX.Element {
         <>
           {cover("Что дальше", ["Главная", "Настройки", "Что дальше"])}
           <Roadmap />
+        </>
+      )}
+      {section === "documents" && (
+        <>
+          {cover("Документы организации", ["Главная", "Настройки", "Документы"])}
+          <Documents role={state.user.role} projects={state.projects} />
         </>
       )}
       {adding && (
