@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { завести } from "./verbs.js";
+import { looksLikeCompany } from "@priyomka/domain";
 import type { ClientRow, WorkerRow } from "@priyomka/contracts";
 import { createClient, createWorker, errorMessage, fetchClients, fetchWorkers } from "./api.js";
 import { useModalDialog } from "./modal.js";
@@ -52,8 +53,10 @@ export function NewContactSheet({
           name: name.trim(),
           // Юридическое лицо распознаётся по названию, а не отдельной
           // галочкой: «ООО «Гранит-Строй»» и «Анна Мещерякова» различаются
-          // без вопроса к человеку.
-          isCompany: /^(ООО|АО|ЗАО|ПАО|ИП)\b/u.test(name.trim()),
+          // без вопроса к человеку. Правило одно на весь продукт и живёт в
+          // домене: написанное здесь второй раз оно разошлось бы с первым —
+          // и разошлось, пока стояло в двух местах (см. `looksLikeCompany`).
+          isCompany: looksLikeCompany(name),
           requisites: requisites.trim() === "" ? null : requisites.trim(),
         }).then(async (clients) => ({ clients, workers: await fetchWorkers() }))
       : createWorker({ name: name.trim(), kind: kind === "brigade" ? "BRIGADE" : "PERSON" }).then(

@@ -12,7 +12,7 @@ import type {
   UpdateRepairType,
   WorkerRow,
 } from "@priyomka/contracts";
-import { parseContactPhone } from "@priyomka/domain";
+import { nextClientCode, parseContactPhone } from "@priyomka/domain";
 import { unitAliases } from "@priyomka/importer";
 import {
   accrualSummary, basisPoints, clientTotals, formatKopecks, formatPercent, kopecks, sum,
@@ -156,17 +156,31 @@ export class DirectoryService {
    * причине, по какой не может быть двух объектов с кодом R-99.
    */
   async createClient(user: RequestUser, input: CreateClient): Promise<ClientRow[]> {
+    /* Код, которого не прислали, назначает сервер. Так заводит заказчика
+       форма нового объекта: там человек называет одно имя, и спрашивать
+       обиходный код значило бы вернуть его в справочник ровно за тем, ради
+       чего заведение сделано попутным. Правило выбора — в домене и испытано
+       тестом; здесь только выборка занятых кодов. */
+    let код = input.code;
+    if (код === undefined) {
+      const коды = await this.prisma.client.findMany({
+        where: { orgId: user.orgId },
+        select: { code: true },
+      });
+      код = nextClientCode(коды.map((строка) => строка.code));
+    }
+
     const занят = await this.prisma.client.findUnique({
-      where: { orgId_code: { orgId: user.orgId, code: input.code } },
+      where: { orgId_code: { orgId: user.orgId, code: код } },
       select: { id: true },
     });
     if (занят) {
-      throw new BadRequestException({ message: `Заказчик с кодом ${input.code} уже заведён.` });
+      throw new BadRequestException({ message: `Заказчик с кодом ${код} уже заведён.` });
     }
     await this.prisma.client.create({
       data: {
         orgId: user.orgId,
-        code: input.code,
+        code: код,
         name: input.name,
         isCompany: input.isCompany,
         requisites: input.requisites,

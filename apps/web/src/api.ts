@@ -2,7 +2,7 @@ import type { CurrentUser, ProjectSummary } from "@priyomka/contracts";
 import {
   clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
-  photoReportSchema, foremenSchema,
+  photoReportSchema, foremenSchema, nextProjectCodeSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -315,6 +315,16 @@ export const updateProject = (code: string, patch: UpdateProject): Promise<Proje
 /** Прорабы организации: список для назначения на объект. */
 export const fetchForemen = (): Promise<Foreman[]> =>
   request("/foremen", foremenSchema);
+
+/**
+ * Предложенный номер для нового объекта; `null` — предложить нечего.
+ *
+ * Запрашивается при открытии формы, а не держится в состоянии экрана: номер
+ * устаревает, как только объект заведёт кто-то другой, и подставленный
+ * заранее был бы занят к моменту нажатия.
+ */
+export const fetchNextProjectCode = (): Promise<string | null> =>
+  request("/projects/next-code", nextProjectCodeSchema).then((ответ) => ответ.code);
 
 /* --- правка сметы --------------------------------------------------------
    Оба вызова возвращают вид сметы целиком: правка одной позиции меняет

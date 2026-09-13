@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { CreateProject, ProjectEvent, ProjectSummary, UpdateProject } from "@priyomka/contracts";
+import type {
+  CreateProject, NextProjectCode, ProjectEvent, ProjectSummary, UpdateProject,
+} from "@priyomka/contracts";
 import {
   acceptedShare, basisPoints, clientTotals, estimateAgainstGuideline, kopecks,
-  projectReadiness, trancheRemainder,
+  nextProjectCode, projectReadiness, trancheRemainder,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -84,12 +86,41 @@ export class ProjectsService {
   }
 
   /**
+   * Предложенный номер для нового объекта.
+   *
+   * Буква продолжает ту, что уже в ходу: берётся у последнего заведённого
+   * объекта, а не задаётся здесь постоянной. Организация, нумерующая объекты
+   * с «K», получит K-8, а не R-1 — иначе предложение пришлось бы стирать
+   * каждый раз, и оно перестало бы быть предложением.
+   *
+   * Правило выбора номера — в домене (`nextProjectCode`) и испытано тестом:
+   * здесь только выборка занятых номеров.
+   */
+  async nextCode(user: RequestUser): Promise<NextProjectCode> {
+    const projects = await this.prisma.project.findMany({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: "desc" },
+      select: { code: true },
+    });
+    const буква = projects[0]?.code.slice(0, 1) ?? "R";
+    return { code: nextProjectCode(projects.map((project) => project.code), буква) };
+  }
+
+  /**
    * Заведение объекта.
    *
    * Заказчик обязателен и берётся из справочника: объект без заказчика не
    * бьётся ни со сметой, ни со счётом, а «завести на потом» означает
-   * завести навсегда. Прораб и дата начала не спрашиваются — их назначают
-   * тогда, когда бригада действительно выходит.
+   * завести навсегда.
+   *
+   * Прораб, начало работ, ключи и надбавка необязательны: они известны
+   * не всегда, но когда известны — известны уже сейчас. До 12.09.2026 их
+   * здесь не было вовсе, и руководитель шёл дописывать их в карточку сразу
+   * после заведения; второй заход стоил дороже сэкономленного поля.
+   *
+   * Отсутствующее поле не пишется вовсе, а не пишется пустым: у надбавки и
+   * ключей в базе свои значения по умолчанию, и запись `null` поверх них
+   * означала бы «руководитель назвал ноль».
    */
   async create(user: RequestUser, input: CreateProject): Promise<ProjectSummary> {
     const client = await this.prisma.client.findFirst({
@@ -98,6 +129,18 @@ export class ProjectsService {
     });
     if (!client) {
       throw new BadRequestException({ message: "Заказчик не найден в справочнике." });
+    }
+
+    /* Прораб проверяется до записи — тем же правилом, что и при правке
+       карточки: чужой идентификатор иначе отверг бы драйвер связи,
+       сообщением базы вместо человеческого. */
+    if (input.foremanId !== undefined && input.foremanId !== null) {
+      const прораб = await this.prisma.user.findFirst({
+        where: { id: input.foremanId, orgId: user.orgId, role: "FOREMAN" },
+      });
+      if (!прораб) {
+        throw new BadRequestException({ message: "Такого прораба нет в организации." });
+      }
     }
 
     const занят = await this.prisma.project.findUnique({
@@ -117,6 +160,14 @@ export class ProjectsService {
         address: input.address,
         clientId: client.id,
         deadline: input.deadline === null ? null : new Date(input.deadline),
+        ...(input.foremanId === undefined ? {} : { foremanId: input.foremanId }),
+        ...(input.startedAt === undefined || input.startedAt === null
+          ? {}
+          : { startedAt: new Date(input.startedAt) }),
+        ...(input.keysCount === undefined ? {} : { keysCount: input.keysCount }),
+        ...(input.supervisionShare === undefined
+          ? {}
+          : { supervisionShare: input.supervisionShare }),
       },
       select: { id: true },
     });
