@@ -32,6 +32,9 @@ async function signIn(email) {
 
 const owner = await signIn("owner@dolgiy.studio");
 const foreman = await signIn("foreman@dolgiy.studio");
+/* Заказчик снимается наравне с прочими: демонстрация показывает продукт
+   глазами каждой роли, и набор данных для этого нужен свой. */
+const client = await signIn("client@dolgiy.studio");
 
 const form = new FormData();
 form.append("file", new Blob([readFileSync(FIXTURE)]), "smeta-obezlichennaya.xlsx");
@@ -53,6 +56,11 @@ const snapshot = {
   workers: await owner("/workers"),
   "events-owner": await owner("/projects/R-99/events"),
   "events-foreman": await foreman("/projects/R-99/events"),
+  "me-client": await client("/auth/me"),
+  "projects-client": await client("/projects"),
+  "events-client": await client("/projects/R-99/events"),
+  "estimate-client": await client("/projects/R-99/estimate"),
+  "acts-client": await client("/projects/R-99/acts"),
   units: await owner("/projects/R-99/estimate/units"),
   organization: await owner("/organization"),
   unitDirectory: await owner("/units"),
@@ -161,6 +169,6 @@ console.log(
   `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `чеков ${snapshot.expenses.rows.length}, из них черновиков ${snapshot.expenses.totals.drafts};`,
   `актов ${snapshot.acts.length}; шаблонов ${snapshot.templates.length};`,
-  `людей ${snapshot.people.length};`,
+  `людей ${snapshot.people.length}; объектов заказчику ${snapshot["projects-client"].length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );

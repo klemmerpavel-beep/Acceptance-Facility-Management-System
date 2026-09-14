@@ -53,6 +53,11 @@ interface Snapshot {
   workers: WorkerRow[];
   "events-owner": ProjectEvent[];
   "events-foreman": ProjectEvent[];
+  "me-client": CurrentUser;
+  "projects-client": ProjectSummary[];
+  "events-client": ProjectEvent[];
+  "estimate-client": EstimateView;
+  "acts-client": ActRow[];
   units: string[];
   organization: Organization;
   unitDirectory: Unit[];
@@ -173,12 +178,45 @@ export const demoSignIn = (): void => {
   signedIn = true;
 };
 
+/**
+ * Роль, глазами которой показывается демонстрация.
+ *
+ * **Это не разграничение доступа.** Запрет живёт в страже ролей на сервере,
+ * которого у демонстрации нет вовсе: она раздаётся статикой. Переключатель
+ * меняет набор данных двойника — ровно то, что увидел бы вошедший этой ролью
+ * на настоящем стенде. Принимать его за проверку доступа нельзя: на живом
+ * сервере роль приходит с сессией и переключению не поддаётся.
+ */
+export type DemoRole = "OWNER" | "FOREMAN" | "CLIENT";
+let демоРоль: DemoRole = "OWNER";
+const слушатели = new Set<() => void>();
+
+export const demoRole = (): DemoRole => демоРоль;
+
+export const setDemoRole = (роль: DemoRole): void => {
+  демоРоль = роль;
+  for (const слушатель of слушатели) слушатель();
+};
+
+/** Подписка экрана на смену роли: демонстрация перечитывает себя целиком. */
+export const onDemoRoleChange = (слушатель: () => void): (() => void) => {
+  слушатели.add(слушатель);
+  return () => { слушатели.delete(слушатель); };
+};
+
+/* Набор данных по роли. Ключи слепка сняты тремя заходами съёмки: каждый
+   ходил на стенд от своего имени, и отданное — ровно то, что сервер отдал
+   бы этой роли. Заказчик отдельным ключом, прораб — прежними, которые до
+   этой работы лежали в слепке без употребления. */
+const поРоли = <T,>(владельцу: T, прорабу: T, заказчику: T): T =>
+  демоРоль === "OWNER" ? владельцу : демоРоль === "FOREMAN" ? прорабу : заказчику;
+
 const pause = (ms = 180): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function fetchCurrentUser(): Promise<CurrentUser> {
   await pause(60);
   if (!signedIn) throw new Error("Войдите по ссылке, отправленной на почту.");
-  return data["me-owner"];
+  return поРоли(data["me-owner"], data["me-foreman"], data["me-client"]);
 }
 
 /**
@@ -205,8 +243,14 @@ export async function fetchProject(code: string): Promise<ProjectSummary> {
 
 export async function fetchProjects(): Promise<ProjectSummary[]> {
   await pause(60);
-  const rows = [...data["projects-owner"], ...заведённые.projects];
-  return rows.map(withChangedStatus).map(сОбложкой);
+  /* Заведённые в демонстрации объекты видны только руководителю: заводит
+     их он, и прочим ролям они на стенде не достались бы. */
+  const свои = поРоли(
+    [...data["projects-owner"], ...заведённые.projects],
+    data["projects-foreman"],
+    data["projects-client"],
+  );
+  return свои.map(withChangedStatus).map(сОбложкой);
 }
 
 const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
@@ -252,7 +296,12 @@ const прорабыСлепка = (): Foreman[] => {
 
 export async function fetchDashboard(): Promise<Dashboard> {
   await pause(120);
-  return data["summary-owner"];
+  /* Сводка портфеля заказчику закрыта — в продукте это отказ сервера.
+     Здесь он воспроизводится отказом двойника: показать заказчику чужой
+     портфель значило бы солгать о продукте ровно в том месте, ради
+     которого роли и заводились. */
+  if (демоРоль === "CLIENT") throw new Error("Сводка портфеля ведётся внутри компании.");
+  return поРоли(data["summary-owner"], data["summary-foreman"], data["summary-owner"]);
 }
 
 /**
@@ -376,7 +425,7 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
 export async function fetchEvents(code: string): Promise<ProjectEvent[]> {
   await pause(80);
   if (code !== "R-99") return [];
-  return data["events-owner"];
+  return поРоли(data["events-owner"], data["events-foreman"], data["events-client"]);
 }
 
 /**
