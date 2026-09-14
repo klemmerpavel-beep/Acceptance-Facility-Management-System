@@ -1,8 +1,10 @@
 import { useState } from "react";
-import type { EstimateItem, MeasureView, UpdateEstimateItem } from "@priyomka/contracts";
+import type {
+  EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
+} from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
-  estimateItemFault, estimateItemWarning, measureSourcesFor,
+  estimateItemFault, estimateItemMoveFault, estimateItemWarning, measureSourcesFor,
   MEASURE_LABEL, kopecks, milliunits, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
@@ -50,6 +52,10 @@ const вПоле = (value: bigint, знаков: number): string => {
 export function EstimateItemSheet({
   item,
   units,
+  rooms,
+  replanned,
+  sections,
+  sectionId,
   measure,
   busy,
   error,
@@ -58,10 +64,26 @@ export function EstimateItemSheet({
 }: {
   item: EstimateItem;
   units: readonly string[];
+  /** Помещения действующего набора обмера. Пусто — обмера ещё не делали. */
+  rooms: readonly EstimateItemRoom[];
+  /** Есть ли у объекта набор после перепланировки. */
+  replanned: boolean;
+  /**
+   * Разделы действующей редакции — плоским списком с отступом по уровню.
+   *
+   * Перенос между разделами живёт здесь, а не только в перетаскивании:
+   * разделов двадцать два, тащить строку сквозь свёрнутые заголовки —
+   * движение, которое не заканчивается, а у человека без указателя его нет
+   * вовсе.
+   */
+  sections: readonly { id: string; name: string; level: number }[];
+  /** Раздел, в котором позиция стоит сейчас. */
+  sectionId: string;
   measure: MeasureView | null;
   busy: boolean;
   error: string | null;
-  onSave: (input: UpdateEstimateItem) => void;
+  /** `раздел` пуст, когда его не меняли: «не трогал» — не «перенеси сюда». */
+  onSave: (input: UpdateEstimateItem, раздел: string | null) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
@@ -70,6 +92,8 @@ export function EstimateItemSheet({
   const [qty, setQty] = useState(вПоле(BigInt(item.qty), 3));
   const [price, setPrice] = useState(вПоле(BigInt(item.unitPrice), 2));
   const [wage, setWage] = useState(вПоле(BigInt(item.unitWage ?? "0"), 2));
+  const [roomId, setRoomId] = useState(item.room?.id ?? "");
+  const [разделПозиции, setРазделПозиции] = useState(sectionId);
 
   const тысячные = количествоВТысячные(qty);
   const цена = рублиВКопейки(price);
@@ -86,17 +110,49 @@ export function EstimateItemSheet({
       }
     : null;
   const fault = правка === null ? null : estimateItemFault(правка);
+  /* Отказ показывается до обращения к сети тем же правилом, что применит
+     сервер: два независимых свода разошлись бы на третьей правке. */
+  const отказПереноса = estimateItemMoveFault({
+    accepted: milliunits(item.qtyAccepted),
+    name: item.name,
+    unit: item.unit,
+    changesSection: разделПозиции !== sectionId,
+    section: sections.find((раздел) => раздел.id === sectionId)?.name ?? "прежнем",
+  });
   const warning = правка === null ? null : estimateItemWarning(правка);
-  const ready = разобрано && fault === null && name.trim() !== "";
+  const ready = разобрано && fault === null && отказПереноса === null && name.trim() !== "";
 
   /* Величины обмера подставляются только те, что подходят единице позиции:
      «м.п.» годится и плинтусу, и карнизу, а какая из двух длин нужна —
      решает человек. Карта живёт в домене, экран своей не заводит. */
   const источники = measureSourcesFor(unit);
-  const подстановки: readonly { source: MeasureSource; value: bigint }[] =
+
+  /* Подстановка идёт от помещения позиции, а не от объекта.
+     Прежде здесь стоял `measure.totals`, то есть итог по всей квартире: на
+     позицию «плитка пола, санузел» подставлялись 80,53 м² вместо 1,80.
+     Величины объекта остались рядом — работа вроде вывоза мусора и правда
+     меряется объектом, — но подписаны своим источником, и перепутать их
+     больше нельзя. */
+  const комната = measure?.rooms.find((строка) => строка.id === roomId) ?? null;
+  const поПомещению: readonly { source: MeasureSource; value: bigint }[] =
+    комната === null
+      ? []
+      : источники.map((source) => ({ source, value: BigInt(комната[source]) }));
+  const поОбъекту: readonly { source: MeasureSource; value: bigint }[] =
     measure === null
       ? []
       : источники.map((source) => ({ source, value: BigInt(measure.totals[source]) }));
+
+  /* Помещение позиции осталось на начальном обмере, а объект перепланирован:
+     одноимённого помещения в новом наборе не завели — кухня и гостиная стали
+     кухней-гостиной. Молчать об этом нельзя: количество позиции считалось по
+     площади, которой больше нет. */
+  const отсталоОтПерепланировки = replanned && item.room !== null && item.room.set === "INITIAL";
+  /* Помещение позиции вне действующего набора показывается отдельной строкой
+     списка — тем же приёмом, что единица измерения вне справочника: иначе
+     выбор молча съехал бы на первое попавшееся. */
+  const своё = item.room;
+  const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -107,7 +163,8 @@ export function EstimateItemSheet({
       qty: тысячные.toString(),
       unitPrice: цена.toString(),
       unitWage: ставка.toString(),
-    });
+      roomId: roomId === "" ? null : roomId,
+    }, разделПозиции === sectionId ? null : разделПозиции);
   };
 
   return (
@@ -153,10 +210,82 @@ export function EstimateItemSheet({
             </label>
           </div>
 
-          {подстановки.length > 0 && (
+          <label className="field">
+            <span className="field__label">Раздел</span>
+            <span className="selectwrap">
+              <select
+                className="input"
+                value={разделПозиции}
+                aria-invalid={отказПереноса !== null}
+                onChange={(event) => { setРазделПозиции(event.target.value); }}
+              >
+                {sections.map((раздел) => (
+                  <option key={раздел.id} value={раздел.id}>
+                    {раздел.level > 1 ? "— " : ""}{раздел.name}
+                  </option>
+                ))}
+              </select>
+            </span>
+            {отказПереноса !== null && (
+              <span className="field__error" role="alert">{отказПереноса}</span>
+            )}
+          </label>
+
+          <label className="field">
+            <span className="field__label">Помещение</span>
+            <span className="selectwrap">
+              <select
+                className="input"
+                value={roomId}
+                onChange={(event) => { setRoomId(event.target.value); }}
+              >
+                <option value="">Не выбрано</option>
+                {своё !== null && !вСписке && (
+                  <option value={своё.id}>{своё.name} — начальный обмер</option>
+                )}
+                {rooms.map((строка) => (
+                  <option key={строка.id} value={строка.id}>{строка.name}</option>
+                ))}
+              </select>
+            </span>
+            {отсталоОтПерепланировки ? (
+              <span className="field__hint">
+                Помещение из начального обмера: одноимённого в перепланировке нет.
+                Выберите помещение нового набора — количество считалось по площади,
+                которой больше нет.
+              </span>
+            ) : (
+              rooms.length === 0 && (
+                <span className="field__hint">
+                  Обмер объекта ещё не сделан: выбирать нечего.
+                </span>
+              )
+            )}
+          </label>
+
+          {поПомещению.length > 0 && (
             <div className="estimate__from-measure">
-              <span className="t-cap">из обмера</span>
-              {подстановки.map(({ source, value }) => (
+              <span className="t-cap">из обмера помещения</span>
+              {поПомещению.map(({ source, value }) => (
+                <button
+                  key={source}
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => { setQty(вПоле(value, 3)); }}
+                >
+                  {MEASURE_LABEL[source]} {formatQty(value)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {поОбъекту.length > 0 && (
+            <div className="estimate__from-measure">
+              {/* Величины объекта подписаны своим источником. Прежде они
+                  стояли под подписью «из обмера» — и читались как величины
+                  помещения, которого позиция тогда не знала вовсе. */}
+              <span className="t-cap">из обмера объекта</span>
+              {поОбъекту.map(({ source, value }) => (
                 <button
                   key={source}
                   type="button"

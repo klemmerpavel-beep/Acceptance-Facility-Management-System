@@ -30,6 +30,18 @@ export type Audience = "internal" | "client";
 export const INTERNAL_FIELDS = ["unitWage", "wageTotal", "profit", "profitShare"] as const;
 export type InternalField = (typeof INTERNAL_FIELDS)[number];
 
+/**
+ * Помещение, работы которого ведёт позиция.
+ *
+ * Внутренней величиной не является и потому приходит всем ролям: прорабу оно
+ * нужнее прочих — он принимает помещение, а не позицию.
+ */
+export interface ItemRoom {
+  id: string;
+  name: string;
+  set: "INITIAL" | "REPLANNED";
+}
+
 /** Позиция сметы, как она хранится. */
 export interface EstimateItemRecord {
   id: string;
@@ -41,9 +53,11 @@ export interface EstimateItemRecord {
   qtyAccepted: Milliunits;
   unitPrice: Kopecks;
   unitWage: Kopecks;
+  /** Пусто — помещение не выбрано: импортированная смета комнат не знает. */
+  room: ItemRoom | null;
 }
 
-/** Позиция, видимая прорабу, снабжению и клиенту. */
+/** Позиция, видимая прорабу и клиенту. */
 export interface PublicEstimateItem {
   id: string;
   sectionId: string;
@@ -54,6 +68,7 @@ export interface PublicEstimateItem {
   qtyAccepted: Milliunits;
   unitPrice: Kopecks;
   total: Kopecks;
+  room: ItemRoom | null;
 }
 
 /** Позиция, видимая руководителю. */
@@ -81,6 +96,7 @@ export function projectEstimateItem(
     qtyAccepted: item.qtyAccepted,
     unitPrice: item.unitPrice,
     total,
+    room: item.room,
   };
   if (role !== "OWNER") return visible;
 

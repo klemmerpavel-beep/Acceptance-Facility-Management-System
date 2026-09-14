@@ -1,4 +1,6 @@
-import type { EstimateSectionNode, EstimateView as EstimateViewDto } from "@priyomka/contracts";
+import type {
+  EstimateItemRoom, EstimateSectionNode, EstimateView as EstimateViewDto,
+} from "@priyomka/contracts";
 import type { EstimateView, SectionNode } from "@priyomka/domain";
 
 /**
@@ -17,6 +19,7 @@ const section = (node: SectionNode): EstimateSectionNode => ({
   name: node.name,
   level: node.level,
   sourceRow: node.sourceRow,
+  stage: node.stage,
   items: node.items.map((item) => ({
     id: item.id,
     order: item.order,
@@ -26,6 +29,7 @@ const section = (node: SectionNode): EstimateSectionNode => ({
     qtyAccepted: item.qtyAccepted.toString(),
     unitPrice: item.unitPrice.toString(),
     total: item.total.toString(),
+    room: item.room,
     ...("unitWage" in item
       ? {
           unitWage: item.unitWage.toString(),
@@ -42,7 +46,15 @@ const section = (node: SectionNode): EstimateSectionNode => ({
 
 export function toEstimateViewDto(
   view: EstimateView,
-  meta: { version: number; importedAt: Date | null; declaredWorksTotal: bigint | null },
+  meta: {
+    version: number;
+    importedAt: Date | null;
+    declaredWorksTotal: bigint | null;
+    /** Помещения действующего набора: список выбора в правке и переносе. */
+    rooms: readonly EstimateItemRoom[];
+    /** Есть ли у объекта набор после перепланировки. */
+    replanned: boolean;
+  },
 ): EstimateViewDto {
   const delta =
     meta.declaredWorksTotal === null ? null : (view.totals.works - meta.declaredWorksTotal).toString();
@@ -76,5 +88,7 @@ export function toEstimateViewDto(
     },
     declaredWorksTotal: money(meta.declaredWorksTotal) ?? null,
     worksTotalDelta: delta,
+    replanned: meta.replanned,
+    rooms: [...meta.rooms],
   };
 }

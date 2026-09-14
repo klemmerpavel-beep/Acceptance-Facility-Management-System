@@ -15,6 +15,7 @@ import type {
   UpdateLead, UpdateLeadTask,
   ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
+  BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
   InviteIssued, InviteUser, PersonRow,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
@@ -24,14 +25,14 @@ import type {
   AccountingView, MoneyState, TrancheStatus,
   PhotoReport, ReportBatch,
   CloseTranche, CreateTranche, TrancheView,
-  UpdateEstimateItem, UpdateSupervision,
+  EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
   awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
-  estimateItemFault, expenseTotals, kopecks, measureTotals,
+  estimateItemFault, estimateItemMoveFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
@@ -80,6 +81,8 @@ interface Snapshot {
   measure: MeasureView;
   acts: ActRow[];
   templates: DocumentTemplate[];
+  /** Типовые сметы организации: перечень, как его отдаёт сервер. */
+  blueprints: BlueprintRow[];
   people: PersonRow[];
   "act-client": ActView | null;
   "act-internal": ActView | null;
@@ -1536,6 +1539,57 @@ export async function updateEstimateItem(
   return вид;
 }
 
+/**
+ * Перенос позиции в двойнике.
+ *
+ * Двойник держит те же правила, что сервер: отказ на переносе принятой
+ * позиции здесь тот же, что в домене. Иначе демонстрация показывала бы
+ * продукт послушнее настоящего — а показывать надо его, а не макет.
+ */
+export async function moveEstimateItem(
+  _code: string, id: string, input: MoveEstimateItem,
+): Promise<EstimateView> {
+  await pause(200);
+  const вид = сметаR99();
+  const разделы: EstimateSectionNode[] = [];
+  const собрать = (узлы: EstimateSectionNode[]): void => {
+    for (const узел of узлы) { разделы.push(узел); собрать(узел.children); }
+  };
+  собрать(вид.sections);
+
+  const исходный = разделы.find((узел) => узел.items.some((строка) => строка.id === id));
+  const позиция = исходный?.items.find((строка) => строка.id === id);
+  if (исходный === undefined || позиция === undefined) {
+    throw new Error("Позиция не найдена в действующей редакции сметы этого объекта.");
+  }
+  const целевой = разделы.find((узел) => узел.id === input.sectionId);
+  if (целевой === undefined) {
+    throw new Error("Такого раздела нет в действующей редакции сметы этого объекта.");
+  }
+
+  const отказ = estimateItemMoveFault({
+    accepted: milliunits(позиция.qtyAccepted),
+    name: позиция.name,
+    unit: позиция.unit,
+    changesSection: целевой.id !== исходный.id,
+    section: исходный.name,
+  });
+  if (отказ !== null) throw new Error(отказ);
+
+  исходный.items = исходный.items.filter((строка) => строка.id !== id);
+  const место = input.after === null
+    ? 0
+    : целевой.items.findIndex((строка) => строка.id === input.after) + 1;
+  целевой.items.splice(место, 0, позиция);
+  if (input.roomId !== undefined) {
+    позиция.room = input.roomId === null
+      ? null
+      : вид.rooms.find((комната) => комната.id === input.roomId) ?? позиция.room;
+  }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
 export async function updateSupervision(
   _code: string, input: UpdateSupervision,
 ): Promise<EstimateView> {
@@ -1894,6 +1948,91 @@ const строкаШаблона = (id: string): TemplateRow => {
 const переченьШаблонов = (): TemplateRow[] =>
   [...шаблоныДемо.keys()].map(строкаШаблона)
     .sort((слева, справа) => слева.name.localeCompare(справа.name, "ru"));
+
+/* --- типовые сметы организации ---------------------------------------------
+   Двойник держит их списком слепка и правит его на месте: демонстрация
+   показывает продукт, а не макет, и «Снять» обязано убирать строку так же,
+   как убирает её сервер.
+   -------------------------------------------------------------------------- */
+const заготовкиДемо: BlueprintRow[] = [...data.blueprints];
+
+export async function fetchBlueprints(): Promise<BlueprintRow[]> {
+  await pause(180);
+  return заготовкиДемо.map((строка) => ({ ...строка }));
+}
+
+export async function deleteBlueprint(id: string): Promise<BlueprintRow[]> {
+  await pause(200);
+  const место = заготовкиДемо.findIndex((строка) => строка.id === id);
+  if (место < 0) throw new Error("Такой типовой сметы в организации нет.");
+  заготовкиДемо.splice(место, 1);
+  return заготовкиДемо.map((строка) => ({ ...строка }));
+}
+
+/**
+ * Заведение типовой сметы в двойнике.
+ *
+ * Слепок держит перечень заготовок, а не их состав: демонстрация показывает
+ * справочник организации. Поэтому новая строка собирается из чисел сметы
+ * R-99 — тех же, что показаны на вкладке, — а не из выдуманных.
+ */
+export async function createBlueprint(input: CreateBlueprint): Promise<BlueprintView> {
+  await pause(260);
+  if (заготовкиДемо.some((строка) => строка.name === input.name)) {
+    throw new Error(
+      `Типовая смета «${input.name}» в организации уже есть. `
+      + "Два одинаковых названия в списке неразличимы: назовите иначе.",
+    );
+  }
+  const вид = сметаR99();
+  const строка: BlueprintRow = {
+    id: `blueprint-${(заготовкиДемо.length + 1).toString()}`,
+    name: input.name,
+    sourceCode: input.fromProject,
+    createdAt: new Date().toISOString(),
+    positions: вид.positions,
+    sections: вид.sectionsTopLevel + вид.sectionsNested,
+    works: вид.totals.works,
+    ...(вид.totals.wage === undefined ? {} : { wage: вид.totals.wage }),
+  };
+  заготовкиДемо.unshift(строка);
+  return {
+    id: строка.id,
+    name: строка.name,
+    sourceCode: строка.sourceCode,
+    positions: строка.positions,
+    sections: [],
+    works: строка.works,
+    ...(строка.wage === undefined ? {} : { wage: строка.wage }),
+  };
+}
+
+/**
+ * Применение типовой сметы в двойнике.
+ *
+ * Отказ тот же, что на сервере: смета объекта одна, и заготовка к ней не
+ * дописывается. В слепке смета есть у одного R-99, и демонстрация честно
+ * показывает отказ, а не послушное согласие.
+ */
+export async function applyBlueprint(code: string, blueprintId: string): Promise<EstimateView> {
+  await pause(240);
+  if (!заготовкиДемо.some((строка) => строка.id === blueprintId)) {
+    throw new Error("Такой типовой сметы в организации нет.");
+  }
+  const вид = сметаR99();
+  if (code === "R-99") {
+    throw new Error(
+      `У объекта ${code} уже есть смета (редакция ${вид.version.toString()}). `
+      + "Типовая смета не дописывается к существующей: смета объекта одна. "
+      + "Замените её повторным импортом — он назовёт, что уносит.",
+    );
+  }
+  /* Демонстрация живёт на слепке и второй сметы в нём не заводит: показать
+     заведение было бы показом того, чего в слепке нет. */
+  throw new Error(
+    "В демонстрации смета заводится только у R-99: слепок снят с одного объекта со сметой.",
+  );
+}
 
 export async function fetchTemplates(): Promise<TemplateRow[]> {
   await pause(180);

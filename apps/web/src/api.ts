@@ -7,6 +7,7 @@ import {
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
   photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
   actListSchema, actViewSchema,
+  blueprintRowSchema, blueprintViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
   inviteIssuedSchema, personRowSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
@@ -21,7 +22,9 @@ import {
   type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
   type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
-  type UpdateEstimateItem, type UpdateSupervision, type UpdateProject, type Foreman,
+  type BlueprintRow, type BlueprintView, type CreateBlueprint,
+  type MoveEstimateItem, type UpdateEstimateItem, type UpdateSupervision,
+  type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
   type LeadBoard, type LeadCard, type LoseLead, type PhotoReport, type RepairType,
@@ -302,6 +305,35 @@ export const revokePerson = (id: string): Promise<PersonRow[]> =>
 
 /* Схема массива собирается здесь, а не в контрактах: сервер отдаёт перечень
    массивом, и заводить ради этого второе имя в общем словаре незачем. */
+const blueprintListSchema = z.array(blueprintRowSchema);
+
+/* Типовые сметы организации. Весь узел — руководителю: заготовка несёт
+   ставку оплаты труда, то есть фонд оплаты всей типовой сметы одним
+   документом. */
+export const fetchBlueprints = (): Promise<BlueprintRow[]> =>
+  request("/blueprints", blueprintListSchema);
+
+export const fetchBlueprint = (id: string): Promise<BlueprintView> =>
+  request(`/blueprints/${id}`, blueprintViewSchema);
+
+export const createBlueprint = (input: CreateBlueprint): Promise<BlueprintView> =>
+  request("/blueprints", blueprintViewSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const deleteBlueprint = (id: string): Promise<BlueprintRow[]> =>
+  request(`/blueprints/${id}`, blueprintListSchema, { method: "DELETE" });
+
+/** Завести смету объекта из типовой. Только объекту без сметы. */
+export const applyBlueprint = (code: string, blueprintId: string): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/from-blueprint`, estimateViewSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ blueprintId }),
+  });
+
 const templateListSchema = z.array(templateRowSchema);
 
 export const fetchTemplates = (): Promise<TemplateRow[]> =>
@@ -469,6 +501,24 @@ export const updateEstimateItem = (
   input: UpdateEstimateItem,
 ): Promise<EstimateView> =>
   request(`/projects/${code}/estimate/items/${id}`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+/**
+ * Перенос позиции: другой раздел, другое помещение, другое место в ряду.
+ *
+ * Отдельный вызов, а не поле правки: перенос отвергается по другому правилу
+ * (принятая позиция раздела не меняет), и слить их значило бы объяснять
+ * отказ о приёмке в форме, где правят цену.
+ */
+export const moveEstimateItem = (
+  code: string,
+  id: string,
+  input: MoveEstimateItem,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items/${id}/place`, estimateViewSchema, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),

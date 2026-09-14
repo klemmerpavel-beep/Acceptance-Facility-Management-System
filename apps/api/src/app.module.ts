@@ -20,6 +20,7 @@ import { AcceptanceService } from "./acceptance/acceptance.service";
 import { ExpensesService } from "./expenses/expenses.service";
 import { ActsService } from "./acts/acts.service";
 import { TemplatesService } from "./templates/templates.service";
+import { BlueprintsService } from "./blueprints/blueprints.service";
 import { PeopleService } from "./people/people.service";
 import { TranchesService } from "./tranches/tranches.service";
 import { StagesController } from "./stages/stages.controller";
@@ -27,6 +28,7 @@ import { AcceptanceController } from "./acceptance/acceptance.controller";
 import { ExpensesController } from "./expenses/expenses.controller";
 import { ActsController } from "./acts/acts.controller";
 import { TemplatesController } from "./templates/templates.controller";
+import { BlueprintsController } from "./blueprints/blueprints.controller";
 import { PeopleController } from "./people/people.controller";
 import { TranchesController } from "./tranches/tranches.controller";
 import { LeadsService } from "./leads/leads.service";
@@ -41,6 +43,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     SummaryController, DirectoryController, MeasureController, StagesController,
     AcceptanceController, ExpensesController, ActsController,
     TemplatesController,
+    BlueprintsController,
     PeopleController, TranchesController, LeadsController,
     AccountingController,
   ],
@@ -52,6 +55,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     ExpensesService,
     ActsService,
     TemplatesService,
+    BlueprintsService,
     PeopleService,
     TranchesService,
     LeadsService,

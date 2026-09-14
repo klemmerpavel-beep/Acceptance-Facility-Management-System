@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
-  CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
+  CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
-  fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
+  applyBlueprint, createBlueprint,
+  fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen,
 } from "./api.js";
@@ -22,6 +23,7 @@ import { Expenses } from "./Expenses.js";
 import { Acts } from "./Acts.js";
 import { Report } from "./Report.js";
 import { Tranches } from "./Tranches.js";
+import { BlueprintSheet } from "./BlueprintSheet.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
@@ -31,6 +33,59 @@ import { КРУПНАЯ_ОБЛОЖКА } from "./coverTone.js";
 import { due, type DueLevel } from "./due.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
+
+/** Разделы сметы плоским списком: дерево с уровнем, а не с отступом строкой. */
+function разделыСписком(
+  узлы: readonly EstimateSectionNode[],
+): { id: string; name: string; level: number }[] {
+  return узлы.flatMap((узел) => [
+    { id: узел.id, name: узел.name, level: узел.level },
+    ...разделыСписком(узел.children),
+  ]);
+}
+
+/** Раздел, в котором стоит позиция. */
+function разделПозиции(
+  узлы: readonly EstimateSectionNode[],
+  itemId: string,
+): EstimateSectionNode | null {
+  for (const узел of узлы) {
+    if (узел.items.some((строка) => строка.id === itemId)) return узел;
+    const глубже = разделПозиции(узел.children, itemId);
+    if (глубже !== null) return глубже;
+  }
+  return null;
+}
+
+/**
+ * Перестановка позиции внутри своего раздела на `шагов` мест.
+ *
+ * Соседа, за которым встать, считает экран: сервер принимает «встань за
+ * этой позицией», а не «сдвинься на два». Шаги — язык жеста, соседство —
+ * язык данных, и перевод одного в другое живёт там, где виден порядок.
+ */
+function переставить(
+  estimate: EstimateView,
+  code: string,
+  item: EstimateItem,
+  шагов: number,
+  сохранить: (работа: Promise<EstimateView>) => void,
+  назватьОшибку: (текст: string | null) => void,
+): void {
+  const раздел = разделПозиции(estimate.sections, item.id);
+  if (раздел === null) {
+    назватьОшибку("Позиция не найдена в действующей редакции сметы.");
+    return;
+  }
+  const было = раздел.items.findIndex((строка) => строка.id === item.id);
+  const без = раздел.items.filter((строка) => строка.id !== item.id);
+  const стало = Math.max(0, Math.min(без.length, было + шагов));
+  /* Упор в край — не ошибка и не действие: строка уже первая или уже
+     последняя, и запрос, ничего не меняющий, был бы шумом в журнале. */
+  if (стало === было) return;
+  const after = стало === 0 ? null : (без[стало - 1]?.id ?? null);
+  сохранить(moveEstimateItem(code, item.id, { sectionId: раздел.id, after }));
+}
 
 /**
  * Шкала объекта: принятое и заявленное на одной линейке.
@@ -169,6 +224,9 @@ export function ProjectCard({
      выбирают из канонического набора, а не пишут свободно. */
   const [editing, setEditing] = useState<EstimateItem | null>(null);
   const [supervisionOpen, setSupervisionOpen] = useState(false);
+  /* Лист типовой сметы: «save» — сохранить смету объекта заготовкой,
+     «apply» — взять заготовку в объект без сметы. Одна вещь, два действия. */
+  const [заготовка, setЗаготовка] = useState<"save" | "apply" | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [measure, setMeasure] = useState<MeasureView | null>(null);
@@ -675,10 +733,33 @@ export function ProjectCard({
                     <p className="empty__title">Сметы пока нет</p>
                     <p className="empty__text">{error}</p>
                     {user.role === "OWNER" && (
-                      <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
-                        Импортировать смету
-                      </button>
+                      <div className="row">
+                        <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
+                          Импортировать смету
+                        </button>
+                        {/* Второй путь к той же цели: типовая смета уже
+                            лежит в организации, и заводить её файлом заново
+                            — лишняя работа. */}
+                        <button
+                          type="button"
+                          className="btn btn--secondary"
+                          onClick={() => { setЗаготовка("apply"); setEditError(null); }}
+                        >
+                          Взять типовую
+                        </button>
+                      </div>
                     )}
+                  </div>
+                )}
+                {estimate !== null && user.role === "OWNER" && (
+                  <div className="row">
+                    <button
+                      type="button"
+                      className="btn btn--secondary"
+                      onClick={() => { setЗаготовка("save"); setEditError(null); }}
+                    >
+                      Сохранить как типовую
+                    </button>
                   </div>
                 )}
                 {estimate !== null && (
@@ -694,6 +775,10 @@ export function ProjectCard({
                             setSupervisionOpen(true);
                             setEditError(null);
                           },
+                          onMoveItem: (item: EstimateItem, шагов: number) => {
+                            переставить(estimate, project.code, item, шагов, сохранить, setEditError);
+                          },
+                          busy: editBusy,
                         }
                       : {})}
                   />
@@ -750,11 +835,54 @@ export function ProjectCard({
         <EstimateItemSheet
           item={editing}
           units={units}
+          rooms={estimate?.rooms ?? []}
+          replanned={estimate?.replanned ?? false}
+          sections={estimate === null ? [] : разделыСписком(estimate.sections)}
+          sectionId={
+            estimate === null
+              ? ""
+              : разделПозиции(estimate.sections, editing.id)?.id ?? ""
+          }
           measure={measure}
           busy={editBusy}
           error={editError}
-          onSave={(input) => { сохранить(updateEstimateItem(project.code, editing.id, input)); }}
+          onSave={(input, раздел) => {
+            /* Перенос идёт первым: он отвергается по другому правилу, и
+               применить правку цены, а следом получить отказ о приёмке
+               значило бы оставить позицию наполовину изменённой. */
+            const работа = раздел === null
+              ? updateEstimateItem(project.code, editing.id, input)
+              : moveEstimateItem(project.code, editing.id, { sectionId: раздел, after: null })
+                .then(() => updateEstimateItem(project.code, editing.id, input));
+            сохранить(работа);
+          }}
           onClose={() => { setEditing(null); setEditError(null); }}
+        />
+      )}
+
+      {заготовка !== null && (
+        <BlueprintSheet
+          режим={заготовка}
+          code={project.code}
+          busy={editBusy}
+          error={editError}
+          onSave={(name) => {
+            setEditBusy(true);
+            setEditError(null);
+            void createBlueprint({ fromProject: project.code, name })
+              .then(() => { setЗаготовка(null); })
+              .catch((cause: unknown) => { setEditError(errorMessage(cause)); })
+              .finally(() => { setEditBusy(false); });
+          }}
+          onApply={(id) => {
+            setEditBusy(true);
+            setEditError(null);
+            void applyBlueprint(project.code, id)
+              .then(() => { setЗаготовка(null); load(); })
+              .catch((cause: unknown) => { setEditError(errorMessage(cause)); })
+              .finally(() => { setEditBusy(false); });
+          }}
+          onClose={() => { setЗаготовка(null); setEditError(null); }}
         />
       )}
 

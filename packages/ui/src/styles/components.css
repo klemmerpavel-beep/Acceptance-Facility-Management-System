@@ -557,6 +557,25 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
 .estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* Ячейка номера несёт ручку перестановки и сам номер. Ручка стоит слева
+   от числа и занимает зону 44 px, не растягивая строку: отрицательные поля
+   уводят её в обивку ячейки — тот же приём, что у пилюли-кнопки. */
+.estimate__place { display: flex; align-items: center; gap: var(--space-1); justify-content: flex-end; }
+
+.estimate__move {
+  flex: none; display: grid; place-items: center;
+  inline-size: var(--tap-min); min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+  margin-inline: calc(var(--space-2) * -1) 0;
+  padding: 0; border: 0; border-radius: var(--radius-chip);
+  background: none; color: var(--ink-3); cursor: grab;
+  touch-action: none;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.estimate__move:hover { color: var(--ink); background: var(--surface-2); }
+.estimate__move[aria-pressed="true"] { cursor: grabbing; color: var(--accent); background: var(--accent-soft); }
+.estimate__move[disabled] { cursor: not-allowed; opacity: .55; }
+
 /* Внутренние колонки визуально маркируются: фон ячеек --surface-2 и
    надзаголовок группы «внутреннее» — чтобы при демонстрации экрана
    клиенту ошибка была заметна мгновенно. */
@@ -2450,4 +2469,25 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 @media (max-width: 767px) {
   .demorole { padding-inline: var(--space-4); }
   .demorole__note { margin-inline-start: 0; inline-size: 100%; }
+}
+
+/* Типовые сметы организации: строка справочника, а не карточка. Заготовка
+   различается именем, числом позиций и итогом — этого хватает, чтобы выбрать
+   нужную, и обводить каждую отдельной поверхностью незачем. */
+.blueprints { list-style: none; margin: 0; padding: 0; }
+
+.blueprint {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-block-size: var(--row-h);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+.blueprint:last-child { border-block-end: 0; }
+.blueprint__total { margin-inline-start: auto; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  /* На телефоне итог уходит под имя: три величины в строку не встают, а
+     перенос по словам разорвал бы число пополам. */
+  .blueprint { flex-wrap: wrap; }
+  .blueprint__total { margin-inline-start: 0; }
 }

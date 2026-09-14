@@ -4,6 +4,7 @@ import type {
   MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom,
 } from "@priyomka/contracts";
 import { measureTotals, milliunits, roomVolume, wallArea, type RoomMeasure } from "@priyomka/domain";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
@@ -165,6 +166,66 @@ export class MeasureService {
     };
   }
 
+  /**
+   * Перевод позиций сметы на одноимённое помещение перепланировки.
+   *
+   * Отдельного действия «завести набор перепланировки» в продукте нет:
+   * помещения заводят по одному. Поэтому перевод срабатывает здесь — при
+   * появлении в наборе `REPLANNED` помещения, одноимённого начальному.
+   * Имя однозначно: `@@unique([projectId, set, name])`.
+   *
+   * Переводится **ссылка и только ссылка**. Количество позиции не
+   * пересчитывается: «Кухня» 12,70 м² и «Гостиная» 23,63 м² слились в
+   * «Кухню-гостиную» 36,80 м², и пересчёт опустил бы количество ниже уже
+   * принятого либо удвоил бы объём работ. Деньги в смете правит человек
+   * осознанно, а не перестройка перегородки; после перевода позиция честно
+   * показывает расхождение своего количества с новой площадью.
+   *
+   * Помещения, которому в новом наборе нет одноимённого, перевод не
+   * касается вовсе — и это видно: набор приходит вместе с помещением
+   * позиции, и смета помечает такие позиции словами.
+   *
+   * Переводятся позиции действующей редакции. Прежние редакции остаются на
+   * своём основании: по ним считали тогда, и переписывать это незачем.
+   */
+  private async перевестиПозиции(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    projectId: string,
+    orgId: string,
+    имя: string,
+    новоеПомещение: string,
+  ): Promise<void> {
+    const начальное = await tx.measureRoom.findFirst({
+      where: { projectId, set: "INITIAL", name: имя },
+      select: { id: true },
+    });
+    if (начальное === null) return;
+
+    const редакция = await tx.estimate.findFirst({
+      where: { projectId },
+      orderBy: { version: "desc" },
+      select: { id: true },
+    });
+    if (редакция === null) return;
+
+    const { count } = await tx.estimateItem.updateMany({
+      where: { estimateId: редакция.id, roomId: начальное.id },
+      data: { roomId: новоеПомещение },
+    });
+    if (count === 0) return;
+
+    await this.audit.record({
+      orgId,
+      actorId: user.id,
+      entity: "EstimateItem",
+      entityId: projectId,
+      field: `${имя} — позиции сметы переведены на обмер после перепланировки`,
+      oldValue: "начальный обмер",
+      newValue: `${count.toString()} позиций`,
+    });
+  }
+
   async createRoom(
     user: RequestUser,
     code: string,
@@ -192,7 +253,8 @@ export class MeasureService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.measureRoom.create({
+      const заведено = await tx.measureRoom.create({
+        select: { id: true },
         data: {
           projectId: project.id,
           set,
@@ -221,6 +283,11 @@ export class MeasureService {
         oldValue: null,
         newValue: `${input.floorArea} тысячных м², высота ${input.height}`,
       });
+      if (set === "REPLANNED") {
+        await this.перевестиПозиции(
+          tx, user, project.id, user.orgId, input.name, заведено.id,
+        );
+      }
     });
 
     return this.view(user, code, set);
@@ -284,6 +351,14 @@ export class MeasureService {
           field: `${before.name} — ${FIELD_LABEL.name ?? "название"}`,
           oldValue: before.name, newValue: input.name,
         });
+        /* Переименование помещения перепланировки в имя начального — то же
+           событие, что и заведение: намерение одно, и два разных исхода у
+           одного намерения были бы дефектом. */
+        if (before.set === "REPLANNED") {
+          await this.перевестиПозиции(
+            tx, user, project.id, user.orgId, input.name, before.id,
+          );
+        }
       }
     });
 
@@ -295,6 +370,21 @@ export class MeasureService {
   async deleteRoom(user: RequestUser, code: string, id: string): Promise<MeasureView> {
     const project = await this.projectOf(user, code);
     const room = await this.roomOf(project.id, id);
+
+    /* Связь позиции с помещением объявлена `ON DELETE SET NULL`: иначе
+       каскадное удаление объекта упёрлось бы в ссылку, а порядок обхода
+       каскадов не определён — наполнение стенда падало бы через раз.
+       Но обнуление на прямом удалении было бы молчаливым снятием основания
+       количества с десятка позиций, поэтому прямое удаление предваряется
+       отказом, который называет число привязанных позиций. */
+    const привязано = await this.prisma.estimateItem.count({ where: { roomId: room.id } });
+    if (привязано > 0) {
+      throw new BadRequestException({
+        message: `К помещению «${room.name}» привязано позиций сметы: ${привязано.toString()}. `
+          + "Удаление сняло бы с них основание количества молча. Перенесите их в другое "
+          + "помещение или отвяжите, затем удаляйте.",
+      });
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.measureRoom.delete({ where: { id: room.id } });
