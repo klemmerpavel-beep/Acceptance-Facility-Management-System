@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, kopecks } from "./money.js";
 import {
-  buildPortfolio, buildWeek, daysBetween, workingDaysBetween, type PortfolioProject,
+  buildPortfolio, buildWeek, daysBetween, workingDaysBetween, безСметы,
+  type PortfolioProject,
 } from "./portfolio.js";
 
 /** Объект действующей сметы: 3 794 852,10 ₽ по работам, надбавка 12 %. */
@@ -202,5 +203,24 @@ describe("рабочие дни", () => {
     // R-99: работы начаты 02.03.2026, срок по договору 15.08.2026.
     expect(daysBetween("2026-03-02", "2026-08-15")).toBe(166);
     expect(workingDaysBetween("2026-03-02", "2026-08-15")).toBe(120);
+  });
+});
+
+describe("пометка «сметы нет»", () => {
+  it("ставится там, где итога сметы нет вовсе", () => {
+    expect(безСметы(null)).toBe(true);
+  });
+
+  it("не ставится на смете, сошедшейся в ноль", () => {
+    /* Ноль — величина, а не пустота: смета заведена, у неё есть редакция и
+       позиции. Отождествив ноль с отсутствием, продукт потребовал бы завести
+       уже заведённое. */
+    expect(безСметы(kopecks(0n))).toBe(false);
+    expect(безСметы("0")).toBe(false);
+  });
+
+  it("не ставится на смете с суммой", () => {
+    expect(безСметы(kopecks(425_023_435n))).toBe(false);
+    expect(безСметы("425023435")).toBe(false);
   });
 });

@@ -4,7 +4,8 @@ import type {
   CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
-import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
+import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween,
+  безСметы } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   applyBlueprint, createBlueprint,
@@ -439,9 +440,20 @@ export function ProjectCard({
           </div>
           <div className="stamp__cell">
             <span className="t-cap">Смета</span>
-            <span className="stamp__value stamp__value--code">
-              {project.estimateVersion === null ? "нет" : `ред. ${project.estimateVersion}`}
-            </span>
+            {/* Объект без сметы помечается пилюлей, а не строчным «нет» тем же
+                видом, что и редакция рядом: ответ заказчика на вопрос 8 квиза
+                от 14.09.2026 требует, чтобы продукт называл незавершённое
+                заведение, а значение, набранное как все прочие значения
+                штампа, ничего не называет — его прочитывают как заполненную
+                графу. Пометка выводится из итога сметы: второе поле под то же
+                утверждение разошлось бы с первым на первой правке. */}
+            {безСметы(project.estimateTotal) ? (
+              <span className="pill pill--warn">{Пусто("смета")}</span>
+            ) : (
+              <span className="stamp__value stamp__value--code">
+                ред. {project.estimateVersion}
+              </span>
+            )}
           </div>
         </div>
       </div>
