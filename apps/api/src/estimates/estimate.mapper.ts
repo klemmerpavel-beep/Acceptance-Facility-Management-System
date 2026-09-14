@@ -19,6 +19,7 @@ const section = (node: SectionNode): EstimateSectionNode => ({
   name: node.name,
   level: node.level,
   sourceRow: node.sourceRow,
+  stage: node.stage,
   items: node.items.map((item) => ({
     id: item.id,
     order: item.order,

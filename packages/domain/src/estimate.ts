@@ -32,6 +32,14 @@ export interface SectionRecord {
   readonly name: string;
   readonly order: number;
   readonly sourceRow: number | null;
+  /**
+   * Имя этапа графика, который ведёт работы раздела. Пусто — раздел вне
+   * графика; на стенде таких четыре, и это не изъян данных, а состояние:
+   * этап назначают позже, а до того принимать по разделу нечем.
+   *
+   * Раздел ведёт не более одного этапа — `@@unique([sectionId])` в схеме.
+   */
+  readonly stage?: string | null;
 }
 
 export interface OtherExpenseRecord {
@@ -48,6 +56,8 @@ export interface SectionNode {
   /** 1 — раздел верхнего уровня, 2 — вложенный. */
   readonly level: number;
   readonly sourceRow: number | null;
+  /** Имя этапа графика у раздела верхнего уровня. */
+  readonly stage: string | null;
   readonly items: readonly (PublicEstimateItem | InternalEstimateItem)[];
   readonly children: readonly SectionNode[];
   /** Сумма собственных позиций и всех вложенных разделов. */
@@ -119,6 +129,7 @@ export function buildEstimateView(input: BuildEstimateInput): EstimateView {
       name: section.name,
       level,
       sourceRow: section.sourceRow,
+      stage: section.stage ?? null,
       items: projected,
       children: nested,
       subtotal,
@@ -330,4 +341,152 @@ export function sectionWeights(
     total: kopecks(section.subtotal ?? "0"),
     positions: позиций(section),
   }));
+}
+
+/* --- группировка «Этап → Помещение → Категория» (второй срез) --------------
+
+   Второе дерево в хранилище завело бы второй ответ на вопрос «где позиция»:
+   приёмка идёт разделами, этап графика ведёт раздел, готовность считается по
+   разделу. Поэтому группировка — способ показать те же позиции, а не вторая
+   правда о них.
+
+   Все три уровня уже есть в данных: этап — у раздела верхнего уровня
+   (`@@unique([sectionId])` делает связь однозначной), помещение — у позиции,
+   категория — это сам раздел, в котором позиция лежит.
+   -------------------------------------------------------------------------- */
+
+/** Узел группировки. Один вид для всех трёх уровней: различает `kind`. */
+export interface GroupNode<T> {
+  /** Опознаватель для состояния свёрнутости. Уникален в пределах дерева. */
+  readonly key: string;
+  readonly kind: "stage" | "room" | "category";
+  readonly label: string;
+  readonly items: readonly T[];
+  readonly children: readonly GroupNode<T>[];
+  readonly subtotal: bigint;
+  readonly subtotalWage?: bigint;
+  /** Позиций в узле вместе со вложенными. */
+  readonly positions: number;
+}
+
+/** Подписи разрезов, называющие пробел словом, а не прячущие его. */
+export const ВНЕ_ГРАФИКА = "Вне графика";
+export const БЕЗ_ПОМЕЩЕНИЯ = "Помещение не выбрано";
+
+/** Минимум, который группировка требует от позиции. */
+export interface GroupItem {
+  readonly room: { readonly name: string } | null;
+}
+
+/** Минимум, который группировка требует от раздела. */
+export interface GroupSection<T> {
+  readonly name: string;
+  readonly level: number;
+  readonly stage: string | null;
+  readonly items: readonly T[];
+  readonly children: readonly GroupSection<T>[];
+}
+
+/**
+ * Те же позиции, собранные деревом «Этап → Помещение → Категория».
+ *
+ * Общая по виду позиции намеренно. Домен держит деньги целыми копейками,
+ * а через HTTP они идут строкой; заведи экран свою группировку — правило
+ * разошлось бы надвое на первой же правке. Здесь правило одно, а
+ * преобразование величин отдано вызывающему одной функцией.
+ *
+ * Порядок уровней — порядок первого появления: этапы идут в порядке
+ * разделов верхнего уровня, помещения — в порядке встречи позиций,
+ * категории — в порядке разделов. Своего поля порядка группировка не
+ * заводит: второе поле порядка разошлось бы с первым на первой перестановке.
+ *
+ * Разрезы «Вне графика» и «Помещение не выбрано» — обычные узлы со своими
+ * числами. Отбросить их значило бы потерять позиции молча: итог группировки
+ * перестал бы сходиться с итогом работ, и заметить это было бы нечем.
+ */
+export function groupByStageRoom<T extends GroupItem>(
+  sections: readonly GroupSection<T>[],
+  деньги: (item: T) => { readonly total: bigint; readonly wage: bigint | undefined },
+): readonly GroupNode<T>[] {
+  interface Строка {
+    readonly stage: string;
+    readonly room: string;
+    readonly category: string;
+    readonly item: T;
+  }
+  const строки: Строка[] = [];
+  const обойти = (узлы: readonly GroupSection<T>[], stage: string): void => {
+    for (const узел of узлы) {
+      /* Этап объявлен только у раздела верхнего уровня: вложенный наследует
+         его от корня своей ветви — приёмка сворачивает разделы туда же. */
+      const этап = узел.level === 1 ? (узел.stage ?? ВНЕ_ГРАФИКА) : stage;
+      for (const item of узел.items) {
+        строки.push({
+          stage: этап,
+          room: item.room?.name ?? БЕЗ_ПОМЕЩЕНИЯ,
+          category: узел.name,
+          item,
+        });
+      }
+      обойти(узел.children, этап);
+    }
+  };
+  обойти(sections, ВНЕ_ГРАФИКА);
+
+  /* Фонд оплаты показывается, только если он есть у позиций: у прораба и
+     заказчика его нет вовсе, и нулевой подытог соврал бы числом. */
+  const внутренние = строки.length > 0
+    && строки.every((строка) => деньги(строка.item).wage !== undefined);
+
+  /** Сборка уровня: порядок ключей — порядок первого появления. */
+  const разложить = (
+    список: readonly Строка[],
+    ключ: (строка: Строка) => string,
+  ): [string, Строка[]][] => {
+    const карта = new Map<string, Строка[]>();
+    for (const строка of список) {
+      const имя = ключ(строка);
+      const набор = карта.get(имя) ?? [];
+      набор.push(строка);
+      карта.set(имя, набор);
+    }
+    return [...карта.entries()];
+  };
+
+  const итог = (список: readonly Строка[]): bigint =>
+    список.reduce((всего, строка) => всего + деньги(строка.item).total, 0n);
+  const фот = (список: readonly Строка[]): bigint =>
+    список.reduce((всего, строка) => всего + (деньги(строка.item).wage ?? 0n), 0n);
+
+  const узел = (
+    kind: GroupNode<T>["kind"],
+    key: string,
+    label: string,
+    список: readonly Строка[],
+    children: readonly GroupNode<T>[],
+    items: readonly T[],
+  ): GroupNode<T> => {
+    const основа: GroupNode<T> = {
+      key, kind, label, items, children,
+      subtotal: итог(список),
+      positions: список.length,
+    };
+    return внутренние ? { ...основа, subtotalWage: фот(список) } : основа;
+  };
+
+  return разложить(строки, (строка) => строка.stage).map(([этап, поЭтапу]) =>
+    узел("stage", `этап·${этап}`, этап, поЭтапу,
+      разложить(поЭтапу, (строка) => строка.room).map(([помещение, поПомещению]) =>
+        узел("room", `этап·${этап}·комната·${помещение}`, помещение, поПомещению,
+          разложить(поПомещению, (строка) => строка.category).map(([категория, поКатегории]) =>
+            узел(
+              "category",
+              `этап·${этап}·комната·${помещение}·категория·${категория}`,
+              категория,
+              поКатегории,
+              [],
+              поКатегории.map((строка) => строка.item),
+            )),
+          [])),
+      []));
 }

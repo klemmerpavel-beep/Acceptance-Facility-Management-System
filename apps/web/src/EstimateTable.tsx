@@ -1,13 +1,35 @@
-import { sectionTitle } from "@priyomka/domain";
+import { groupByStageRoom, sectionTitle, type GroupNode } from "@priyomka/domain";
 import { useMemo, useState } from "react";
 import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
 import { plural } from "./status.js";
 
 type Projection = "internal" | "client";
+/**
+ * Способ показать те же позиции, а не вторая правда о них.
+ *
+ * «По смете» — дерево из файла заказчика: так смету сверяют с исходником,
+ * и потому это вид по умолчанию. «По этапам» — дерево «Этап → Помещение →
+ * Категория»: так по ней работают на объекте. Хранилище одно; второе дерево
+ * в базе завело бы второй ответ на вопрос «где позиция», а приёмка, график
+ * и готовность считают по первому.
+ */
+type Grouping = "sections" | "stages";
 
 /** Выше этого числа строк отрисовка таблицы целиком перестаёт быть уместной. */
 const ROW_LIMIT = 400;
+
+/** Подписи уровней группировки: заголовок без подписи не называет своего рода. */
+const УРОВЕНЬ: Readonly<Record<"stage" | "room" | "category", string>> = {
+  stage: "Этап",
+  room: "Помещение",
+  category: "Категория",
+};
+const ИТОГ: Readonly<Record<"stage" | "room" | "category", string>> = {
+  stage: "по этапу",
+  room: "по помещению",
+  category: "по категории",
+};
 
 const money = (value: string | undefined): string =>
   value === undefined ? "—" : formatKopecks(BigInt(value));
@@ -73,6 +95,25 @@ export function EstimateTable({
   const rendered = estimate.positions + sections * 2;
   const columns = (showInternal ? 9 : 6) + (editable ? 1 : 0);
 
+  /** Деньги приходят строкой: JSON не имеет целых произвольной длины. */
+  const дерево = useMemo(
+    () => groupByStageRoom<EstimateItem>(estimate.sections, (item) => ({
+      total: BigInt(item.total),
+      wage: item.wageTotal === undefined ? undefined : BigInt(item.wageTotal),
+    })),
+    [estimate.sections],
+  );
+  const всеУзлы = useMemo(() => {
+    const собрать = (узлы: readonly GroupNode<EstimateItem>[]): string[] =>
+      узлы.flatMap((узел) => [узел.key, ...собрать(узел.children)]);
+    return new Set(собрать(дерево));
+  }, [дерево]);
+  const [grouping, setGrouping] = useState<Grouping>("sections");
+  /* Группировка открывается свёрнутой по тому же доводу, что и разделы:
+     три уровня заголовков на 132 позициях выносят таблицу далеко за порог
+     отрисовки, а свёрнутый вид — это ведомость по этапам, а не «ничего». */
+  const [свёрнутыеУзлы, setСвёрнутыеУзлы] = useState<ReadonlySet<string>>(всеУзлы);
+
   const toggle = (id: string): void =>
     setCollapsed((current) => {
       const next = new Set(current);
@@ -80,6 +121,56 @@ export function EstimateTable({
       else next.add(id);
       return next;
     });
+
+  /**
+   * Строка позиции. Общая для обеих группировок: две копии разошлись бы на
+   * первой же правке колонок, и одна из группировок начала бы показывать
+   * позицию иначе, чем другая.
+   *
+   * Пометка «из начального обмера» стоит рядом с помещением и только там,
+   * где она правда: набор позиции `INITIAL` при существующей перепланировке.
+   * Количество такой позиции считалось по площади, которой больше нет.
+   */
+  const строкаПозиции = (item: EstimateItem, level: number): React.JSX.Element => {
+    const отстало = estimate.replanned && item.room !== null && item.room.set === "INITIAL";
+    return (
+      <tr key={item.id}>
+        <td className="estimate__num">{item.order}</td>
+        <td>
+          <span className="estimate__row-name" style={{ ["--level" as string]: level }}>
+            {item.name}
+            {item.room !== null && (
+              <span className={отстало ? "pill pill--warn" : "t-sm t-muted"}>
+                {отстало ? `${item.room.name} · из начального обмера` : item.room.name}
+              </span>
+            )}
+          </span>
+        </td>
+        <td>{item.unit}</td>
+        <td className="estimate__num">{formatQty(BigInt(item.qty))}</td>
+        <td className="estimate__num">{money(item.unitPrice)}</td>
+        <td className="estimate__num">{money(item.total)}</td>
+        {showInternal && (
+          <>
+            <td className="estimate__num estimate__internal">{money(item.unitWage)}</td>
+            <td className="estimate__num estimate__internal">{money(item.wageTotal)}</td>
+            <td className="estimate__num estimate__internal">{money(item.profit)}</td>
+          </>
+        )}
+        {editable && (
+          <td className="estimate__act">
+            <button
+              type="button"
+              className="btn btn--text"
+              onClick={() => { onEditItem(item); }}
+            >
+              Править
+            </button>
+          </td>
+        )}
+      </tr>
+    );
+  };
 
   const rows = (nodes: readonly EstimateSectionNode[]): React.JSX.Element[] =>
     nodes.flatMap((node) => {
@@ -103,38 +194,7 @@ export function EstimateTable({
           </td>
         </tr>
       );
-      const items = node.items.map((item) => (
-        <tr key={item.id}>
-          <td className="estimate__num">{item.order}</td>
-          <td>
-            <span className="estimate__row-name" style={{ ["--level" as string]: node.level }}>
-              {item.name}
-            </span>
-          </td>
-          <td>{item.unit}</td>
-          <td className="estimate__num">{formatQty(BigInt(item.qty))}</td>
-          <td className="estimate__num">{money(item.unitPrice)}</td>
-          <td className="estimate__num">{money(item.total)}</td>
-          {showInternal && (
-            <>
-              <td className="estimate__num estimate__internal">{money(item.unitWage)}</td>
-              <td className="estimate__num estimate__internal">{money(item.wageTotal)}</td>
-              <td className="estimate__num estimate__internal">{money(item.profit)}</td>
-            </>
-          )}
-          {editable && (
-            <td className="estimate__act">
-              <button
-                type="button"
-                className="btn btn--text"
-                onClick={() => { onEditItem(item); }}
-              >
-                Править
-              </button>
-            </td>
-          )}
-        </tr>
-      ));
+      const items = node.items.map((item) => строкаПозиции(item, node.level));
 
       const subtotal = (
         <tr key={`${node.id}-subtotal`} className="estimate__section">
@@ -160,6 +220,75 @@ export function EstimateTable({
       if (isCollapsed) return [header, subtotal];
 
       return [header, ...items, ...rows(node.children), subtotal];
+    });
+
+  /** Те же строки, собранные деревом «Этап → Помещение → Категория». */
+  const узлы = (nodes: readonly GroupNode<EstimateItem>[], level = 0): React.JSX.Element[] =>
+    nodes.flatMap((node) => {
+      const свёрнут = свёрнутыеУзлы.has(node.key);
+      const шапка = (
+        <tr className="estimate__section" key={node.key}>
+          <td colSpan={columns}>
+            <button
+              type="button"
+              className="estimate__section-toggle"
+              aria-expanded={!свёрнут}
+              onClick={() => {
+                setСвёрнутыеУзлы((текущие) => {
+                  const дальше = new Set(текущие);
+                  if (дальше.has(node.key)) дальше.delete(node.key);
+                  else дальше.add(node.key);
+                  return дальше;
+                });
+              }}
+            >
+              <svg className="icon icon--sm disclosure" aria-hidden="true">
+                <use href="#i-chevron" />
+              </svg>
+              <span className="estimate__row-name" style={{ ["--level" as string]: level }}>
+                {/* Уровень назван словом: три вложенных заголовка без подписи
+                    читаются как три раздела одного рода. */}
+                <span className="t-cap">{УРОВЕНЬ[node.kind]}</span>
+                {" "}
+                {node.label}
+                {" "}
+                <span className="t-sm t-muted">
+                  {node.positions} {plural(node.positions, "позиция", "позиции", "позиций")}
+                </span>
+              </span>
+            </button>
+          </td>
+        </tr>
+      );
+
+      const подытог = (
+        <tr key={`${node.key}-итог`} className="estimate__section">
+          <td colSpan={5}>
+            <span className="estimate__row-name t-secondary" style={{ ["--level" as string]: level }}>
+              Итого {ИТОГ[node.kind]}
+            </span>
+          </td>
+          <td className="estimate__num">{formatKopecks(node.subtotal)}</td>
+          {showInternal && (
+            <>
+              <td className="estimate__num estimate__internal" />
+              <td className="estimate__num estimate__internal">
+                {node.subtotalWage === undefined ? "—" : formatKopecks(node.subtotalWage)}
+              </td>
+              <td className="estimate__num estimate__internal" />
+            </>
+          )}
+          {editable && <td className="estimate__act" />}
+        </tr>
+      );
+
+      if (свёрнут) return [шапка, подытог];
+      return [
+        шапка,
+        ...node.items.map((item) => строкаПозиции(item, level + 1)),
+        ...узлы(node.children, level + 1),
+        подытог,
+      ];
     });
 
   return (
@@ -191,6 +320,26 @@ export function EstimateTable({
               {collapsed.size === 0 ? "Свернуть все" : "Развернуть все"}
             </button>
           )}
+        </div>
+        {/* Два переключателя рядом: способ показать и кому показать. Один
+            орган с четырьмя состояниями смешал бы независимые решения. */}
+        <div className="segmented" role="group" aria-label="Группировка сметы">
+          <button
+            type="button"
+            className="segmented__option"
+            aria-pressed={grouping === "sections"}
+            onClick={() => { setGrouping("sections"); }}
+          >
+            По смете
+          </button>
+          <button
+            type="button"
+            className="segmented__option"
+            aria-pressed={grouping === "stages"}
+            onClick={() => { setGrouping("stages"); }}
+          >
+            По этапам
+          </button>
         </div>
         {hasInternal && (
           <div className="segmented" role="group" aria-label="Проекция сметы">
@@ -250,7 +399,7 @@ export function EstimateTable({
               {editable && <th scope="col"><span className="visually-hidden">Правка</span></th>}
             </tr>
           </thead>
-          <tbody>{rows(estimate.sections)}</tbody>
+          <tbody>{grouping === "sections" ? rows(estimate.sections) : узлы(дерево)}</tbody>
           {/* Ведомость закрывается своими итогами, как закрывается смета:
               работы, надбавка за сопровождение, итог для заказчика. Внутренние
               итоги стоят в своих колонках и уходят вместе с ними в клиентской

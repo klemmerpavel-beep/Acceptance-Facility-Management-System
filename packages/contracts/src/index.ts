@@ -731,6 +731,8 @@ export interface EstimateSectionNode {
   name: string;
   level: number;
   sourceRow: number | null;
+  /** Имя этапа графика у раздела верхнего уровня; пусто — раздел вне графика. */
+  stage: string | null;
   items: z.infer<typeof estimateItemSchema>[];
   children: EstimateSectionNode[];
   subtotal: string;
@@ -744,6 +746,7 @@ export const estimateSectionSchema: z.ZodType<EstimateSectionNode> = z.lazy(() =
     name: z.string(),
     level: z.number().int(),
     sourceRow: z.number().int().nullable(),
+    stage: z.string().nullable(),
     items: z.array(estimateItemSchema),
     children: z.array(estimateSectionSchema),
     subtotal: kopecksString,

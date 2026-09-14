@@ -164,6 +164,33 @@ export class EstimatesService {
     });
     const version = (previous?.version ?? 0) + 1;
 
+    /* Помещения позиций переносятся на новую редакцию — по тому же доводу,
+       по которому переносятся связи этапов с разделами: позиции у каждой
+       редакции свои, и без переноса первый же повторный импорт унёс бы всю
+       расстановку помещений молча. А молчание об уносимом — тот самый
+       дефект, который импорт уже однажды за собой исправлял.
+
+       Ключ переноса — путь раздела и наименование позиции: правка
+       количеств и цен идёт на месте (Р11), а новая редакция рождается
+       новым файлом, в котором позицию узнают по имени и месту. */
+    const прежниеПомещения = new Map<string, string>();
+    if (previous !== null) {
+      const было = await this.prisma.estimateItem.findMany({
+        where: { estimateId: previous.id, NOT: { roomId: null } },
+        select: {
+          name: true, roomId: true,
+          section: { select: { name: true, parent: { select: { name: true } } } },
+        },
+      });
+      for (const позиция of было) {
+        if (позиция.roomId === null) continue;
+        const путь = позиция.section.parent === null
+          ? позиция.section.name
+          : `${позиция.section.parent.name}·${позиция.section.name}`;
+        прежниеПомещения.set(`${путь}·${позиция.name}`, позиция.roomId);
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const units = await this.ensureUnits(tx, user.orgId, parsed.items, parsed.otherExpenses);
 
@@ -236,13 +263,20 @@ export class EstimatesService {
       }
 
       let itemOrder = 0;
+      /* Помещения, которые перенести не удалось: позиция сменила имя или
+         раздел. Их число уходит в отчёт — импорт обязан называть то, что
+         уносит, а не терять молча. */
+      let помещенийПеренесено = 0;
       for (const item of parsed.items) {
         const sectionId = sectionIds.get(item.sectionPath.join("·"));
         if (sectionId === undefined || item.unit.kind !== "resolved") continue;
+        const roomId = прежниеПомещения.get(`${item.sectionPath.join("·")}·${item.name}`);
+        if (roomId !== undefined) помещенийПеренесено += 1;
         await tx.estimateItem.create({
           data: {
             estimateId: estimate.id,
             sectionId,
+            ...(roomId === undefined ? {} : { roomId }),
             unitId: unitId(units, item.unit.unit),
             name: item.name,
             order: (itemOrder += 1),
@@ -270,6 +304,30 @@ export class EstimatesService {
       }
 
       const dto = toImportReport(report);
+
+      /* Что импорт сделал с помещениями — в отчёте, а не только в базе.
+         Отчёт есть то место, где продукт рассказывает о записи; потеря
+         привязок, о которой он промолчал бы, обнаружилась бы через неделю
+         пустой колонкой помещений и была бы списана на «само пропало».
+
+         Находка добавляется, только если помещения были: строка «перенесено
+         0 из 0» в отчёте объекта без обмера — шум. */
+      const помещенийБыло = прежниеПомещения.size;
+      if (помещенийБыло > 0) {
+        dto.findings = [
+          ...dto.findings,
+          {
+            kind: "rooms",
+            title: помещенийПеренесено === помещенийБыло
+              ? `Помещения позиций перенесены целиком: ${помещенийПеренесено} из ${помещенийБыло}`
+              : `Помещения позиций перенесены не полностью: ${помещенийПеренесено} из ${помещенийБыло}.`
+                + " Остальные позиции сменили наименование или раздел — назначьте им помещение заново",
+            amount: null,
+            rows: [],
+          },
+        ];
+      }
+
       const record = await tx.estimateImport.create({
         data: {
           estimateId: estimate.id,
@@ -291,7 +349,11 @@ export class EstimatesService {
         entityId: estimate.id,
         field: "import",
         oldValue: previous === null ? null : `версия ${previous.version}`,
-        newValue: `версия ${version}, позиций ${report.positions}, пересчёт ${report.computedWorksTotal} коп.`,
+        newValue: `версия ${version}, позиций ${report.positions},`
+          + ` пересчёт ${report.computedWorksTotal} коп.`
+          + (прежниеПомещения.size === 0
+            ? ""
+            : `, помещений перенесено ${помещенийПеренесено} из ${прежниеПомещения.size}`),
       });
 
       return { importId: record.id, estimateId: estimate.id, version, report: dto };
@@ -332,7 +394,9 @@ export class EstimatesService {
       where: { projectId: project.id },
       orderBy: { version: "desc" },
       include: {
-        sections: { orderBy: { order: "asc" } },
+        /* Этап приходит вместе с разделом: связь однозначна
+           (`@@unique([sectionId])`), и второго запроса она не стоит. */
+        sections: { orderBy: { order: "asc" }, include: { stage: { select: { name: true } } } },
         /* Приёмки приходят вместе с позицией: принятое есть их сумма, и
            отдельный запрос на каждую из ста тридцати двух позиций дал бы
            сто тридцать два обращения на один экран сметы. */
@@ -365,6 +429,7 @@ export class EstimatesService {
         name: section.name,
         order: section.order,
         sourceRow: section.sourceRow,
+        stage: section.stage?.name ?? null,
       })),
       items: estimate.items.map((item) => ({
         id: item.id,
