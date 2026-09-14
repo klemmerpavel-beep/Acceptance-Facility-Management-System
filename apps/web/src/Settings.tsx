@@ -9,6 +9,7 @@ import {
 import { useModalDialog } from "./modal.js";
 import { plural } from "./status.js";
 import { tabArrowHandler } from "./tabs.js";
+import { Blueprints } from "./Blueprints.js";
 import { People } from "./People.js";
 
 /**
@@ -32,6 +33,10 @@ const TABS = [
   { key: "people", label: "Люди" },
   { key: "estimate", label: "Единицы измерения" },
   { key: "tariffs", label: "Типы ремонта" },
+  /* Типовые сметы — справочник организации, как и единицы измерения: они
+     принадлежат компании, а не объекту. В «Документах организации» им не
+     место — там шаблоны с подстановкой переменных, вещь другого рода. */
+  { key: "blueprints", label: "Типовые сметы" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"];
@@ -247,6 +252,15 @@ export function Settings({
 
       <div role="tabpanel" id="settings-panel-tariffs" aria-labelledby="settings-tab-tariffs" hidden={tab !== "tariffs"}>
       {tab === "tariffs" && <RepairTypes />}
+      </div>
+
+      <div
+        role="tabpanel"
+        id="settings-panel-blueprints"
+        aria-labelledby="settings-tab-blueprints"
+        hidden={tab !== "blueprints"}
+      >
+        {tab === "blueprints" && <Blueprints />}
       </div>
 
       {/* Выход переехал сюда из шапки: в шапке эталона справа стоят блок

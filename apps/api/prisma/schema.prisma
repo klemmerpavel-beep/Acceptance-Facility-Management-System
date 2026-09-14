@@ -171,6 +171,7 @@ model Organization {
   leadTasks   LeadTask[]
   repairTypes RepairType[]
   templates   DocumentTemplate[]
+  blueprints  EstimateBlueprint[]
 
   @@map("organizations")
 }
@@ -225,6 +226,79 @@ model DocumentClause {
   @@map("document_clauses")
 }
 
+/// Типовая смета организации: заготовка под повторяющийся вид ремонта.
+///
+/// Слово «шаблон» в продукте занято дважды — эталонной книгой выгрузки и
+/// шаблонами документов организации, — и третьего значения ему не даётся:
+/// одно слово на одну вещь. Поэтому «типовая смета».
+///
+/// Заводится из готовой сметы объекта и несёт всё, кроме привязок к нему:
+/// разделы, наименования, единицы, цены, ставки и количества. Помещения не
+/// уносятся — помещение принадлежит объекту, а не типу ремонта.
+model EstimateBlueprint {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String
+  /// Откуда взята: код объекта на момент заведения. Строкой, а не связью —
+  /// объект могут удалить, а происхождение заготовки от этого не меняется.
+  sourceCode  String?
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  org       Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  sections  BlueprintSection[]
+  items     BlueprintItem[]
+
+  /// Имя уникально в организации по тому же доводу, что у шаблона документа:
+  /// две «Типовые двушки» в списке неразличимы.
+  @@unique([orgId, name])
+  @@map("estimate_blueprints")
+}
+
+/// Раздел типовой сметы. Дерево той же глубины, что и у сметы объекта.
+model BlueprintSection {
+  id          String  @id @default(uuid()) @db.Uuid
+  blueprintId String  @db.Uuid
+  parentId    String? @db.Uuid
+  name        String
+  order       Int
+
+  blueprint EstimateBlueprint  @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  parent    BlueprintSection?  @relation("BlueprintTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  BlueprintSection[] @relation("BlueprintTree")
+  items     BlueprintItem[]
+
+  @@index([blueprintId, order])
+  @@map("blueprint_sections")
+}
+
+/// Позиция типовой сметы. Количество хранится: решение заказчика от
+/// 14.09.2026 — заготовка полная, правится под объект после применения.
+model BlueprintItem {
+  id          String @id @default(uuid()) @db.Uuid
+  blueprintId String @db.Uuid
+  sectionId   String @db.Uuid
+  unitId      String @db.Uuid
+  name        String
+  order       Int
+  /// Количество в тысячных долях единицы измерения.
+  qty         BigInt
+  /// Цена единицы и ставка оплаты труда, копейки.
+  unitPrice   BigInt
+  unitWage    BigInt @default(0)
+
+  blueprint EstimateBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  section   BlueprintSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  /// Restrict: справочник единиц один на организацию, и единица, на которую
+  /// ссылается заготовка, не должна исчезать из него молча.
+  unit      Unit              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@index([blueprintId, order])
+  @@index([sectionId, order])
+  @@map("blueprint_items")
+}
+
 model User {
   id        String   @id @default(uuid()) @db.Uuid
   orgId     String   @db.Uuid
@@ -248,6 +322,7 @@ model User {
   sessions          Session[]
   projectsAsForeman Project[]         @relation("ProjectForeman")
   auditEntries      AuditLog[]
+  blueprints        EstimateBlueprint[]
   measurePlans      MeasurePlan[]
   acceptanceBatches AcceptanceBatch[]
   acceptances       Acceptance[]
@@ -324,9 +399,10 @@ model Unit {
   /// Каноническая форма: м², м.п., шт, точка, ед, рейс, ч/ч, этаж, %.
   code  String
 
-  organization  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  estimateItems EstimateItem[]
-  otherExpenses OtherExpense[]
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  estimateItems  EstimateItem[]
+  otherExpenses  OtherExpense[]
+  blueprintItems BlueprintItem[]
 
   @@unique([orgId, code])
   @@map("units")

@@ -7,6 +7,7 @@ import type {
 import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
+  applyBlueprint, createBlueprint,
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen,
@@ -22,6 +23,7 @@ import { Expenses } from "./Expenses.js";
 import { Acts } from "./Acts.js";
 import { Report } from "./Report.js";
 import { Tranches } from "./Tranches.js";
+import { BlueprintSheet } from "./BlueprintSheet.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
@@ -222,6 +224,9 @@ export function ProjectCard({
      выбирают из канонического набора, а не пишут свободно. */
   const [editing, setEditing] = useState<EstimateItem | null>(null);
   const [supervisionOpen, setSupervisionOpen] = useState(false);
+  /* Лист типовой сметы: «save» — сохранить смету объекта заготовкой,
+     «apply» — взять заготовку в объект без сметы. Одна вещь, два действия. */
+  const [заготовка, setЗаготовка] = useState<"save" | "apply" | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [measure, setMeasure] = useState<MeasureView | null>(null);
@@ -728,10 +733,33 @@ export function ProjectCard({
                     <p className="empty__title">Сметы пока нет</p>
                     <p className="empty__text">{error}</p>
                     {user.role === "OWNER" && (
-                      <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
-                        Импортировать смету
-                      </button>
+                      <div className="row">
+                        <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
+                          Импортировать смету
+                        </button>
+                        {/* Второй путь к той же цели: типовая смета уже
+                            лежит в организации, и заводить её файлом заново
+                            — лишняя работа. */}
+                        <button
+                          type="button"
+                          className="btn btn--secondary"
+                          onClick={() => { setЗаготовка("apply"); setEditError(null); }}
+                        >
+                          Взять типовую
+                        </button>
+                      </div>
                     )}
+                  </div>
+                )}
+                {estimate !== null && user.role === "OWNER" && (
+                  <div className="row">
+                    <button
+                      type="button"
+                      className="btn btn--secondary"
+                      onClick={() => { setЗаготовка("save"); setEditError(null); }}
+                    >
+                      Сохранить как типовую
+                    </button>
                   </div>
                 )}
                 {estimate !== null && (
@@ -829,6 +857,32 @@ export function ProjectCard({
             сохранить(работа);
           }}
           onClose={() => { setEditing(null); setEditError(null); }}
+        />
+      )}
+
+      {заготовка !== null && (
+        <BlueprintSheet
+          режим={заготовка}
+          code={project.code}
+          busy={editBusy}
+          error={editError}
+          onSave={(name) => {
+            setEditBusy(true);
+            setEditError(null);
+            void createBlueprint({ fromProject: project.code, name })
+              .then(() => { setЗаготовка(null); })
+              .catch((cause: unknown) => { setEditError(errorMessage(cause)); })
+              .finally(() => { setEditBusy(false); });
+          }}
+          onApply={(id) => {
+            setEditBusy(true);
+            setEditError(null);
+            void applyBlueprint(project.code, id)
+              .then(() => { setЗаготовка(null); load(); })
+              .catch((cause: unknown) => { setEditError(errorMessage(cause)); })
+              .finally(() => { setEditBusy(false); });
+          }}
+          onClose={() => { setЗаготовка(null); setEditError(null); }}
         />
       )}
 

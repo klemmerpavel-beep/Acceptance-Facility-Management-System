@@ -1599,6 +1599,92 @@ export type CreateRepairType = z.infer<typeof createRepairTypeSchema>;
 export const updateRepairTypeSchema = createRepairTypeSchema.partial();
 export type UpdateRepairType = z.infer<typeof updateRepairTypeSchema>;
 
+/* --- типовые сметы организации ----------------------------------------------
+   Слово «шаблон» занято дважды: эталонной книгой выгрузки сметы и шаблонами
+   документов организации. Третьего значения ему не даётся — одно слово на
+   одну вещь. Отсюда «типовая смета».
+   -------------------------------------------------------------------------- */
+
+/** Строка перечня типовых смет: чем заготовка отличается от соседней. */
+export const blueprintRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  /** Код объекта, из сметы которого заготовка взята. Пусто — объект удалён. */
+  sourceCode: z.string().nullable(),
+  createdAt: z.string(),
+  positions: z.number().int().nonnegative(),
+  sections: z.number().int().nonnegative(),
+  /** Итог по работам заготовки. Внутренние величины — только роли OWNER. */
+  works: kopecksString,
+  wage: kopecksString.optional(),
+});
+export type BlueprintRow = z.infer<typeof blueprintRowSchema>;
+
+export interface BlueprintSectionNode {
+  id: string;
+  name: string;
+  level: number;
+  items: {
+    id: string;
+    order: number;
+    name: string;
+    unit: string;
+    qty: string;
+    unitPrice: string;
+    total: string;
+    unitWage?: string | undefined;
+    wageTotal?: string | undefined;
+  }[];
+  children: BlueprintSectionNode[];
+  subtotal: string;
+}
+
+export const blueprintSectionSchema: z.ZodType<BlueprintSectionNode> = z.lazy(() =>
+  z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    level: z.number().int(),
+    items: z.array(z.object({
+      id: z.string().uuid(),
+      order: z.number().int(),
+      name: z.string(),
+      unit: z.string(),
+      qty: milliunitsString,
+      unitPrice: kopecksString,
+      total: kopecksString,
+      unitWage: kopecksString.optional(),
+      wageTotal: kopecksString.optional(),
+    })),
+    children: z.array(blueprintSectionSchema),
+    subtotal: kopecksString,
+  }),
+);
+
+/** Типовая смета деревом: то же устройство, что у сметы объекта. */
+export const blueprintViewSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  sourceCode: z.string().nullable(),
+  positions: z.number().int().nonnegative(),
+  sections: z.array(blueprintSectionSchema),
+  works: kopecksString,
+  wage: kopecksString.optional(),
+});
+export type BlueprintView = z.infer<typeof blueprintViewSchema>;
+
+/** Заведение типовой сметы из действующей редакции объекта. */
+export const createBlueprintSchema = z.object({
+  fromProject: projectCodeSchema,
+  name: z.string().trim().min(1, "Назовите типовую смету").max(120),
+});
+export type CreateBlueprint = z.infer<typeof createBlueprintSchema>;
+
+/** Применение типовой сметы к объекту. */
+export const applyBlueprintSchema = z.object({
+  blueprintId: z.string().uuid(),
+});
+export type ApplyBlueprint = z.infer<typeof applyBlueprintSchema>;
+
 /* --- шаблоны документов организации ----------------------------------------
    Договоры и дополнительные соглашения с переменными. Акта здесь нет: он
    собирается из принятых позиций и шаблоном не правится — редактируемый текст

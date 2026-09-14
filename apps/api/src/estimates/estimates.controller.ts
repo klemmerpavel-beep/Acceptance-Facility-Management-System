@@ -6,12 +6,13 @@ import type {
   DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
 } from "@priyomka/contracts";
 import {
-  moveEstimateItemSchema, unitOverridesSchema,
+  applyBlueprintSchema, moveEstimateItemSchema, unitOverridesSchema,
   updateEstimateItemSchema, updateSupervisionSchema,
 } from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
 import { normalizeSpelling } from "@priyomka/importer";
 import { EstimatesService } from "./estimates.service";
+import { BlueprintsService } from "../blueprints/blueprints.service";
 import { SessionGuard } from "../auth/session.guard";
 import { Roles, RolesGuard } from "../common/roles.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
@@ -28,7 +29,28 @@ interface UploadedEstimate {
 @Controller("projects/:code/estimate")
 @UseGuards(SessionGuard, RolesGuard)
 export class EstimatesController {
-  constructor(private readonly estimates: EstimatesService) {}
+  constructor(
+    private readonly estimates: EstimatesService,
+    private readonly blueprints: BlueprintsService,
+  ) {}
+
+  /**
+   * Завести смету объекта из типовой.
+   *
+   * Живёт у сметы объекта, а не у перечня заготовок: действие меняет объект,
+   * и адрес обязан называть то, что меняется. Только для объекта без сметы —
+   * довод при `BlueprintsService.apply`.
+   */
+  @Post("from-blueprint")
+  @Roles("OWNER")
+  async fromBlueprint(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    await this.blueprints.apply(user, code, applyBlueprintSchema.parse(body));
+    return this.estimates.view(user, code);
+  }
 
   /** Действующая редакция сметы, спроецированная по роли. */
   /* Смета отдаётся клиентской проекцией: ставки и прибыли в ней нет по

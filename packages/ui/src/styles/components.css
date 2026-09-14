@@ -2470,3 +2470,24 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .demorole { padding-inline: var(--space-4); }
   .demorole__note { margin-inline-start: 0; inline-size: 100%; }
 }
+
+/* Типовые сметы организации: строка справочника, а не карточка. Заготовка
+   различается именем, числом позиций и итогом — этого хватает, чтобы выбрать
+   нужную, и обводить каждую отдельной поверхностью незачем. */
+.blueprints { list-style: none; margin: 0; padding: 0; }
+
+.blueprint {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-block-size: var(--row-h);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+.blueprint:last-child { border-block-end: 0; }
+.blueprint__total { margin-inline-start: auto; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  /* На телефоне итог уходит под имя: три величины в строку не встают, а
+     перенос по словам разорвал бы число пополам. */
+  .blueprint { flex-wrap: wrap; }
+  .blueprint__total { margin-inline-start: 0; }
+}

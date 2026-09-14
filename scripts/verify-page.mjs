@@ -27,6 +27,20 @@ const strИмеет = (строка, что) => строка.toLowerCase().inclu
 const note = (kind, detail) => problems.push(`${kind}: ${detail}`);
 
 /**
+ * Денежная величина с экрана — обратно в копейки.
+ *
+ * Сверять надо арифметику, а не написание: неразрывный пробел здесь
+ * разделитель разрядов формата, а минус — типографский. Помощник объявлен
+ * рядом с прочими, потому что его просят два разных блока проверок —
+ * смета и справочник типовых смет.
+ */
+const вКопейкиСметы = (текст) => {
+  const очищено = (текст ?? "").replace(/[\s\u00A0₽]/g, "").replace("−", "-");
+  const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
+  return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
+};
+
+/**
  * Шкала скруглений: 4 / 6 / 8 / 12 px и капсула. Прежняя проверка стерегла
  * только верхний предел, и значение ниже ступени — 3 px, 1 px, 2 px — она
  * пропускала. Ровно так снятая шкала 3 / 4 / 6 px пережила свою отмену.
@@ -1772,13 +1786,6 @@ await page.click('.segmented__option:has-text("Внутренняя")');
 if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
   note("правка сметы", "у руководителя нет ни одной кнопки правки позиции");
 } else {
-  /* Величины разбираются обратно в копейки: сверять надо арифметику, а не
-     написание. Неразрывный пробел — разделитель разрядов формата. */
-  const вКопейкиСметы = (текст) => {
-    const очищено = (текст ?? "").replace(/[\s\u00A0₽]/g, "").replace("−", "-");
-    const match = /^(-?)(\d+),(\d{2})$/.exec(очищено);
-    return match === null ? null : BigInt(`${match[1]}${match[2]}${match[3]}`);
-  };
   const итогРабот = async () =>
     вКопейкиСметы(await page.locator("table.estimate tfoot tr").first()
       .locator("td.estimate__num").first().textContent());
@@ -2942,12 +2949,47 @@ await page.click(".appbar__user");
 await page.waitForSelector('.tabs__item:has-text("Организация")');
 const settingsTabs = (await page.locator(".tabs__item").allTextContents())
   .map((text) => text.trim());
-if (settingsTabs.join("|") !== "Организация|Люди|Единицы измерения|Типы ремонта") {
+if (settingsTabs.join("|") !== "Организация|Люди|Единицы измерения|Типы ремонта|Типовые сметы") {
   note("настройки", `вкладки «${settingsTabs.join(", ")}»`);
 }
 await page.waitForSelector('input[name="name"]');
 const orgName = await page.inputValue('input[name="name"]');
 if (orgName.trim() === "") note("настройки", "название организации пришло пустым");
+/* Типовые сметы организации: справочник показывает заготовку стенда с её
+   числами. Стережётся не «вкладка открылась», а то, что итог заготовки на
+   экране сходится с итогом сметы, из которой она взята: разойдясь, они
+   означали бы, что копия потеряла позиции. */
+{
+  await page.click('.tabs__item:has-text("Типовые сметы")');
+  await page.waitForTimeout(500);
+  const строки = await page.locator(".blueprint").count();
+  if (строки === 0) {
+    note("типовые сметы", "справочник пуст, хотя на стенде заведена одна заготовка");
+  } else {
+    const итогНаЭкране = вКопейкиСметы(
+      await page.locator(".blueprint__total").first().textContent(),
+    );
+    const итогЗаготовки = await page.evaluate(async () => {
+      const строки = await fetch("/api/blueprints", { credentials: "include" })
+        .then((r) => r.json());
+      return строки[0]?.works ?? null;
+    });
+    if (итогНаЭкране === null || итогЗаготовки === null) {
+      note("типовые сметы", "итог заготовки не разобран ни на экране, ни в ответе");
+    } else if (итогНаЭкране !== BigInt(итогЗаготовки)) {
+      note("типовые сметы",
+        `итог на экране ${итогНаЭкране} против ${итогЗаготовки} в ответе`);
+    }
+    const подпись = (await page.locator(".blueprint .t-sm").first().textContent()) ?? "";
+    if (!подпись.includes("из R-99")) {
+      note("типовые сметы", `происхождение заготовки не названо: «${подпись.trim()}»`);
+    }
+    console.log(`  типовые сметы: строк ${строки}, итог сошёлся с ответом`);
+  }
+  await page.click('.tabs__item:has-text("Организация")');
+  await page.waitForTimeout(300);
+}
+
 /*
  * Люди организации: вход выдаёт руководитель.
  *

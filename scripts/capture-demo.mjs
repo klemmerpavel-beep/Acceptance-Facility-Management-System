@@ -74,6 +74,7 @@ const snapshot = {
   expenses: await owner("/projects/R-99/expenses"),
   acts: await owner("/projects/R-99/acts"),
   templates: [],
+  blueprints: [],
   people: await owner("/people"),
   /* Этапы снимаются своим вызовом, а не берутся из списка объектов: список
      несёт узкий план (даты и заявленная готовность), а карточке нужны ещё
@@ -117,6 +118,10 @@ const snapshot = {
 const переченьШаблонов = await owner("/templates");
 snapshot.templates = await Promise.all(
   переченьШаблонов.map((шаблон) => owner(`/templates/${шаблон.id}`)));
+
+/* Типовые сметы снимаются перечнем: демонстрация показывает справочник
+   организации, а не отдельную заготовку деревом. */
+snapshot.blueprints = await owner("/blueprints");
 
 const первыйАкт = snapshot.acts[0];
 snapshot["act-client"] = первыйАкт === undefined
@@ -169,6 +174,7 @@ console.log(
   `помещений обмера ${snapshot.measure.rooms.length}, после перепланировки ${snapshot["measure-replanned"].rooms.length};`,
   `чеков ${snapshot.expenses.rows.length}, из них черновиков ${snapshot.expenses.totals.drafts};`,
   `актов ${snapshot.acts.length}; шаблонов ${snapshot.templates.length};`,
+  `типовых смет ${snapshot.blueprints.length};`,
   `людей ${snapshot.people.length}; объектов заказчику ${snapshot["projects-client"].length};`,
   `траншей портфеля ${snapshot.accounting.rows.length}`,
 );
