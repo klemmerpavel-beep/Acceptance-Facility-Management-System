@@ -1038,6 +1038,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .signin__actions { display: flex; align-items: center;
   justify-content: space-between; gap: var(--space-4); }
 .signin__actions > :only-child { margin-inline-start: auto; }
+/* Откуда берётся доступ. Стоит под действием, а не над полем: сперва
+   человек пробует войти, и лишь не сумев — читает, к кому идти. */
+.signin__note { margin-top: var(--space-3); text-align: start; }
 /* Надзаголовок поля: капс, как подпись «ВВЕДИТЕ НОМЕР ТЕЛЕФОНА». */
 .field__label--cap { font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
@@ -2433,3 +2436,18 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .invite__link { font-family: var(--font-mono); font-size: var(--fs-sm);
   padding: var(--space-2); border-radius: var(--radius-sm); background: var(--surface);
   overflow-wrap: anywhere; }
+
+/* --- 5.44 Переключатель роли демонстрации -----------------------------------
+   Живёт только в демонстрации, как и приём замечаний: в продукте органа с
+   таким действием нет — роль приходит с сессией. Стоит над шапкой, а не в
+   ней: он о показе продукта, а не о продукте.
+   -------------------------------------------------------------------------- */
+.demorole { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3);
+  padding: var(--space-2) var(--gutter); background: var(--surface-2);
+  border-block-end: 1px solid var(--line); }
+.demorole__label { color: var(--ink-3); }
+.demorole__note { margin-inline-start: auto; }
+@media (max-width: 767px) {
+  .demorole { padding-inline: var(--space-4); }
+  .demorole__note { margin-inline-start: 0; inline-size: 100%; }
+}

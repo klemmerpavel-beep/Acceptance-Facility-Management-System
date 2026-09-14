@@ -29,6 +29,10 @@ export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: "loading" });
   /** Раздел и открытый объект хранятся состоянием: роутер не вводится,
    *  адресная строка в первой версии не участвует. */
+  /* Раздел по умолчанию — «Главная», но не для всякой роли: она есть в
+     навигации не у всех, и вошедший не должен стоять на разделе, которого
+     в его шапке нет. Начальное значение здесь, поправка по роли — ниже,
+     когда роль уже известна: до загрузки пользователя её знать неоткуда. */
   const [section, setSection] = useState<Section>("home");
   const [opened, setOpened] = useState<ProjectSummary | null>(null);
   const [filter, setFilter] = useState<ProjectStatus | null>(null);
@@ -47,25 +51,53 @@ export function App(): React.JSX.Element {
 
   const load = (): void => {
     void (async () => {
+      /* Вход устанавливается ответом о самом вошедшем и ничем больше.
+         
+         Прежде вся загрузка стояла под одним `try`, и отказ любой
+         вспомогательной выборки объявлял человека неизвестным. Заказчик из-за
+         этого не входил вовсе: справочник единиц измерения нужен одному
+         экрану импорта, закрытому для него, и его отказ выбрасывал заказчика
+         обратно на экран входа — вход был, а продукта не было.
+         
+         Правило общее, а не про заказчика: вспомогательная выборка не
+         отменяет сессию. Следующая роль и любой временный отказ сети иначе
+         повторили бы то же самое. */
+      let user;
       try {
-        const user = await fetchCurrentUser();
-        const projects = await fetchProjects();
-        // Справочник единиц нужен экрану импорта сметы.
-        const first = projects[0];
-        const units = first === undefined ? [] : await fetchCanonicalUnits(first.code);
-        setState({ kind: "signed", user, projects, units });
+        user = await fetchCurrentUser();
       } catch {
         setState({ kind: "anonymous" });
+        return;
       }
+
+      const projects = await fetchProjects().catch(() => []);
+      /* Справочник единиц нужен экрану импорта сметы, а импорт есть только у
+         руководителя. Спрашивать его у прочих — это отказ на каждом входе:
+         в журнале сервера он неотличим от попытки залезть не в своё. */
+      const first = projects[0];
+      const units = user.role === "OWNER" && first !== undefined
+        ? await fetchCanonicalUnits(first.code).catch(() => [])
+        : [];
+
+      /* Раздел выбирается здесь, до первой отрисовки вошедшего, а не
+         поправкой следом. Поправка следом означала бы, что заказчик успевает
+         увидеть «Главную» — и запросить закрытую ему сводку портфеля. */
+      if (user.role === "CLIENT") setSection("projects");
+      setState({ kind: "signed", user, projects, units });
     })();
   };
 
   useEffect(load, []);
 
+
+
   // Лента грузится по первому открытию колокола, а не вместе с приложением:
   // на главной её больше нет, и платить за неё каждым заходом незачем.
   useEffect(() => {
     if (!feedOpen || events !== null) return;
+    /* Лента берётся из сводки портфеля, а сводка — раздел компании. Заказчику
+       она закрыта, и колокол у него не показывается вовсе (ниже по шапке);
+       проверка здесь — вторая, на случай если орган всё же нажали. */
     void fetchDashboard()
       .then((summary) => { setEvents(summary.feed); })
       .catch(() => { setEvents([]); });
@@ -224,15 +256,20 @@ export function App(): React.JSX.Element {
         <span className="appbar__name">{state.user.name}</span>
         <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
       </button>
-      <button
-        type="button"
-        className="appbar__bell"
-        aria-label={`События портфеля${events === null ? "" : `: ${String(events.length)}`}`}
-        aria-expanded={feedOpen}
-        onClick={() => { setFeedOpen(true); }}
-      >
-        <svg className="icon" aria-hidden="true"><use href="#i-bell" /></svg>
-      </button>
+      {/* Колокол ведёт в события портфеля — раздел компании. Заказчику он
+          не показывается: орган, отвечающий отказом, читается как поломка
+          продукта, а не как граница роли. */}
+      {state.user.role !== "CLIENT" && (
+        <button
+          type="button"
+          className="appbar__bell"
+          aria-label={`События портфеля${events === null ? "" : `: ${String(events.length)}`}`}
+          aria-expanded={feedOpen}
+          onClick={() => { setFeedOpen(true); }}
+        >
+          <svg className="icon" aria-hidden="true"><use href="#i-bell" /></svg>
+        </button>
+      )}
     </header>
   );
 
@@ -306,7 +343,7 @@ export function App(): React.JSX.Element {
   const cover = (
     title: string,
     crumbs: readonly string[] = [],
-    action?: React.JSX.Element,
+    action?: React.JSX.Element | null,
   ): React.JSX.Element => (
     <div className="cover">
       <div className="container">
@@ -343,12 +380,16 @@ export function App(): React.JSX.Element {
       {header}
       {section === "home" && (
         <>
-          {cover("Главная", [], (
+          {/* Заводит объекты руководитель. Показанная прорабу кнопка вела в
+              лист, который отказывал первым же запросом: первичное действие,
+              оканчивающееся отказом, хуже отсутствующего — оно выглядит
+              поломкой продукта, а не границей роли. */}
+          {cover("Главная", [], state.user.role === "OWNER" ? (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
               {завести("объект")}
             </button>
-          ))}
+          ) : null)}
           <Dashboard
             projects={state.projects}
             today={today}
@@ -361,12 +402,12 @@ export function App(): React.JSX.Element {
       )}
       {section === "projects" && (
         <>
-          {cover("Проекты", ["Главная", "Проекты"], (
+          {cover("Проекты", ["Главная", "Проекты"], state.user.role === "OWNER" ? (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
               {завести("объект")}
             </button>
-          ))}
+          ) : null)}
           <main className="container stack stack--loose">
             <ProjectList
               projects={state.projects}

@@ -202,7 +202,14 @@ export function ProjectCard({
   const load = (): void => {
     setLoading(true);
     void fetchEvents(project.code).then(setEvents).catch(() => setEvents([]));
-    void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
+    /* Обмер спрашивается только теми, у кого есть его вкладка. Отказ здесь
+       и прежде проглатывался, но запрос уходил: в журнале сервера он
+       неотличим от попытки залезть не в своё, а площади из обмера нужны
+       вкладке «Замер» и переносу в смету — ни того ни другого у заказчика
+       нет. */
+    if (user.role !== "CLIENT") {
+      void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
+    }
     void fetchEstimate(project.code)
       .then(async (view) => {
         setEstimate(view);
@@ -216,7 +223,10 @@ export function ProjectCard({
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [project.code]);
+  /* Роль в списке зависимостей: с её появлением в `load` состав выборок
+     стал от неё зависеть, и перезагрузка при смене роли — не прихоть
+     правила линта, а верное поведение. */
+  useEffect(load, [project.code, user.role]);
 
   /* Сохранение правки. Ответ — вид сметы целиком, и он кладётся как есть:
      собирать новое состояние из частей значило бы завести вторую копию
