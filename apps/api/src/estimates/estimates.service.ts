@@ -338,7 +338,13 @@ export class EstimatesService {
            сто тридцать два обращения на один экран сметы. */
         items: {
           orderBy: { order: "asc" },
-          include: { unit: true, acceptances: { select: { qty: true } } },
+          include: {
+            unit: true,
+            acceptances: { select: { qty: true } },
+            /* Помещение приходит вместе с позицией, а не отдельной выборкой:
+               сто тридцать две позиции дали бы сто тридцать два обращения. */
+            room: { select: { id: true, name: true, set: true } },
+          },
         },
         otherExpenses: { orderBy: { order: "asc" }, include: { unit: true } },
         imports: { orderBy: { importedAt: "desc" }, take: 1 },
@@ -372,6 +378,7 @@ export class EstimatesService {
         qtyAccepted: acceptedQty(item.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
         unitPrice: kopecks(item.unitPrice),
         unitWage: kopecks(item.unitWage),
+        room: item.room,
       })),
       otherExpenses: estimate.otherExpenses.map((expense) => ({
         id: expense.id,
@@ -382,10 +389,25 @@ export class EstimatesService {
       })),
     });
 
+    /* Помещения объекта: действующий набор идёт списком выбора, а сам факт
+       перепланировки — отдельной величиной. Без него экран не отличит
+       позицию, честно стоящую на единственном наборе, от позиции, отставшей
+       от перепланировки: набор у обеих `INITIAL`. */
+    const помещения = await this.prisma.measureRoom.findMany({
+      where: { projectId: project.id },
+      orderBy: [{ set: "asc" }, { order: "asc" }],
+      select: { id: true, name: true, set: true },
+    });
+    const перепланировка = помещения.some((комната) => комната.set === "REPLANNED");
+
     return toEstimateViewDto(view, {
       version: estimate.version,
       importedAt: estimate.imports[0]?.importedAt ?? null,
       declaredWorksTotal: estimate.declaredWorksTotal,
+      replanned: перепланировка,
+      rooms: помещения.filter(
+        (комната) => комната.set === (перепланировка ? "REPLANNED" : "INITIAL"),
+      ),
     });
   }
 
@@ -444,8 +466,9 @@ export class EstimatesService {
     const before = await this.prisma.estimateItem.findFirst({
       where: { id: itemId, estimateId: estimate.id },
       select: {
-        id: true, name: true, qty: true, unitPrice: true, unitWage: true,
+        id: true, name: true, qty: true, unitPrice: true, unitWage: true, roomId: true,
         unit: { select: { id: true, code: true } },
+        room: { select: { name: true } },
         acceptances: { select: { qty: true } },
       },
     });
@@ -467,6 +490,23 @@ export class EstimatesService {
       unitWage: input.unitWage === undefined ? kopecks(before.unitWage) : kopecks(input.unitWage),
     });
     if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    /* Помещение проверяется по объекту, а не по существованию: помещение
+       чужого объекта — не «не найдено», а попытка приписать работы соседней
+       квартире, и отказ должен называть именно это. */
+    let помещение: { id: string; name: string } | null = null;
+    if (input.roomId !== undefined && input.roomId !== null) {
+      const найдено = await this.prisma.measureRoom.findFirst({
+        where: { id: input.roomId, projectId: project.id },
+        select: { id: true, name: true },
+      });
+      if (найдено === null) {
+        throw new BadRequestException({
+          message: "Такого помещения нет в обмере этого объекта.",
+        });
+      }
+      помещение = найдено;
+    }
 
     /* Единица меняется только на каноническую: справочник организации
        наполняется импортом, и свободное написание развело бы «м2» и «м²»
@@ -504,6 +544,7 @@ export class EstimatesService {
           ...(input.unitPrice === undefined ? {} : { unitPrice: kopecks(input.unitPrice) }),
           ...(input.unitWage === undefined ? {} : { unitWage: kopecks(input.unitWage) }),
           ...(unitId === before.unit.id ? {} : { unitId }),
+          ...(input.roomId === undefined ? {} : { roomId: input.roomId }),
         },
       });
 
@@ -522,6 +563,21 @@ export class EstimatesService {
              той единице, в которой количество и правили. */
           oldValue: значениеДляЖурнала(field, прежнее[field] ?? null, before.unit.code),
           newValue: значениеДляЖурнала(field, next, before.unit.code),
+        });
+      }
+
+      /* Помещение пишется отдельно и именем: опознаватель в журнале
+         нечитаем, а журнал читает человек и только человек. Пустое значение
+         называется словами — «не выбрано», а не пустой строкой. */
+      if (input.roomId !== undefined && input.roomId !== before.roomId) {
+        await this.audit.record({
+          orgId: project.orgId,
+          actorId: user.id,
+          entity: "EstimateItem",
+          entityId: project.id,
+          field: `${before.name} — помещение`,
+          oldValue: before.room?.name ?? "не выбрано",
+          newValue: помещение?.name ?? "не выбрано",
         });
       }
     });

@@ -16,6 +16,7 @@ const позиция: EstimateItemRecord = {
   qtyAccepted: parseQuantity("240"),
   unitPrice: parseRubles("900"),
   unitWage: parseRubles("350"),
+  room: { id: "room-01", name: "Спальня", set: "INITIAL" },
 };
 
 describe("разграничение на уровне полей", () => {
@@ -37,6 +38,15 @@ describe("разграничение на уровне полей", () => {
     }
     expect(видимое.total).toBe(parseRubles("366 219,00"));
     expect(видимое.qtyAccepted).toBe(parseQuantity("240"));
+  });
+
+  it.each<Role>(["FOREMAN", "CLIENT"])("роль %s получает помещение позиции", (роль) => {
+    /* Помещение внутренней величиной не является, и прорабу оно нужнее
+       прочих: он принимает помещение, а не позицию (довод при пакете
+       приёмки в схеме). Отбор по роли не должен унести его заодно с
+       деньгами — правило стережёт именно это. */
+    const видимое = projectEstimateItem(позиция, роль);
+    expect(видимое.room).toEqual({ id: "room-01", name: "Спальня", set: "INITIAL" });
   });
 
   it("перечень внутренних полей совпадает с разницей двух проекций", () => {

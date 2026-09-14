@@ -25,6 +25,22 @@ export const projectStatusSchema = z.enum([
 ]);
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 
+/**
+ * Набор обмера: до работ и после перепланировки.
+ *
+ * Их ровно два, и это не заготовка под список. Перепланировка меняет
+ * площади, и прежние величины перестают быть правдой, не переставая быть
+ * историей: по ним считалась смета, и вопрос «почему в смете 18,40, а в
+ * обмере 22,10» задают через месяц. Поэтому второй набор рядом с первым, а
+ * не поверх него.
+ *
+ * Объявлен здесь, среди общего словаря, а не в разделе обмера: набор
+ * называют теперь и смета, и обмер — позиция сметы знает своё помещение,
+ * а у помещения есть набор.
+ */
+export const measureSetSchema = z.enum(["INITIAL", "REPLANNED"]);
+export type MeasureSetKind = z.infer<typeof measureSetSchema>;
+
 /** Стадия воронки. Четыре, по фактическому процессу компании. */
 export const leadStageSchema = z.enum(["FIRST_CONTACT", "MEETING", "DECIDING", "CONTRACT"]);
 export type LeadStage = z.infer<typeof leadStageSchema>;
@@ -676,12 +692,29 @@ export const importResultSchema = z.object({
 });
 export type ImportResult = z.infer<typeof importResultSchema>;
 
+/**
+ * Помещение, работы которого ведёт позиция сметы.
+ *
+ * Набор приходит вместе с именем, а не выводится клиентом: по нему экран
+ * отличает позицию, оставшуюся на начальном обмере после перепланировки, от
+ * позиции, переведённой на новый набор. Без набора пометка «помещение из
+ * начального обмера» была бы догадкой.
+ */
+export const estimateItemRoomSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  set: measureSetSchema,
+});
+export type EstimateItemRoom = z.infer<typeof estimateItemRoomSchema>;
+
 /** Позиция сметы в ответе. Внутренние поля приходят только роли OWNER. */
 export const estimateItemSchema = z.object({
   id: z.string().uuid(),
   order: z.number().int(),
   name: z.string(),
   unit: z.string(),
+  /** Пусто — помещение не выбрано; импортированная смета комнат не знает. */
+  room: estimateItemRoomSchema.nullable(),
   qty: milliunitsString,
   qtyAccepted: milliunitsString,
   unitPrice: kopecksString,
@@ -745,6 +778,16 @@ export const estimateViewSchema = z.object({
   /** Заявленный в исходном файле итог и расхождение с пересчётом (БП-09). */
   declaredWorksTotal: kopecksString.nullable(),
   worksTotalDelta: kopecksString.nullable(),
+  /**
+   * Есть ли у объекта набор обмера после перепланировки.
+   *
+   * Без этой величины экран не отличил бы позицию, честно стоящую на
+   * единственном наборе, от позиции, отставшей от перепланировки: и там и
+   * там набор позиции — `INITIAL`.
+   */
+  replanned: z.boolean(),
+  /** Помещения действующего набора: список выбора в правке и переносе. */
+  rooms: z.array(estimateItemRoomSchema),
 });
 export type EstimateView = z.infer<typeof estimateViewSchema>;
 
@@ -763,6 +806,12 @@ export const updateEstimateItemSchema = z.object({
   qty: milliunitsString.optional(),
   unitPrice: kopecksString.optional(),
   unitWage: kopecksString.optional(),
+  /**
+   * Помещение позиции. `null` снимает связь, отсутствие поля её не трогает —
+   * различие существенно: лист присылает только тронутые поля, и «не трогал»
+   * не должно читаться как «убрал».
+   */
+  roomId: z.string().uuid().nullable().optional(),
 });
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
@@ -856,18 +905,6 @@ export const measurePlanSchema = z.object({
 export type MeasurePlan = z.infer<typeof measurePlanSchema>;
 
 /** Вкладка «Замер» одним запросом: помещения, итоги, сведения о плане. */
-/**
- * Набор обмера: до работ и после перепланировки.
- *
- * Их ровно два, и это не заготовка под список. Перепланировка меняет
- * площади, и прежние величины перестают быть правдой, не переставая быть
- * историей: по ним считалась смета, и вопрос «почему в смете 18,40, а в
- * обмере 22,10» задают через месяц. Поэтому второй набор рядом с первым, а
- * не поверх него.
- */
-export const measureSetSchema = z.enum(["INITIAL", "REPLANNED"]);
-export type MeasureSetKind = z.infer<typeof measureSetSchema>;
-
 export const measureViewSchema = z.object({
   /** Какой набор показан. */
   set: measureSetSchema,

@@ -404,14 +404,27 @@ model EstimateItem {
   unitPrice  BigInt
   unitWage   BigInt @default(0)
   sourceRow  Int?
+  /// Помещение обмера, работы которого ведёт позиция.
+  ///
+  /// Необязательно, и это не заготовка под обязательность: смета приходит
+  /// из файла, а импортёр помещений не знает вовсе — обмер делают отдельно
+  /// и нередко позже. Отдельного помещения «Без помещения» для таких
+  /// позиций не заводится: строка обмера без замера попала бы в итоги
+  /// площадей и развела бы их с обмерным планом.
+  roomId     String? @db.Uuid
 
   estimate    Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   section     EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   unit        Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  /// SetNull, а не Restrict: помещение удаляют в обмере, и смета не вправе
+  /// запрещать правку обмера. Обрыв связи виден на экране словами
+  /// «помещение не выбрано», а не молчит.
+  room        MeasureRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
   acceptances Acceptance[]
 
   @@index([estimateId, order])
   @@index([sectionId, order])
+  @@index([roomId])
   @@map("estimate_items")
 }
 
@@ -554,6 +567,7 @@ model MeasureRoom {
 
   project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   openings MeasureOpening[]
+  items    EstimateItem[]
 
   /// Имя помещения — то, чем прораб его называет; два «Санузла» в одном
   /// наборе это ошибка замера, а не данные. Заодно естественный ключ для

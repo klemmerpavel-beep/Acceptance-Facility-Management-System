@@ -84,6 +84,57 @@ for (const этап of этапы) {
 }
 console.log(`  этапов связано с разделами: ${связано}`);
 
+/* Помещения у позиций сметы. Тем же путём, каким их проставит человек, —
+   правкой позиции, а не записью в таблицу. Обмер к этому моменту уже есть:
+   его заводит `seed.mjs`, а смету — этот скрипт, и связать одно с другим
+   можно только здесь. */
+const { ПОМЕЩЕНИЕ_РАЗДЕЛА } = await import("../apps/api/prisma/estimate-rooms.mjs");
+
+const смета = await fetch(`${BASE}/projects/${CODE}/estimate`, { headers: { cookie } })
+  .then((response) => response.json());
+
+/* Помещения обоих наборов: действующий набор приходит в самой смете, а
+   начальный нужен разделам, помещения которых перепланировка слила. */
+const наборы = await Promise.all(
+  ["REPLANNED", "INITIAL"].map((набор) =>
+    fetch(`${BASE}/projects/${CODE}/measure?set=${набор}`, { headers: { cookie } })
+      .then((response) => response.json())),
+);
+const помещениеПоИмени = new Map();
+for (const набор of наборы) {
+  for (const комната of набор.rooms ?? []) {
+    if (!помещениеПоИмени.has(комната.name)) помещениеПоИмени.set(комната.name, комната.id);
+  }
+}
+
+const позицииРазделов = [];
+const обойти = (узлы) => {
+  for (const узел of узлы) {
+    const имя = ПОМЕЩЕНИЕ_РАЗДЕЛА[узел.name];
+    const roomId = имя === undefined ? undefined : помещениеПоИмени.get(имя);
+    if (roomId !== undefined) {
+      for (const позиция of узел.items) позицииРазделов.push([позиция.id, roomId]);
+    }
+    обойти(узел.children);
+  }
+};
+обойти(смета.sections);
+
+let сПомещением = 0;
+for (const [itemId, roomId] of позицииРазделов) {
+  const ответ = await fetch(`${BASE}/projects/${CODE}/estimate/items/${itemId}`, {
+    method: "PATCH",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ roomId }),
+  });
+  if (ответ.ok) сПомещением += 1;
+  else console.error(`  позиция ${itemId} не связана с помещением: код ${ответ.status}`);
+}
+console.log(
+  `  позиций связано с помещениями: ${сПомещением} из ${смета.positions};`,
+  `помещений в обоих наборах: ${помещениеПоИмени.size}`,
+);
+
 /* Транши объекта. Заводятся здесь, а не в `seed.mjs`: сумма предоплаты
    выводится из итога сметы, а до импорта итога не существует.
 

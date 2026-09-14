@@ -1,5 +1,7 @@
 import { useState } from "react";
-import type { EstimateItem, MeasureView, UpdateEstimateItem } from "@priyomka/contracts";
+import type {
+  EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
+} from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
   estimateItemFault, estimateItemWarning, measureSourcesFor,
@@ -50,6 +52,8 @@ const вПоле = (value: bigint, знаков: number): string => {
 export function EstimateItemSheet({
   item,
   units,
+  rooms,
+  replanned,
   measure,
   busy,
   error,
@@ -58,6 +62,10 @@ export function EstimateItemSheet({
 }: {
   item: EstimateItem;
   units: readonly string[];
+  /** Помещения действующего набора обмера. Пусто — обмера ещё не делали. */
+  rooms: readonly EstimateItemRoom[];
+  /** Есть ли у объекта набор после перепланировки. */
+  replanned: boolean;
   measure: MeasureView | null;
   busy: boolean;
   error: string | null;
@@ -70,6 +78,7 @@ export function EstimateItemSheet({
   const [qty, setQty] = useState(вПоле(BigInt(item.qty), 3));
   const [price, setPrice] = useState(вПоле(BigInt(item.unitPrice), 2));
   const [wage, setWage] = useState(вПоле(BigInt(item.unitWage ?? "0"), 2));
+  const [roomId, setRoomId] = useState(item.room?.id ?? "");
 
   const тысячные = количествоВТысячные(qty);
   const цена = рублиВКопейки(price);
@@ -93,10 +102,33 @@ export function EstimateItemSheet({
      «м.п.» годится и плинтусу, и карнизу, а какая из двух длин нужна —
      решает человек. Карта живёт в домене, экран своей не заводит. */
   const источники = measureSourcesFor(unit);
-  const подстановки: readonly { source: MeasureSource; value: bigint }[] =
+
+  /* Подстановка идёт от помещения позиции, а не от объекта.
+     Прежде здесь стоял `measure.totals`, то есть итог по всей квартире: на
+     позицию «плитка пола, санузел» подставлялись 80,53 м² вместо 1,80.
+     Величины объекта остались рядом — работа вроде вывоза мусора и правда
+     меряется объектом, — но подписаны своим источником, и перепутать их
+     больше нельзя. */
+  const комната = measure?.rooms.find((строка) => строка.id === roomId) ?? null;
+  const поПомещению: readonly { source: MeasureSource; value: bigint }[] =
+    комната === null
+      ? []
+      : источники.map((source) => ({ source, value: BigInt(комната[source]) }));
+  const поОбъекту: readonly { source: MeasureSource; value: bigint }[] =
     measure === null
       ? []
       : источники.map((source) => ({ source, value: BigInt(measure.totals[source]) }));
+
+  /* Помещение позиции осталось на начальном обмере, а объект перепланирован:
+     одноимённого помещения в новом наборе не завели — кухня и гостиная стали
+     кухней-гостиной. Молчать об этом нельзя: количество позиции считалось по
+     площади, которой больше нет. */
+  const отсталоОтПерепланировки = replanned && item.room !== null && item.room.set === "INITIAL";
+  /* Помещение позиции вне действующего набора показывается отдельной строкой
+     списка — тем же приёмом, что единица измерения вне справочника: иначе
+     выбор молча съехал бы на первое попавшееся. */
+  const своё = item.room;
+  const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -107,6 +139,7 @@ export function EstimateItemSheet({
       qty: тысячные.toString(),
       unitPrice: цена.toString(),
       unitWage: ставка.toString(),
+      roomId: roomId === "" ? null : roomId,
     });
   };
 
@@ -153,10 +186,61 @@ export function EstimateItemSheet({
             </label>
           </div>
 
-          {подстановки.length > 0 && (
+          <label className="field">
+            <span className="field__label">Помещение</span>
+            <span className="selectwrap">
+              <select
+                className="input"
+                value={roomId}
+                onChange={(event) => { setRoomId(event.target.value); }}
+              >
+                <option value="">Не выбрано</option>
+                {своё !== null && !вСписке && (
+                  <option value={своё.id}>{своё.name} — начальный обмер</option>
+                )}
+                {rooms.map((строка) => (
+                  <option key={строка.id} value={строка.id}>{строка.name}</option>
+                ))}
+              </select>
+            </span>
+            {отсталоОтПерепланировки ? (
+              <span className="field__hint">
+                Помещение из начального обмера: одноимённого в перепланировке нет.
+                Выберите помещение нового набора — количество считалось по площади,
+                которой больше нет.
+              </span>
+            ) : (
+              rooms.length === 0 && (
+                <span className="field__hint">
+                  Обмер объекта ещё не сделан: выбирать нечего.
+                </span>
+              )
+            )}
+          </label>
+
+          {поПомещению.length > 0 && (
             <div className="estimate__from-measure">
-              <span className="t-cap">из обмера</span>
-              {подстановки.map(({ source, value }) => (
+              <span className="t-cap">из обмера помещения</span>
+              {поПомещению.map(({ source, value }) => (
+                <button
+                  key={source}
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => { setQty(вПоле(value, 3)); }}
+                >
+                  {MEASURE_LABEL[source]} {formatQty(value)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {поОбъекту.length > 0 && (
+            <div className="estimate__from-measure">
+              {/* Величины объекта подписаны своим источником. Прежде они
+                  стояли под подписью «из обмера» — и читались как величины
+                  помещения, которого позиция тогда не знала вовсе. */}
+              <span className="t-cap">из обмера объекта</span>
+              {поОбъекту.map(({ source, value }) => (
                 <button
                   key={source}
                   type="button"

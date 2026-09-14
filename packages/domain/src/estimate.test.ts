@@ -27,16 +27,20 @@ const входные = (role: BuildEstimateInput["role"]): BuildEstimateInput =>
       id: "i1", sectionId: "s1", order: 1, name: "Штукатурка стен по маякам", unit: "м²",
       qty: parseQuantity("406,91"), qtyAccepted: parseQuantity("0"),
       unitPrice: parseRubles("900"), unitWage: parseRubles("350"),
+      room: { id: "r1", name: "Спальня", set: "INITIAL" },
     },
     {
       id: "i2", sectionId: "s1", order: 2, name: "Полусухая стяжка", unit: "м²",
       qty: parseQuantity("120,2"), qtyAccepted: parseQuantity("0"),
       unitPrice: parseRubles("1000"), unitWage: parseRubles("700"),
+      room: { id: "r2", name: "Кухня", set: "INITIAL" },
     },
     {
       id: "i3", sectionId: "s3", order: 3, name: "Сквозное отверстие Ф52 мм", unit: "шт",
       qty: parseQuantity("3"), qtyAccepted: parseQuantity("0"),
       unitPrice: parseRubles("3100"), unitWage: parseRubles("500"),
+      /* Помещение не выбрано: так приходит всё, что импортировано из файла. */
+      room: null,
     },
   ],
 });

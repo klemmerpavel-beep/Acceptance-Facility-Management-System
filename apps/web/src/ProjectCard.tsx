@@ -750,6 +750,8 @@ export function ProjectCard({
         <EstimateItemSheet
           item={editing}
           units={units}
+          rooms={estimate?.rooms ?? []}
+          replanned={estimate?.replanned ?? false}
           measure={measure}
           busy={editBusy}
           error={editError}

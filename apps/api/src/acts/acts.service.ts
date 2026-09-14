@@ -213,6 +213,8 @@ export class ActsService {
         unitPrice: kopecks(свод.unitPrice),
         unitWage: kopecks(свод.unitWage),
         qtyInAct: milliunits(свод.qty),
+        /* Помещение бланк акта не печатает — как и раздел выше. */
+        room: null,
       };
       if (audience === "internal") {
         const строка = projectActLine(запись, "internal");
