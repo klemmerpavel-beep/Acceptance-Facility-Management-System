@@ -4,7 +4,7 @@ import type {
 } from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
-  estimateItemFault, estimateItemWarning, measureSourcesFor,
+  estimateItemFault, estimateItemMoveFault, estimateItemWarning, measureSourcesFor,
   MEASURE_LABEL, kopecks, milliunits, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
@@ -54,6 +54,8 @@ export function EstimateItemSheet({
   units,
   rooms,
   replanned,
+  sections,
+  sectionId,
   measure,
   busy,
   error,
@@ -66,10 +68,22 @@ export function EstimateItemSheet({
   rooms: readonly EstimateItemRoom[];
   /** Есть ли у объекта набор после перепланировки. */
   replanned: boolean;
+  /**
+   * Разделы действующей редакции — плоским списком с отступом по уровню.
+   *
+   * Перенос между разделами живёт здесь, а не только в перетаскивании:
+   * разделов двадцать два, тащить строку сквозь свёрнутые заголовки —
+   * движение, которое не заканчивается, а у человека без указателя его нет
+   * вовсе.
+   */
+  sections: readonly { id: string; name: string; level: number }[];
+  /** Раздел, в котором позиция стоит сейчас. */
+  sectionId: string;
   measure: MeasureView | null;
   busy: boolean;
   error: string | null;
-  onSave: (input: UpdateEstimateItem) => void;
+  /** `раздел` пуст, когда его не меняли: «не трогал» — не «перенеси сюда». */
+  onSave: (input: UpdateEstimateItem, раздел: string | null) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
@@ -79,6 +93,7 @@ export function EstimateItemSheet({
   const [price, setPrice] = useState(вПоле(BigInt(item.unitPrice), 2));
   const [wage, setWage] = useState(вПоле(BigInt(item.unitWage ?? "0"), 2));
   const [roomId, setRoomId] = useState(item.room?.id ?? "");
+  const [разделПозиции, setРазделПозиции] = useState(sectionId);
 
   const тысячные = количествоВТысячные(qty);
   const цена = рублиВКопейки(price);
@@ -95,8 +110,17 @@ export function EstimateItemSheet({
       }
     : null;
   const fault = правка === null ? null : estimateItemFault(правка);
+  /* Отказ показывается до обращения к сети тем же правилом, что применит
+     сервер: два независимых свода разошлись бы на третьей правке. */
+  const отказПереноса = estimateItemMoveFault({
+    accepted: milliunits(item.qtyAccepted),
+    name: item.name,
+    unit: item.unit,
+    changesSection: разделПозиции !== sectionId,
+    section: sections.find((раздел) => раздел.id === sectionId)?.name ?? "прежнем",
+  });
   const warning = правка === null ? null : estimateItemWarning(правка);
-  const ready = разобрано && fault === null && name.trim() !== "";
+  const ready = разобрано && fault === null && отказПереноса === null && name.trim() !== "";
 
   /* Величины обмера подставляются только те, что подходят единице позиции:
      «м.п.» годится и плинтусу, и карнизу, а какая из двух длин нужна —
@@ -140,7 +164,7 @@ export function EstimateItemSheet({
       unitPrice: цена.toString(),
       unitWage: ставка.toString(),
       roomId: roomId === "" ? null : roomId,
-    });
+    }, разделПозиции === sectionId ? null : разделПозиции);
   };
 
   return (
@@ -185,6 +209,27 @@ export function EstimateItemSheet({
               </span>
             </label>
           </div>
+
+          <label className="field">
+            <span className="field__label">Раздел</span>
+            <span className="selectwrap">
+              <select
+                className="input"
+                value={разделПозиции}
+                aria-invalid={отказПереноса !== null}
+                onChange={(event) => { setРазделПозиции(event.target.value); }}
+              >
+                {sections.map((раздел) => (
+                  <option key={раздел.id} value={раздел.id}>
+                    {раздел.level > 1 ? "— " : ""}{раздел.name}
+                  </option>
+                ))}
+              </select>
+            </span>
+            {отказПереноса !== null && (
+              <span className="field__error" role="alert">{отказПереноса}</span>
+            )}
+          </label>
 
           <label className="field">
             <span className="field__label">Помещение</span>

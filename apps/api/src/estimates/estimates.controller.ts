@@ -5,7 +5,10 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type {
   DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
 } from "@priyomka/contracts";
-import { unitOverridesSchema, updateEstimateItemSchema, updateSupervisionSchema } from "@priyomka/contracts";
+import {
+  moveEstimateItemSchema, unitOverridesSchema,
+  updateEstimateItemSchema, updateSupervisionSchema,
+} from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
 import { normalizeSpelling } from "@priyomka/importer";
 import { EstimatesService } from "./estimates.service";
@@ -103,6 +106,26 @@ export class EstimatesController {
    * раздела, итог по работам, надбавку и итог для клиента. Частичный ответ
    * заставил бы экран пересчитывать подвал вторым сводом правил.
    */
+  /**
+   * Перенос позиции: другой раздел, другое помещение, другое место в ряду.
+   *
+   * Объявлен ДО `items/:id` намеренно. Nest разбирает маршруты в порядке
+   * объявления, и `items/:id` поймал бы `items/<опознаватель>/place`,
+   * приняв «place» за... ничего — и вернул бы 404 «позиция не найдена».
+   * Сообщение правдоподобное и уводящее в сторону; тот же класс ошибки уже
+   * ловили у графика.
+   */
+  @Patch("items/:id/place")
+  @Roles("OWNER")
+  moveItem(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.moveItem(user, code, id, moveEstimateItemSchema.parse(body));
+  }
+
   @Patch("items/:id")
   @Roles("OWNER")
   updateItem(

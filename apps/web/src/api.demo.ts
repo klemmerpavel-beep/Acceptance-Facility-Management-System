@@ -24,14 +24,14 @@ import type {
   AccountingView, MoneyState, TrancheStatus,
   PhotoReport, ReportBatch,
   CloseTranche, CreateTranche, TrancheView,
-  UpdateEstimateItem, UpdateSupervision,
+  EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
   awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
-  estimateItemFault, expenseTotals, kopecks, measureTotals,
+  estimateItemFault, estimateItemMoveFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
@@ -1531,6 +1531,57 @@ export async function updateEstimateItem(
     позиция.unitWage = unitWage.toString();
     позиция.wageTotal = accrualAmount(unitWage, qty).toString();
     позиция.profit = (kopecks(позиция.total) - kopecks(позиция.wageTotal)).toString();
+  }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+/**
+ * Перенос позиции в двойнике.
+ *
+ * Двойник держит те же правила, что сервер: отказ на переносе принятой
+ * позиции здесь тот же, что в домене. Иначе демонстрация показывала бы
+ * продукт послушнее настоящего — а показывать надо его, а не макет.
+ */
+export async function moveEstimateItem(
+  _code: string, id: string, input: MoveEstimateItem,
+): Promise<EstimateView> {
+  await pause(200);
+  const вид = сметаR99();
+  const разделы: EstimateSectionNode[] = [];
+  const собрать = (узлы: EstimateSectionNode[]): void => {
+    for (const узел of узлы) { разделы.push(узел); собрать(узел.children); }
+  };
+  собрать(вид.sections);
+
+  const исходный = разделы.find((узел) => узел.items.some((строка) => строка.id === id));
+  const позиция = исходный?.items.find((строка) => строка.id === id);
+  if (исходный === undefined || позиция === undefined) {
+    throw new Error("Позиция не найдена в действующей редакции сметы этого объекта.");
+  }
+  const целевой = разделы.find((узел) => узел.id === input.sectionId);
+  if (целевой === undefined) {
+    throw new Error("Такого раздела нет в действующей редакции сметы этого объекта.");
+  }
+
+  const отказ = estimateItemMoveFault({
+    accepted: milliunits(позиция.qtyAccepted),
+    name: позиция.name,
+    unit: позиция.unit,
+    changesSection: целевой.id !== исходный.id,
+    section: исходный.name,
+  });
+  if (отказ !== null) throw new Error(отказ);
+
+  исходный.items = исходный.items.filter((строка) => строка.id !== id);
+  const место = input.after === null
+    ? 0
+    : целевой.items.findIndex((строка) => строка.id === input.after) + 1;
+  целевой.items.splice(место, 0, позиция);
+  if (input.roomId !== undefined) {
+    позиция.room = input.roomId === null
+      ? null
+      : вид.rooms.find((комната) => комната.id === input.roomId) ?? позиция.room;
   }
   пересчитатьСмету(вид);
   return вид;

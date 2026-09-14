@@ -112,13 +112,27 @@ export function buildEstimateView(input: BuildEstimateInput): EstimateView {
   }
   for (const list of children.values()) list.sort((a, b) => a.order - b.order);
 
+  /**
+   * Сквозной номер строки документа.
+   *
+   * В хранении `order` — место позиции ВНУТРИ своего раздела: перенос
+   * трогает два раздела, а не всю смету. Номер же, который человек читает
+   * в колонке «№», сквозной по документу и потому считается здесь, обходом
+   * дерева в порядке показа. Храни его — и каждая перестановка
+   * перенумеровывала бы все сто тридцать две строки.
+   */
+  let номер = 0;
+
   const build = (section: SectionRecord, level: number): SectionNode => {
     const own = (bySection.get(section.id) ?? []).sort((a, b) => a.order - b.order);
-    const nested = (children.get(section.id) ?? []).map((child) => build(child, level + 1));
 
-    const projected = own.map((item) =>
-      internal ? projectEstimateItem(item, "OWNER") : projectEstimateItem(item, role),
-    );
+    /* Позиции раздела нумеруются до вложенных разделов: так они и
+       показываются, и номер обязан совпадать с порядком чтения. */
+    const projected = own.map((item) => ({
+      ...(internal ? projectEstimateItem(item, "OWNER") : projectEstimateItem(item, role)),
+      order: (номер += 1),
+    }));
+    const nested = (children.get(section.id) ?? []).map((child) => build(child, level + 1));
     const subtotal = sum([
       ...own.map((item) => multiplyByQuantity(item.unitPrice, item.qty)),
       ...nested.map((child) => child.subtotal),
@@ -227,6 +241,42 @@ export function estimateItemFault(edit: EstimateItemEdit): string | null {
   if (edit.unitWage < 0n) return "Ставка оплаты труда не может быть отрицательной.";
 
   return null;
+}
+
+/** Что переносят: позицию, её принятое и то, меняется ли раздел. */
+export interface EstimateItemMove {
+  /** Принято по позиции с учётом сторно. */
+  readonly accepted: Milliunits;
+  readonly name: string;
+  readonly unit: string;
+  /** Меняется ли раздел позиции. Перестановка внутри своего — не смена. */
+  readonly changesSection: boolean;
+  /** Имя раздела, в котором позиция стоит сейчас. */
+  readonly section: string;
+}
+
+/**
+ * Причина отказа при переносе позиции или null.
+ *
+ * Принятая позиция не меняет раздела. Довод структурный, а не вкусовой:
+ * пакет приёмки хранит раздел снимком, а получатель начисления выведен из
+ * пары «раздел → этап → бригада». Перенос развёл бы пакет и позицию по
+ * разным разделам, и отчёт по разделу перестал бы сходиться, а фотография
+ * помещения осталась бы свидетельством о работах, которых в этом разделе
+ * больше нет.
+ *
+ * Перестановка внутри своего раздела принятой позиции разрешена: порядок в
+ * приёмке не участвует вовсе.
+ *
+ * Сторно возвращает принятое к нулю, и позиция снова становится переносимой.
+ * Пакет при этом сохраняет свой раздел — он свидетельство о том, что было.
+ */
+export function estimateItemMoveFault(move: EstimateItemMove): string | null {
+  if (!move.changesSection) return null;
+  if (move.accepted <= 0n) return null;
+  return `По позиции «${move.name}» принято ${количествоТекстом(move.accepted, move.unit)}. `
+    + "Перенос сменил бы раздел, по которому начислена оплата и выписан акт. "
+    + `Сторнируйте приёмку или оставьте позицию в разделе «${move.section}».`;
 }
 
 /**

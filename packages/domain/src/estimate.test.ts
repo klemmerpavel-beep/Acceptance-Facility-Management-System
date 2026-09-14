@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, parseQuantity, parseRubles } from "./money.js";
 import {
-  buildEstimateView, estimateItemFault, estimateItemWarning, groupByStageRoom,
+  buildEstimateView, estimateItemFault, estimateItemMoveFault, estimateItemWarning,
+  groupByStageRoom,
   measureSourcesFor, sectionWeights, БЕЗ_ПОМЕЩЕНИЯ, ВНЕ_ГРАФИКА,
   MEASURE_LABEL, MEASURE_SOURCES,
   type BuildEstimateInput, type GroupNode, type SectionNode,
@@ -38,7 +39,9 @@ const входные = (role: BuildEstimateInput["role"]): BuildEstimateInput =>
       room: { id: "r2", name: "Кухня", set: "INITIAL" },
     },
     {
-      id: "i3", sectionId: "s3", order: 3, name: "Сквозное отверстие Ф52 мм", unit: "шт",
+      /* Порядок — место ВНУТРИ раздела: у первой позиции вложенного
+         раздела он снова первый. Сквозной номер считает сборка вида. */
+      id: "i3", sectionId: "s3", order: 1, name: "Сквозное отверстие Ф52 мм", unit: "шт",
       qty: parseQuantity("3"), qtyAccepted: parseQuantity("0"),
       unitPrice: parseRubles("3100"), unitWage: parseRubles("500"),
       /* Помещение не выбрано: так приходит всё, что импортировано из файла. */
@@ -269,6 +272,32 @@ describe("разделы, которые может вести этап (5.2)", 
   });
 });
 
+describe("номер строки документа", () => {
+  /* В хранении `order` — место позиции внутри своего раздела; номер в
+     колонке «№» сквозной по документу и считается при сборке вида. Возьми
+     номер из хранения — и после первой же перестановки в смете окажется два
+     номера 47 и ни одного 61. */
+  const вид = buildEstimateView(входные("OWNER"));
+  const позиции = (узлы: readonly SectionNode[]): { order: number }[] =>
+    узлы.flatMap((узел) => [...узел.items, ...позиции(узел.children)]);
+
+  it("номера идут подряд от единицы, без пропусков и повторов", () => {
+    const номера = позиции(вид.sections).map((позиция) => позиция.order);
+    expect(номера).toEqual(Array.from({ length: вид.positions }, (_, i) => i + 1));
+  });
+
+  it("позиции раздела нумеруются раньше вложенных разделов", () => {
+    /* Так они и показываются. Разойдясь, номер перестал бы быть номером
+       строки: человек читает документ сверху вниз. */
+    const кондиционирование = вид.sections.find((узел) => узел.children.length > 0);
+    const свои = кондиционирование?.items.map((позиция) => позиция.order) ?? [];
+    const вложенные = позиции(кондиционирование?.children ?? []).map((п) => п.order);
+    if (свои.length > 0 && вложенные.length > 0) {
+      expect(Math.max(...свои)).toBeLessThan(Math.min(...вложенные));
+    }
+  });
+});
+
 describe("группировка «Этап → Помещение → Категория»", () => {
   const вид = buildEstimateView(входные("OWNER"));
   /* Деньги домен держит целыми копейками; через HTTP они пойдут строкой.
@@ -340,5 +369,37 @@ describe("группировка «Этап → Помещение → Кате�
     }));
     expect(обойти(клиенту).every((узел) => узел.subtotalWage === undefined)).toBe(true);
     expect(findInternalFields(клиенту)).toEqual([]);
+  });
+});
+
+describe("перенос позиции", () => {
+  const основа = {
+    name: "Штукатурка стен по маякам",
+    unit: "м²",
+    section: "МАЛЯРНЫЕ РАБОТЫ",
+  };
+
+  it("непринятая позиция переносится", () => {
+    expect(estimateItemMoveFault({
+      ...основа, accepted: parseQuantity("0"), changesSection: true,
+    })).toBeNull();
+  });
+
+  it("принятая позиция не меняет раздела, и отказ называет принятое", () => {
+    const отказ = estimateItemMoveFault({
+      ...основа, accepted: parseQuantity("37,6"), changesSection: true,
+    });
+    /* Пробел между числом и единицей неразрывный: сверка по обычному
+       молчала бы на верном тексте. */
+    expect(отказ).toContain("37,60\u00A0м²");
+    expect(отказ).toContain("МАЛЯРНЫЕ РАБОТЫ");
+  });
+
+  it("принятая позиция переставляется внутри своего раздела", () => {
+    /* Порядок в приёмке не участвует вовсе: запрет здесь был бы запретом
+       ради симметрии, а не ради целости данных. */
+    expect(estimateItemMoveFault({
+      ...основа, accepted: parseQuantity("37,6"), changesSection: false,
+    })).toBeNull();
   });
 });

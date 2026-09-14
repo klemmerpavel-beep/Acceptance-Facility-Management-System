@@ -21,7 +21,8 @@ import {
   type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
   type ProjectEvent,
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
-  type UpdateEstimateItem, type UpdateSupervision, type UpdateProject, type Foreman,
+  type MoveEstimateItem, type UpdateEstimateItem, type UpdateSupervision,
+  type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
   type LeadBoard, type LeadCard, type LoseLead, type PhotoReport, type RepairType,
@@ -469,6 +470,24 @@ export const updateEstimateItem = (
   input: UpdateEstimateItem,
 ): Promise<EstimateView> =>
   request(`/projects/${code}/estimate/items/${id}`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+/**
+ * Перенос позиции: другой раздел, другое помещение, другое место в ряду.
+ *
+ * Отдельный вызов, а не поле правки: перенос отвергается по другому правилу
+ * (принятая позиция раздела не меняет), и слить их значило бы объяснять
+ * отказ о приёмке в форме, где правят цену.
+ */
+export const moveEstimateItem = (
+  code: string,
+  id: string,
+  input: MoveEstimateItem,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items/${id}/place`, estimateViewSchema, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),

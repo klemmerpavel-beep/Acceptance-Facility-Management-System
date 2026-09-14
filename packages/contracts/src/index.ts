@@ -819,6 +819,26 @@ export const updateEstimateItemSchema = z.object({
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
 /**
+ * Перенос позиции: куда и за кем встать.
+ *
+ * Один вид выражает и перенос между разделами, и перестановку внутри своего:
+ * это одно действие с разными исходами, и два маршрута для него разошлись бы
+ * правилами.
+ *
+ * `after` — позиция, за которой встать; `null` означает «первой». Полного
+ * списка позиций раздела здесь нет намеренно: у сметы сто тридцать две
+ * позиции против семнадцати этапов графика, и пересылка списка на каждый жест
+ * означала бы гонку двух окон на строках, которых никто не трогал.
+ */
+export const moveEstimateItemSchema = z.object({
+  sectionId: z.string().uuid(),
+  /** `null` снимает помещение, отсутствие поля его не трогает. */
+  roomId: z.string().uuid().nullable().optional(),
+  after: z.string().uuid().nullable(),
+});
+export type MoveEstimateItem = z.infer<typeof moveEstimateItemSchema>;
+
+/**
  * Надбавка «сопровождение объекта» — сотые доли процента: 1200 = 12,00 %.
  *
  * Правится у сметы, а не у объекта: смета есть источник цен, по которым

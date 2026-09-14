@@ -53,8 +53,19 @@ export function EstimateTable({
   estimate,
   onEditItem,
   onEditSupervision,
+  onMoveItem,
+  busy = false,
 }: {
   estimate: EstimateView;
+  /**
+   * Перестановка позиции внутри своего раздела на `шагов` мест.
+   *
+   * Перенос в другой раздел идёт полем в листе правки, а не перетаскиванием
+   * через всю таблицу: разделов двадцать два, и тащить строку сквозь
+   * свёрнутые заголовки — движение, которое не заканчивается.
+   */
+  onMoveItem?: (item: EstimateItem, шагов: number) => void;
+  busy?: boolean;
   /* Правит руководитель. Обработчиков нет — колонки правки нет: у прораба
      во внутренней проекции и так ничего нет, и гасить кнопку было бы
      обещанием действия, которого ему не дадут. */
@@ -113,6 +124,10 @@ export function EstimateTable({
      три уровня заголовков на 132 позициях выносят таблицу далеко за порог
      отрисовки, а свёрнутый вид — это ведомость по этапам, а не «ничего». */
   const [свёрнутыеУзлы, setСвёрнутыеУзлы] = useState<ReadonlySet<string>>(всеУзлы);
+  /* Жест перестановки: запросов во время движения нет ни одного — иначе
+     каждый пиксель давал бы обращение, а отказ приходил бы посреди жеста.
+     Тот же приём, что у отрезка графика. */
+  const [взятая, setВзятая] = useState<{ id: string; fromY: number; height: number } | null>(null);
 
   const toggle = (id: string): void =>
     setCollapsed((current) => {
@@ -133,9 +148,45 @@ export function EstimateTable({
    */
   const строкаПозиции = (item: EstimateItem, level: number): React.JSX.Element => {
     const отстало = estimate.replanned && item.room !== null && item.room.set === "INITIAL";
+    /* Принятая позиция раздела не меняет, но внутри своего переставляется:
+       порядок в приёмке не участвует вовсе. Ручка у неё есть. */
+    const переносим = onMoveItem !== undefined;
     return (
       <tr key={item.id}>
-        <td className="estimate__num">{item.order}</td>
+        <td className="estimate__num estimate__place">
+          {переносим && (
+            <button
+              type="button"
+              className="estimate__move"
+              aria-label={`Переместить позицию «${item.name}»`}
+              aria-pressed={взятая !== null && взятая.id === item.id}
+              disabled={busy}
+              onPointerDown={(event) => {
+                if (busy) return;
+                const высота = event.currentTarget.closest("tr")?.getBoundingClientRect().height ?? 0;
+                if (высота === 0) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setВзятая({ id: item.id, fromY: event.clientY, height: высота });
+              }}
+              onPointerUp={(event) => {
+                if (взятая?.id !== item.id) return;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+                /* Округление, симметричное нулю: полшага в любую сторону
+                   не двигает строку самовольно. */
+                const шагов = Math.round((event.clientY - взятая.fromY) / взятая.height);
+                setВзятая(null);
+                if (шагов !== 0) onMoveItem(item, шагов);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowUp") { event.preventDefault(); onMoveItem(item, -1); }
+                if (event.key === "ArrowDown") { event.preventDefault(); onMoveItem(item, 1); }
+              }}
+            >
+              <svg className="icon icon--sm" aria-hidden="true"><use href="#i-move" /></svg>
+            </button>
+          )}
+          {item.order}
+        </td>
         <td>
           <span className="estimate__row-name" style={{ ["--level" as string]: level }}>
             {item.name}

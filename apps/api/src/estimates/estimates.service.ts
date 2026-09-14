@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { Prisma } from "@prisma/client";
 import type {
   DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
-  UpdateEstimateItem, UpdateSupervision,
+  MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
@@ -10,7 +10,8 @@ import {
 } from "@priyomka/importer";
 import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
-  formatKopecks, formatPercent, kopecks, количествоТекстом, milliunits,
+  estimateItemMoveFault, formatKopecks, formatPercent, kopecks, количествоТекстом,
+  milliunits,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -262,7 +263,10 @@ export class EstimatesService {
         });
       }
 
-      let itemOrder = 0;
+      /* Порядок ведётся внутри раздела, а не сквозным счётчиком: перенос
+         позиции трогает два раздела, а не всю смету. Номер строки документа
+         считается при сборке вида и в хранении не нужен. */
+      const itemOrder = new Map<string, number>();
       /* Помещения, которые перенести не удалось: позиция сменила имя или
          раздел. Их число уходит в отчёт — импорт обязан называть то, что
          уносит, а не терять молча. */
@@ -279,7 +283,8 @@ export class EstimatesService {
             ...(roomId === undefined ? {} : { roomId }),
             unitId: unitId(units, item.unit.unit),
             name: item.name,
-            order: (itemOrder += 1),
+            order: (itemOrder.set(sectionId, (itemOrder.get(sectionId) ?? 0) + 1),
+              itemOrder.get(sectionId) ?? 1),
             qty: item.qty ?? 0n,
             unitPrice: item.unitPrice ?? 0n,
             unitWage: item.unitWage ?? 0n,
@@ -642,6 +647,150 @@ export class EstimatesService {
           entityId: project.id,
           field: `${before.name} — помещение`,
           oldValue: before.room?.name ?? "не выбрано",
+          newValue: помещение?.name ?? "не выбрано",
+        });
+      }
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Перенос позиции: другой раздел, другое помещение, другое место в ряду.
+   *
+   * Одно действие с разными исходами, а не три. Перенумеровываются только
+   * затронутые разделы — исходный и целевой, — а сквозной номер строки
+   * документа считается при сборке вида.
+   *
+   * Дробных значений «между соседями» не заводится: дробь упирается в
+   * точность и порождает правило о перенормировке, которого никто не ждёт.
+   */
+  async moveItem(
+    user: RequestUser,
+    code: string,
+    itemId: string,
+    input: MoveEstimateItem,
+  ): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+
+    const before = await this.prisma.estimateItem.findFirst({
+      where: { id: itemId, estimateId: estimate.id },
+      select: {
+        id: true, name: true, sectionId: true, roomId: true,
+        unit: { select: { code: true } },
+        section: { select: { name: true } },
+        acceptances: { select: { qty: true } },
+      },
+    });
+    if (!before) {
+      throw new NotFoundException({
+        message: "Позиция не найдена в действующей редакции сметы этого объекта.",
+      });
+    }
+
+    /* Раздел ищется в границах той же редакции: раздел чужой сметы — не
+       «не найден», а попытка переложить работы в чужой объект. */
+    const целевой = await this.prisma.estimateSection.findFirst({
+      where: { id: input.sectionId, estimateId: estimate.id },
+      select: { id: true, name: true },
+    });
+    if (!целевой) {
+      throw new BadRequestException({
+        message: "Такого раздела нет в действующей редакции сметы этого объекта.",
+      });
+    }
+
+    const отказ = estimateItemMoveFault({
+      accepted: acceptedQty(before.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
+      name: before.name,
+      unit: before.unit.code,
+      changesSection: целевой.id !== before.sectionId,
+      section: before.section.name,
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    let помещение: { id: string; name: string } | null = null;
+    if (input.roomId !== undefined && input.roomId !== null) {
+      const найдено = await this.prisma.measureRoom.findFirst({
+        where: { id: input.roomId, projectId: project.id },
+        select: { id: true, name: true },
+      });
+      if (найдено === null) {
+        throw new BadRequestException({
+          message: "Такого помещения нет в обмере этого объекта.",
+        });
+      }
+      помещение = найдено;
+    }
+
+    const прежнийРаздел = before.sectionId;
+
+    await this.prisma.$transaction(async (tx) => {
+      /* Порядок собирается списком и переписывается плотно: так он остаётся
+         1..n без дыр и повторов при любом исходе жеста. */
+      const целевые = await tx.estimateItem.findMany({
+        where: { sectionId: целевой.id, estimateId: estimate.id },
+        orderBy: { order: "asc" },
+        select: { id: true },
+      });
+      const ряд = целевые.map((строка) => строка.id).filter((id) => id !== before.id);
+      const место = input.after === null ? 0 : ряд.indexOf(input.after) + 1;
+      if (input.after !== null && место === 0) {
+        throw new BadRequestException({
+          message: "Позиция, за которой предложено встать, не найдена в целевом разделе.",
+        });
+      }
+      ряд.splice(место, 0, before.id);
+
+      await tx.estimateItem.update({
+        where: { id: before.id },
+        data: {
+          sectionId: целевой.id,
+          ...(input.roomId === undefined ? {} : { roomId: input.roomId }),
+        },
+      });
+      for (const [индекс, id] of ряд.entries()) {
+        await tx.estimateItem.update({ where: { id }, data: { order: индекс + 1 } });
+      }
+
+      /* Исходный раздел тоже перенумеровывается: после ухода позиции в нём
+         остаётся дыра, и следующая вставка встала бы не туда. */
+      if (прежнийРаздел !== целевой.id) {
+        const оставшиеся = await tx.estimateItem.findMany({
+          where: { sectionId: прежнийРаздел, estimateId: estimate.id },
+          orderBy: { order: "asc" },
+          select: { id: true },
+        });
+        for (const [индекс, строка] of оставшиеся.entries()) {
+          await tx.estimateItem.update({
+            where: { id: строка.id },
+            data: { order: индекс + 1 },
+          });
+        }
+      }
+
+      /* Каждое изменение — своя запись журнала: спор звучит как «кто унёс
+         позицию из раздела», а не «кто правил смету». */
+      if (прежнийРаздел !== целевой.id) {
+        await this.audit.record({
+          orgId: project.orgId,
+          actorId: user.id,
+          entity: "EstimateItem",
+          entityId: project.id,
+          field: `${before.name} — раздел`,
+          oldValue: before.section.name,
+          newValue: целевой.name,
+        });
+      }
+      if (input.roomId !== undefined && input.roomId !== before.roomId) {
+        await this.audit.record({
+          orgId: project.orgId,
+          actorId: user.id,
+          entity: "EstimateItem",
+          entityId: project.id,
+          field: `${before.name} — помещение`,
+          oldValue: before.roomId === null ? "не выбрано" : "прежнее",
           newValue: помещение?.name ?? "не выбрано",
         });
       }

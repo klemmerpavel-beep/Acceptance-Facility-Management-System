@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
-  CurrentUser, EstimateItem, EstimateView, ImportRecord, MeasureView,
+  CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
-  fetchEstimate, fetchEvents, fetchImports, fetchMeasure,
+  fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen,
 } from "./api.js";
@@ -31,6 +31,59 @@ import { КРУПНАЯ_ОБЛОЖКА } from "./coverTone.js";
 import { due, type DueLevel } from "./due.js";
 
 const money = (value: string): string => formatKopecks(BigInt(value));
+
+/** Разделы сметы плоским списком: дерево с уровнем, а не с отступом строкой. */
+function разделыСписком(
+  узлы: readonly EstimateSectionNode[],
+): { id: string; name: string; level: number }[] {
+  return узлы.flatMap((узел) => [
+    { id: узел.id, name: узел.name, level: узел.level },
+    ...разделыСписком(узел.children),
+  ]);
+}
+
+/** Раздел, в котором стоит позиция. */
+function разделПозиции(
+  узлы: readonly EstimateSectionNode[],
+  itemId: string,
+): EstimateSectionNode | null {
+  for (const узел of узлы) {
+    if (узел.items.some((строка) => строка.id === itemId)) return узел;
+    const глубже = разделПозиции(узел.children, itemId);
+    if (глубже !== null) return глубже;
+  }
+  return null;
+}
+
+/**
+ * Перестановка позиции внутри своего раздела на `шагов` мест.
+ *
+ * Соседа, за которым встать, считает экран: сервер принимает «встань за
+ * этой позицией», а не «сдвинься на два». Шаги — язык жеста, соседство —
+ * язык данных, и перевод одного в другое живёт там, где виден порядок.
+ */
+function переставить(
+  estimate: EstimateView,
+  code: string,
+  item: EstimateItem,
+  шагов: number,
+  сохранить: (работа: Promise<EstimateView>) => void,
+  назватьОшибку: (текст: string | null) => void,
+): void {
+  const раздел = разделПозиции(estimate.sections, item.id);
+  if (раздел === null) {
+    назватьОшибку("Позиция не найдена в действующей редакции сметы.");
+    return;
+  }
+  const было = раздел.items.findIndex((строка) => строка.id === item.id);
+  const без = раздел.items.filter((строка) => строка.id !== item.id);
+  const стало = Math.max(0, Math.min(без.length, было + шагов));
+  /* Упор в край — не ошибка и не действие: строка уже первая или уже
+     последняя, и запрос, ничего не меняющий, был бы шумом в журнале. */
+  if (стало === было) return;
+  const after = стало === 0 ? null : (без[стало - 1]?.id ?? null);
+  сохранить(moveEstimateItem(code, item.id, { sectionId: раздел.id, after }));
+}
 
 /**
  * Шкала объекта: принятое и заявленное на одной линейке.
@@ -694,6 +747,10 @@ export function ProjectCard({
                             setSupervisionOpen(true);
                             setEditError(null);
                           },
+                          onMoveItem: (item: EstimateItem, шагов: number) => {
+                            переставить(estimate, project.code, item, шагов, сохранить, setEditError);
+                          },
+                          busy: editBusy,
                         }
                       : {})}
                   />
@@ -752,10 +809,25 @@ export function ProjectCard({
           units={units}
           rooms={estimate?.rooms ?? []}
           replanned={estimate?.replanned ?? false}
+          sections={estimate === null ? [] : разделыСписком(estimate.sections)}
+          sectionId={
+            estimate === null
+              ? ""
+              : разделПозиции(estimate.sections, editing.id)?.id ?? ""
+          }
           measure={measure}
           busy={editBusy}
           error={editError}
-          onSave={(input) => { сохранить(updateEstimateItem(project.code, editing.id, input)); }}
+          onSave={(input, раздел) => {
+            /* Перенос идёт первым: он отвергается по другому правилу, и
+               применить правку цены, а следом получить отказ о приёмке
+               значило бы оставить позицию наполовину изменённой. */
+            const работа = раздел === null
+              ? updateEstimateItem(project.code, editing.id, input)
+              : moveEstimateItem(project.code, editing.id, { sectionId: раздел, after: null })
+                .then(() => updateEstimateItem(project.code, editing.id, input));
+            сохранить(работа);
+          }}
           onClose={() => { setEditing(null); setEditError(null); }}
         />
       )}
