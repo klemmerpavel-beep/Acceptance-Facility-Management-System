@@ -391,7 +391,7 @@
       <p class="t-sm t-muted">раздел 16: ведомость величин, тумблер, инвертированная поверхность</p>
     </div>
 
-    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема. В тёмной теме плашка не переворачивается обратно в светлую, а сходится с общей палитрой и отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки: числа на такой заливке дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7.</p>
+    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема: плашка не переворачивается обратно в светлую, а отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки. Тёмная палитра снята решением заказчика 11.09.2026 вместе с переключателем тем: продукт ведётся одной светлой темой, и второй набор значений здесь больше не называется.</p>
 
     <div class="stack stack--tight">
       <p class="field__label--cap">Общее</p>
@@ -662,7 +662,7 @@
       <span class="figure__label">Ключевая функция</span>
       <p class="t-h2">Пакетная приёмка позиций раздела с фотофиксацией, порождающая начисление сдельной оплаты</p>
       <p class="t-body t-secondary prose">Одно действие прораба: отметить выполненное, снять помещение, подтвердить. Тем же действием начисляется оплата бригаде по ставке позиции, уменьшается остаток транша, позиция становится доступной для акта.</p>
-      <p class="t-sm t-muted">Проверяемые пороги: три касания на пакет · не более 30 секунд на позицию · не менее 80 % выполненного отмечено</p>
+      <p class="t-sm t-muted">Проверяемые пороги: три касания на пакет · не менее 80 % выполненного отмечено. Порог «не более 30 секунд на позицию» снят решением заказчика 14.09.2026: он замерялся секундомером в полевом сценарии на телефоне, а продукт ведётся как веб для ПК</p>
     </div>
 
     <div class="table-scroll">
@@ -725,22 +725,23 @@
 
     <div class="table-scroll">
       <table class="estimate">
-        <thead><tr><th>Токен</th><th>Светлая</th><th>Тёмная</th><th>Где применяется</th></tr></thead>
+        <thead><tr><th>Токен</th><th>Значение</th><th>Где применяется</th></tr></thead>
         <tbody>
-          <tr><td>--accent</td><td><span class="swatch" style="--swatch:#17457A">#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
-          <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#E4EBF4">#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
-          <tr><td>--on-accent-fill</td><td><span class="swatch" style="--swatch:#17457A">белая, 16 %</span></td><td>тёмная, 14 %</td><td>Накладки поверх акцентной заливки: бейдж на обложке, дорожка кольца</td></tr>
-          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
-          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
-          <tr><td>--danger</td><td><span class="swatch" style="--swatch:#B3261E">#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
-          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
-          <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
-          <tr><td>--row-h</td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
-          <tr><td>--control-h / --control-h-touch</td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
-          <tr><td>--tap-min</td><td class="estimate__num" colspan="2">44 px</td><td>Минимальная область нажатия на мобильном</td></tr>
-          <tr><td>--indent-level</td><td class="estimate__num" colspan="2">16 px</td><td>Отступ вложенности раздела; в файле заказчика два уровня</td></tr>
-          <tr><td>--summary-col</td><td class="estimate__num" colspan="2">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
-          <tr><td>--measure</td><td class="estimate__num" colspan="2">76ch</td><td>Предельная длина строки читаемого текста</td></tr>
+          <tr><td>--accent</td><td><span class="swatch" style="--swatch:#4A3AB8">#4A3AB8</span></td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
+          <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#F0EEFD">#F0EEFD</span></td><td>Бейдж кода объекта, заливка выбранного</td></tr>
+          <tr><td>--accent-fill</td><td><span class="swatch" style="--swatch:#675AC3">#675AC3</span></td><td>Бейдж кода на обложке: белый текст 5,49:1</td></tr>
+          <tr><td>--accent-track</td><td><span class="swatch" style="--swatch:#7569C9">#7569C9</span></td><td>Дорожка кольца на акценте: белый 4,55:1</td></tr>
+          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>Пилюля «Принято», отметка оплаты</td></tr>
+          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>Черновик расхода, частичная приёмка</td></tr>
+          <tr><td>--danger</td><td><span class="swatch" style="--swatch:#A5150D">#A5150D</span></td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
+          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
+          <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
+          <tr><td>--row-h</td><td class="estimate__num">40 px</td><td>Строка таблицы сметы</td></tr>
+          <tr><td>--control-h / --control-h-touch</td><td class="estimate__num">44 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
+          <tr><td>--tap-min</td><td class="estimate__num">44 / 48 px</td><td>Минимальная область нажатия: десктоп и мобильный</td></tr>
+          <tr><td>--indent-level</td><td class="estimate__num">16 px</td><td>Отступ вложенности раздела; в файле заказчика два уровня</td></tr>
+          <tr><td>--summary-col</td><td class="estimate__num">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
+          <tr><td>--measure</td><td class="estimate__num">76ch</td><td>Предельная длина строки читаемого текста</td></tr>
         </tbody>
       </table>
     </div>
