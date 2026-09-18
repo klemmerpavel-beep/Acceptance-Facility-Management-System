@@ -8,6 +8,7 @@ import {
   updateTemplate,
 } from "./api.js";
 import { Announce } from "./Announce.js";
+import { имяЛиста, печать } from "./print.js";
 import { завести } from "./verbs.js";
 
 /**
@@ -256,6 +257,23 @@ export function Documents({
               </select>
             </label>
           </section>
+        )}
+
+        {/* Орган печати стоит в экранной части, а не на бланке: на листе ему
+            не место, а экранная часть скрывается печатью одним классом. */}
+        {документ !== null && (
+          <div className="sheet-actions">
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={() => { печать(имяЛиста(документ.name, документ.project.code)); }}
+            >
+              Печать документа
+            </button>
+            <p className="t-sm t-muted sheet-actions__hint">
+              В диалоге печати выберите «Сохранить как PDF», чтобы получить файл.
+            </p>
+          </div>
         )}
       </div>
 
