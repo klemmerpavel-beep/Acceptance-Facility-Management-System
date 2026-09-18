@@ -246,6 +246,9 @@ export default tseslint.config(
         // Браузер: тело page.evaluate() исполняется на странице, а не в узле.
         document: "readonly", window: "readonly", getComputedStyle: "readonly",
         Node: "readonly", location: "readonly", sessionStorage: "readonly",
+        // `Event` нужен правилу печати: подменённая печать проверяется
+        // событием `afterprint`, которое страница шлёт себе сама.
+        Event: "readonly",
       },
     },
     rules: {

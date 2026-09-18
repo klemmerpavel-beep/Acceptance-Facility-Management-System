@@ -56,11 +56,13 @@
   --accent-hover:  #3B2E96;
   --accent-soft:   #F0EEFD;   /* заливка выбранного, бейджи */
   --accent-ink:    #FFFFFF;   /* текст на акценте */
-  /* Накладки поверх акцентной заливки: акцент тёмный, накладка светлая.
-     Токены, а не литералы rgba внутри компонента: правка акцента обязана
-     тянуть за собой и накладку. */
-  --on-accent-fill:  rgba(255, 255, 255, .16);   /* бейдж кода на обложке */
-  --on-accent-track: rgba(255, 255, 255, .24);   /* дорожка кольца на акценте */
+  /* Накладки поверх акцентной заливки. Плотные, а не полупрозрачные:
+     проверка контраста читает токены и видит только шестизначный hex —
+     полупрозрачный токен ей недоступен по построению, и пара с ним не может
+     быть проверена ни при каком списке. Значения — те же, что давала прежняя
+     полупрозрачность поверх акцента, посчитанные один раз и записанные. */
+  --accent-fill:     #675AC3;   /* бейдж кода на обложке; белый текст 5,49:1 */
+  --accent-track:    #7569C9;   /* дорожка кольца на акценте; белый 4,55:1 */
 
   /* --- инвертированная поверхность --------------------------------------
      Тёмная плашка внутри светлого экрана: карточка помещения обмерного
@@ -94,10 +96,99 @@
      полотне и держит 7:1. */
   --band:            #6C5CE7;
   --band-ink:        #FFFFFF;
-  --on-band-fill:    rgba(255, 255, 255, .16);   /* бейдж кода на обложке */
-  --on-band-track:   rgba(255, 255, 255, .24);   /* граница кнопки на полосе */
+  /* Накладки на полосе — затемнение, а не осветление, и это не вкус.
+     Белый на полосе даёт 4,86:1 — это потолок: осветлить полосу значит
+     отнять у белого текста контраст, которого и так впритык. Затемнение его
+     прибавляет. Прежние полупрозрачные накладки давали 3,64 и 3,16 — ниже
+     нормы, и проверка их не видела, потому что читает только плотный цвет. */
+  --band-fill:       #5F51CB;   /* блок работающего, колокол; белый 5,96:1 */
+  --band-track:      #564AB9;   /* раскрытое «Ещё», граница; белый 6,83:1 */
   --band-active:     #FFFFFF;                    /* выбранный пункт навигации */
   --band-active-ink: #4A3AB8;
+
+  /* --- ступени жизни объекта --------------------------------------------
+     Шкала одного тона для полосы состава портфеля: от нового объекта к
+     архивному. Тон — тот же индиго, и пятая ступень есть действующий
+     --accent: полоса не заводит второго фирменного цвета, а раскладывает
+     имеющийся.
+
+     Цвет здесь кодирует ПОЛОЖЕНИЕ В ЖИЗНИ объекта, а не качество его
+     состояния. Качество носят пилюли статуса (зелёная «в работе», жёлтая
+     «ждёт ответа»), и покрасить полосу ими нельзя: шесть статусов ложатся
+     в три тона, и «в работе» с «завершён» слились бы в один сегмент.
+     Опознание сегмента держится на подписи и числе рядом; цвет — второй
+     канал, как того требует правило «никогда цветом одним».
+
+     Ступени не подобраны глазом. Валидатор палитры (навык dataviz,
+     `validate_palette.js --ordinal --mode light`) подтвердил монотонность
+     светлоты, зазор между соседними ступенями не менее 0,06 и контраст
+     светлого конца к белому полотну 2,11:1 при пороге 2:1. Правка любой
+     ступени требует повторного прогона. */
+  /* --- статус объекта ----------------------------------------------------
+     Шесть статусов — шесть различимых видов. Прежде их было три: «в работе»
+     и «завершён» несли одну зелёную пилюлю, «пауза» и «ждёт ответа» — одну
+     жёлтую, «новый» и «архив» — одну серую (аудит интерфейса, Б-1). Хуже
+     того, те же статусы на первом экране красились второй, несовместимой
+     системой — порядковой шкалой индиго (Б-2), и один объект был двух
+     цветов на одном экране.
+
+     Теперь источник один: на статус приходится тройка токенов, и полоса
+     портфеля, метка легенды и пилюля берут её же. Совпадение кодировок
+     держится не соглашением, а общим токеном.
+
+     `-bar`  — насыщенная заливка сегмента полосы и метки легенды;
+     `-soft` — заливка пилюли;
+     `-ink`  — текст на этой заливке, не ниже 7:1.
+
+     Значение цвета: серо-синий — работы ещё нет, индиго — работа идёт,
+     янтарный — ждём чужого действия, сливовый — остановлено нами,
+     зелёный — сделано, тёмно-серый — вне работы. Сигнальные токены
+     (`--ok`, `--warn`, `--danger`) статусам не принадлежат: они означают
+     принято, ждёт оплаты и просрочено — и только это (Б-3).
+
+     Прогон валидатора палитры (dataviz, светлый режим, полотно #FFFFFF,
+     категориальный набор, соседние пары): разделимость при дальтонизме —
+     худшая соседняя пара ΔE 15,4 (deutan) при цели 8; порог обычного
+     зрения — 22,6 при пороге 15; контраст к полотну — все шесть ≥ 3:1.
+     Отказ по «хроме» у серо-синего и тёмно-серого принят намеренно: оба
+     читаются серыми, и это их смысл — работы по объекту нет.
+
+     Заливки пилюль отделены от полотна не меньше чем на 1,13 (порог
+     продукта — 1,10), текст на своей заливке — не ниже 7:1. Обе величины
+     считаны, а не подобраны на глаз, и стережёт их `design-system.test.ts`. */
+  --status-new-bar:      #7C8A9C;
+  --status-new-soft:     #EFF1F3;
+  --status-new-ink:      #47515F;
+  --status-work-bar:     #4A3AB8;
+  --status-work-soft:    #EEECF9;
+  --status-work-ink:     #3F31A6;
+  --status-wait-bar:     #B5830F;
+  --status-wait-soft:    #F7F0E0;
+  --status-wait-ink:     #684A06;
+  --status-pause-bar:    #8E4585;
+  --status-pause-soft:   #F6EEF5;
+  --status-pause-ink:    #783870;
+  --status-done-bar:     #2F9E63;
+  --status-done-soft:    #E0F5EA;
+  --status-done-ink:     #195A37;
+  /* Архив заливки не имеет вовсе: две серые заливки — «новый» и «архив» —
+     сходятся в один вид, и различие пришлось бы искать в оттенке серого.
+     Обводка вместо заливки различает их формой, а не цветом. */
+  --status-archive-bar:  #4B5563;
+  /* Чернила архива единственные ложатся на чужую заливку — своей у архива
+     нет, — и на `--neutral-soft` прежнее значение давало 6,96 при обещанных
+     семи. Новое держит 7,19 на ней и 8,46 / 7,40 / 7,39 на трёх остальных
+     фонах, где эти чернила встречаются: правило выполнено на всех четырёх,
+     а не подогнано под один. */
+  --status-archive-ink:  #444E5A;
+
+  /* Заявленная готовность: величина, которую ставит человек. Принятое
+     красится `--ok` — оно и есть принятое. */
+  /* Знак заявленной готовности — значащая графика, и на неё распространяется
+     порог 3:1 (WCAG 1.4.11). Прежнее значение давало 2,95 на полотне и 2,58 на
+     вторичной плашке. Новое держит 3,59 и 3,14. Порог внешний и зафиксирован
+     до выбора значения, а не подобран под него. */
+  --claim:         #887DCB;
 
   --signal:        #9C5E17;
   --signal-soft:   #FBEEDC;
@@ -166,18 +257,39 @@
 
   /* --- тени: применяются скупо, карточки отделяются границей -------------- */
   --shadow-1: 0 1px 2px rgba(14, 26, 40, .06);
-  --shadow-2: 0 4px 16px rgba(14, 26, 40, .10);   /* только модальные и меню */
+  /* Тень отделяет поднятую поверхность: модальное окно, меню и липкую полосу
+     подтверждения приёмки. Третий случай внесён вместе с уплощением списка
+     приёмки: после него полоса — единственное поднятое на вкладке, и
+     комментарий, перечислявший два случая, описывал не тот код, под которым
+     стоял. */
+  --shadow-2: 0 4px 16px rgba(14, 26, 40, .10);
 
   /* --- метрика компонентов ----------------------------------------------- */
   /* Шапка выше полосы органов управления на две ступени отступа: при 56 px
      ряд навигации упирался в верхний край окна, и первое, что видел глаз,
      было отсутствие поля над знаком. */
+  /* Поле под последним блоком страницы. Отдельным токеном, а не ступенью
+     шкалы отступов: шкала идёт 4-8-12-16-24-32-48, и сотня в неё не
+     ложится — вписанная силой, она поехала бы дальше по компонентам.
+     Смысл поля: страница не должна обрываться встык к последней строке
+     таблицы, иначе прокрутка «упирается» и не сообщает, что список кончился. */
+  --page-end:        100px;
+
   --header-h:        72px;   /* шапка приложения */
   --tabbar-h:        56px;   /* нижняя таб-панель на мобильном */
   --control-h:       44px;   /* кнопки и поля, десктоп */
   --control-h-touch: 48px;   /* кнопки на мобильном */
   --pill-h:          24px;
   --row-h:           40px;   /* строка таблицы сметы */
+  /* Окно таблицы сметы. Липкая шапка прилипает к ближайшему контейнеру
+     прокрутки, а не к окну браузера: пока контейнер не ограничен по высоте,
+     прокручивается документ и контейнер уезжает вверх целиком — объявление
+     position: sticky при этом остаётся в силе и не делает ничего.
+     Доля высоты экрана, а не пиксели: на 1366×768 и на 1920×1080 окно обязано
+     занимать одну долю, иначе на низком экране таблица сожмётся до трёх строк.
+     Единица svh, а не vh: на телефоне адресная строка браузера сворачивается,
+     и vh даёт скачок высоты при первой же прокрутке. */
+  --table-view:      70svh;
   --indent-level:    16px;   /* отступ вложенности раздела на уровень */
   --tap-min:         44px;   /* минимальная область нажатия, десктоп */
 
@@ -185,7 +297,10 @@
   --container-max: 1440px;
   --gutter:        24px;
   --summary-col:   320px;   /* левая колонка сводки объекта */
-  --gantt-label:   200px;   /* колонка названия этапа в графике */
+  --gantt-label:   264px;   /* колонка названия этапа в графике: имена разделов
+                               сметы длинные, и 200 px обрезали их многоточием
+                               при свободном месте справа */
+  --gantt-pct:      96px;   /* колонка готовности: два числа и две подписи */
   --day-w:          32px;   /* день в графике; ступени масштаба 24 / 32 / 48 */
   --modal-w:       480px;   /* центрированное окно на десктопе */
   --measure:       76ch;    /* предельная длина строки читаемого текста */
@@ -330,6 +445,14 @@ a { color: var(--accent); text-underline-offset: 2px; }
 
 .container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--gutter); }
 
+/* Поле под последним блоком страницы. Без него страница обрывается встык к
+   последней строке таблицы: прокрутка «упирается» и не сообщает, что список
+   кончился, — человек продолжает тянуть, ожидая продолжения. Величина —
+   собственный токен, а не ступень шкалы отступов: сотня в шкалу
+   4-8-12-16-24-32-48 не ложится и, вписанная силой, поехала бы дальше по
+   компонентам. */
+main.container { padding-block-end: var(--page-end); }
+
 /* На узком экране поля контейнера уменьшаются: 24 px с каждой стороны
    съедают восьмую часть экрана в 360 px. */
 @media (max-width: 767px) { :root { --gutter: var(--space-4); } }
@@ -339,6 +462,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-4)); }
 .stack--tight { --stack-gap: var(--space-2); }
 .stack--loose { --stack-gap: var(--space-5); }
+/* Шаг между смысловыми группами страницы. Вдвое больше шага внутри группы:
+   ритм 24 / 48 читается как «это вместе, а это отдельно» без единой рамки и
+   без нового заголовка. Ступень из шкалы, нового значения не заводится. */
+.stack--groups { --stack-gap: var(--space-7); }
 
 .row { display: flex; align-items: center; gap: var(--row-gap, var(--space-3)); }
 .row--between { justify-content: space-between; }
@@ -357,7 +484,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
    классе: заголовочная обложка тоже .container, и отступ ей не нужен. */
 @media (max-width: 767px) {
   main.container {
-    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+    /* Поле конца страницы складывается с местом под таб-панелью, а не
+       заменяется им: панель перекрывает низ экрана, но обрыв страницы
+       встык к таблице от этого никуда не девается. */
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--page-end));
   }
 }
 
@@ -373,6 +503,33 @@ a { color: var(--accent); text-underline-offset: 2px; }
   .project-layout {
     grid-template-columns: var(--summary-col) minmax(0, 1fr);
     align-items: start;
+  }
+
+  /* Сводка идёт рядом с содержимым вкладки, а не кончается на трети экрана.
+     `align-items: start` не растягивает колонку по высоте ряда, и под
+     сводкой оставалось пустое поле в половину экрана на любой длинной
+     вкладке — смете, графике, приёмке (аудит Г-2).
+
+     Липкость объявлена только здесь: ниже 1024 px колонка уезжает наверх,
+     и прилипшая сводка отняла бы у прораба весь экран.
+
+     Отступ сверху — ступень шкалы, а не высота шапки: шапка продукта не
+     липкая (`.appbar` не объявляет `position` вовсе) и уезжает вместе с
+     документом. Вычитание её высоты держало бы над сводкой 72 px пустоты
+     всю дорогу.
+
+     Предел высоты обязателен. Сводка действующего объекта — около 710 px:
+     три числа, строка статуса, плашка срока со шкалой и шесть строк
+     сведений. На экране 1366×768 рабочая область ниже, и без предела
+     нижние строки сводки стали бы недостижимы навсегда — прокрутка
+     документа их уже не покажет. */
+  .project-layout > aside {
+    position: sticky;
+    inset-block-start: var(--space-5);
+    align-self: start;
+    max-block-size: calc(100dvh - var(--space-5) * 2);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 
@@ -405,6 +562,11 @@ a { color: var(--accent); text-underline-offset: 2px; }
 
 .btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
 .btn--secondary:hover:not([disabled]) { background: var(--surface-2); }
+/* Нажатое состояние второстепенной кнопки было объявлено только в разметке:
+   aria-pressed стоял, а вида у него не было. В листе выбора статуса это
+   означало, что текущий статус объекта ничем не отличается от пяти прочих —
+   человек выбирал вслепую из шести одинаковых прямоугольников. */
+.btn--secondary[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 
 .btn--text      { background: transparent; color: var(--accent); padding: 0 var(--space-2); }
 .btn--text:hover:not([disabled]) { background: var(--accent-soft); }
@@ -472,6 +634,56 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .pill--warn    { background: var(--warn-soft);   color: var(--warn); }
 .pill--danger  { background: var(--danger-soft); color: var(--danger); }
 .pill--signal  { background: var(--signal-soft); color: var(--signal); }
+
+/* Статус объекта. Шесть статусов — шесть видов, и вид берётся из той же
+   тройки токенов, что заливка сегмента полосы на первом экране: одна
+   кодировка на весь продукт, а не две (аудит Б-1, Б-2).
+
+   Сигнальные пилюли выше статусам не принадлежат. `--ok` означает
+   «принято» и «оплачено», `--warn` — «ждёт оплаты», `--danger` —
+   «сторно, просрочено, расхождение». Статус объекта ни одним из этих
+   слов не является, и общая заливка стирала бы разницу между «объект
+   завершён» и «деньги получены». */
+/* Пилюля, которая ведёт. Статус объекта меняется прямо из реестра, и
+   органом здесь служит сама пилюля: вторая кнопка рядом показывала бы одно
+   состояние дважды. Своего вида у обёртки нет — она отдаёт его пилюле
+   внутри и добавляет только область нажатия. */
+.pillbutton {
+  display: inline-flex; align-items: center;
+  min-block-size: var(--tap-min); padding: 0;
+  background: none; border: 0; cursor: pointer;
+  /* Цель нажатия не равна высоте строки: 44 px держатся отрицательным полем
+     и строку не растягивают. Ниже 1023 px строка сама равна 48 px, поле
+     обращается в ноль, и вычитать нечего. */
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+}
+.pillbutton:hover .pill { box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+.pill--status-new     { background: var(--status-new-soft);   color: var(--status-new-ink); }
+.pill--status-work    { background: var(--status-work-soft);  color: var(--status-work-ink); }
+.pill--status-wait    { background: var(--status-wait-soft);  color: var(--status-wait-ink); }
+.pill--status-pause   { background: var(--status-pause-soft); color: var(--status-pause-ink); }
+.pill--status-done    { background: var(--status-done-soft);  color: var(--status-done-ink); }
+/* Архив — единственный без заливки: два серых фона («новый» и «архив»)
+   сходились бы в один вид, и различать пришлось бы оттенок серого.
+   Обводка различает формой. */
+.pill--status-archive { background: transparent; color: var(--status-archive-ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* Срочность срока. Четыре ступени одной шкалы: просрочено, сегодня или
+   завтра, ближайшая неделя, дальше. Прежде срок красили три места по трём
+   своим правилам — реестр красным текстом, первый экран пилюлей трёх
+   тонов, карточка сплошной плашкой (аудит Б-4). Слова и ступень теперь
+   выдаёт `due.ts`, а вид — эти четыре правила. */
+.duepill { display: inline-flex; align-items: center; height: var(--pill-h);
+  padding: 0 var(--space-2); border-radius: var(--radius-chip);
+  font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+  background: transparent; color: var(--ink-3); }
+.duepill--overdue { background: var(--danger-soft); color: var(--danger); }
+.duepill--today   { background: var(--warn-soft);   color: var(--warn); }
+.duepill--soon    { background: var(--surface-2);   color: var(--ink-2); }
+.duepill--later   { background: transparent;        color: var(--ink-3); }
+.duepill--none    { background: transparent;        color: var(--ink-3); }
 
 /* Код объекта — моноширинный бейдж на мягком акценте. Сквозной
    идентификатор: почта, документы, разговор, акт. */
@@ -568,8 +780,26 @@ a { color: var(--accent); text-underline-offset: 2px; }
 
 .tile { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
 .tile--accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.tile--accent .figure__label, .tile--accent .figure__note { color: var(--accent-ink); opacity: .78; }
+.tile--accent .figure__label, .tile--accent .figure__note { color: var(--accent-ink); }
 .tile--accent .figure__value { color: var(--accent-ink); }
+
+/* Плашка срока помечена в разметке классом `tile--due` независимо от тона:
+   по этому имени её находят проверки. Своих объявлений у него нет и не
+   нужно — пустое правило было бы мёртвым. Опознавать блок по цвету значит
+   ломать опознание вместе со сменой цвета: так и вышло при первом прогоне
+   этой правки — плашка стала красной, и проверка шкалы перестала её
+   находить.
+   
+   Плашка срока берёт тон своей ступени срочности. Прежде она была
+   акцентной при любом сроке: слово говорило «просрочено на 27 дней», цвет
+   — «всё как обычно» (аудит Б-4). Тон один на всю шкалу: тот же, что у
+   пилюли срочности в реестре и на первом экране. */
+.tile--overdue { background: var(--danger); border-color: var(--danger); color: var(--ink-inv); }
+.tile--overdue .figure__label, .tile--overdue .figure__note { color: var(--ink-inv); }
+.tile--overdue .figure__value { color: var(--ink-inv); }
+.tile--today { background: var(--warn); border-color: var(--warn); color: var(--ink-inv); }
+.tile--today .figure__label, .tile--today .figure__note { color: var(--ink-inv); }
+.tile--today .figure__value { color: var(--ink-inv); }
 
 /* Волосяная линия и надзаголовок раздела. Раздел отделяется линией и
    подписью, а не помещается в коробку. */
@@ -584,74 +814,12 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .meter__fill { display: block; block-size: 100%; background: var(--accent);
   border-radius: var(--radius-pill); transition: inline-size var(--dur-base) var(--ease); }
 .meter--danger .meter__fill { background: var(--danger); }
-.meter--quiet .meter__fill { background: var(--ink-3); }
 
 /* Метрика в рамке: пара «число / знаменатель» с подписью. Паттерн срока
    у референса — 235/327 рабочих дней, 363 календарных дня по договору. */
 .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-md); }
 .metric__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-h3); font-weight: 600; }
 .metric__label { font-family: var(--font-ui); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
-
-/* --- Полоса счётчиков ------------------------------------------------------
-   Десять однозначных чисел в десяти карточках занимают половину первого
-   экрана. В полосе они читаются одним движением глаза: подпись слева,
-   число справа, строки разделены линией. Строка кликабельна целиком.      */
-.counterstrip { display: flex; flex-direction: column; }
-.counterstrip__item {
-  /* Сетка, а не строка: под названием и числом идёт столбик доли, и он
-     обязан занимать всю ширину, а не тесниться между ними. */
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-3);
-  min-height: var(--tap-min);
-  padding: var(--space-2) 0;
-  border: 0; border-block-end: 1px solid var(--line);
-  background: none; text-align: start; color: inherit; font-family: inherit;
-  font-size: var(--fs-body);
-  transition: color var(--dur-fast) var(--ease);
-}
-.counterstrip__item:last-child { border-block-end: 0; }
-button.counterstrip__item { cursor: pointer; }
-button.counterstrip__item:hover { color: var(--accent); }
-.counterstrip__count { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-h3); font-weight: 600; }
-.counterstrip__count--danger { color: var(--danger); }
-/* Столбики строятся от наибольшего статуса, а не от размера портфеля:
-   иначе четыре доли по 12-50 % превратились бы в четыре обрубка. */
-.counterstrip__bar { grid-column: 1 / -1; }
-
-/* --- Недельная полоса ------------------------------------------------------
-   Неделя, а не «ближайшие семь дней»: студия планирует понедельниками.
-   Полоса прокручивается внутри себя, полотно страницы по горизонтали
-   не двигается.                                                            */
-/* Семь плашек одной высоты. Прежде день без событий рамки не получал, и
-   полоса читалась как два блока среди пустоты; решением заказчика неделя
-   показывается сеткой, в которой каждый день — ячейка, а событие в ней —
-   содержимое. Растягивание по высоте держит ряд ровным. */
-.weekstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr);
-  gap: var(--space-2); overflow-x: auto; align-items: stretch; }
-.daycard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-height: 96px;
-  padding: var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-.daycard--today { border-color: var(--accent); background: var(--accent-soft); }
-.daycard__head { display: flex; align-items: baseline; gap: var(--space-2); }
-.daycard__date { font-family: var(--font-mono); font-size: var(--fs-h3); font-weight: 600; }
-.daycard__weekday { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
-.daycard__event { padding: 2px var(--space-2); border-radius: var(--radius-chip); font-size: var(--fs-sm); background: var(--neutral-soft); color: var(--ink-2); }
-/* Загрузка дня прижата к низу плашки: события растут сверху, загрузка
-   стоит на одной линии во всех семи ячейках и читается как ряд. */
-.daycard__load { margin-block-start: auto; display: flex; flex-direction: column; gap: var(--space-1); }
-.daycard__count { font-size: var(--fs-cap); letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
-.daycard__event--ok { background: var(--ok-soft); color: var(--ok); }
-.daycard__event--warn { background: var(--warn-soft); color: var(--warn); }
-.daycard__event--danger { background: var(--danger-soft); color: var(--danger); }
 
 /* --- Лента событий ---------------------------------------------------------
    Время слева отдельной колонкой: события читают сверху вниз, и колонка
@@ -694,6 +862,14 @@ button.counterstrip__item:hover { color: var(--accent); }
 .appbar__brand { display: inline-flex; align-items: center; gap: var(--space-2); flex: none;
   font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
 .appbar__mark { inline-size: 24px; block-size: 24px; }
+/* Лока́п в две строки, а не в одну. Однострочное «Приёмка · DOLGIY STUDIO»
+   занимает около 210 px и отнимает ширину у капсулы разделов, которая между
+   768 и 1024 px уже прокручивается; две строки вместе со знаком — около
+   122 px. Продукт называется основной строкой, студия — подписью. */
+.appbar__lockup { display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.appbar__product { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.01em; }
+.appbar__org { font-size: var(--fs-cap); font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; opacity: .78; }
 .appbar__title { margin-inline: auto; font-size: var(--fs-sm); }
 /* Пилюли прокручиваются вбок, а не выталкивают страницу: между 768 и
    1024 px пять подписей и блок пользователя в строку не помещаются.
@@ -703,7 +879,7 @@ button.counterstrip__item:hover { color: var(--accent); }
    пять отдельных кнопок: та же дорожка на ступень выше содержимого, что у
    сегментированного переключателя. */
 .appbar__nav { display: flex; gap: 0; margin-inline: auto;
-  min-inline-size: 0; padding: 2px; background: var(--on-band-fill);
+  min-inline-size: 0; padding: 2px; background: var(--band-fill);
   border-radius: var(--radius-pill); }
 /* Прокручиваются только ссылки. Будь прокрутка на самой капсуле, она
    обрезала бы выпадающий список «Ещё» собственной границей. */
@@ -736,7 +912,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    навигации им не по частоте обращения. */
 .appbar__user { display: inline-flex; align-items: center; gap: var(--space-2);
   min-block-size: var(--tap-min); padding-inline: var(--space-2) var(--space-1);
-  border: 0; border-radius: var(--radius-pill); background: var(--on-band-fill);
+  border: 0; border-radius: var(--radius-pill); background: var(--band-fill);
   color: var(--band-ink); font-family: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .appbar__user[aria-current="page"] { background: var(--band-active); color: var(--band-active-ink); }
 /* Имя появляется с 1024 px: до этой ширины его место занимают разделы.
@@ -749,14 +925,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   border: 0; border-radius: var(--radius-pill); background: none;
   color: var(--band-ink); cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease); }
-.appbar__bell:hover { background: var(--on-band-fill); }
+.appbar__bell:hover { background: var(--band-fill); }
 
 /* «Ещё» — список служебных экранов, а не раздел. Собран на <details>:
    раскрытие, закрытие по Esc и обход с клавиатуры даёт браузер. */
 .appbar__more { position: relative; flex: none; }
 .appbar__more > summary { list-style: none; cursor: pointer; }
 .appbar__more > summary::-webkit-details-marker { display: none; }
-.appbar__more[open] > summary { background: var(--on-band-track); }
+.appbar__more[open] > summary { background: var(--band-track); }
 .appbar__menu { position: absolute; inset-block-start: calc(100% + var(--space-2));
   inset-inline-end: 0; z-index: 12; min-inline-size: 200px;
   display: flex; flex-direction: column; padding: var(--space-1);
@@ -781,7 +957,11 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   transition: background-color var(--dur-fast) var(--ease);
 }
 .objectrow:first-child { border-block-start: 1px solid var(--line); }
-.objectrow:hover { background: var(--surface-2); }
+/* Отклик на наведение один на продукт. Подложка --surface-2 занята
+   чередованием строк реестра и заголовками разделов сметы: на чётной строке
+   и на заголовке раздела отклик ею неотличим от покоя. Список, отвечающий
+   своим цветом, сообщает о себе как о другом роде списка, каким не является. */
+.objectrow:hover { background: var(--accent-soft); }
 .objectrow__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .objectrow__address { color: var(--accent); }
 .objectrow__foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
@@ -821,6 +1001,19 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 .tabbar__item[aria-current="page"] { color: var(--accent); }
 
+/* Шестой пункт таб-панели — «Ещё». Список раскрывается вверх: вниз ему
+   некуда, панель прижата к нижнему краю окна. Поведение то же, что у «Ещё»
+   в шапке, и код тот же — один компонент на оба места. */
+.tabbar__more { position: relative; display: grid; }
+.tabbar__more > summary { list-style: none; }
+.tabbar__more > summary::-webkit-details-marker { display: none; }
+.tabbar__more[open] > summary { color: var(--accent); }
+.tabbar__menu { position: absolute; inset-block-end: calc(100% + var(--space-2));
+  inset-inline-end: var(--space-3); z-index: 12; min-inline-size: 200px;
+  display: flex; flex-direction: column; padding: var(--space-1);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
+
 /* Таб-панель существует только на мобильном, пилюльная навигация — только
    на десктопе. Правила стоят рядом с компонентом, а не в layout.css:
    при равной специфичности исход решал бы порядок импорта, а не намерение. */
@@ -831,8 +1024,8 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    «Действие» вытесняет из шапки имя организации и выход. */
 /* Орган управления на чернильной полосе. Вторичная кнопка по умолчанию
    набрана цветом текста полотна и на полосе пропадает целиком. */
-.appbar .btn--secondary { color: var(--band-ink); border-color: var(--on-band-track); }
-.appbar .btn--secondary:hover:not([disabled]) { background: var(--on-band-fill); }
+.appbar .btn--secondary { color: var(--band-ink); border-color: var(--band-track); }
+.appbar .btn--secondary:hover:not([disabled]) { background: var(--band-fill); }
 @media (max-width: 767px) {
   /* На телефоне в шапке остаются марка, переключатель темы и выход:
      разделы уходят в нижнюю таб-панель, отступы сжимаются. */
@@ -852,11 +1045,21 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .cover { padding-block: var(--space-3) var(--space-5);
   background: var(--band); color: var(--band-ink); }
 .cover .t-h1 { color: var(--band-ink); }
+/* Прозрачности на тексте нет, и это не строгость, а арифметика: белый на
+   полосе даёт 4,86:1 — потолок, и уже 92 % белого роняют пару до 4,38.
+   Приглушить текст на полосе и удержать норму нельзя ни при каком значении,
+   поэтому второстепенность крошек выражается кеглем, а не бледностью. Прежние
+   .78 давали 3,62:1. */
 .cover__crumbs { display: flex; align-items: center; gap: var(--space-2);
-  font-size: var(--fs-sm); color: var(--band-ink); opacity: .78; }
+  font-size: var(--fs-sm); color: var(--band-ink); }
 .cover__crumbs > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .cover__crumbs a { color: inherit; text-decoration: none; }
 /* Рабочее полотно отделено от обложки отступом. */
+/* Заголовок и первичное действие одной строкой: действие принадлежит
+   разделу, а не его первой таблице, и стоит там, где начинается чтение.
+   На узком экране строка переносится, и кнопка встаёт под заголовком. */
+.cover__head { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4); flex-wrap: wrap; }
 .cover + main { padding-block-start: var(--space-5); }
 
 /* Табы внутри карточки объекта: плотная навигация без ухода со страницы. */
@@ -868,8 +1071,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Плотная таблица: строка 40 px, 13 px, суммы по правому краю.
    Заголовок липкий, разделы — сворачиваемые группы. */
 .estimate { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
+/* Липкость объявлена на группе, а не на ячейках — тем же доводом, каким она
+   объявлена на группе у подвала строкой ниже. При внутренней проекции строк
+   шапки две, и каждая, закреплённая по top: 0, встала бы поверх соседней:
+   надзаголовок «Внутреннее» и имена колонок сошлись бы в одну строку. Тот же
+   капкан для подвала был описан и обойдён, а для шапки — только описан. */
+.estimate thead { position: sticky; top: 0; z-index: 2; }
 .estimate thead th {
-  position: sticky; top: 0; z-index: 2;
   height: var(--row-h);
   padding: 0 var(--space-3);
   background: var(--surface-2);
@@ -880,9 +1088,28 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   white-space: nowrap;
 }
 .estimate td { height: var(--row-h); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
-.estimate tbody tr:hover td { background: var(--surface-2); }
+.estimate tbody tr:hover td { background: var(--accent-soft); }
 
 .estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Ячейка номера несёт ручку перестановки и сам номер. Ручка стоит слева
+   от числа и занимает зону 44 px, не растягивая строку: отрицательные поля
+   уводят её в обивку ячейки — тот же приём, что у пилюли-кнопки. */
+.estimate__place { display: flex; align-items: center; gap: var(--space-1); justify-content: flex-end; }
+
+.estimate__move {
+  flex: none; display: grid; place-items: center;
+  inline-size: var(--tap-min); min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+  margin-inline: calc(var(--space-2) * -1) 0;
+  padding: 0; border: 0; border-radius: var(--radius-chip);
+  background: none; color: var(--ink-3); cursor: grab;
+  touch-action: none;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.estimate__move:hover { color: var(--ink); background: var(--surface-2); }
+.estimate__move[aria-pressed="true"] { cursor: grabbing; color: var(--accent); background: var(--accent-soft); }
+.estimate__move[disabled] { cursor: not-allowed; opacity: .55; }
 
 /* Внутренние колонки визуально маркируются: фон ячеек --surface-2 и
    надзаголовок группы «внутреннее» — чтобы при демонстрации экрана
@@ -919,13 +1146,20 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    резервировать под неё долю таблицы значило бы отнять её у наименования —
    самой длинной колонки сметы. Появляется только у роли, которая правит. */
 .estimate__act { inline-size: 1%; white-space: nowrap; text-align: end; }
+/* Кнопка правки держит свою высоту органа и растягивала строку сметы до
+   45 px при объявленных 40. Тот же приём, что у пилюли-кнопки реестра. */
+.estimate__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
 
 /* Строка подстановки величин обмера в листе правки позиции. */
 .estimate__from-measure {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
 }
-.estimate tfoot td { background: var(--surface); font-weight: 600; }
-.estimate tfoot tr:first-child td { border-top: 2px solid var(--line-strong); }
+/* Подпись итога — `th scope="row"`, и оформляется она как соседняя ячейка:
+   разметка сообщает связь величины с её именем, вид при этом не меняется.
+   Без сброса `th` пришёл бы с браузерным выравниванием по центру. */
+.estimate tfoot td, .estimate tfoot th { background: var(--surface); font-weight: 600; }
+.estimate tfoot th { padding: 0 var(--space-3); text-align: left; }
+.estimate tfoot tr:first-child td, .estimate tfoot tr:first-child th { border-top: 2px solid var(--line-strong); }
 
 /* Переключатель проекции — сегментированный контрол. */
 /* Максимальная ширина и прокрутка нужны фильтру статусов: шесть подписей
@@ -936,8 +1170,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   flex: none;
   /* Зона нажатия 44 px: на телефоне фильтром статусов пользуется прораб,
      и цель в 32 px он пальцем в перчатке не берёт (реестр Д-07). */
-  display: inline-flex; align-items: center; gap: var(--space-1);
-  min-block-size: var(--tap-min); padding: 0 var(--space-3);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1);
+  /* Обе стороны, а не одна высота. Шаг месяца и шаг масштаба несут один
+     значок без слова, и ширина у них выходила из содержимого: 16 px значка
+     плюс отступы — 40 px. Цель, узкая по ширине, промахивается ровно так же,
+     как низкая; замер обхода мерит теперь обе стороны и назвал эти две. */
+  min-block-size: var(--tap-min); min-inline-size: var(--tap-min);
+  padding: 0 var(--space-3);
   white-space: nowrap;
   border: 0; background: transparent; border-radius: var(--radius-chip);
   font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer;
@@ -952,6 +1191,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Обёртка прокрутки: широкая таблица прокручивается внутри контейнера,
    полотно страницы по горизонтали не двигается. */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Окно с собственной прокруткой — модификатором, а не правкой .table-scroll:
+   обёртка общая с реестром объектов, списком и справочником, у которых своя
+   постраничная разбивка, и предел высоты там породил бы вторую прокрутку без
+   нужды. Смета же идёт одной ведомостью на сотню строк, и её шапка обязана
+   оставаться на виду — иначе колонка числа опознаётся пересчётом столбцов. */
+.table-scroll--view { max-block-size: var(--table-view); overflow: auto; }
 
 /* --- 5.5 Экран приёмки (мобильный) --------------------------------------- */
 .accept-item {
@@ -1070,7 +1315,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__scale,
 .gantt__row {
   display: grid;
-  grid-template-columns: var(--gantt-label) max-content 72px;
+  grid-template-columns: var(--gantt-label) max-content var(--gantt-pct);
   align-items: center;
   border-block-end: 1px solid var(--line);
 }
@@ -1165,7 +1410,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__bar--drag { cursor: grabbing; box-shadow: var(--shadow-2); }
 .gantt__handle {
   inline-size: 6px; block-size: 100%; flex: none;
-  background: var(--on-accent-track); cursor: ew-resize; touch-action: none;
+  background: var(--accent-track); cursor: ew-resize; touch-action: none;
 }
 .gantt__handle:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
 .gantt__handle:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
@@ -1173,14 +1418,21 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Готовность прижата к правому краю так же, как название к левому: колонка
    дней шире экрана, и без этого процент уезжал за предел прокрутки — то
    есть переставал существовать для того, кто на график и смотрит. */
+/* Колонка готовности несёт две величины, и обе подписаны: до 12.09.2026
+   она была шириной 72 px, и надзаголовок «Заявлено · принято» обрезался на
+   середине первого слова — «ЗАЯВЛЕНС». Подписи стоят теперь столбцом, по
+   одной над своим числом, а ширина назначена токеном, а не числом в двух
+   местах сразу. */
 .gantt__pct {
   position: sticky; inset-inline-end: 0; z-index: 1;
-  display: flex; align-items: center; justify-content: flex-end;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  gap: 2px;
   block-size: 100%; padding-inline: var(--space-3);
   background: var(--surface);
   border-inline-start: 1px solid var(--line);
   font-size: var(--fs-sm); color: var(--ink-2);
 }
+.gantt__scale .gantt__pct { gap: 0; line-height: var(--lh-cap); }
 .gantt__scale .gantt__pct { background: var(--surface-2); }
 
 /* Этап, лежащий вне открытого месяца, оставляет пустую строку. Метка у края
@@ -1213,7 +1465,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 @media (max-width: 767px) {
   .gantt__canvas { --gantt-label: 168px; }
   .gantt__scale,
-  .gantt__row { grid-template-columns: var(--gantt-label) max-content 56px; }
+  .gantt__row { grid-template-columns: var(--gantt-label) max-content var(--gantt-pct); }
   /* Ручка перестановки уходит: она съедала 44 px из 168, оставляя названию
      полсотни, а тянуть строку в полотне, которое само едет по горизонтали,
      на телефоне и не выходит. Место в графике меняется полем в листе —
@@ -1274,10 +1526,15 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    Блок сведений об объекте: клиент, прораб, адрес, ключи, редакция сметы.
    Подпись группы отделена волосяной линией, строки — без рамок.           */
 .deflist { display: flex; flex-direction: column; gap: var(--space-2); }
+/* Сам список определений держит собственную колонку: заголовок стоит
+   снаружи, потому что абзац прямым потомком «dl» недопустим. */
+.deflist__body { display: flex; flex-direction: column; gap: var(--space-2); }
 .deflist__head { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);
   font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-cap);
   letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 .deflist__row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+/* Итоговая строка отделена своей границей, а не чертой внутри списка. */
+.deflist__row--total { padding-top: var(--space-2); border-top: 1px solid var(--line); }
 .deflist__term { font-size: var(--fs-sm); color: var(--ink-2); }
 .deflist__value { font-size: var(--fs-sm); text-align: right; }
 
@@ -1294,17 +1551,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    поэтому форма расходящаяся: нулевая отметка — сегодня, просрочка влево
    сигнальным, запас вправо акцентом. Одна шкала на все строки — иначе
    «21 день» и «86 дней» дали бы одинаковые отрезки. */
-.deadline { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline; gap: var(--space-1) var(--space-3);
-  padding-block: var(--space-2); border-block-end: 1px solid var(--line); }
-.deadline:last-child { border-block-end: 0; }
-.deadline__term { font-size: var(--fs-sm); color: var(--ink-2); overflow-wrap: anywhere; }
-.deadline__value { font-size: var(--fs-sm); text-align: end; white-space: nowrap; }
-.deadline__scale { grid-column: 1 / -1; position: relative; block-size: 8px; }
-.deadline__zero { position: absolute; inset-block: -1px; inline-size: 1px; background: var(--line-strong); }
-.deadline__bar { position: absolute; inset-block-start: 1px; block-size: 6px;
-  border-radius: var(--radius-pill); background: var(--accent); }
-.deadline__bar--late { background: var(--danger); }
 
 .finding__rows { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .finding__rows summary { font-family: var(--font-ui); cursor: pointer; min-block-size: var(--tap-min);
@@ -1323,6 +1569,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .signin { min-block-size: 100vh; display: flex; flex-direction: column; }
 .signin__brand { display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-5) var(--space-6); color: var(--accent); }
+.signin__lockup { display: flex; flex-direction: column; line-height: 1.15; }
+.signin__org { font-size: var(--fs-cap); font-weight: var(--fw-cap);
+  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-2); }
 .signin__form { inline-size: 100%; max-inline-size: 420px; margin: auto;
   padding: 0 var(--space-4) calc(var(--space-7) * 2); }
 .signin__title { color: var(--accent); }
@@ -1343,6 +1592,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .signin__actions { display: flex; align-items: center;
   justify-content: space-between; gap: var(--space-4); }
 .signin__actions > :only-child { margin-inline-start: auto; }
+/* Откуда берётся доступ. Стоит под действием, а не над полем: сперва
+   человек пробует войти, и лишь не сумев — читает, к кому идти. */
+.signin__note { margin-top: var(--space-3); text-align: start; }
 /* Надзаголовок поля: капс, как подпись «ВВЕДИТЕ НОМЕР ТЕЛЕФОНА». */
 .field__label--cap { font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap);
   font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
@@ -1386,7 +1638,14 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line-strong); text-align: start; white-space: nowrap; }
-.datatable__table td { padding: var(--space-3); border-bottom: 1px solid var(--line);
+/* Высота строки задаётся токеном, а не обивкой ячейки. При обивке высоту
+   назначал самый высокий орган внутри: реестр объектов давал 69 px там, где
+   статус меняют пилюлей-кнопкой, и 48 там, где не меняют, — одна таблица в
+   двух плотностях. Норму области нажатия держат отрицательные поля у самих
+   органов (см. .pillbutton ниже), тем же приёмом, что в графике и в шапке
+   реестра. */
+.datatable__table td { height: var(--row-h); padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
   font-size: var(--fs-sm); vertical-align: middle; }
 /* Чередование: на семи колонках глаз теряет строку между кодом и итогом. */
 .datatable__table tbody tr:nth-child(even) { background: var(--surface-2); }
@@ -1397,6 +1656,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    теряли до чередования. */
 .datatable__table tbody td { transition: background-color var(--dur-fast) var(--ease); }
 .datatable__table tbody tr:hover td { background: var(--accent-soft); }
+/* Ссылка открытия объекта — основная цель строки реестра, и целью она обязана
+   быть по всей высоте строки, а не по высоте строчных букв: 15 px мышью берут
+   не с первого раза, а пальцем не берут вовсе. Поле отрицательное — строка от
+   цели не растёт, тем же приёмом, что у пилюли-кнопки и кнопки правки сметы.
+   Дефект был и до уплотнения строки: высокая строка цели не делала, она лишь
+   давала промаху больше места. */
+.datatable__table td > a {
+  display: inline-flex; align-items: center;
+  min-block-size: var(--tap-min);
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+}
 .datatable__num { text-align: end; font-family: var(--font-mono);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .datatable__sort { display: inline-flex; align-items: center; gap: var(--space-1);
@@ -1483,10 +1753,39 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .stamp__value { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stamp__value--code { font-family: var(--font-mono); font-weight: 600; letter-spacing: .02em; }
 .stamp__value--late { color: var(--danger); }
+
+/* --- 5.35 Правка значения на месте ------------------------------------------
+   Значение правится там, где написано, а не в листе поверх карточки. В покое
+   стоит текст и текстовая кнопка; по нажатию на её месте появляется поле с
+   «Сохранить» и «Отмена».
+
+   Кнопка «Изменить» видна всегда, а не по наведению: орган, появляющийся при
+   наведении, недостижим пальцем и невидим тому, кто идёт клавиатурой, пока
+   не наткнётся на него фокусом. */
+.fieldedit { display: flex; align-items: baseline; gap: var(--space-2); min-inline-size: 0; }
+.fieldedit__value { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fieldedit__open {
+  flex: none; padding-inline: 0;
+  /* Зона нажатия держится отступом с отрицательным полем: строка штампа
+     плотная, и выросшая кнопка раздвинула бы графу. */
+  min-block-size: var(--tap-min);
+  margin-block: calc((var(--fs-sm) * var(--lh-sm) - var(--tap-min)) / 2);
+  font-size: var(--fs-cap);
+}
+.fieldedit--open { flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.fieldedit__input { flex: 1 1 120px; min-inline-size: 0; }
+.fieldedit__error { flex: 1 1 100%; }
 /* Крошки над штампом лежат на полотне, а не на цветной полосе. */
 .stamp__crumbs { display: flex; align-items: center; gap: var(--space-2);
   padding-block: var(--space-3); font-size: var(--fs-sm); color: var(--ink-2); }
-.stamp__crumbs a { color: inherit; }
+/* Крошка — орган навигации, и цель у неё была 52×20 px: высота строки
+   текста. Зона поднимается отступом, а строка не растёт — отрицательное поле
+   съедает прибавку. Приём в продукте принят: тем же способом держат норму
+   пилюля статуса, кнопка правки позиции и орган перестановки этапа. */
+.stamp__crumbs a { color: inherit;
+  display: inline-flex; align-items: center;
+  min-block-size: var(--tap-min);
+  margin-block: calc((var(--fs-sm) * var(--lh-sm) - var(--tap-min)) / 2); }
 
 @media (max-width: 767px) {
   .stamp { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1515,11 +1814,13 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .scale__legend { display: flex; justify-content: space-between; gap: var(--space-2);
   font-family: var(--font-mono); font-size: var(--fs-cap); color: var(--ink-3); }
 .scale__value { font-weight: 600; color: var(--ink); }
-.scale--on-accent .scale__track { border-color: var(--on-accent-track); }
+.scale--on-accent .scale__track { border-color: var(--accent-track); }
 .scale--on-accent .scale__fill { background: var(--accent-ink); }
-.scale--on-accent .scale__tick { background: var(--on-accent-track); }
-.scale--on-accent .scale__legend { color: var(--accent-ink); opacity: .78; }
-.scale--on-accent .scale__value { color: var(--accent-ink); opacity: 1; }
+.scale--on-accent .scale__tick { background: var(--accent-track); }
+.scale--on-accent .scale__legend { color: var(--accent-ink); }
+/* `opacity: 1` снята вместе с прозрачностью легенды: она существовала лишь
+   затем, чтобы отменить её у значения. */
+.scale--on-accent .scale__value { color: var(--accent-ink); }
 .scale__claim { position: absolute; inset-block: -3px; inline-size: 2px;
   background: var(--ink); transform: translateX(-1px); }
 .scale--on-accent .scale__claim { background: var(--accent-ink); }
@@ -1591,7 +1892,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   min-block-size: var(--tap-min); padding: var(--space-2) var(--space-3);
   border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
   font-size: var(--fs-body); color: var(--ink-on-inv-2); }
-.measure__item[aria-selected="true"] { background: var(--accent-inv); color: var(--surface-inv); }
+.measure__item[aria-current="true"] { background: var(--accent-inv); color: var(--surface-inv); }
 .measure__head { display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-4); padding-block-end: var(--space-3);
   border-block-end: 1px solid var(--line-inv); }
@@ -1637,8 +1938,25 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
     border-block-end: 1px solid var(--line); }
   .measure-print th:first-child, .measure-print td:first-child { text-align: start; }
   .measure-print tfoot td { font-weight: var(--fw-h3); }
-  @page { size: A4 landscape; margin: 12mm; }
+  /* Ориентация принадлежит листу, а не продукту. Прежде `@page` стоял здесь
+     один на всё и объявлял альбомную страницу: ведомость помещений в неё
+     ложится, а акт — нет, и печать акта уезжала боком. Правило `@page`
+     селектором не ограничивается, поэтому ориентация разведена именованными
+     страницами: умолчание книжное, ведомость просит альбомную сама. */
+  /* Просит именованную страницу корень документа, а не сам лист. `page` на
+     вложенном блоке заводит НОВУЮ страницу, а первую порождает корень — и она
+     осталась бы книжной: в файл попадал бы пустой книжный лист перед
+     альбомной ведомостью. Замер это и показал — 595×842 pt у первой страницы
+     при живом `page` на `.measure-print`. Условие держится на присутствии
+     ведомости в разметке: она есть только на вкладке замера. */
+  html:has(.measure-print) { page: plan; }
 }
+
+/* Именованная страница ведомости обмера. Объявлена вне `@media print`
+   намеренно: правила `@page` действуют только при печати, и вкладывать их
+   в запрос печати незачем — вложение лишь прячет объявление от поиска. */
+@page { size: A4 portrait; margin: 16mm; }
+@page plan { size: A4 landscape; margin: 12mm; }
 
 /* --- 5.20 Числовая карточка ------------------------------------------------
    Первый экран отвечает четырьмя числами: активные объекты, просрочки,
@@ -1680,6 +1998,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   color: var(--ink-3); }
 .statcard__value { grid-column: 1 / -1; font-size: var(--fs-display);
   line-height: var(--lh-display); font-weight: 600; color: var(--ink); }
+.statcard__value--warn { color: var(--warn); }
 .statcard__value--danger { color: var(--danger); }
 .statcard__note { grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--ink-3); }
 /* Доля числа в портфеле. Знаменатель назван подписью под мерой («всего в
@@ -1702,22 +2021,9 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    шириной в две недели, а обрезанная подпись хуже её отсутствия: название,
    даты и процент несёт подсказка.
    -------------------------------------------------------------------------- */
-.plan { display: flex; flex-direction: column; gap: var(--space-1); }
-.plan__row, .plan__scale { display: grid; grid-template-columns: var(--gantt-label) minmax(0, 1fr);
-  gap: var(--space-3); align-items: center; }
-.plan__row { min-block-size: 32px; }
-.plan__label { display: flex; align-items: baseline; gap: var(--space-2);
-  min-inline-size: 0; font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
-.plan__address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan__track { position: relative; block-size: 22px; border-block-end: 1px solid var(--line); }
-.plan__scale .plan__track { block-size: 20px; border-block-end: 0; }
-.plan__tick { position: absolute; inset-block-start: 0; font-size: var(--fs-cap);
-  letter-spacing: var(--ls-cap); text-transform: uppercase; color: var(--ink-3); }
 /* Деления шкалы — волосяные линии по первым числам месяцев. Сплошные и
    на один шаг от полотна: без них отрезок читается как длина, но не как
    срок, и «до конца октября» приходится прикидывать на глаз. */
-.plan__grid { position: absolute; inset-block: 0; inline-size: 1px;
-  background: var(--line); }
 /* Вертикаль текущего дня. Сплошная волосяная линия, а не пунктир: пунктир
    на графике читается как «предположительно», а сегодня — это факт.
 
@@ -1727,18 +2033,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 /* Вертикаль лежит поверх отрезков. Под ними её перекрывал промежуток
    цвета поверхности, которым отрезки отделяются друг от друга, и линия
    рвалась ровно там, где работа идёт, — то есть там, где на неё смотрят. */
-.plan__today { position: absolute; inset-block: -2px; inline-size: 2px;
-  z-index: 1; background: var(--ink-2); }
-.plan__scale .plan__today { inset-block-start: auto; block-size: 6px; }
-.plan__bar { position: absolute; inset-block-start: 4px; block-size: 14px;
-  border-radius: var(--radius-sm); background: var(--accent-soft);
-  /* Разделяет соседние отрезки промежуток цвета поверхности, а не обводка:
-     обводка добавляет чернил, которые не несут данных. */
-  box-shadow: 0 0 0 2px var(--surface); overflow: hidden; }
-.plan__bar--late { background: var(--danger-soft); }
-.plan__done { display: block; block-size: 100%; background: var(--accent); }
-.plan__bar--late .plan__done { background: var(--danger); }
-.plan__rest { padding-block-start: var(--space-2); }
 
 /* Ниже 768 px колонка названий сжимается: адрес уступает место шкале —
    без неё блок перестаёт быть графиком. */
@@ -1794,16 +2088,36 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
    управления, и в потоке между флажком и списком читался бы как третий
    орган. */
 .accept__filter .num { margin-inline-start: auto; }
-.accept__list { display: grid; gap: var(--space-2); }
+/* Список, а не лента карточек. Раздел из девяти позиций давал восемнадцать
+   обведённых прямоугольников — девять строк и девять кнопок отметки внутри
+   них, — и то единственное, ради чего экран открывают (что осталось принять),
+   в этой каше пропадало. Решение то же, что принято для ведомости денег
+   этажом ниже: одна поверхность списка, строки разделены линией.
+
+   Строка списка не несёт своего радиуса: --radius-lg принадлежит поднятой
+   поверхности, и строка с ним читалась картой. Единственная поднятая
+   поверхность вкладки — полоса подтверждения, и в этом смысл иерархии. */
+.accept__list {
+  display: grid; gap: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface);
+}
 .accept__row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
   align-items: center; gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line); border-radius: var(--radius-lg);
-  background: var(--surface);
-  transition: border-color var(--dur-fast) var(--ease);
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--line);
+  transition: background-color var(--dur-fast) var(--ease);
 }
-.accept__row--picked { border-color: var(--accent); }
+.accept__row:last-child { border-block-end: 0; }
+.accept__row:hover { background: var(--accent-soft); }
+/* Выбор выражен заливкой и полосой, а не сменой цвета рамки на один пиксель:
+   цвет в одиночку недоступен при дальтонизме и исчезает в печати, а рамка
+   толщиной в пиксель не видна через плечо на стройке. */
+.accept__row--picked {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
 .accept__name {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; font-size: var(--fs-body); color: var(--ink);
@@ -1812,13 +2126,21 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   margin-block-start: var(--space-1);
   font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-2);
 }
+/* Кнопка отметки без рамки в покое: рамка на каждой из девяти строк давала
+   вторую девятку обведённых прямоугольников. Размер 48×48 не трогается — это
+   зона касания прораба в перчатке, и она мерится отдельным правилом. Себя
+   кнопка обнаруживает откликом на наведение и фокус, а не рамкой в покое. */
 .accept__check {
   display: grid; place-items: center;
   inline-size: 48px; block-size: 48px; flex: none;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  border: 1px solid transparent; border-radius: var(--radius-md);
   background: none; color: var(--ink-3); cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
 }
+.accept__check:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line-strong); }
+.accept__check:focus-visible { border-color: var(--accent); }
 .accept__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .accept__check:disabled { cursor: not-allowed; opacity: .5; }
 /* Флажок — не отметка приёмки. Класс `.accept__check` принадлежит кнопке
@@ -1896,6 +2218,868 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .gantt__pct { flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
 .gantt__fact { font-size: var(--fs-sm); color: var(--ink-3); }
 .gantt__fact--over { color: var(--signal); }
+
+/* --- 5.26 Доска воронки заявок ---------------------------------------------
+   Четыре колонки по стадиям. Колонка показывается всегда, даже пустая:
+   исчезающая вместе с последней заявкой колонка ломает картину воронки —
+   человек перестаёт видеть стадию, на которой у него ничего нет.
+
+   Черта под заголовком нейтральная у всех четырёх. Макет красил её
+   сигнальными цветами, но «--danger» в этом продукте закреплён за сторно,
+   просрочкой и расхождением, и на карточках под чертой стоит красная
+   пилюля просрочки: один цвет означал бы разное в двух сантиметрах друг от
+   друга. Положение в воронке называет порядок колонок, а не цвет.       */
+/* Шапка раздела своей поверхности не имеет. Заливка и радиус достались ей
+   от артборда, но в продукте такая плашка одна: прочие разделы набраны
+   .section-head — волосяной чертой без заливки, — а по шкале уровней
+   поверхностей полоса страницы идёт ступенью 0 и глубины не получает. Оба
+   её жильца, кнопка и отбор, обведены сами по своей роли, и коробка вокруг
+   них ничего не добавляла. */
+.leads__head { padding-block: var(--space-2); gap: var(--space-4); }
+.leadboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5); align-items: start; }
+.leadboard__column { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.leadboard__title { text-align: center; color: var(--ink); }
+.leadboard__count { text-align: center; padding-block-end: var(--space-2);
+  border-block-end: 2px solid var(--line-strong); }
+.leadboard__cards { display: flex; flex-direction: column; gap: var(--space-3);
+  padding-block-start: var(--space-3); }
+.leadboard__empty { padding-block-start: var(--space-3); text-align: center; }
+
+/* Карточка — кнопка, а не ссылка: заявка открывается листом, а не
+   страницей, и ссылка обещала бы адрес, которого нет. */
+.leadcard { display: flex; flex-direction: column; gap: var(--space-2);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-3); text-align: start; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font-family: inherit; color: var(--ink);
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.leadcard:hover { border-color: var(--line-strong); }
+/* Акцентная заливка означает «лист этой карточки открыт», а не важность. */
+.leadcard[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.leadcard__head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); }
+.leadcard__number { font-size: var(--fs-cap); color: var(--ink-3); text-align: start; }
+.leadcard__name { font-weight: 500; }
+.leadcard__guide { text-align: start; }
+.leadcard__pills { gap: var(--space-2); }
+
+/* Лента стадий на узком экране. Четыре колонки в ширину телефона не
+   помещаются, а документ шире окна запрещён: прокручивается лента, как
+   лента разделов приёмки. Счётчики в чипах сохраняют картину воронки
+   целиком — видно, где затор, не листая. */
+.leads__stages { display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin;
+  overscroll-behavior-x: contain; }
+.leads__stage { display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);
+  font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+  white-space: nowrap; cursor: pointer; }
+.leads__stage[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent); }
+
+/* Лист заявки длиннее прочих: в нём стадия, ориентир, задачи и два
+   завершающих действия. Прокрутка внутри листа, а не страницы под ним. */
+.sheet--tall { max-block-size: 88vh; overflow-y: auto; }
+
+@media (max-width: 1023px) {
+  .leadboard { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Вилка занимает больше места, чем одно число: крупный кегль денежной
+   величины рвал бы её на две строки посреди тире. */
+.figure__value--range { font-size: var(--fs-h2); }
+
+/* --- 5.27 Фотоотчёт объекта --------------------------------------------------
+   Сетка снимков, а не список строк, как во вкладке приёмки. Разница
+   намеренная: приёмка отвечает на вопрос «что принято по действующей
+   смете» и потому ведёт числа столбцом, а отчёт отвечает на вопрос «что
+   сделано на объекте» и ведёт снимки. Заказчик открывает отчёт, чтобы
+   увидеть работу, а не сверить количества.
+
+   `auto-fill` с минимумом 220 px, а не заданное число колонок: отчёт
+   смотрят и с телефона в машине, и с монитора в кабинете, а число
+   снимков в дне заранее неизвестно. */
+.report__grid {
+  display: grid; gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.report__card {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  margin: 0; padding: var(--space-3);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+/* Сторнированная приёмка остаётся в отчёте — история не переписывается
+   (БП-04), — но выдавать её за сделанное нельзя. Поэтому карточка
+   приглушена и обведена цветом отмены: снимок был, работы нет. */
+.report__card--reversed { border-color: var(--danger); background: var(--danger-soft); }
+/* Пропорция задана заранее, иначе сетка прыгает по мере загрузки снимков
+   (CLS). Пустое место под снимок — не ошибка загрузки: у пакета приёмки
+   фотография обязательна, но раздел мог быть снят одним кадром на
+   несколько пакетов. */
+.report__photo {
+  display: block; inline-size: 100%; aspect-ratio: 4 / 3; max-inline-size: 100%;
+  object-fit: cover; background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.report__lines { display: flex; flex-direction: column; gap: var(--space-1);
+  margin: 0; padding: 0; list-style: none;
+  font-size: var(--fs-sm); color: var(--ink-2); }
+/* Отменённая строка внутри живого пакета: перечёркнута ровно так же, как
+   в приёмке. Один приём на оба экрана — человек не переучивается. */
+.report__line--reversed { color: var(--ink-3); text-decoration: line-through; }
+
+@media (max-width: 767px) {
+  .report__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- 5.28 Предпросмотр графика из сметы -------------------------------------
+   Список предложенных этапов в листе заведения графика. Показывается до
+   записи, а не после: график — обязательство перед заказчиком, и узнавать
+   по факту, что именно система завела, поздно.
+
+   Три колонки на одних вертикалях: имя тянется, сроки и длительность
+   стоят столбцом. Разъехавшиеся даты приходится сравнивать глазом, а
+   смотрят на них как раз затем, чтобы сравнить. */
+.planlist { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none;
+  max-block-size: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+.planlist__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline; gap: var(--space-3);
+  padding-block: var(--space-1); border-block-end: 1px solid var(--line);
+}
+.planlist__row:last-child { border-block-end: 0; }
+.planlist__name { min-inline-size: 0; overflow-wrap: anywhere; font-size: var(--fs-sm); }
+.planlist__dates { white-space: nowrap; }
+.planlist__days { white-space: nowrap; }
+
+@media (max-width: 767px) {
+  /* На телефоне три колонки не помещаются: сроки уходят под имя, а
+     длительность остаётся при них — она читается вместе со сроками. */
+  .planlist__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .planlist__name { grid-column: 1 / -1; }
+}
+
+/* --- 5.29 Плитки счётчиков на первом экране ---------------------------------
+   Пришли на смену полосе счётчиков со столбиками долей (решение заказчика
+   от 11.09.2026: главная перегружена диаграммами). Полоса отвечала на
+   вопрос «много ли это относительно соседей» — вопрос второго порядка,
+   которого на первом экране не задают. Спрашивают «сколько», и ответ на
+   это — число: оно читается быстрее любой дорожки.
+
+   Рамки у плитки нет намеренно. Рамка, заливка и радиус означают
+   «отдельный объект», и восемь обведённых плиток на первом экране дают
+   карточную кашу, в которой пропадает иерархия, — правило раздела 5
+   норматива, и проверка страницы его стережёт. Группу держит волосяная
+   черта над числом: она разделяет, ничего не обводя.
+
+   Плитки укладываются в ряд и переносятся: четыре стадии воронки и
+   четыре-шесть статусов на 1440 px стоят строкой, на телефоне — по две. */
+.scores { display: grid; gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); }
+.score {
+  display: flex; flex-direction: column; gap: 2px;
+  min-block-size: var(--tap-min); padding: var(--space-3) 0 0;
+  text-align: start; font-family: inherit; color: var(--ink);
+  background: none; border: 0; border-block-start: 2px solid var(--line-strong);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+button.score { cursor: pointer; }
+button.score:hover { border-block-start-color: var(--accent); color: var(--accent); }
+.score__value { font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600;
+  line-height: 1.1; }
+.score__value--danger { color: var(--danger); }
+.score__label { font-size: var(--fs-sm); color: var(--ink-2); }
+.score__note { font-size: var(--fs-cap); letter-spacing: var(--ls-cap);
+  text-transform: uppercase; color: var(--ink-3); }
+
+/* Воронка — последовательность, и читается она как путь заявки слева
+   направо. Стрелка между плитками говорит это без подписи; на переносе
+   строки и на телефоне она не нужна и снимается. */
+@media (min-width: 768px) {
+  .scores--chain .score { position: relative; }
+  .scores--chain .score:not(:last-child)::after {
+    content: ""; position: absolute; inset-inline-end: calc(var(--space-4) * -1);
+    inset-block-start: -2px; inline-size: var(--space-4); block-size: 2px;
+    background: var(--line);
+  }
+}
+
+/* --- 5.30 Сигнальная строка -------------------------------------------------
+   Одно обстоятельство, требующее действия сегодня: просроченные задачи по
+   заявкам. Стоит строкой, а не плиткой в ряду: в ряду она читалась бы как
+   ещё одна стадия воронки — то есть как наблюдение, а не как дело. */
+.alertline {
+  display: flex; align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-3) var(--space-4); text-align: start; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-sm); color: var(--danger);
+  background: var(--danger-soft); border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+}
+.alertline__text { flex: 1 1 auto; font-weight: 500; }
+.alertline__go { flex: none; text-decoration: underline; }
+
+/* --- 5.31 Ближайшие сроки ---------------------------------------------------
+   Расходящаяся шкала с отрезком влево-вправо от нуля снята: она показывала,
+   насколько один объект просрочен сильнее другого, — величину, которой
+   никто не распоряжается. Распоряжаются словами «через столько-то», и они
+   стоят пилюлей срочности: красная — просрочен, жёлтая — на неделе,
+   обычная — дальше. */
+.duelist { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.duelist__row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+.duelist__row:last-child { border-block-end: 0; }
+.duelist__project {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); min-inline-size: 0; flex: 1 1 auto;
+  padding: 0; text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+}
+.duelist__project:hover .duelist__address { color: var(--accent); }
+.duelist__address { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+
+/* --- 5.32 Состав портфеля полосой долей -------------------------------------
+   Пришла на смену плиткам «Объекты по статусам»: плитки называли числа
+   порознь, полоса показывает их отношение. Два представления одних чисел
+   на одном экране заставляют выбирать, какому верить, поэтому плитки сняты,
+   а не поставлены рядом.
+
+   Сегменты разделены зазором 2 px цветом полотна, а не линией: линия — это
+   ещё один цвет на полосе из шести, а зазор читается как разделитель при
+   любой заливке и при чёрно-белой печати.
+
+   Цвет сегмента — тот же токен, которым окрашена пилюля этого статуса в
+   реестре и на карточке (`--status-*-bar`). До 12.09.2026 полоса брала
+   порядковую шкалу индиго, а пилюли — сигнальные токены, и один объект был
+   двух цветов на одном экране. Опознание по-прежнему держится на подписи и
+   числе под полосой: цвет — второй канал, первый — слово.                                          */
+.statusbar { display: flex; gap: 2px; block-size: 28px; inline-size: 100%;
+  border-radius: var(--radius-chip); overflow: hidden; }
+/* Доли полосы — картинка, а не органы. Прежде каждая была кнопкой, и это
+   противоречило самой полосе: она объявлена `role="img"`, а у роли
+   «изображение» интерактивных потомков не бывает. Цена размера при этом была
+   невозможной: доля пропорциональна числу объектов, и норма 44 px по обеим
+   сторонам означала бы, что полоса перестаёт показывать доли. Команда не
+   потеряна — та же, с той же целью, стоит в легенде ниже, где зона нажатия
+   держится токеном. */
+.statusbar__part { min-inline-size: 4px; }
+.statusbar__part--new     { background: var(--status-new-bar); }
+.statusbar__part--work    { background: var(--status-work-bar); }
+.statusbar__part--wait    { background: var(--status-wait-bar); }
+.statusbar__part--pause   { background: var(--status-pause-bar); }
+.statusbar__part--done    { background: var(--status-done-bar); }
+.statusbar__part--archive { background: var(--status-archive-bar); }
+
+.statusbar__legend { display: flex; flex-direction: column;
+  margin: 0; padding: 0; list-style: none; }
+.statusbar__item { display: grid; grid-template-columns: 10px minmax(0, 1fr) 2rem 4rem;
+  align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min); padding-block: var(--space-1);
+  text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink-2);
+  border-block-end: 1px solid var(--line); }
+.statusbar__legend li:last-child .statusbar__item { border-block-end: 0; }
+.statusbar__name { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar__share { text-align: end; }
+.statusbar__item:hover { color: var(--accent); }
+.statusbar__item .num { text-align: end; }
+.statusbar__mark { inline-size: 10px; block-size: 10px; flex: none;
+  border-radius: var(--radius-sm); }
+.statusbar__mark--new     { background: var(--status-new-bar); }
+.statusbar__mark--work    { background: var(--status-work-bar); }
+.statusbar__mark--wait    { background: var(--status-wait-bar); }
+.statusbar__mark--pause   { background: var(--status-pause-bar); }
+.statusbar__mark--done    { background: var(--status-done-bar); }
+.statusbar__mark--archive { background: var(--status-archive-bar); }
+
+/* --- 5.33 Готовность работ по объектам --------------------------------------
+   Заявленное и принятое в одной дорожке, а не двумя полосами рядом:
+   содержание — в разрыве между ними, и разведённые по двум дорожкам они
+   заставляли бы сравнивать глазом две длины вместо одной.
+
+   Принятое рисуется поверх заявленного и отделено от него кольцом 2 px
+   цветом полотна: без кольца две заливки сливаются в одну и разрыв
+   пропадает ровно там, где он мал и потому важен.                        */
+.readiness { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.readiness__legend { display: flex; align-items: center; gap: var(--space-2); }
+.readiness__mark { inline-size: 10px; block-size: 10px; flex: none;
+  border-radius: var(--radius-sm); }
+.readiness__mark--claim { background: var(--claim); }
+.readiness__mark--fact { background: var(--ok); margin-inline-start: var(--space-3); }
+.readiness__row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 4.5rem;
+  align-items: center; gap: var(--space-3);
+  inline-size: 100%; min-block-size: var(--tap-min); padding: var(--space-1) 0;
+  text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; color: var(--ink);
+}
+.readiness__row:hover .readiness__value { color: var(--accent); }
+.readiness__track { position: relative; block-size: 10px; inline-size: 100%;
+  background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.readiness__claim { position: absolute; inset-block: 0; inset-inline-start: 0;
+  background: var(--claim); border-radius: var(--radius-pill); }
+.readiness__fact { position: absolute; inset-block: 2px; inset-inline-start: 0;
+  background: var(--ok); border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px var(--surface); }
+/* Перевыработка законна и показывается как есть, а не обрезается по
+   заявленному: обрезка скрыла бы ровно то, ради чего две величины рядом. */
+.readiness__fact--over { background: var(--signal); }
+/* Числа столбцом: заявленное сверху, принятое под ним — в том же порядке,
+   в каком они лежат на дорожке и названы в легенде. Принятое набрано тоном
+   своей заливки: это второй канал опознания, первый — положение. */
+.readiness__pair { display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+.readiness__value { text-align: end; white-space: nowrap; }
+.readiness__fact-value { text-align: end; white-space: nowrap; color: var(--ok); }
+
+@media (max-width: 767px) {
+  .readiness__row { grid-template-columns: auto minmax(0, 1fr) 4rem; }
+}
+
+/* --- 5.36 Галерея объектов -------------------------------------------------
+   Портфель читается плитками, а не ведомостью: экран отвечает на вопрос
+   «где что происходит», и объект на нём узнают в лицо. Строка ведомости
+   называет объект кодом и адресом — двумя строками, которые у соседних
+   объектов отличаются одной цифрой и одним словом.
+
+   Число колонок задаёт ширина, а не медиазапрос: портфель бывает из трёх
+   объектов и из тридцати, и вёрстка не должна знать, сколько их сегодня.
+   Нижняя граница плитки 260 px — ширина, при которой адрес в две строки ещё
+   читается, а обложка остаётся узнаваемой.                                */
+/* Не более четырёх плиток в ряд. Прежде число колонок задавала только
+   нижняя граница 260 px, и на широком экране их становилось пять и больше:
+   плитки мельчали, а снимок — то, ради чего галерея и заведена, — переставал
+   читаться. Нижняя граница колонки теперь берётся как наибольшее из 260 px и
+   четверти ряда: на широком экране работает четверть и колонок ровно четыре,
+   на узком — 260 px и колонок столько, сколько поместится. */
+.gallery {
+  --колонок: 4;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(
+    max(260px, calc((100% - (var(--колонок) - 1) * var(--space-4)) / var(--колонок))), 1fr));
+  gap: var(--space-4);
+}
+
+/* Плитка — не ссылка: внутри неё живёт орган смены статуса, а кнопка внутри
+   ссылки недопустима и ломает обход с клавиатуры. Ссылкой служит адрес, а
+   цель нажатия растягивается на всю плитку псевдоэлементом. */
+.objecttile {
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease);
+}
+/* Отклик тот же, что у строк списков: плитка — единица того же рода, и
+   второй вид отклика сообщал бы о разнице, которой нет. */
+.objecttile:hover { border-color: var(--accent); box-shadow: var(--shadow-1); }
+/* Подложка та же, что у строк списков: правило одного отклика на продукт
+   исключений не знает, а рамка и тень сами по себе — второй его вид.
+   Красится тело, а не обложка: поверх снимка подложка не видна. */
+.objecttile:hover .objecttile__body { background: var(--accent-soft); }
+/* Кольцо фокуса ставится на плитку, когда фокус внутри неё: фокус стоит на
+   ссылке адреса, а видеть человек должен всю цель, по которой попадёт. */
+.objecttile:has(.objecttile__link:focus-visible) {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.objecttile__link { color: inherit; text-decoration: none; }
+.objecttile__link::after { content: ""; position: absolute; inset: 0; }
+.objecttile__link:hover { color: var(--accent); }
+/* Орган статуса поднимается над растяжкой ссылки: иначе нажатие по нему
+   уходило бы в открытие объекта. */
+.objecttile__status { position: relative; z-index: 1; }
+
+/* Обложка держит пропорцию, а не высоту: при жёсткой высоте снимок с
+   телефона обрезается по-разному на каждой ширине колонки. */
+.objecttile__cover {
+  position: relative; display: block;
+  aspect-ratio: 3 / 2; inline-size: 100%;
+  background: var(--surface-2);
+  border-block-end: 1px solid var(--line);
+}
+.objecttile__photo {
+  inline-size: 100%; block-size: 100%;
+  object-fit: cover; display: block;
+}
+/* Подложка объекта без снимков. Код крупно, тон — тон статуса из тех же
+   токенов, что у пилюли рядом. Ничего не выдаётся за фотографию. */
+.objecttile__plate {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600;
+  letter-spacing: .04em;
+}
+.objecttile__cover--new     { background: var(--status-new-soft); }
+.objecttile__cover--work    { background: var(--status-work-soft); }
+.objecttile__cover--wait    { background: var(--status-wait-soft); }
+.objecttile__cover--pause   { background: var(--status-pause-soft); }
+.objecttile__cover--done    { background: var(--status-done-soft); }
+.objecttile__cover--archive { background: var(--neutral-soft); }
+.objecttile__cover--new     .objecttile__plate { color: var(--status-new-ink); }
+.objecttile__cover--work    .objecttile__plate { color: var(--status-work-ink); }
+.objecttile__cover--wait    .objecttile__plate { color: var(--status-wait-ink); }
+.objecttile__cover--pause   .objecttile__plate { color: var(--status-pause-ink); }
+.objecttile__cover--done    .objecttile__plate { color: var(--status-done-ink); }
+.objecttile__cover--archive .objecttile__plate { color: var(--status-archive-ink); }
+
+.objecttile__body {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  flex: 1 1 auto;
+}
+.objecttile__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+/* Адрес занимает две строки всегда, а не по длине текста. Усечение по второй
+   было и раньше — объекты в одном доме отличаются хвостом строки, и обрезка
+   по первой сделала бы их неразличимыми, — но короткий адрес занимал одну
+   строку, и соседние плитки расходились внутренней геометрией: подпись
+   заказчика и пилюля срока вставали на разной высоте. Место резервируется
+   под две строки независимо от содержимого. */
+.objecttile__link {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-block-size: calc(2 * var(--fs-h3) * var(--lh-h3));
+}
+/* Строка людей — ровно одна, и место под неё держится даже когда людей нет:
+   иначе плитка без прораба короче соседней на высоту строки. */
+.objecttile__who {
+  min-block-size: calc(var(--fs-sm) * var(--lh-sm));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Подвал прижат к низу и набран в две строки. Одной строкой пилюля срока и
+   полоса готовности не умещались в колонку: «просрочен на 103 дня» занимает
+   почти всю ширину, и число процентов уходило за край плитки, где его
+   обрезал `overflow: hidden`. */
+.objecttile__foot {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: var(--space-2); margin-block-start: auto;
+}
+.objecttile__foot > .duepill { align-self: flex-start; }
+.objecttile__ready { display: flex; align-items: center; gap: var(--space-2); }
+.objecttile__ready-label { flex: none; }
+.objecttile__track { flex: 1 1 auto; }
+.objecttile__pct { flex: none; margin-inline-start: auto; }
+.objecttile__track {
+  position: relative; min-inline-size: 40px; block-size: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.objecttile__fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--accent); }
+.objecttile__pct { color: var(--ink-2); }
+
+/* --- 5.34 Реестр денег по объектам ------------------------------------------
+   Раздел «Бухгалтерия»: транши всех объектов одной ведомостью. Колонки
+   стоят на одних вертикалях — суммы читаются столбцом, а разъехавшиеся
+   деньги приходится сравнивать глазом, и смотрят на них как раз затем,
+   чтобы сравнить.
+
+   Ведомость, а не карточки: тридцать обведённых строк дают карточную кашу,
+   в которой пропадает то единственное, ради чего экран открывают, —
+   строка, требующая действия.                                            */
+/* Дорожки объявлены один раз на списке: ведомость и свод обязаны стоять на
+   одних вертикалях, а два набора дорожек в двух правилах расходятся при первой
+   же правке одного из них.
+
+   Хвостовая дорожка объявлена шириной, а не auto. При auto она равнялась
+   ширине кнопки «Отметить оплату» там, где кнопка есть, и нулю там, где её
+   нет; разницу забирали гибкие дорожки, и строки с кнопкой стояли левее
+   соседних — в ведомости, которую открывают ровно затем, чтобы сравнить
+   суммы столбцом. */
+.money { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none;
+  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 9rem 11rem; }
+.money__row {
+  display: grid;
+  grid-template-columns: var(--money-grid);
+  align-items: center; gap: var(--space-3);
+  /* Та же плотность, что у реестра: ведомость и реестр — один род списка, и
+     разная высота строки сообщала бы о разнице, которой нет. */
+  min-block-size: var(--row-h); padding-block: 0;
+  border-block-end: 1px solid var(--line);
+}
+/* Наведение: ведомость — рабочий список, по которому ведут мышью, и без
+   отклика строка теряется на семи колонках ровно так же, как терялась строка
+   реестра до чередования. Подложка та же, что у прочих списков. */
+.money__row:not(.money__row--client):hover { background: var(--accent-soft); }
+.money__row:last-child { border-block-end: 0; }
+.money__project {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-block-size: var(--tap-min); min-inline-size: 0;
+  margin-block: calc((var(--row-h) - var(--tap-min)) / 2);
+  padding: 0; text-align: start; cursor: pointer;
+  background: none; border: 0; font-family: inherit; font-size: var(--fs-sm); color: var(--ink);
+}
+.money__project:hover .money__address { color: var(--accent); }
+.money__address { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money__client { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money__num { color: var(--ink-3); }
+.money__sum { text-align: end; white-space: nowrap; }
+/* Пилюля состояния прижата к началу колонки, а не растянута по ней:
+   растянутая читается как полоса заливки, а не как метка. */
+.money__row .pill { justify-self: start; }
+.money__when { white-space: nowrap; }
+.money__act { display: flex; justify-content: flex-end; }
+.money__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
+
+/* Свод по заказчикам стоит на дорожках ведомости, а не на своих: набор,
+   объявленный отдельно, обещал «те же вертикали» словом комментария и не
+   держал их делом — сумма свода стояла на 612 px против 764 px у ведомости.
+
+   Ячеек в своде шесть против семи у ведомости: кода объекта и состояния у
+   заказчика нет. Недостающая дорожка добирается подписью, а не пустой
+   ячейкой: пустая ячейка в ведомости читается как потерянное значение.
+   Раскладка по дорожкам после этого: 1 — заказчик, 2–3 — подпись «ждёт
+   оплаты», 4 — сумма ожидания (дорожка сумм ведомости), 5 — подпись
+   «получено», 6 — сумма полученного, 7 — метка просрочки (дорожка действия). */
+.money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }
+
+/* --- 5.37 Обложка объекта на вкладке «Обзор» --------------------------------
+   Карточку открывают, чтобы вспомнить, что это за объект, и снимок отвечает
+   на это быстрее шести чисел. Пропорция та же, что у плитки портфеля: один
+   и тот же снимок в двух пропорциях обрезается по-разному, и объект на
+   карточке выглядел бы иначе, чем в галерее.
+
+   Орган, а не картинка со ссылкой: нажатие ведёт на фотоотчёт, откуда
+   обложка и взята. Подпись поверх нижнего края называет, куда ведёт, —
+   изображение без подписи о переходе не сообщает ничем.                    */
+.objectcover {
+  position: relative; display: block; inline-size: 100%;
+  aspect-ratio: 3 / 2; max-block-size: 360px;
+  padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface-2); overflow: hidden; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.objectcover:hover { border-color: var(--accent); }
+.objectcover__photo { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.objectcover__plate {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-h1); font-weight: 600; letter-spacing: .04em;
+}
+/* Подпись на затемнении, а не на самом снимке: белый текст поверх светлой
+   стены нечитаем, а тёмный поверх тёмной — тем более. */
+.objectcover__label {
+  position: absolute; inset-inline: 0; inset-block-end: 0;
+  display: flex; align-items: center; min-block-size: var(--tap-min);
+  padding: 0 var(--space-3);
+  /* Затемнение — действующим токеном полога: второй тёмный, набранный по
+     месту, разошёлся бы с ним на первой же правке темы. */
+  background: linear-gradient(to top, var(--overlay), transparent);
+  color: var(--ink-inv); font-size: var(--fs-sm); text-align: start;
+}
+.objectcover--new     { background: var(--status-new-soft); }
+.objectcover--work    { background: var(--status-work-soft); }
+.objectcover--wait    { background: var(--status-wait-soft); }
+.objectcover--pause   { background: var(--status-pause-soft); }
+.objectcover--done    { background: var(--status-done-soft); }
+.objectcover--archive { background: var(--neutral-soft); }
+.objectcover--new     .objectcover__plate { color: var(--status-new-ink); }
+.objectcover--work    .objectcover__plate { color: var(--status-work-ink); }
+.objectcover--wait    .objectcover__plate { color: var(--status-wait-ink); }
+.objectcover--pause   .objectcover__plate { color: var(--status-pause-ink); }
+.objectcover--done    .objectcover__plate { color: var(--status-done-ink); }
+.objectcover--archive .objectcover__plate { color: var(--status-archive-ink); }
+
+/* Ряд раздела без заголовка: экран уже назван обложкой, и второе имя того же
+   экрана читателю ничего не добавляет. Действие прижимается к концу строки —
+   там же, где оно стоит в рядах с заголовком. */
+.section-head--action { justify-content: flex-end; }
+
+/* --- 5.38 Группа полей формы -------------------------------------------------
+   Длинную форму делит не разделитель, а группа с именем: «Объект» и
+   «Ведение» отвечают на разные вопросы, и человек, знающий адрес, но не
+   знающий прораба, видит границу, а не сплошной столбец из восьми полей.
+
+   Собрана на `fieldset` с `legend`, а не на `div` с заголовком: связь полей
+   с именем группы тогда объявлена разметкой, и читалка называет её, входя в
+   группу. Своя роль и `aria-labelledby` для этого не нужны.
+
+   Браузерные значения сбрасываются полностью: `fieldset` несёт рамку и
+   поля, которых в продукте нет, а `legend` — свой отступ и свою позицию в
+   рамке. Имя группы набирается тем же прописным начертанием, что и подписи
+   разделов карточки: это тот же уровень, и второй способ показать его
+   означал бы второй словарь.
+   -------------------------------------------------------------------------- */
+.formgroup {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  margin: 0; padding: 0; border: 0; min-inline-size: 0;
+}
+.formgroup__legend {
+  padding: 0;
+  font-family: var(--font-ui); font-size: var(--fs-cap); line-height: var(--lh-cap);
+  font-weight: var(--fw-cap); letter-spacing: var(--ls-cap);
+  text-transform: uppercase; color: var(--ink-3);
+}
+
+/* Два поля в ряд: ключи и надбавка — короткие числа, и каждое во всю ширину
+   листа растянуло бы форму на экран сверх нужды. Ниже 480 px ряд распадается
+   в столбец: два числовых поля рядом на телефоне дают поле шириной в четыре
+   знака, куда не попадают пальцем. */
+.formrow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+@media (max-width: 479px) {
+  .formrow { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Строка о новом заказчике. Появляется, только когда введённого имени нет в
+   справочнике: форма обязана сказать, что нажатие заведёт вторую запись, —
+   иначе «Ирина Ковалева» без буквы «ё» тихо станет отдельным заказчиком. */
+.newclient {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm); color: var(--ink-2);
+}
+
+/* --- 5.39 Приём замечаний по демонстрации ------------------------------------
+   Орган обзора, а не продукта: живёт только в демонстрационной сборке.
+
+   Кнопка висит над содержимым в нижнем углу — там, где её ищут, и там, где
+   она не закрывает ни одного органа продукта. На телефоне поднимается над
+   таб-панелью: перекрытая кнопка выхода стоила бы обзору больше, чем
+   замечание, ради которого кнопка поставлена.
+
+   Слой ниже затемнения (10) и листа (11): раскрытая форма обязана закрывать
+   ту кнопку, которая её открыла.
+   -------------------------------------------------------------------------- */
+.feedback__open {
+  position: fixed;
+  z-index: 9;
+  inset-inline-end: var(--space-4);
+  bottom: var(--space-4);
+  box-shadow: var(--shadow-2);
+}
+@media (max-width: 767px) {
+  .feedback__open {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  }
+}
+
+/* Поле замечания — в несколько строк: замечание длиннее одной, и поле в одну
+   строку заставляет писать телеграммой. Рост отключён: тянущееся поле
+   разъезжает лист, у которого своя прокрутка. */
+.feedback__text {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  font: inherit;
+  line-height: var(--lh-body);
+}
+
+/* --- 5.40 Чеки на материалы ---------------------------------------------------
+   Строка чека ведёт три вещи рядом: снимок, обстоятельства покупки и сумму.
+   Снимок стоит в строке, а не за ссылкой: он и есть свидетельство расхода, а
+   чек, ради которого надо куда-то перейти, не смотрят.
+
+   Сумма прижата к концу строки и набрана моноширинно — как все деньги
+   продукта: столбец сумм читается сверху вниз, и разъехавшиеся разряды
+   пришлось бы сравнивать глазом.
+   -------------------------------------------------------------------------- */
+/* Строка перечня — общая форма, а не «чек». Класс назывался по первой
+   сущности, которая его надела, и носил уже три разные: чек, акт и шаблон.
+   Имя по первому жильцу подводит и читателя, и проверку: правило, считающее
+   «.check», на вкладке актов считает акты. Тот же довод, по которому строка
+   расхода получила свой «.spend__row» вместо чужого «.money__row». */
+.records { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+
+.record {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--line);
+}
+.record:last-child { border-block-end: 0; }
+
+/* Отклонённый расход остаётся в списке историей, но деньгами не считается:
+   приглушение говорит это раньше пилюли. */
+.record[data-status="REJECTED"] { color: var(--ink-3); }
+
+.record__photo {
+  inline-size: 64px;
+  block-size: 64px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.record__body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.record__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.record__side {
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);
+}
+.record__amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.record__actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* Ниже 600 px сумма и действия уходят под сведения: три колонки на телефоне
+   дают колонку в четыре знака, куда не попадают пальцем. */
+@media (max-width: 599px) {
+  .record { grid-template-columns: 48px minmax(0, 1fr); }
+  .record__photo { inline-size: 48px; block-size: 48px; }
+  /* Ряд сумм и действий занимает вторую колонку целиком. `inline-size: 100%`
+     здесь был бы шире колонки: у строки есть промежуток между колонками, и
+     сотня процентов считается от колонки, а зазор прибавляется сверх неё —
+     полотно уезжало на девять пикселей. Ширину задаёт сама колонка. */
+  .record__side {
+    grid-column: 2; flex-direction: row; align-items: center;
+    justify-content: space-between; min-inline-size: 0; flex-wrap: wrap;
+  }
+  .record__actions { flex-wrap: wrap; }
+}
+
+/* --- 5.41 Акт выполненных работ -----------------------------------------------
+   Бланк, а не экран: шапка сторон, ведомость работ, итог, подписи. Материал
+   тот же, что у обмерного плана в печати, — продукт набран как рабочий
+   документ, и акт из него не выпадает.
+   -------------------------------------------------------------------------- */
+.act {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.act__title { font-family: var(--font-ui); font-size: var(--fs-h3); font-weight: 600; }
+.act__parties { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.act__party { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.act__signs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);
+  margin-block-start: var(--space-5);
+}
+.act__sign { font-size: var(--fs-sm); }
+/* Предупреждение внутреннего вида — сигнальным цветом: лист, попавший
+   заказчику, обязан называть себя раньше, чем его прочтут. */
+.act__warning { color: var(--danger); }
+
+/* Строка органов бланка: переключатель вида и печать. Общая у акта и у
+   документа организации — бумага одна, и два набора правил для одного ряда
+   разошлись бы на первой правке, как разошлись бы два бланка. Подсказка
+   уходит на свою строку, когда ряд перестаёт помещаться: она объясняет, а
+   не действует, и разрывать ради неё пару «вид — печать» незачем. */
+.sheet-actions {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.sheet-actions__hint { flex: 1 1 100%; }
+@media (min-width: 900px) { .sheet-actions__hint { flex: 0 1 auto; } }
+
+@media (max-width: 599px) {
+  .act { padding: var(--space-4); }
+  .act__parties, .act__signs { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Поле реквизитов в настройках растёт по содержимому, как поле замечания. */
+.settings__requisites {
+  height: auto; padding: var(--space-2) var(--space-3);
+  resize: vertical; font: inherit; line-height: var(--lh-body);
+}
+
+@media print {
+  /* На листе остаётся акт и ничего больше — тем же приёмом, что у
+     обмерного плана: экранная часть скрыта одним классом. */
+  .acts-screen { display: none !important; }
+  .act { border: 0; padding: 0; }
+
+  /* Окно с прокруткой на бумаге отрезает колонки: прокрутить лист нельзя, и
+     «Начислено» с «Прибылью» внутреннего вида просто пропадали бы за краем.
+     Ширину задаёт страница, а не окно. */
+  .act .table-scroll { overflow: visible; }
+
+  /* Липкость шапки и подвала — приём экрана. На бумаге закреплённая по
+     `top: 0` строка встаёт поверх первой строки ведомости, и акт начинается
+     с наложения.
+
+     `display: table-header-group` здесь не объявляется, хотя повтор шапки на
+     каждом листе нужен: это умолчание браузера для `thead`, и объявление было
+     бы правилом, которое нельзя сломать. Откат подтвердил — снятие
+     объявления не дало ни одного замечания. Стережётся то, что ломается:
+     липкость. */
+  .act .estimate thead { position: static; }
+  .act .estimate tfoot { position: static; }
+
+  /* Строка не разрывается между листами, подписи не отрываются от акта, а
+     шапка акта не остаётся одна в конце страницы. */
+  .act .estimate tr { break-inside: avoid; }
+  .act__head { break-after: avoid; }
+  .act__signs { break-inside: avoid; }
+  .act__party { break-inside: avoid; }
+  .doc__clause { break-inside: avoid; }
+}
+
+/* --- 5.42 Документы организации ---------------------------------------------
+   Бланк переиспользует классы акта: второй набор для той же бумаги разошёлся
+   бы с первым на первой правке. Своё здесь — только пункты и палитра.
+   -------------------------------------------------------------------------- */
+.doc__clauses { display: flex; flex-direction: column; gap: var(--space-4);
+  margin: 0; padding-inline-start: var(--space-5); }
+.doc__clause > p + p { margin-top: var(--space-1); }
+.doc__body { min-block-size: 96px; inline-size: 100%; resize: vertical;
+  font-family: var(--font-ui); line-height: var(--lh-body); }
+.doc__palette { padding: var(--space-3); border: 1px solid var(--line);
+  border-radius: var(--radius-md); background: var(--surface-2); }
+.doc__palette summary { cursor: pointer; color: var(--ink-2); }
+.doc__group { margin-top: var(--space-3); }
+.doc__vars { margin: var(--space-1) 0 0; padding-inline-start: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-1); }
+.doc__var { font-family: var(--font-mono); font-size: var(--fs-sm);
+  padding: 0 4px; border-radius: var(--radius-sm); background: var(--accent-soft);
+  color: var(--accent); }
+
+/* На печати остаётся бланк: экранная часть скрыта одним классом, а не
+   перечислением блоков, которое устаревает на первой правке. */
+@media print { .docs-screen { display: none !important; } }
+
+/* --- 5.43 Люди организации и выданная ссылка --------------------------------
+   Ссылка равна доступу: она выделена как отдельный блок, а не набрана строкой
+   в перечне. Показывается один раз и не хранится — место ей в переписке
+   руководителя, а не на экране, где её видно мимоходом.
+   -------------------------------------------------------------------------- */
+.invite { display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-4); border: 1px solid var(--accent);
+  border-radius: var(--radius-md); background: var(--accent-soft); }
+.invite__link { font-family: var(--font-mono); font-size: var(--fs-sm);
+  padding: var(--space-2); border-radius: var(--radius-sm); background: var(--surface);
+  overflow-wrap: anywhere; }
+
+/* --- 5.44 Переключатель роли демонстрации -----------------------------------
+   Живёт только в демонстрации, как и приём замечаний: в продукте органа с
+   таким действием нет — роль приходит с сессией. Стоит над шапкой, а не в
+   ней: он о показе продукта, а не о продукте.
+   -------------------------------------------------------------------------- */
+.demorole { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3);
+  padding: var(--space-2) var(--gutter); background: var(--surface-2);
+  border-block-end: 1px solid var(--line); }
+.demorole__label { color: var(--ink-3); }
+.demorole__note { margin-inline-start: auto; }
+@media (max-width: 767px) {
+  .demorole { padding-inline: var(--space-4); }
+  .demorole__note { margin-inline-start: 0; inline-size: 100%; }
+}
+
+/* Типовые сметы организации: строка справочника, а не карточка. Заготовка
+   различается именем, числом позиций и итогом — этого хватает, чтобы выбрать
+   нужную, и обводить каждую отдельной поверхностью незачем. */
+.blueprints { list-style: none; margin: 0; padding: 0; }
+
+.blueprint {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-block-size: var(--row-h);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+.blueprint:last-child { border-block-end: 0; }
+.blueprint__total { margin-inline-start: auto; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  /* На телефоне итог уходит под имя: три величины в строку не встают, а
+     перенос по словам разорвал бы число пополам. */
+  .blueprint { flex-wrap: wrap; }
+  .blueprint__total { margin-inline-start: 0; }
+}
 
 /* ============================================================================
    Оформление витрины. Только то, что относится к самой странице показа и
@@ -2337,7 +3521,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
       <p class="t-sm t-muted">раздел 16: ведомость величин, тумблер, инвертированная поверхность</p>
     </div>
 
-    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема. В тёмной теме плашка не переворачивается обратно в светлую, а сходится с общей палитрой и отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки: числа на такой заливке дают 6,51 в светлой теме и 4,68 в тёмной при пороге 7.</p>
+    <p class="t-body t-secondary prose">Инвертированная поверхность — материал, а не тема: плашка не переворачивается обратно в светлую, а отделяется линией. Токен <code>--line-inv</code> — цвет линии, а не заливки. Тёмная палитра снята решением заказчика 11.09.2026 вместе с переключателем тем: продукт ведётся одной светлой темой, и второй набор значений здесь больше не называется.</p>
 
     <div class="stack stack--tight">
       <p class="field__label--cap">Общее</p>
@@ -2608,7 +3792,7 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
       <span class="figure__label">Ключевая функция</span>
       <p class="t-h2">Пакетная приёмка позиций раздела с фотофиксацией, порождающая начисление сдельной оплаты</p>
       <p class="t-body t-secondary prose">Одно действие прораба: отметить выполненное, снять помещение, подтвердить. Тем же действием начисляется оплата бригаде по ставке позиции, уменьшается остаток транша, позиция становится доступной для акта.</p>
-      <p class="t-sm t-muted">Проверяемые пороги: три касания на пакет · не более 30 секунд на позицию · не менее 80 % выполненного отмечено</p>
+      <p class="t-sm t-muted">Проверяемые пороги: три касания на пакет · не менее 80 % выполненного отмечено. Порог «не более 30 секунд на позицию» снят решением заказчика 14.09.2026: он замерялся секундомером в полевом сценарии на телефоне, а продукт ведётся как веб для ПК</p>
     </div>
 
     <div class="table-scroll">
@@ -2671,22 +3855,23 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 
     <div class="table-scroll">
       <table class="estimate">
-        <thead><tr><th>Токен</th><th>Светлая</th><th>Тёмная</th><th>Где применяется</th></tr></thead>
+        <thead><tr><th>Токен</th><th>Значение</th><th>Где применяется</th></tr></thead>
         <tbody>
-          <tr><td>--accent</td><td><span class="swatch" style="--swatch:#17457A">#17457A</span></td><td>#6FA3DC</td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
-          <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#E4EBF4">#E4EBF4</span></td><td>#1B2A3C</td><td>Бейдж кода объекта, заливка выбранного</td></tr>
-          <tr><td>--on-accent-fill</td><td><span class="swatch" style="--swatch:#17457A">белая, 16 %</span></td><td>тёмная, 14 %</td><td>Накладки поверх акцентной заливки: бейдж на обложке, дорожка кольца</td></tr>
-          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>#63B08A</td><td>Пилюля «Принято», отметка оплаты</td></tr>
-          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>#D9B24E</td><td>Черновик расхода, частичная приёмка</td></tr>
-          <tr><td>--danger</td><td><span class="swatch" style="--swatch:#B3261E">#B3261E</span></td><td>#E0817A</td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
-          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>#E0A155</td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
-          <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>#1C2530</td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
-          <tr><td>--row-h</td><td class="estimate__num" colspan="2">40 px</td><td>Строка таблицы сметы</td></tr>
-          <tr><td>--control-h / --control-h-touch</td><td class="estimate__num" colspan="2">40 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
-          <tr><td>--tap-min</td><td class="estimate__num" colspan="2">44 px</td><td>Минимальная область нажатия на мобильном</td></tr>
-          <tr><td>--indent-level</td><td class="estimate__num" colspan="2">16 px</td><td>Отступ вложенности раздела; в файле заказчика два уровня</td></tr>
-          <tr><td>--summary-col</td><td class="estimate__num" colspan="2">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
-          <tr><td>--measure</td><td class="estimate__num" colspan="2">76ch</td><td>Предельная длина строки читаемого текста</td></tr>
+          <tr><td>--accent</td><td><span class="swatch" style="--swatch:#4A3AB8">#4A3AB8</span></td><td>Шапка и обложка, первичная кнопка, дуга кольца, рамка остатка транша</td></tr>
+          <tr><td>--accent-soft</td><td><span class="swatch" style="--swatch:#F0EEFD">#F0EEFD</span></td><td>Бейдж кода объекта, заливка выбранного</td></tr>
+          <tr><td>--accent-fill</td><td><span class="swatch" style="--swatch:#675AC3">#675AC3</span></td><td>Бейдж кода на обложке: белый текст 5,49:1</td></tr>
+          <tr><td>--accent-track</td><td><span class="swatch" style="--swatch:#7569C9">#7569C9</span></td><td>Дорожка кольца на акценте: белый 4,55:1</td></tr>
+          <tr><td>--ok</td><td><span class="swatch" style="--swatch:#2C7753">#2C7753</span></td><td>Пилюля «Принято», отметка оплаты</td></tr>
+          <tr><td>--warn</td><td><span class="swatch" style="--swatch:#8E670C">#8E670C</span></td><td>Черновик расхода, частичная приёмка</td></tr>
+          <tr><td>--danger</td><td><span class="swatch" style="--swatch:#A5150D">#A5150D</span></td><td>Сторно, расхождение импорта, ошибочная дата</td></tr>
+          <tr><td>--signal</td><td><span class="swatch" style="--swatch:#9C5E17">#9C5E17</span></td><td>Перевыработка транша — событие нормальное, не ошибка</td></tr>
+          <tr><td>--surface-2</td><td><span class="swatch" style="--swatch:#EDF0F4">#EDF0F4</span></td><td>Заголовки таблиц, внутренние колонки сметы, дорожка кольца</td></tr>
+          <tr><td>--row-h</td><td class="estimate__num">40 px</td><td>Строка таблицы сметы</td></tr>
+          <tr><td>--control-h / --control-h-touch</td><td class="estimate__num">44 / 48 px</td><td>Кнопки и поля: десктоп и мобильный</td></tr>
+          <tr><td>--tap-min</td><td class="estimate__num">44 / 48 px</td><td>Минимальная область нажатия: десктоп и мобильный</td></tr>
+          <tr><td>--indent-level</td><td class="estimate__num">16 px</td><td>Отступ вложенности раздела; в файле заказчика два уровня</td></tr>
+          <tr><td>--summary-col</td><td class="estimate__num">320 px</td><td>Левая колонка сводки объекта; складывается ниже 1024 px</td></tr>
+          <tr><td>--measure</td><td class="estimate__num">76ch</td><td>Предельная длина строки читаемого текста</td></tr>
         </tbody>
       </table>
     </div>

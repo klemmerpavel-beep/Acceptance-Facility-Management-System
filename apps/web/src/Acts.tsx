@@ -3,6 +3,7 @@ import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
 import { Announce } from "./Announce.js";
+import { имяЛиста, печать } from "./print.js";
 
 /**
  * Вкладка «Документы» карточки объекта.
@@ -20,8 +21,15 @@ import { Announce } from "./Announce.js";
  * Переключатель видов есть только у руководителя: прорабу внутренний вид не
  * отдаётся, и кнопка, которая всегда отказывает, — не кнопка.
  *
- * Печатается акт браузером: отдельного вывода в PDF продукт не заводит —
- * это новая зависимость, а печать листа даёт тот же результат.
+ * Файл заказчик получает печатью: кнопка «Печать акта» открывает диалог, в
+ * котором «Сохранить как PDF» даёт документ. Отдельной сборки PDF на сервере
+ * продукт не заводит — она стоила бы новой зависимости и файла шрифта с
+ * кириллицей в репозитории, а печатный лист даёт ту же бумагу (решение от
+ * 18.09.2026 по ответу на вопрос 1 квиза; разбор — `print.ts`).
+ *
+ * Кнопка стоит у обоих видов и у всех трёх ролей: акт — бумага заказчика, и
+ * печатать её вправе тот, кому она открыта. Переключатель видов рядом остаётся
+ * органом руководителя.
  */
 
 const дата = (iso: string): string => {
@@ -131,24 +139,47 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
 
         {error !== null && <p className="field__error" role="alert">{error}</p>}
 
-        {role === "OWNER" && act !== null && (
-          <div className="segmented" role="group" aria-label="Вид акта">
+        {act !== null && (
+          <div className="sheet-actions">
+            {role === "OWNER" && (
+              <div className="segmented" role="group" aria-label="Вид акта">
+                <button
+                  type="button"
+                  className="segmented__option"
+                  aria-pressed={вид === "client"}
+                  onClick={() => { setВид("client"); }}
+                >
+                  Клиентский
+                </button>
+                <button
+                  type="button"
+                  className="segmented__option"
+                  aria-pressed={вид === "internal"}
+                  onClick={() => { setВид("internal"); }}
+                >
+                  Внутренний
+                </button>
+              </div>
+            )}
+            {/* Вид берётся из ответа сервера, а не из состояния переключателя:
+                состояние меняется до того, как придёт новый вид, и лист,
+                названный внутренним, успел бы уйти клиентским. */}
             <button
               type="button"
-              className="segmented__option"
-              aria-pressed={вид === "client"}
-              onClick={() => { setВид("client"); }}
+              className="btn btn--secondary"
+              onClick={() => {
+                печать(имяЛиста(
+                  `Акт № ${String(act.number)}`,
+                  act.project.code,
+                  act.audience === "internal" ? "внутренний" : "клиентский",
+                ));
+              }}
             >
-              Клиентский
+              Печать акта
             </button>
-            <button
-              type="button"
-              className="segmented__option"
-              aria-pressed={вид === "internal"}
-              onClick={() => { setВид("internal"); }}
-            >
-              Внутренний
-            </button>
+            <p className="t-sm t-muted sheet-actions__hint">
+              В диалоге печати выберите «Сохранить как PDF», чтобы получить файл.
+            </p>
           </div>
         )}
       </div>
