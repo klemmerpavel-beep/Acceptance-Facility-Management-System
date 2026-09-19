@@ -10,6 +10,7 @@ import type {
 import {
   acceptedShare, basisPoints, clientTotals, estimateAgainstGuideline, kopecks,
   nextProjectCode, projectReadiness, trancheRemainder,
+  ownerLevel,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -200,7 +201,7 @@ export class ProjectsService {
     code: string,
     status: ProjectSummary["status"],
   ): Promise<ProjectSummary> {
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Статус объекта меняет руководитель." });
     }
     const project = await this.prisma.project.findFirst({ where: { ...projectScope(user), code } });
@@ -244,7 +245,7 @@ export class ProjectsService {
     code: string,
     patch: UpdateProject,
   ): Promise<ProjectSummary> {
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Поля объекта правит руководитель." });
     }
     const project = await this.prisma.project.findFirst({ where: { ...projectScope(user), code } });
@@ -363,7 +364,7 @@ export class ProjectsService {
      * строками, автором, снимком и сторно. Повторить её здесь значило бы
      * залить ленту дубликатом того, что рядом показано подробнее.
      */
-    const внутренние = user.role === "OWNER";
+    const внутренние = ownerLevel(user.role);
     /* Чеки видят обе роли: расход заводит и прораб, и «кто провёл этот
        чек» спрашивают на объекте, а не в кабинете. Денежных величин
        разграничения это не касается — сумма чека не ставка и не прибыль. */

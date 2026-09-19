@@ -751,10 +751,39 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 /* Состояние держит свою колонку: без неё пилюля и величины делят одну
    ячейку и встают друг над другом, а не рядом. */
-.tranche__state { display: flex; align-items: center; gap: var(--space-2); }
+/* Органов в колонке состояния стало больше одного: с 19.09.2026 рядом с
+   пилюлей стоят «Отметить оплату», «Записать платёж» и раскрытие платежей.
+   Без переноса они уводят строку за край окна на 390 px — поймано обходом,
+   а не глазами. */
+.tranche__state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 /* Отрицательный остаток — сигнальным, а не `--danger`: перевыработка есть
    нормальное событие, требующее закрытия акта. Тот же довод, что у заливки. */
 .tranche__over { color: var(--signal); }
+
+/* Платежи транша раскрываются под своей строкой, а не листом поверх экрана:
+   их читают, сверяя с суммой транша, которая стоит строкой выше. Лист
+   закрыл бы её собой — то самое, за что правка полей на месте пришла на
+   смену листам (раздел 5.28). */
+.tranche__payments {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column;
+  margin: 0; padding-inline-start: var(--space-4);
+  list-style: none;
+  border-inline-start: 2px solid var(--line);
+}
+.tranche__payment {
+  display: grid;
+  grid-template-columns: 6rem 9rem minmax(0, 1fr) auto;
+  align-items: center; gap: var(--space-3);
+  min-block-size: var(--tap-min);
+}
+.tranche__payment .num { text-align: end; }
+@media (max-width: 767px) {
+  /* На телефоне четыре дорожки не помещаются: строка платежа становится
+     двумя — дата с суммой и основание под ними. */
+  .tranche__payment { grid-template-columns: 6rem minmax(0, 1fr); }
+  .tranche__payment > :nth-child(3) { grid-column: 1 / -1; }
+}
 @media (min-width: 768px) {
   .tranche__row { grid-template-columns: minmax(0, 1fr) minmax(0, 34rem) 14rem; align-items: center; }
   .tranche__figures { grid-row: 1; grid-column: 2; justify-content: space-between; }
@@ -2155,8 +2184,12 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    нет; разницу забирали гибкие дорожки, и строки с кнопкой стояли левее
    соседних — в ведомости, которую открывают ровно затем, чтобы сравнить
    суммы столбцом. */
+/* Дорожек восемь: седьмая добавлена 19.09.2026 под подпись оплаты — сколько
+   пришло по траншу и сколько не покрыто. Величина эта появилась вместе с
+   частичной оплатой и недобором, и всунуть её в соседнюю ячейку значило бы
+   склеить два разных факта — срок ожидания и деньги — в одной подписи. */
 .money { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none;
-  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 9rem 11rem; }
+  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 13rem 9rem 11rem; }
 .money__row {
   display: grid;
   grid-template-columns: var(--money-grid);
@@ -2187,6 +2220,10 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    растянутая читается как полоса заливки, а не как метка. */
 .money__row .pill { justify-self: start; }
 .money__when { white-space: nowrap; }
+/* Подпись оплаты переносится, а не обрезается: «оплачено 150 000,00 ₽ из
+   380 000,00 ₽» длиннее своей дорожки, и многоточие съело бы вторую сумму —
+   ровно ту, с которой первую и сравнивают. */
+.money__paid { min-inline-size: 0; }
 .money__act { display: flex; justify-content: flex-end; }
 .money__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
 
@@ -2199,7 +2236,10 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    ячейкой: пустая ячейка в ведомости читается как потерянное значение.
    Раскладка по дорожкам после этого: 1 — заказчик, 2–3 — подпись «ждёт
    оплаты», 4 — сумма ожидания (дорожка сумм ведомости), 5 — подпись
-   «получено», 6 — сумма полученного, 7 — метка просрочки (дорожка действия). */
+   «получено», 6 — сумма полученного, 7 — порог просрочки, 8 — метка
+   просрочки (дорожка действия). Седьмая ячейка добавлена 19.09.2026 вместе с
+   порогом по договору: просрочка, названная без порога, выглядит назначенной
+   нами, а не договором. */
 .money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }
 
 /* --- 5.37 Обложка объекта на вкладке «Обзор» --------------------------------

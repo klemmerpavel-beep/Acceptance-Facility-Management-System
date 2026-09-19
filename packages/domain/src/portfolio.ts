@@ -10,7 +10,7 @@
  * величины, как и позиция сметы.
  */
 import { add, kopecks, sum, type BasisPoints, type Kopecks } from "./money.js";
-import { clientTotals } from "./projection.js";
+import { clientTotals, ownerLevel } from "./projection.js";
 import type { Role } from "./projection.js";
 
 export type ProjectStatus =
@@ -166,7 +166,7 @@ export function buildPortfolio(
       supervision,
       estimate,
       accepted: sum(projects.map((p) => p.acceptedTotal)),
-      ...(options.role === "OWNER" ? { wage } : {}),
+      ...(ownerLevel(options.role) ? { wage } : {}),
     },
     statuses,
     projects: {

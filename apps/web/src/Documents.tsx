@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DocumentTemplate, IssuedDocument, ProjectSummary, Role, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
-import { templateFault, unknownVariables, VARIABLES, VARIABLE_GROUPS } from "@priyomka/domain";
+import {
+  ownerLevel, templateFault, unknownVariables, VARIABLES, VARIABLE_GROUPS,
+} from "@priyomka/domain";
 import {
   createTemplate, deleteTemplate, errorMessage, fetchTemplate, fetchTemplates, issueDocument,
   updateTemplate,
@@ -78,7 +80,7 @@ export function Documents({
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
   }, [открыт]);
 
-  const правит = role === "OWNER";
+  const правит = ownerLevel(role);
 
   const выпустить = (id: string, projectCode: string): void => {
     setBusy(true);

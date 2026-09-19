@@ -16,16 +16,24 @@ import { formatDate, plural } from "./status.js";
  * исключены из объёма, и раздел с таким названием не повод возвращать их
  * туда: здесь нет ни одного поля, которого не было бы в транше.
  *
- * Единица учёта — транш. Он и есть то, что предъявляется заказчику и
- * оплачивается целиком; вторая сущность платежа завела бы два учёта одних
- * денег, и на первой частичной оплате они разошлись бы.
+ * Единица учёта — транш; платежи по нему заведены 19.09.2026 ответом
+ * заказчика на вопрос 4 квиза. Довод против двух учётов одних денег не
+ * отменён, а исполнен: расхождение отметки руководителя с платежами считается
+ * прямо, зовётся недобором и стоит на этом экране числом. Спрятать его в
+ * согласии двух величин значило бы получить расхождение, которое выглядит
+ * верным.
  */
 
 const STATE_PILL: Record<MoneyState, string> = {
   "в работе": "pill",
   "ждёт оплаты": "pill pill--warn",
+  "оплачен частично": "pill pill--warn",
   "оплачено": "pill pill--ok",
 };
+
+/** Состояния, в которых деньги по траншу ещё ждут. */
+const ЖДЁТ = (state: MoneyState): boolean =>
+  state === "ждёт оплаты" || state === "оплачен частично";
 
 /**
  * Просроченный транш называется просроченным.
@@ -46,6 +54,7 @@ function ПИЛЮЛЯ(row: AccountingRow): { className: string; label: string } 
 const ФИЛЬТРЫ: readonly { key: MoneyState | "все"; label: string }[] = [
   { key: "все", label: "Все" },
   { key: "ждёт оплаты", label: "Ждут оплаты" },
+  { key: "оплачен частично", label: "Оплачены частично" },
   { key: "в работе", label: "В работе" },
   { key: "оплачено", label: "Оплачены" },
 ];
@@ -109,12 +118,24 @@ export function Accounting({
 
   const строки = фильтр === "все" ? view.rows : view.rows.filter((row) => row.state === фильтр);
   const просрочено = view.rows.filter((row) => row.overdue).length;
+  const недобор = BigInt(view.totals.shortfall);
 
   return (
     <main className="container stack stack--loose">
       <Announce text={объявление} />
       <section className="statrow">
-        <MoneyCard label="Оплачено" value={view.totals.paid} note="получено от заказчиков" />
+        {/* Недобор стоит подписью у «Оплачено», а не пятой карточкой: он не
+            слагаемое, а часть этого самого числа — та, что держится на
+            отметке руководителя, а не на платеже. Отдельной карточкой его
+            складывали бы с остальными. */}
+        <MoneyCard
+          label="Оплачено"
+          value={view.totals.paid}
+          note={недобор === 0n
+            ? "получено от заказчиков"
+            : `из них ${formatKopecks(недобор)} не подтверждено платежами`}
+          {...(недобор === 0n ? {} : { tone: "warn" as const })}
+        />
         <MoneyCard
           label="Ждёт оплаты"
           value={view.totals.awaiting}
@@ -124,7 +145,7 @@ export function Accounting({
         <MoneyCard
           label="Просрочено"
           value={view.totals.overdue}
-          note={`дольше ${view.totals.graceDays} ${plural(view.totals.graceDays, "дня", "дней", "дней")} без оплаты`}
+          note={`дольше порога: ${view.totals.graceDays} ${plural(view.totals.graceDays, "дня", "дней", "дней")} или срок договора`}
           {...(view.totals.overdue !== "0" ? { tone: "danger" as const } : {})}
         />
         <MoneyCard label="В работе" value={view.totals.inWork} note="сумма к оплате не определена" />
@@ -166,9 +187,10 @@ export function Accounting({
                 <span className="money__num num">№ {row.number}</span>
                 <span className="money__sum num">{formatKopecks(BigInt(row.amount))}</span>
                 <span className={ПИЛЮЛЯ(row).className}>{ПИЛЮЛЯ(row).label}</span>
+                <span className="money__paid t-sm t-muted">{ПОДПИСЬ_ОПЛАТЫ(row)}</span>
                 <span className="money__when t-sm t-muted">{ПОДПИСЬ_СРОКА(row)}</span>
                 <span className="money__act">
-                  {row.state === "ждёт оплаты" && (
+                  {ЖДЁТ(row.state) && (
                     <button
                       type="button"
                       className="btn btn--secondary"
@@ -250,6 +272,11 @@ export function Accounting({
                 <span className="money__sum num t-muted">
                   {formatKopecks(BigInt(client.paid))}
                 </span>
+                <span className="money__when t-sm t-muted">
+                  {client.graceDays === null
+                    ? "порог по умолчанию"
+                    : `порог по договору: ${client.graceDays} ${plural(client.graceDays, "день", "дня", "дней")}`}
+                </span>
                 <span className="money__act">
                   {client.overdue && <span className="pill pill--danger">есть просрочка</span>}
                 </span>
@@ -272,11 +299,31 @@ function ПОДПИСЬ_СРОКА(row: AccountingRow): string {
   if (row.state === "оплачено") {
     return row.paidAt === null ? "оплачено" : `оплачен ${formatDate(row.paidAt.slice(0, 10))}`;
   }
-  if (row.state === "ждёт оплаты") {
+  if (ЖДЁТ(row.state)) {
     const дней = row.awaitingDays ?? 0;
     return дней === 0 ? "закрыт сегодня" : `ждёт ${дней} ${plural(дней, "день", "дня", "дней")}`;
   }
   return `открыт ${formatDate(row.openedAt.slice(0, 10))}`;
+}
+
+/**
+ * Подпись оплаты: сколько денег пришло и сколько не покрыто.
+ *
+ * Для открытого транша молчит: платежей по нему не бывает, и «оплачено 0,00 ₽»
+ * отвечало бы на вопрос, которого не задавали. Для оплаченного называет
+ * недобор, если отметка разошлась с платежами: это и есть цена решения от
+ * 19.09.2026, и место ей в той же строке, где стоит отметка.
+ */
+function ПОДПИСЬ_ОПЛАТЫ(row: AccountingRow): string {
+  if (row.state === "в работе") return "";
+  const непокрыто = BigInt(row.outstanding);
+  if (row.state === "оплачено") {
+    if (непокрыто === 0n) return "платежи сошлись";
+    return непокрыто > 0n
+      ? `недобор ${formatKopecks(непокрыто)}`
+      : `переплата ${formatKopecks(-непокрыто)}`;
+  }
+  return `оплачено ${formatKopecks(BigInt(row.paid))} из ${formatKopecks(BigInt(row.amount))}`;
 }
 
 /** Денежное число раздела. Тон сигнальный только там, где требуется действие. */

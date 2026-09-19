@@ -8,11 +8,12 @@ import type {
   Organization,
   RepairType,
   Unit,
+  UpdateClient,
   UpdateOrganization,
   UpdateRepairType,
   WorkerRow,
 } from "@priyomka/contracts";
-import { nextClientCode, parseContactPhone } from "@priyomka/domain";
+import { nextClientCode, ownerLevel, parseContactPhone } from "@priyomka/domain";
 import { unitAliases } from "@priyomka/importer";
 import {
   accrualSummary, basisPoints, clientTotals, formatKopecks, formatPercent, kopecks, sum,
@@ -54,7 +55,7 @@ export class DirectoryService {
     // разграничение видимости строк, а не полнота справочника.
     const clients = await this.prisma.client.findMany({
       where:
-        user.role === "OWNER"
+        ownerLevel(user.role)
           ? { orgId: user.orgId }
           : { orgId: user.orgId, id: { in: [...new Set(projects.map((p) => p.clientId))] } },
       orderBy: { code: "asc" },
@@ -73,6 +74,7 @@ export class DirectoryService {
         name: client.name,
         isCompany: client.isCompany,
         requisites: client.requisites,
+        paymentGraceDays: client.paymentGraceDays,
         projects: own.length,
         estimateTotal: sum(totals).toString(),
       };
@@ -186,6 +188,36 @@ export class DirectoryService {
         name: input.name,
         isCompany: input.isCompany,
         requisites: input.requisites,
+        paymentGraceDays: input.paymentGraceDays ?? null,
+      },
+    });
+    return this.clients(user);
+  }
+
+  /**
+   * Правка карточки заказчика.
+   *
+   * Присланы бывают не все поля, и отсутствующее означает «не трогать», а не
+   * «очистить». Порог просрочки при этом очищается присланным `null` — пустое
+   * поле возвращает заказчика к умолчанию компании, и другого способа его
+   * туда вернуть нет.
+   */
+  async updateClient(user: RequestUser, id: string, input: UpdateClient): Promise<ClientRow[]> {
+    const клиент = await this.prisma.client.findFirst({
+      where: { id, orgId: user.orgId },
+      select: { id: true },
+    });
+    if (!клиент) throw new BadRequestException({ message: "Заказчик не найден." });
+
+    await this.prisma.client.update({
+      where: { id },
+      data: {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.isCompany === undefined ? {} : { isCompany: input.isCompany }),
+        ...(input.requisites === undefined ? {} : { requisites: input.requisites }),
+        ...(input.paymentGraceDays === undefined
+          ? {}
+          : { paymentGraceDays: input.paymentGraceDays }),
       },
     });
     return this.clients(user);
@@ -247,7 +279,7 @@ export class DirectoryService {
       orderBy: { name: "asc" },
       select: { id: true, name: true, kind: true },
     });
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       return workers.map((worker) => ({ id: worker.id, name: worker.name, kind: worker.kind }));
     }
 

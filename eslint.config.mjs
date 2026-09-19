@@ -45,10 +45,14 @@ import reactHooks from "eslint-plugin-react-hooks";
  * внутри позиции сметы правило не защищает — это остаётся на ревью и на
  * типах домена, где `Kopecks` и так не совместим с `number`.
  */
+/* Перечень пополняется вместе с новыми денежными полями: правило стережёт
+   имена, а не типы, и поле, не названное здесь, объявляется `number` без
+   единого замечания. Узел «деньги» от 19.09.2026 добавил четыре. */
 const MONEY = [
   "unitPrice", "unitWage", "wageTotal", "subtotalWage",
   "estimateTotal", "worksTotal", "computedWorksTotal", "declaredWorksTotal",
   "worksTotalDelta", "unitAmount", "totalAmount",
+  "paid", "outstanding", "shortfall", "awaiting",
 ].join("|");
 
 const MONEY_MESSAGE =

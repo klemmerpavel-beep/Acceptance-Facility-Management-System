@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { завести } from "./verbs.js";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
+import { ownerLevel } from "@priyomka/domain";
 import {
   fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus,
 } from "./api.js";
@@ -75,7 +76,7 @@ export function App(): React.JSX.Element {
          руководителя. Спрашивать его у прочих — это отказ на каждом входе:
          в журнале сервера он неотличим от попытки залезть не в своё. */
       const first = projects[0];
-      const units = user.role === "OWNER" && first !== undefined
+      const units = ownerLevel(user.role) && first !== undefined
         ? await fetchCanonicalUnits(first.code).catch(() => [])
         : [];
 
@@ -198,7 +199,13 @@ export function App(): React.JSX.Element {
   /* Служебные экраны и выход — один перечень на шапку и на таб-панель.
      Две копии разошлись бы на первой же правке состава. */
   const служебные: readonly ПунктЕщё[] = [
-    { label: "Настройки", onSelect: () => { setOpened(null); setSection("settings"); } },
+    /* Настройки компании и выдача входа — руководителю. Бухгалтеру решением
+       заказчика от 19.09.2026 открыто всё, кроме них, и пункт, отвечающий
+       отказом, читался бы поломкой продукта: то же правило, по которому
+       прорабу не показывают кнопку заведения объекта. */
+    ...(state.user.role === "ACCOUNTANT"
+      ? []
+      : [{ label: "Настройки", onSelect: () => { setOpened(null); setSection("settings"); } }]),
     { label: "Документы", onSelect: () => { setOpened(null); setSection("documents"); } },
     { label: "Что дальше", onSelect: () => { setOpened(null); setSection("roadmap"); } },
   ];
@@ -245,17 +252,26 @@ export function App(): React.JSX.Element {
           <svg className="icon icon--sm" aria-hidden="true"><use href="#i-chevron" /></svg>
         </MoreMenu>
       </nav>
-      <button
-        type="button"
-        className="appbar__user"
-        aria-current={section === "settings" || section === "roadmap" || section === "documents"
-          ? "page"
-          : undefined}
-        onClick={() => { setOpened(null); setSection("settings"); }}
-      >
-        <span className="appbar__name">{state.user.name}</span>
-        <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
-      </button>
+      {/* Имя ведёт в настройки, а у бухгалтера настроек нет — и оно перестаёт
+          быть органом вовсе, а не становится органом с отказом. */}
+      {state.user.role === "ACCOUNTANT" ? (
+        <span className="appbar__user">
+          <span className="appbar__name">{state.user.name}</span>
+          <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="appbar__user"
+          aria-current={section === "settings" || section === "roadmap" || section === "documents"
+            ? "page"
+            : undefined}
+          onClick={() => { setOpened(null); setSection("settings"); }}
+        >
+          <span className="appbar__name">{state.user.name}</span>
+          <svg className="icon appbar__avatar" aria-hidden="true"><use href="#i-avatar" /></svg>
+        </button>
+      )}
       {/* Колокол ведёт в события портфеля — раздел компании. Заказчику он
           не показывается: орган, отвечающий отказом, читается как поломка
           продукта, а не как граница роли. */}
@@ -384,7 +400,7 @@ export function App(): React.JSX.Element {
               лист, который отказывал первым же запросом: первичное действие,
               оканчивающееся отказом, хуже отсутствующего — оно выглядит
               поломкой продукта, а не границей роли. */}
-          {cover("Главная", [], state.user.role === "OWNER" ? (
+          {cover("Главная", [], ownerLevel(state.user.role) ? (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
               {завести("объект")}
@@ -402,7 +418,7 @@ export function App(): React.JSX.Element {
       )}
       {section === "projects" && (
         <>
-          {cover("Проекты", ["Главная", "Проекты"], state.user.role === "OWNER" ? (
+          {cover("Проекты", ["Главная", "Проекты"], ownerLevel(state.user.role) ? (
             <button type="button" className="btn btn--primary" onClick={() => { setAdding(true); }}>
               <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
               {завести("объект")}
@@ -420,7 +436,7 @@ export function App(): React.JSX.Element {
                  через карточку стоил четырёх нажатий при правиле «три
                  касания до действия». Лист тот же, что на карточке, и
                  запрос тот же — меняется место вызова, не логика. */
-              {...(state.user.role === "OWNER" ? { onStatus: setСтатусУ } : {})}
+              {...(ownerLevel(state.user.role) ? { onStatus: setСтатусУ } : {})}
             />
           </main>
         </>
@@ -436,7 +452,7 @@ export function App(): React.JSX.Element {
               `.cover + main` стоит на элементе, а за обложкой шёл `section`
               (аудит Г-3). */}
           <main className="container stack stack--loose">
-            {state.user.role === "OWNER" ? (
+            {ownerLevel(state.user.role) ? (
               <Leads onOpenProject={открытьОбъект} />
             ) : (
               <div className="empty">
@@ -455,7 +471,7 @@ export function App(): React.JSX.Element {
       {section === "accounting" && (
         <>
           {cover("Бухгалтерия", ["Главная", "Бухгалтерия"])}
-          {state.user.role === "OWNER" ? (
+          {ownerLevel(state.user.role) ? (
             <Accounting onOpenProject={открытьОбъект} />
           ) : (
             <div className="empty">
@@ -470,7 +486,7 @@ export function App(): React.JSX.Element {
       {section === "contacts" && (
         <>
           {cover("Контакты", ["Главная", "Контакты"])}
-          <Contacts />
+          <Contacts role={state.user.role} />
         </>
       )}
       {/* Разделы без своего экрана ведут на «Что дальше»: там названа

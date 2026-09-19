@@ -20,12 +20,14 @@ import { завести } from "./verbs.js";
 const РОЛИ: Readonly<Record<Role, string>> = {
   OWNER: "Руководитель",
   FOREMAN: "Прораб",
+  ACCOUNTANT: "Бухгалтер",
   CLIENT: "Заказчик",
 };
 
 const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
   OWNER: "весь продукт",
   FOREMAN: "свои объекты: замер, смета, приёмка, чеки, отчёт",
+  ACCOUNTANT: "весь продукт, кроме настроек компании и выдачи входа",
   CLIENT: "свой объект: ход работ, смета и бумаги",
 };
 

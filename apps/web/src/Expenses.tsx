@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { завести } from "./verbs.js";
+import { ownerLevel } from "@priyomka/domain";
 import { formatKopecks } from "@priyomka/ui";
 import type { ExpenseView, MaterialExpense, Role } from "@priyomka/contracts";
 import {
@@ -35,7 +36,7 @@ const ВИД: Readonly<Record<string, string>> = {
 };
 
 /** Кто заводит чек. Материалы покупает тот, кто на объекте. */
-const canAdd = (role: Role): boolean => role === "OWNER" || role === "FOREMAN";
+const canAdd = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN";
 
 const дата = (iso: string): string => {
   const [год, месяц, день] = iso.split("-");
@@ -105,7 +106,7 @@ export function Expenses({
       {view.totals.drafts > 0 && (
         <p className="t-sm" role="status">
           Ждут разбора: {view.totals.drafts}.
-          {role === "OWNER"
+          {ownerLevel(role)
             ? " Подтвердите или отклоните — до этого расход в деньгах не считается."
             : " Подтверждает руководитель — до этого расход в деньгах не считается."}
         </p>
@@ -196,7 +197,7 @@ function Чек({
       </div>
       <div className="record__side">
         <span className="record__amount num">{formatKopecks(BigInt(row.amount))}</span>
-        {черновик && role === "OWNER" && (
+        {черновик && ownerLevel(role) && (
           <span className="record__actions">
             <button
               type="button"
@@ -217,7 +218,7 @@ function Чек({
             </button>
           </span>
         )}
-        {черновик && role !== "OWNER" && (
+        {черновик && !ownerLevel(role) && (
           <button type="button" className="btn btn--text" disabled={busy} onClick={onDelete}>
             Удалить
           </button>

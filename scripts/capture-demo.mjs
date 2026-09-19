@@ -35,6 +35,14 @@ const foreman = await signIn("foreman@dolgiy.studio");
 /* Заказчик снимается наравне с прочими: демонстрация показывает продукт
    глазами каждой роли, и набор данных для этого нужен свой. */
 const client = await signIn("client@dolgiy.studio");
+/* Бухгалтер снимается одним ответом — «кто я». Прочие его ответы совпадают с
+   ответами руководителя, и это не упрощение съёмки, а следствие решения
+   заказчика от 19.09.2026: бухгалтеру открыто всё, кроме настроек и выдачи
+   входа. Различаются у них не данные, а достижимые экраны, и снимать ради
+   этого второй такой же набор значило бы удвоить слепок без единого нового
+   числа. Снятый ответ «кто я» при этом обязателен: по нему демонстрация
+   узнаёт роль, а по роли закрывает настройки. */
+const accountant = await signIn("buh@dolgiy.studio");
 
 const form = new FormData();
 form.append("file", new Blob([readFileSync(FIXTURE)]), "smeta-obezlichennaya.xlsx");
@@ -57,6 +65,7 @@ const snapshot = {
   "events-owner": await owner("/projects/R-99/events"),
   "events-foreman": await foreman("/projects/R-99/events"),
   "me-client": await client("/auth/me"),
+  "me-accountant": await accountant("/auth/me"),
   "projects-client": await client("/projects"),
   "events-client": await client("/projects/R-99/events"),
   "estimate-client": await client("/projects/R-99/estimate"),

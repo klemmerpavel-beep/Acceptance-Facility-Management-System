@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CloseTranche, CreateTranche, Tranche, TrancheView } from "@priyomka/contracts";
+import type {
+  CloseTranche, CreatePayment, CreateTranche, ReversePayment, Tranche, TranchePayment, TrancheView,
+} from "@priyomka/contracts";
 import {
   acceptedTotal,
   basisPoints,
@@ -7,8 +9,12 @@ import {
   formatKopecks,
   kopecks,
   milliunits,
+  negate,
   nextTrancheNumber,
+  paymentFault,
+  paymentReversalFault,
   sum,
+  subtract,
   trancheFault,
   trancheFill,
   trancheRemainder,
@@ -37,6 +43,19 @@ import { projectScope } from "../common/project-scope";
  * привязана. Прежний комментарий утверждал обратное — при единственной
  * редакции расхождение было незаметно.
  */
+
+/** Платёж в том виде, в каком его отдаёт выборка. */
+interface PaymentRow {
+  id: string;
+  amount: bigint;
+  paidOn: Date;
+  comment: string | null;
+  reason: string | null;
+  reversalOfId: string | null;
+  createdAt: Date;
+  createdBy: { name: string } | null;
+  reversal: { id: string } | null;
+}
 
 /** Пакет приёмки в том виде, в каком его читает арифметика транша. */
 interface BatchRow {
@@ -104,6 +123,15 @@ export class TranchesService {
         select: {
           id: true, number: true, amount: true, status: true,
           openedAt: true, closedAt: true, paidAt: true, signedAt: true, comment: true,
+          payments: {
+            orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true, amount: true, paidOn: true, comment: true, reason: true,
+              reversalOfId: true, createdAt: true,
+              createdBy: { select: { name: true } },
+              reversal: { select: { id: true } },
+            },
+          },
         },
       }),
       this.prisma.acceptanceBatch.findMany({
@@ -147,12 +175,16 @@ export class TranchesService {
     row: {
       id: string; number: number; amount: bigint; status: "OPEN" | "CLOSED" | "PAID";
       openedAt: Date; closedAt: Date | null; paidAt: Date | null; signedAt: Date | null;
-      comment: string | null;
+      comment: string | null; payments: PaymentRow[];
     },
     выработка: Kopecks,
     share: BasisPoints,
   ): Tranche {
     const amount = kopecks(row.amount);
+    /* Оплаченное — сумма всех платежей, а не неотменённых: сторно приходит
+       отрицательной суммой и обнуляет свою пару само. Отбор по признаку
+       «не сторнирован» дал бы тот же ответ ровно до первого сторно. */
+    const оплачено = sum(row.payments.map((платёж) => kopecks(платёж.amount)));
     return {
       id: row.id,
       number: row.number,
@@ -167,6 +199,19 @@ export class TranchesService {
       client: clientAmount(выработка, share).toString(),
       remainder: trancheRemainder(amount, выработка, share).toString(),
       fill: Number(trancheFill(amount, выработка, share)),
+      paid: оплачено.toString(),
+      outstanding: subtract(amount, оплачено).toString(),
+      payments: row.payments.map((платёж): TranchePayment => ({
+        id: платёж.id,
+        amount: платёж.amount.toString(),
+        paidOn: платёж.paidOn.toISOString().slice(0, 10),
+        comment: платёж.comment,
+        reason: платёж.reason,
+        reversalOfId: платёж.reversalOfId,
+        reversed: платёж.reversal !== null,
+        createdAt: платёж.createdAt.toISOString(),
+        author: платёж.createdBy?.name ?? null,
+      })),
     };
   }
 
@@ -202,6 +247,21 @@ export class TranchesService {
         paidAt: prepayment ? now : null,
         comment: input.comment ?? null,
         createdById: user.id,
+        /* Предоплата приходит с деньгами, значит приходит и с платежом.
+           Без этой записи предоплаченный транш с первого же дня числился бы
+           недобором на всю сумму: отметка «оплачен» стоит, платежей нет. */
+        ...(prepayment
+          ? {
+            payments: {
+              create: {
+                amount: kopecks(input.amount),
+                paidOn: now,
+                comment: "Предоплата 30 %",
+                createdById: user.id,
+              },
+            },
+          }
+          : {}),
       },
       select: { id: true, amount: true },
     });
@@ -283,11 +343,108 @@ export class TranchesService {
     return this.build(project.id, project.supervisionShare);
   }
 
+  /**
+   * Запись платежа заказчика.
+   *
+   * Состояние транша платёж не меняет — решение заказчика от 19.09.2026:
+   * оплаченным транш называет отметка руководителя. Соблазн выставить
+   * `PAID` здесь, когда платежи покрыли сумму, велик и потому назван:
+   * поддавшись ему, продукт завёл бы два способа назначить одно состояние,
+   * а они расходятся на первой переплате и на первом сторно.
+   */
+  async addPayment(
+    user: RequestUser, code: string, id: string, input: CreatePayment, today: string,
+  ): Promise<TrancheView> {
+    const project = await this.projectOf(user, code);
+    const транш = await this.trancheOf(project.id, id);
+
+    const отказ = paymentFault({
+      amount: kopecks(input.amount),
+      paidOn: input.paidOn,
+      today,
+      status: транш.status,
+      openedOn: транш.openedAt.toISOString().slice(0, 10),
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    const платёж = await this.prisma.tranchePayment.create({
+      data: {
+        trancheId: id,
+        amount: kopecks(input.amount),
+        paidOn: new Date(`${input.paidOn}T00:00:00.000Z`),
+        comment: input.comment ?? null,
+        createdById: user.id,
+      },
+      select: { id: true, amount: true },
+    });
+
+    await this.audit.record({
+      orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: платёж.id,
+      field: `платёж по траншу № ${String(транш.number)}`,
+      oldValue: null,
+      newValue: `${formatKopecks(kopecks(платёж.amount))} от ${input.paidOn}`,
+    });
+
+    return this.build(project.id, project.supervisionShare);
+  }
+
+  /**
+   * Сторно платежа: запись того же вида с обратной суммой (БП-04).
+   *
+   * Удаления нет и не будет. Через месяц спрашивают не «сколько оплачено», а
+   * «почему сумма изменилась», и удалённая строка на этот вопрос не отвечает.
+   */
+  async reversePayment(
+    user: RequestUser, code: string, id: string, paymentId: string, input: ReversePayment,
+  ): Promise<TrancheView> {
+    const project = await this.projectOf(user, code);
+    const транш = await this.trancheOf(project.id, id);
+
+    const платёж = await this.prisma.tranchePayment.findFirst({
+      where: { id: paymentId, trancheId: id },
+      select: { id: true, amount: true, paidOn: true, reversalOfId: true, reversal: { select: { id: true } } },
+    });
+    if (!платёж) {
+      throw new NotFoundException({ message: "Платёж не найден у этого транша." });
+    }
+
+    const отказ = paymentReversalFault({
+      reason: input.reason,
+      reversed: платёж.reversal !== null,
+      isReversal: платёж.reversalOfId !== null,
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    /* Сторно датируется днём сторнируемого платежа, а не сегодняшним.
+       Иначе пара «платёж + сторно» разъезжалась бы по датам, и оплаченное
+       на любой промежуточный день считалось бы неверно. */
+    const сторно = await this.prisma.tranchePayment.create({
+      data: {
+        trancheId: id,
+        amount: negate(kopecks(платёж.amount)),
+        paidOn: платёж.paidOn,
+        reason: input.reason,
+        reversalOfId: платёж.id,
+        createdById: user.id,
+      },
+      select: { id: true, amount: true },
+    });
+
+    await this.audit.record({
+      orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: сторно.id,
+      field: `сторно платежа по траншу № ${String(транш.number)}`,
+      oldValue: formatKopecks(kopecks(платёж.amount)),
+      newValue: input.reason,
+    });
+
+    return this.build(project.id, project.supervisionShare);
+  }
+
   /** Транш ищется в границах объекта: чужой по опознавателю не открывается. */
   private async trancheOf(projectId: string, id: string) {
     const транш = await this.prisma.tranche.findFirst({
       where: { id, projectId },
-      select: { id: true, number: true, status: true },
+      select: { id: true, number: true, status: true, openedAt: true },
     });
     if (!транш) throw new NotFoundException({ message: "Транш не найден у этого объекта." });
     return транш;

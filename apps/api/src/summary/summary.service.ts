@@ -4,6 +4,7 @@ import {
   acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, guidelineRange,
   kopecks, milliunits, taskState,
   type CalendarEvent, type Kopecks, type Milliunits, type PortfolioProject,
+  ownerLevel,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
@@ -152,7 +153,7 @@ export class SummaryService {
      * Просроченные задачи считаются по дате тем же доменом, что на доске:
      * второй счёт просрочки разошёлся бы с первым на границе суток.
      */
-    const воронка = user.role !== "OWNER" ? undefined : await (async () => {
+    const воронка = !ownerLevel(user.role) ? undefined : await (async () => {
       const заявки = await this.prisma.lead.findMany({
         where: { orgId: user.orgId, outcome: "OPEN" },
         select: {

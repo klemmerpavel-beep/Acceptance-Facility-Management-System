@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { завести } from "./verbs.js";
-import type { ClientRow, WorkerRow } from "@priyomka/contracts";
+import type { ClientRow, Role, WorkerRow } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { errorMessage, fetchClients, fetchWorkers } from "./api.js";
+import { ownerLevel, PAYMENT_GRACE_DAYS } from "@priyomka/domain";
+import { errorMessage, fetchClients, fetchWorkers, updateClient } from "./api.js";
 import { DataTable, type Column } from "./DataTable.js";
+import { FieldEdit } from "./FieldEdit.js";
+import { plural } from "./status.js";
 import { tabArrowHandler } from "./tabs.js";
 import { NewContactSheet } from "./NewContactSheet.js";
 
@@ -24,10 +27,23 @@ import { NewContactSheet } from "./NewContactSheet.js";
  */
 
 type Contact =
-  | { kind: "client"; id: string; name: string; code: string; note: string;
-      projects: number; total: string | null; wage: null }
-  | { kind: "worker"; id: string; name: string; code: null; note: string;
-      projects: number | null; total: null; wage: string | null };
+  | { kind: "client"; id: string; clientId: string; name: string; code: string; note: string;
+      projects: number; total: string | null; wage: null; graceDays: number | null }
+  | { kind: "worker"; id: string; clientId: null; name: string; code: null; note: string;
+      projects: number | null; total: null; wage: string | null; graceDays: null };
+
+/**
+ * Подпись порога просрочки.
+ *
+ * Незаполненный порог печатается умолчанием, а не прочерком: прочерк сказал
+ * бы «просрочка у этого заказчика не считается», а она считается — по
+ * умолчанию компании. Случай 2 словаря пустоты («величину не заполнили»)
+ * здесь не подходит по той же причине.
+ */
+const подписьПорога = (дней: number | null): string =>
+  дней === null
+    ? `${String(PAYMENT_GRACE_DAYS)} дней по умолчанию`
+    : `${String(дней)} ${plural(дней, "день", "дня", "дней")} по договору`;
 
 const money = (value: string): string => formatKopecks(BigInt(value));
 
@@ -35,6 +51,7 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
   ...clients.map<Contact>((client) => ({
     kind: "client",
     id: `client-${client.id}`,
+    clientId: client.id,
     name: client.name,
     code: client.code,
     note: client.requisites ?? (client.isCompany ? "Юридическое лицо" : "Физическое лицо"),
@@ -45,10 +62,12 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
        заведён, объекты на нём есть, а сумма пока нулевая. */
     total: client.estimateTotal,
     wage: null,
+    graceDays: client.paymentGraceDays,
   })),
   ...workers.map<Contact>((worker) => ({
     kind: "worker",
     id: `worker-${worker.id}`,
+    clientId: null,
     name: worker.name,
     code: null,
     note: worker.kind === "BRIGADE" ? "Расчётная единица сдельной оплаты" : "Мастер",
@@ -57,11 +76,23 @@ const toContacts = (clients: ClientRow[], workers: WorkerRow[]): Contact[] => [
     projects: worker.projects ?? null,
     total: null,
     wage: worker.wageTotal ?? null,
+    graceDays: null,
   })),
 ];
 
-/** Заказчик: код, имя, реквизиты, объекты, итог смет. Начисления ему не идут. */
-const CLIENT_COLUMNS: readonly Column<Contact>[] = [
+/**
+ * Заказчик: код, имя, реквизиты, порог оплаты, объекты, итог смет. Начисления
+ * ему не идут.
+ *
+ * Колонки собираются вызовом, а не стоят готовой величиной: порог правится
+ * на месте, и правка нужна не всем — прораб карточку заказчика только читает.
+ * Готовая величина заставила бы держать обработчик в глобальной области, и
+ * экран, открытый прорабом, показал бы ему кнопку «Изменить», которой сервер
+ * откажет.
+ */
+const колонкиЗаказчиков = (
+  правитьПорог: ((clientId: string, дней: number | null) => Promise<void>) | null,
+): readonly Column<Contact>[] => [
   {
     key: "code",
     label: "Код",
@@ -78,6 +109,30 @@ const CLIENT_COLUMNS: readonly Column<Contact>[] = [
     value: (row) => row.projects,
     render: (row) => (row.projects === null ? <span className="t-muted">—</span> : <>{row.projects}</>),
     numeric: true,
+  },
+  {
+    /* Порог просрочки оплаты по договору. Заведён ответом заказчика на
+       вопрос 5 квиза от 19.09.2026: единого порога по компании больше нет. */
+    key: "grace",
+    label: "Порог оплаты",
+    value: (row) => row.graceDays,
+    render: (row) => {
+      if (row.kind !== "client") return <span className="t-muted">—</span>;
+      if (правитьПорог === null) return <>{подписьПорога(row.graceDays)}</>;
+      const id = row.clientId;
+      return (
+        <FieldEdit
+          подпись="Порог просрочки оплаты, дней"
+          значение={row.graceDays === null ? "" : String(row.graceDays)}
+          показ={подписьПорога(row.graceDays)}
+          вид="number"
+          onSave={async (новое) => {
+            const очищено = новое.trim();
+            await правитьПорог(id, очищено === "" ? null : Number(очищено));
+          }}
+        />
+      );
+    },
   },
   {
     key: "total",
@@ -118,7 +173,7 @@ const ВКЛАДКИ = [
 
 type Вкладка = (typeof ВКЛАДКИ)[number]["key"];
 
-export function Contacts(): React.JSX.Element {
+export function Contacts({ role }: { role: Role }): React.JSX.Element {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [workers, setWorkers] = useState<WorkerRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +216,12 @@ export function Contacts(): React.JSX.Element {
 
   const rows = toContacts(clients, workers);
   const строки = rows.filter((row) => (вкладка === "clients" ? row.kind === "client" : row.kind === "worker"));
-  const колонки = вкладка === "clients" ? CLIENT_COLUMNS : WORKER_COLUMNS;
+  const правитьПорог = ownerLevel(role)
+    ? async (clientId: string, дней: number | null): Promise<void> => {
+      setClients(await updateClient(clientId, { paymentGraceDays: дней }));
+    }
+    : null;
+  const колонки = вкладка === "clients" ? колонкиЗаказчиков(правитьПорог) : WORKER_COLUMNS;
 
   return (
     <main className="container stack stack--loose">

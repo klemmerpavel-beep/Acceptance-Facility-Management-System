@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, parseQuantity, parseRubles } from "./money.js";
 import {
-  INTERNAL_FIELDS, clientTotals, findInternalFields, projectActLine, projectEstimateItem,
+  INTERNAL_FIELDS, OWNER_LEVEL, clientTotals, findInternalFields, ownerLevel,
+  projectActLine, projectEstimateItem,
   type EstimateItemRecord, type Role,
 } from "./projection.js";
 
@@ -19,6 +20,28 @@ const позиция: EstimateItemRecord = {
   room: { id: "room-01", name: "Спальня", set: "INITIAL" },
 };
 
+describe("роли, наследующие руководителя", () => {
+  it("перечень назван и содержит бухгалтера", () => {
+    /* Решение заказчика от 19.09.2026: бухгалтеру открыто всё, что открыто
+       руководителю, кроме настроек и выдачи входа. */
+    expect([...OWNER_LEVEL].sort()).toEqual(["ACCOUNTANT", "OWNER"]);
+  });
+
+  it.each<Role>(["OWNER", "ACCOUNTANT"])("роль %s наследует руководителя", (роль) => {
+    expect(ownerLevel(роль)).toBe(true);
+  });
+
+  it.each<Role>(["FOREMAN", "CLIENT"])("роль %s его не наследует", (роль) => {
+    expect(ownerLevel(роль)).toBe(false);
+  });
+
+  it("роль без сессии руководителя не наследует", () => {
+    /* Страж сервера спрашивает тот же предикат и получает `undefined`, когда
+       сессии нет. Ответ «да» открыл бы продукт невошедшему. */
+    expect(ownerLevel(undefined)).toBe(false);
+  });
+});
+
 describe("разграничение на уровне полей", () => {
   it("руководитель видит ставку, зарплату и прибыль", () => {
     const видимое = projectEstimateItem(позиция, "OWNER");
@@ -27,6 +50,16 @@ describe("разграничение на уровне полей", () => {
     expect(видимое.wageTotal).toBe(parseRubles("142 418,50"));
     expect(видимое.profit).toBe(parseRubles("223 800,50"));
     expect(видимое.profitShare).toBe(6111n); // 61,11 %
+  });
+
+  it("бухгалтер видит те же внутренние величины, что и руководитель", () => {
+    /* Ответ заказчика на вопрос 7 квиза от 19.09.2026. Перечень
+       `INTERNAL_FIELDS` не изменился составом, но изменился смыслом: он
+       отвечает на вопрос «чего не видят прораб и заказчик», а не «что видит
+       один руководитель». */
+    expect(projectEstimateItem(позиция, "ACCOUNTANT")).toEqual(
+      projectEstimateItem(позиция, "OWNER"),
+    );
   });
 
   it.each<Role>(["FOREMAN", "CLIENT"])("роль %s не получает внутренних ключей", (роль) => {

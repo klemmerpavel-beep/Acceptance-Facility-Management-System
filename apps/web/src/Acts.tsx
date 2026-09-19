@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ownerLevel } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
@@ -118,7 +119,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   >
                     {открыт === row.trancheId ? "Свернуть" : "Открыть акт"}
                   </button>
-                  {role === "OWNER" && row.signedAt === null && (
+                  {ownerLevel(role) && row.signedAt === null && (
                     <label className="field field--inline">
                       <span className="visually-hidden">Дата подписания акта № {row.number}</span>
                       <input
@@ -141,7 +142,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
 
         {act !== null && (
           <div className="sheet-actions">
-            {role === "OWNER" && (
+            {ownerLevel(role) && (
               <div className="segmented" role="group" aria-label="Вид акта">
                 <button
                   type="button"

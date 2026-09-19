@@ -17,17 +17,26 @@ datasource db {
 
 /// Роли системы. Клиент личного кабинета в первой версии не имеет
 /// и в таблице пользователей не заводится.
-/// Три рабочие роли продукта.
+/// Четыре рабочие роли продукта.
 ///
 /// `SUPPLY` снята решением заказчика от 13.09.2026: она была объявлена в схеме
 /// и защищена проекцией, но входа не имела ни на одном экране (дефект А-7).
-/// Объявленная и не выданная роль обещает доступ, которого нет.
+/// Объявленная и не выданная роль обещает доступ, которого нет. Урок этот
+/// действует и для `ACCOUNTANT`: роль заводится вместе со входом, экранами и
+/// данными, а не объявлением в перечне.
+///
+/// `ACCOUNTANT` — бухгалтер. Заведена ответом заказчика на вопрос 7 квиза от
+/// 19.09.2026 и отменяет прежний довод «в компании нет бухгалтера, деньги в
+/// системе не двигаются» (`01_PROJECT.md`). Решением от 19.09.2026 ей открыто
+/// всё, что открыто руководителю, кроме настроек организации и выдачи входа, —
+/// включая внутренние величины (`projection.ts`, `OWNER_LEVEL`).
 ///
 /// `CLIENT` — заказчик объекта. Видит ход работ по своему объекту и бумаги по
 /// нему; внутренних величин не получает наравне с прорабом (`projection.ts`).
 enum Role {
   OWNER
   FOREMAN
+  ACCOUNTANT
   CLIENT
 }
 
@@ -328,6 +337,7 @@ model User {
   acceptances       Acceptance[]
   acceptancePhotos  AcceptancePhoto[]
   tranches          Tranche[]
+  tranchePayments   TranchePayment[]
   expensesCreated   MaterialExpense[] @relation("ExpenseAuthor")
   expensesConfirmed MaterialExpense[] @relation("ExpenseConfirmer")
 
@@ -344,6 +354,14 @@ model Client {
   name       String
   isCompany  Boolean @default(false)
   requisites String?
+  /// Порог просрочки оплаты в днях по договору с этим заказчиком.
+  ///
+  /// Заведено ответом заказчика на вопрос 5 квиза от 19.09.2026: единого
+  /// порога по компании больше нет. Пусто — действует умолчание
+  /// `PAYMENT_GRACE_DAYS` (семь дней); без умолчания заказчик с незаполненным
+  /// полем выпал бы из учёта просрочки вовсе, а не стал бы «никогда не
+  /// просроченным» осознанно.
+  paymentGraceDays Int?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   projects     Project[]
@@ -959,10 +977,54 @@ model Tranche {
   project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
   batches   AcceptanceBatch[]
+  payments  TranchePayment[]
 
   @@unique([projectId, number])
   @@index([projectId, status])
   @@map("tranches")
+}
+
+/// Платёж заказчика в счёт транша.
+///
+/// Заведён ответом заказчика на вопрос 4 квиза от 19.09.2026: заказчики платят
+/// частями, и это надо видеть. До него транш был единицей учёта денег целиком,
+/// и частичный платёж записать было некуда.
+///
+/// **Состояние транша платежи не меняют.** Решение заказчика от 19.09.2026:
+/// оплаченным транш называет руководитель отметкой, а не арифметика платежей.
+/// Цена решения названа прямо и не спрятана: отметка и сумма платежей могут
+/// разойтись. Чтобы расхождение не прошло молча — а молча оно и проходит,
+/// потому что обе величины выглядят верными, — недобор считается отдельно
+/// (`accounting.ts`, `shortfall`) и показывается на экране денег рядом с
+/// отметкой, а не вместо неё.
+///
+/// Отмена — сторно, а не удаление (БП-04), тем же устройством, что у приёмки:
+/// запись того же вида с отрицательной суммой, ссылкой на сторнируемую и
+/// обязательной причиной. Оплачено по траншу есть сумма платежей, поэтому пара
+/// «платёж + сторно» сама себя обнуляет, а история остаётся целой.
+model TranchePayment {
+  id          String   @id @default(uuid()) @db.Uuid
+  trancheId   String   @db.Uuid
+  /// Копейки. У сторно отрицательная.
+  amount      BigInt
+  /// Дата платежа по выписке, а не день записи в систему: деньги приходят
+  /// раньше, чем их заводят, и просрочка считается по дню прихода.
+  paidOn      DateTime @db.Date
+  /// Причина. Заполнена у сторно и только у него.
+  reason      String?
+  /// Сторнируемый платёж. Заполнена у сторно и только у него.
+  reversalOfId String? @unique @db.Uuid
+  comment     String?
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  tranche    Tranche         @relation(fields: [trancheId], references: [id], onDelete: Cascade)
+  createdBy  User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  reversalOf TranchePayment? @relation("PaymentStorno", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal   TranchePayment? @relation("PaymentStorno")
+
+  @@index([trancheId, paidOn])
+  @@map("tranche_payments")
 }
 
 /// Справочник типов ремонта с тарифом за квадратный метр.

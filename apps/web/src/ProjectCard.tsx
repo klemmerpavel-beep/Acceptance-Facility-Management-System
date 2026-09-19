@@ -4,8 +4,8 @@ import type {
   CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
-import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween,
-  безСметы } from "@priyomka/domain";
+import { sectionTitle, daysBetween, ownerLevel, projectRange, sectionWeights,
+  workingDaysBetween, безСметы } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   applyBlueprint, createBlueprint,
@@ -234,7 +234,7 @@ export function ProjectCard({
   /* Прорабы тянутся только тому, кто правит: роль, которой поля не
      принадлежат, органов правки не видит, и список ей незачем. */
   const [прорабы, setПрорабы] = useState<Foreman[]>([]);
-  const правит = user.role === "OWNER";
+  const правит = ownerLevel(user.role);
 
   useEffect(() => {
     if (!правит) return;
@@ -331,7 +331,7 @@ export function ProjectCard({
      спрятанная вкладка — это удобство, а не запрет. Запрет стоит в страже
      ролей, где заказчику закрыто всё, что не названо прямо. */
   const ЗАКАЗЧИКУ: readonly Tab[] = ["overview", "work", "estimate", "report", "documents"];
-  const tabList = user.role === "OWNER"
+  const tabList = ownerLevel(user.role)
     ? [...TABS, { key: "import" as const, label: "Импорт" }]
     : user.role === "CLIENT"
       ? TABS.filter((item) => ЗАКАЗЧИКУ.includes(item.key))
@@ -543,7 +543,7 @@ export function ProjectCard({
                 значение при органе управления. У прораба органа нет —
                 нет и строки. Почтовый адрес для чеков снят: приёма писем
                 на сервере ещё нет, а адрес на экране обещает работу. */}
-            {user.role === "OWNER" && (
+            {ownerLevel(user.role) && (
               <div className="row row--between summary__status">
                 <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
                 <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
@@ -744,7 +744,7 @@ export function ProjectCard({
                   <div className="empty">
                     <p className="empty__title">Сметы пока нет</p>
                     <p className="empty__text">{error}</p>
-                    {user.role === "OWNER" && (
+                    {ownerLevel(user.role) && (
                       <div className="row">
                         <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
                           Импортировать смету
@@ -763,7 +763,7 @@ export function ProjectCard({
                     )}
                   </div>
                 )}
-                {estimate !== null && user.role === "OWNER" && (
+                {estimate !== null && ownerLevel(user.role) && (
                   <div className="row">
                     <button
                       type="button"
@@ -777,7 +777,7 @@ export function ProjectCard({
                 {estimate !== null && (
                   <EstimateTable
                     estimate={estimate}
-                    {...(user.role === "OWNER"
+                    {...(ownerLevel(user.role)
                       ? {
                           onEditItem: (item: EstimateItem) => {
                             setEditing(item);

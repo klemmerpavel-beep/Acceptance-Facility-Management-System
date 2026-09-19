@@ -14,7 +14,8 @@ import {
   organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
-  type CloseTranche, type CreateTranche, type TrancheView, type AccountingView,
+  type CloseTranche, type CreatePayment, type CreateTranche, type TrancheView,
+  type AccountingView, type UpdateClient,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type EstimateView, type ImportRecord,
@@ -449,6 +450,10 @@ export const createProject = (input: CreateProject): Promise<ProjectSummary> =>
 export const createClient = (input: CreateClient): Promise<ClientRow[]> =>
   request("/clients", z.array(clientRowSchema), заведение(input));
 
+/** Правка карточки заказчика: порог просрочки по договору и прочие поля. */
+export const updateClient = (id: string, input: UpdateClient): Promise<ClientRow[]> =>
+  request(`/clients/${id}`, z.array(clientRowSchema), patch(input));
+
 export const createWorker = (input: CreateWorker): Promise<WorkerRow[]> =>
   request("/workers", z.array(workerRowSchema), заведение(input));
 
@@ -550,7 +555,26 @@ export const closeTranche = (code: string, id: string, input: CloseTranche): Pro
   request(`/projects/${code}/tranches/${id}/closure`, trancheViewSchema, json(input));
 
 export const payTranche = (code: string, id: string): Promise<TrancheView> =>
-  request(`/projects/${code}/tranches/${id}/payment`, trancheViewSchema, json({}));
+  request(`/projects/${code}/tranches/${id}/settlement`, trancheViewSchema, json({}));
+
+/**
+ * Запись платежа заказчика. Отметку оплаты не ставит и ставить не должна:
+ * решение от 19.09.2026 оставило её за руководителем.
+ */
+export const addPayment = (
+  code: string, id: string, input: CreatePayment,
+): Promise<TrancheView> =>
+  request(`/projects/${code}/tranches/${id}/payments`, trancheViewSchema, json(input));
+
+/** Сторно платежа: запись того же вида с обратной суммой (БП-04). */
+export const reversePayment = (
+  code: string, id: string, paymentId: string, reason: string,
+): Promise<TrancheView> =>
+  request(
+    `/projects/${code}/tranches/${id}/payments/${paymentId}/reversal`,
+    trancheViewSchema,
+    json({ reason }),
+  );
 
 /* --- заявки ---------------------------------------------------------------
    Каждый пишущий вызов возвращает доску целиком: смена стадии переносит

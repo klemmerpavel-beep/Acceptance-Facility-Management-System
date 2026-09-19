@@ -4,7 +4,8 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
-  accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, remainingQty, sum,
+  accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, ownerLevel,
+  remainingQty, sum,
   type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
 import { randomUUID } from "node:crypto";
@@ -83,7 +84,7 @@ export class AcceptanceService {
    * дал бы дюжину обращений на один экран.
    */
   private async build(user: RequestUser, projectId: string): Promise<AcceptanceView> {
-    const внутренние = user.role === "OWNER";
+    const внутренние = ownerLevel(user.role);
     const estimate = await this.prisma.estimate.findFirst({
       where: { projectId },
       orderBy: { version: "desc" },

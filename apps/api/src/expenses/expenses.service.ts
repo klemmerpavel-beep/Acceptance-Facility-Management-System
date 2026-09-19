@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { CreateExpense, ExpenseView, MaterialExpense } from "@priyomka/contracts";
-import { expenseFault, expenseTotals, kopecks } from "@priyomka/domain";
+import { expenseFault, expenseTotals, kopecks, ownerLevel } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
@@ -153,7 +153,7 @@ export class ExpensesService {
       }
     }
 
-    const сразуПодтверждён = user.role === "OWNER";
+    const сразуПодтверждён = ownerLevel(user.role);
     const key = `projects/${project.id}/expenses/${randomUUID()}`
       + `.${IMAGE_EXTENSION[photo.contentType]}`;
     await this.storage.put(key, photo.buffer, photo.contentType);
@@ -205,7 +205,7 @@ export class ExpensesService {
     id: string,
     решение: "CONFIRMED" | "REJECTED",
   ): Promise<ExpenseView> {
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Чеки подтверждает руководитель." });
     }
     const project = await this.projectOf(user, code);
@@ -248,7 +248,7 @@ export class ExpensesService {
         message: "Удаляется только черновик. Подтверждённый чек — деньги, отклонённый — история.",
       });
     }
-    if (user.role !== "OWNER" && expense.createdById !== user.id) {
+    if (!ownerLevel(user.role) && expense.createdById !== user.id) {
       throw new ForbiddenException({ message: "Чужой черновик удаляет руководитель." });
     }
 

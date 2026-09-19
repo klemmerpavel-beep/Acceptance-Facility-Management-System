@@ -2,10 +2,13 @@
  * Разграничение доступа на уровне полей.
  *
  * `docs/01_PROJECT.md`, раздел 7: поля `unit_wage`, `wage_total`, `profit`,
- * `profit_pct` помечены как внутренние; сериализатор отдаёт их только роли
- * `OWNER`. `docs/02_DEV_PROMPT.md`, раздел 4: разграничение на уровне полей,
- * а не на уровне экранов — внутренние величины не должны попадать в ответ
- * сервера, а не просто скрываться на фронте.
+ * `profit_pct` помечены как внутренние. `docs/02_DEV_PROMPT.md`, раздел 4:
+ * разграничение на уровне полей, а не на уровне экранов — внутренние величины
+ * не должны попадать в ответ сервера, а не просто скрываться на фронте.
+ *
+ * Кому они открыты, решает `OWNER_LEVEL`, а не сравнение с одной ролью: с
+ * 19.09.2026 внутренние величины видит и бухгалтер (ответ заказчика на вопрос
+ * 7 квиза).
  *
  * Проекция реализована так, что внутренние ключи **отсутствуют** в
  * результате, а не присутствуют со значением undefined: `JSON.stringify`
@@ -17,10 +20,42 @@ import {
   type BasisPoints, type Kopecks, type Milliunits,
 } from "./money.js";
 
-export type Role = "OWNER" | "FOREMAN" | "CLIENT";
+export type Role = "OWNER" | "FOREMAN" | "ACCOUNTANT" | "CLIENT";
 
 /** Кому предназначен документ: внутреннему обороту или клиенту. */
 export type Audience = "internal" | "client";
+
+/**
+ * Роли, которым открыто всё, что открыто руководителю, кроме настроек
+ * организации и выдачи входа.
+ *
+ * Объявлен здесь единственный раз, и этим перечнем меряются и поля, и
+ * маршруты: страж сервера (`roles.guard.ts`) спрашивает его же. Перечень —
+ * потому что разграничение перестало быть сравнением с одной ролью, а
+ * шестьдесят с лишним сравнений `role === "OWNER"`, расставленных по
+ * обработчикам порознь, разошлись бы на первой же новой роли — и разошлись
+ * бы молча, отказом там, где доступ обещан.
+ *
+ * **Состав — решение заказчика от 19.09.2026, а не вывод.** Бухгалтеру
+ * открыты внутренние величины: сдельная оплата, себестоимость и прибыль.
+ * Прежняя редакция перечня `INTERNAL_FIELDS` отвечала на вопрос «что видит
+ * один только руководитель»; теперь она отвечает на вопрос «чего не видят
+ * прораб и заказчик». Смысл перечня изменился, состав — нет, и назвать это
+ * обязательно: иначе следующая правка прочтёт его прежним.
+ */
+export const OWNER_LEVEL: readonly Role[] = ["OWNER", "ACCOUNTANT"];
+
+/**
+ * Наследует ли роль права руководителя. Единственная проверка на весь продукт.
+ *
+ * Возвращает сужение типа, а не просто «да» или «нет»: проекция сметы
+ * различает роли на уровне перегрузок, и без сужения на месте вызова
+ * пришлось бы писать `"OWNER"` буквой — ровно ту подмену, из-за которой
+ * бухгалтер получил бы ответ руководителя не по правилу, а по совпадению.
+ */
+export function ownerLevel(role: Role | undefined): role is "OWNER" | "ACCOUNTANT" {
+  return role !== undefined && OWNER_LEVEL.includes(role);
+}
 
 /**
  * Перечень внутренних полей. Единственное место, где он объявлен: и проекция,
@@ -79,7 +114,10 @@ export interface InternalEstimateItem extends PublicEstimateItem {
   profitShare: BasisPoints;
 }
 
-export function projectEstimateItem(item: EstimateItemRecord, role: "OWNER"): InternalEstimateItem;
+export function projectEstimateItem(
+  item: EstimateItemRecord,
+  role: "OWNER" | "ACCOUNTANT",
+): InternalEstimateItem;
 export function projectEstimateItem(item: EstimateItemRecord, role: Role): PublicEstimateItem;
 export function projectEstimateItem(
   item: EstimateItemRecord,
@@ -98,7 +136,7 @@ export function projectEstimateItem(
     total,
     room: item.room,
   };
-  if (role !== "OWNER") return visible;
+  if (!ownerLevel(role)) return visible;
 
   const wageTotal = multiplyByQuantity(item.unitWage, item.qty);
   const profit = subtract(total, wageTotal);

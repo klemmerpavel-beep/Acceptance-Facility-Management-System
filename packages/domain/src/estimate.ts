@@ -19,6 +19,7 @@ import {
 import type { SectionWeight } from "./plan.js";
 import { minimumQty, количествоТекстом } from "./acceptance.js";
 import {
+  ownerLevel,
   projectEstimateItem,
   type EstimateItemRecord,
   type InternalEstimateItem,
@@ -95,7 +96,7 @@ export interface BuildEstimateInput {
 
 export function buildEstimateView(input: BuildEstimateInput): EstimateView {
   const { sections, items, otherExpenses, supervisionShare, role } = input;
-  const internal = role === "OWNER";
+  const internal = ownerLevel(role);
 
   const bySection = new Map<string, EstimateItemRecord[]>();
   for (const item of items) {
@@ -129,7 +130,7 @@ export function buildEstimateView(input: BuildEstimateInput): EstimateView {
     /* Позиции раздела нумеруются до вложенных разделов: так они и
        показываются, и номер обязан совпадать с порядком чтения. */
     const projected = own.map((item) => ({
-      ...(internal ? projectEstimateItem(item, "OWNER") : projectEstimateItem(item, role)),
+      ...(ownerLevel(role) ? projectEstimateItem(item, role) : projectEstimateItem(item, role)),
       order: (номер += 1),
     }));
     const nested = (children.get(section.id) ?? []).map((child) => build(child, level + 1));

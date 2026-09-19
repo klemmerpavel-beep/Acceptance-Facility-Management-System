@@ -1,4 +1,4 @@
-import { sectionTitle } from "@priyomka/domain";
+import { ownerLevel, sectionTitle } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type {
   AcceptanceLine, AcceptanceView, Role,
@@ -29,10 +29,10 @@ import { ReversalSheet } from "./ReversalSheet.js";
  */
 
 /** Отмечает прораб: это его ежедневная работа и единственный источник факта. */
-const canAccept = (role: Role): boolean => role === "OWNER" || role === "FOREMAN";
+const canAccept = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN";
 
 /** Сторнирует руководитель: право отменять начисленное шире права его создавать. */
-const canReverse = (role: Role): boolean => role === "OWNER";
+const canReverse = (role: Role): boolean => ownerLevel(role);
 
 const день = (iso: string): string => {
   const [год = "", месяц = "", число = ""] = iso.slice(0, 10).split("-");

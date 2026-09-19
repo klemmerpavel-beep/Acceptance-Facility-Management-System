@@ -11,7 +11,7 @@ import {
 import { AuthService } from "./auth.service";
 import { SESSION_COOKIE, SessionGuard } from "./session.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
-import { Roles, RolesGuard } from "../common/roles.guard";
+import { OwnerOnly, Roles, RolesGuard } from "../common/roles.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -66,6 +66,7 @@ export class AuthController {
   @Post("foreman-link")
   @UseGuards(SessionGuard, RolesGuard)
   @Roles("OWNER")
+  @OwnerOnly()
   async requestForemanLink(@Body() body: { userId?: string }): Promise<{ token: string }> {
     if (!body.userId) throw new Error("Укажите прораба, для которого нужна ссылка");
     return this.auth.issueForemanLink(body.userId);

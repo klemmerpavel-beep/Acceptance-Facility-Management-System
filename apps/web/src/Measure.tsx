@@ -3,6 +3,7 @@ import { завести } from "./verbs.js";
 import type {
   CreateMeasureRoom, MeasureRoom, MeasureSetKind, MeasureView, Role,
 } from "@priyomka/contracts";
+import { ownerLevel } from "@priyomka/domain";
 import { formatMeasure } from "@priyomka/ui";
 import {
   createRoom, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl, updateRoom, uploadPlan,
@@ -41,7 +42,7 @@ const НАБОРЫ = [
 ] as const;
 
 /** Кто вправе править обмер. Замер снимается на объекте — это работа прораба. */
-const canEdit = (role: Role): boolean => role === "OWNER" || role === "FOREMAN";
+const canEdit = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN";
 
 const TOTALS = [
   { key: "floorArea", label: "Площадь", unit: "м²" },
