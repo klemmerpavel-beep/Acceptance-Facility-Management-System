@@ -131,11 +131,11 @@ export function Tranches({
       <Announce text={объявление} />
       <section className="stack stack--tight">
         <div className="section-head">
-          <h3 className="t-h3">
+          <h2 className="t-h3">
             {открытый === null
               ? Пусто("транш")
               : `Транш № ${String(открытый.number)} · открыт ${день(открытый.openedAt)}`}
-          </h3>
+          </h2>
           {ведёт && (
             <div className="row">
               {открытый !== null && (
@@ -176,7 +176,7 @@ export function Tranches({
 
       <section className="stack stack--tight">
         <div className="section-head">
-          <h3 className="t-h3">Транши объекта</h3>
+          <h2 className="t-h3">Транши объекта</h2>
           <span className="t-cap">надбавка {formatPercent(BigInt(view.supervisionShare))}</span>
         </div>
 

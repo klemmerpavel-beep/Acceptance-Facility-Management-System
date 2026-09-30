@@ -259,6 +259,12 @@ export function Contacts({ role }: { role: Role }): React.JSX.Element {
         ))}
       </div>
 
+      {/* Панель наполняется у выбранной вкладки, но стоит у каждой: ссылка
+          невыбранной вкладки вела в пустоту — панели с её именем в документе
+          не было (полный аудит 30.09.2026, П-41). */}
+      {ВКЛАДКИ.filter((item) => item.key !== вкладка).map((item) => (
+        <div key={item.key} role="tabpanel" id={`panel-${item.key}`} aria-labelledby={`tab-${item.key}`} hidden />
+      ))}
       <div role="tabpanel" id={`panel-${вкладка}`} aria-labelledby={`tab-${вкладка}`}>
         {rows.length === 0 ? (
           <div className="empty">

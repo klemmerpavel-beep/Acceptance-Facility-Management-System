@@ -104,7 +104,7 @@ export function Report({ code }: { code: string }): React.JSX.Element {
       {дни.map((день) => (
         <section className="stack stack--tight" key={день.day}>
           <div className="section-head">
-            <h3 className="t-h3">{formatDate(день.day)}</h3>
+            <h2 className="t-h3">{formatDate(день.day)}</h2>
             <p className="t-sm t-muted">
               {день.batches.length} {plural(день.batches.length, "приёмка", "приёмки", "приёмок")}
             </p>

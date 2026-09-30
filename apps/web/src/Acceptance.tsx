@@ -298,7 +298,7 @@ export function Acceptance({
       {view.batches.length > 0 && (
         <div className="panel">
           <div className="section-head">
-            <h3 className="t-h3">Что принято</h3>
+            <h2 className="t-h3">Что принято</h2>
           </div>
           {view.batches.map((batch) => (
             <div className="accept__batch" key={batch.id}>
@@ -348,7 +348,7 @@ export function Acceptance({
       {view.accruals !== undefined && view.accruals.length > 0 && (
         <div className="panel">
           <div className="section-head">
-            <h3 className="t-h3">Начислено бригадам</h3>
+            <h2 className="t-h3">Начислено бригадам</h2>
             <p className="t-sm t-secondary">за неделю · всего по объекту</p>
           </div>
           <div className="accrual">

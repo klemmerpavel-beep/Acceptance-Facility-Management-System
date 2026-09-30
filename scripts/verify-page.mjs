@@ -585,6 +585,13 @@ const step = async (name, file) => {
  * 8. Заголовок колонки выровнен так же, как её значения. В смете и в акте
  *    числа стояли по правому краю, а их заголовки — по левому: «Сумма»
  *    висела над пустотой колонки (П-32).
+ * 9. Уровни заголовков идут подряд: за `h1` карточки на вкладках «Работа»,
+ *    «Приёмка», «Отчёт» и «Транши» сразу шли `h3`, и навигация по уровням
+ *    теряла ступень (П-41). Вид заголовка от уровня не зависит — класс
+ *    `t-h3` остаётся на `h2`.
+ * 10. Ссылка `aria-controls`, `aria-labelledby`, `aria-describedby` видимого
+ *    органа ведёт на существующий узел: невыбранные вкладки «Контактов»
+ *    указывали на панель, которой в документе нет (П-41).
  */
 const разметка = async (экран) => {
   const найдено = await page.evaluate(() => {
@@ -679,6 +686,27 @@ const разметка = async (экран) => {
             + ` стоит «${край(заголовок)}» над значениями по правому краю`);
         }
       });
+    }
+
+    let прежнийУровень = 0;
+    for (const заголовок of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+      if (!видимые(заголовок) || заголовок.closest("[aria-hidden=\"true\"]") !== null) continue;
+      const уровень = Number(заголовок.tagName.slice(1));
+      if (прежнийУровень > 0 && уровень > прежнийУровень + 1) {
+        беды.push(`заголовок «${(заголовок.textContent ?? "").trim().slice(0, 30)}» — h${String(уровень)} сразу после h${String(прежнийУровень)}`);
+      }
+      прежнийУровень = уровень;
+    }
+
+    for (const атрибут of ["aria-controls", "aria-labelledby", "aria-describedby"]) {
+      for (const орган of document.querySelectorAll(`[${атрибут}]`)) {
+        if (!видимые(орган)) continue;
+        for (const опора of (орган.getAttribute(атрибут) ?? "").split(/\s+/u).filter(Boolean)) {
+          if (document.getElementById(опора) === null) {
+            беды.push(`${атрибут} у ${имя(орган)} ведёт на отсутствующий #${опора}`);
+          }
+        }
+      }
     }
 
     for (const список of document.querySelectorAll("dl")) {
@@ -1152,6 +1180,7 @@ if (!focusVisible) note("фокус", "первый элемент в поряд
 // объектов одной цифрой и одним словом.
 await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".objecttile");
+await разметка("объекты");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
 await усечение(page, "объекты");
@@ -2574,6 +2603,7 @@ await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForTimeout(300);
 
 await геометрия(page, "контакты");
+await разметка("контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
 await усечение(page, "контакты");
@@ -3043,6 +3073,7 @@ if ((await просрочка.count()) === 0) {
   note("воронка", `пилюля просрочки без подписи: «${(await просрочка.textContent()) ?? ""}»`);
 }
 
+await разметка("воронка заявок");
 await step("воронка заявок", "41-zayavki.png");
 await overflow("воронка, 1440");
 await усечение(page, "воронка");
@@ -3156,6 +3187,7 @@ if (чиповСтадий > 0) {
   }
 }
 await overflow("воронка, 390");
+await разметка("воронка, 390 px");
 await step("воронка на телефоне", "43-zayavki-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -3288,6 +3320,7 @@ await step("люди организации", "47-lyudi.png");
 await page.click('.tabs__item:has-text("Организация")');
 await page.waitForTimeout(300);
 
+await разметка("настройки организации");
 await step("настройки организации", "17-nastroyki.png");
 await overflow("настройки, 1440");
 
@@ -3322,6 +3355,7 @@ const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {
   note("что дальше", `обложка называет экран «${roadmapTitle ?? "—"}»`);
 }
+await разметка("что дальше");
 await step("что дальше", "18-chto-dalshe.png");
 await overflow("что дальше, 1440");
 
@@ -3716,6 +3750,7 @@ const panel = await page.locator(".measure").boundingBox();
 if (strip !== null && panel !== null && strip.width > panel.width + 1) {
   note("замер", "лента помещений шире плашки: раскладка на 360 px разъезжается");
 }
+await разметка("замер, 360 px");
 await step("замер на телефоне", "25-zamer-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4163,6 +4198,7 @@ const мест = await page.locator('.sheet label:has-text("Место в гра
 if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
 await page.click('.sheet button:has-text("Отмена")');
 await page.waitForTimeout(300);
+await разметка("работа, 360 px");
 await step("работа на телефоне", "28-grafik-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4382,6 +4418,7 @@ for (const selector of [".accept__check", ".accept__section"]) {
     note("приёмка", `зона касания «${selector}» на 390 px — ${Math.round(box.height)} px вместо 44`);
   }
 }
+await разметка("приёмка, 390 px");
 await step("приёмка на телефоне", "35-priyomka-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4711,6 +4748,7 @@ await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(400);
 await overflow("транши, 390");
 await усечение(page, "транши, 390");
+await разметка("транши, 390 px");
 await step("транши на телефоне", "38-transhi-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4900,6 +4938,7 @@ if ((await page.locator("main .datatable__search input").count()) === 0) {
 console.log(`  плиток объектов на 360 px: ${mobileRows}`);
 await overflow("объекты, 360");
 await усечение(page, "объекты, 360");
+await разметка("объекты, 360 px");
 await step("объекты на телефоне", "10b-obekty-360.png");
 await step("мобильный, 360 px", "10-mobile-360.png");
 
@@ -4920,6 +4959,7 @@ if ((await page.locator("main .datatable__table").count()) > 0) {
 if ((await page.locator("main .objecttile").count()) === 0) {
   note("портфель, 768", "плитки объектов не отрисованы");
 }
+await разметка("объекты, 768 px");
 await step("объекты на планшете", "11b-obekty-768.png");
 await step("планшет, 768 px", "11-tablet-768.png");
 
