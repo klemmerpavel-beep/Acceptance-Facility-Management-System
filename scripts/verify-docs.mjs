@@ -15,6 +15,7 @@
  * документы разошлись со сборкой.
  */
 import { readdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 /* Управляющие последовательности цвета снимаются до разбора. На своей машине
    vitest пишет без цвета, в сборке — с цветом, и выражение, проверенное
@@ -592,6 +593,38 @@ const безЗачёркнутого = (текст) => текст.replace(/~~[^~
     if (!снято && класс.includes("finding--done")) {
       проблемы.push(`design/audit.html: ${ид} в реестре «${запись.состояние}», а на странице стоит снятым`);
     }
+  }
+}
+
+/* --- Книга находок не отстала от реестра ------------------------------------
+ *
+ * `docs/13_FULL_AUDIT.xlsx` — выгрузка реестра для заказчика, который
+ * работает в таблицах. Руками она не правится и собирается
+ * `build-audit-book.mjs`; отставшая книга показывала бы закрытое открытым.
+ * Сверяются номер, степень и состояние каждой строки.
+ * -------------------------------------------------------------------------- */
+{
+  const ExcelJS = createRequire(new URL("../packages/importer/package.json", import.meta.url))("exceljs");
+  const книга = new ExcelJS.Workbook();
+  await книга.xlsx.readFile(new URL("../docs/13_FULL_AUDIT.xlsx", import.meta.url).pathname);
+  const лист = книга.getWorksheet("Реестр");
+  const вКниге = new Map();
+  лист?.eachRow((строка, номер) => {
+    if (номер === 1) return;
+    const [, ид, степень, , , , , состояние] = строка.values;
+    вКниге.set(String(ид), `${String(степень)} · ${String(состояние)}`);
+  });
+  const вРеестре = new Map(readFileSync(new URL("../docs/13_FULL_AUDIT.md", import.meta.url), "utf8").split("\n")
+    .filter((строка) => /^\|\s*П-\d+\s*\|/u.test(строка))
+    .map((строка) => строка.split("|").slice(1, -1).map((ячейка) => ячейка.replace(/\*\*|`|~~/gu, "").trim()))
+    .map((ячейки) => [ячейки[0], `${ячейки[1]} · ${ячейки[ячейки.length - 1]}`]));
+  for (const [ид, запись] of вРеестре) {
+    if (вКниге.get(ид) !== запись) {
+      проблемы.push(`docs/13_FULL_AUDIT.xlsx: ${ид} — «${вКниге.get(ид) ?? "нет строки"}», в реестре «${запись}»; пересоберите node scripts/build-audit-book.mjs`);
+    }
+  }
+  for (const ид of вКниге.keys()) {
+    if (!вРеестре.has(ид)) проблемы.push(`docs/13_FULL_AUDIT.xlsx: ${ид} в реестре нет`);
   }
 }
 
