@@ -40,6 +40,7 @@ import {
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
   сколько,
+  PREPAYMENT_NUMBER,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
@@ -1519,7 +1520,7 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     amount: kopecks(input.amount),
     prepayment,
     openNumber: вид.current?.number ?? null,
-    hasPrepayment: вид.tranches.some((транш) => транш.number === 0),
+    hasPrepayment: вид.tranches.some((транш) => транш.number === PREPAYMENT_NUMBER),
   });
   if (fault !== null) throw new Error(fault);
 

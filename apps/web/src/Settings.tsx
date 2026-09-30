@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ClientRow, Organization, RepairType, Unit } from "@priyomka/contracts";
-import { formatPhone, isPhoneNumber, parseRubles } from "@priyomka/domain";
+import { DEFAULT_SPREAD, formatPhone, isPhoneNumber, parseRubles } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   createRepairType, errorMessage, fetchOrganization, fetchRepairTypes, fetchUnits,
@@ -398,7 +398,7 @@ function RepairTypeSheet({
     type === null ? "" : formatKopecks(BigInt(type.ratePerSqm), false),
   );
   const [spread, setSpread] = useState(
-    type === null ? "15" : (type.spread / 100).toString().replace(".", ","),
+    type === null ? String(Number(DEFAULT_SPREAD) / 100) : (type.spread / 100).toString().replace(".", ","),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

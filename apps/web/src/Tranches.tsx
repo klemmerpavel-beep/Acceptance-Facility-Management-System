@@ -3,7 +3,7 @@ import { plural } from "./status.js";
 import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TranchePayment, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
-import { ownerLevel } from "@priyomka/domain";
+import { PREPAYMENT_NUMBER, ownerLevel } from "@priyomka/domain";
 import {
   addPayment, closeTranche, createTranche, errorMessage, fetchTranches, payTranche, reversePayment,
 } from "./api.js";
@@ -72,7 +72,7 @@ const расхождение = (транш: Tranche): string | null => {
 
 /** Заголовок транша: номер и основание, если оно названо. */
 const основание = (транш: Tranche): string =>
-  транш.comment ?? (транш.number === 0 ? "Предоплата" : пусто("основание"));
+  транш.comment ?? (транш.number === PREPAYMENT_NUMBER ? "Предоплата" : пусто("основание"));
 
 export function Tranches({
   code,
@@ -350,7 +350,7 @@ export function Tranches({
       {opening && (
         <TrancheSheet
           openNumber={открытый?.number ?? null}
-          hasPrepayment={view.tranches.some((транш) => транш.number === 0)}
+          hasPrepayment={view.tranches.some((транш) => транш.number === PREPAYMENT_NUMBER)}
           busy={busy}
           error={sheetError}
           onSubmit={(input) => { run(createTranche(code, input), "Транш открыт"); }}

@@ -131,9 +131,3 @@ export function planFromSections(
 
   return stages;
 }
-
-/** Последний день раскладки или `null`, если раскладывать нечего. */
-export function planEndsOn(stages: readonly PlannedStage[]): string | null {
-  const last = stages[stages.length - 1];
-  return last?.endsOn ?? null;
-}

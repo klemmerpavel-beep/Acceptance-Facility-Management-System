@@ -13,6 +13,7 @@ import {
   nextTrancheNumber,
   paymentFault,
   paymentReversalFault,
+  PREPAYMENT_NUMBER,
   sum,
   subtract,
   trancheFault,
@@ -228,7 +229,7 @@ export class TranchesService {
       amount: kopecks(input.amount),
       prepayment,
       openNumber: открытый?.number ?? null,
-      hasPrepayment: заведённые.some((транш) => транш.number === 0),
+      hasPrepayment: заведённые.some((транш) => транш.number === PREPAYMENT_NUMBER),
     });
     if (отказ !== null) throw new BadRequestException({ message: отказ });
 
@@ -236,7 +237,7 @@ export class TranchesService {
        статус «открыт» обещал бы, что в счёт неё ещё предстоит выработать
        (решение Р12). Номер выводится сервером — два открытых окна иначе
        завели бы транш с одним номером. */
-    const number = prepayment ? 0 : nextTrancheNumber(заведённые.map((транш) => транш.number));
+    const number = prepayment ? PREPAYMENT_NUMBER : nextTrancheNumber(заведённые.map((транш) => транш.number));
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       const транш = await tx.tranche.create({

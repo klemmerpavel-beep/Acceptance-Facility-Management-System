@@ -70,22 +70,6 @@ export function projectReadiness(stages: readonly StageSpan[]): BasisPoints | nu
 }
 
 /** Окно графика: крайние даты и длина в днях, обе границы включительно. */
-/**
- * Идёт ли работа по этапу в этот день. Границы включены: этап, начатый
- * сегодня, сегодня же и идёт.
- *
- * Нужна недельной полосе главной: день без событий сам по себе ничего не
- * сообщает, а «в работе четыре объекта» сообщает. Величина считается из
- * тех же этапов, что и план работ, — иначе неделя и план разошлись бы.
- *
- * Тип сужен до двух дат намеренно: предикат не смотрит на прогресс, и
- * требовать его значило бы заставлять вызывающего строить величину,
- * которая здесь не нужна.
- */
-export function coversDay(stage: Pick<StageSpan, "startsOn" | "endsOn">, day: string): boolean {
-  return stage.startsOn <= day && day <= stage.endsOn;
-}
-
 export interface PlanWindow {
   readonly from: string;
   readonly to: string;
@@ -112,35 +96,6 @@ export function planWindow(
     if (stage.startsOn < from) from = stage.startsOn;
     if (stage.endsOn > to) to = stage.endsOn;
   }
-
-  return { from, to, days: Math.max(1, daysBetween(from, to) + 1) };
-}
-
-/**
- * Окно вокруг дня: `months` месяцев, считая с предыдущего.
- *
- * Полоса, растянутая на весь диапазон этапов портфеля, отдаёт текущему
- * месяцу одну двенадцатую ширины, а завершённому прошлому году — половину
- * экрана. Смотрят на неё ради того, что горит сейчас, и окно строится
- * вокруг сегодняшнего дня.
- *
- * Назад отсчитывается ровно один месяц, а не половина срока: прошлое нужно
- * затем, чтобы увидеть хвост просрочки, и одного месяца для этого хватает.
- * Остальная ширина уходит вперёд, где лежит работа, которую ещё можно
- * успеть сделать.
- */
-export function windowAround(day: string, months: number): PlanWindow {
-  const [year, month] = day.split("-").map(Number);
-  if (year === undefined || month === undefined) {
-    throw new Error(`Дата ${day} не в формате ГГГГ-ММ-ДД`);
-  }
-
-  const начало = new Date(Date.UTC(year, month - 2, 1));
-  // Нулевой день следующего месяца — последний день текущего.
-  const конец = new Date(Date.UTC(year, month - 2 + months, 0));
-  const iso = (value: Date): string => value.toISOString().slice(0, 10);
-  const from = iso(начало);
-  const to = iso(конец);
 
   return { from, to, days: Math.max(1, daysBetween(from, to) + 1) };
 }
@@ -206,46 +161,6 @@ export function shiftMonth(day: string, delta: number): string {
 export function isDayOff(day: string): boolean {
   const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
   return weekday === 0 || weekday === 6;
-}
-
-/** Отступ и длина отрезка в процентах ширины окна. */
-export interface BarGeometry {
-  readonly offset: number;
-  readonly length: number;
-}
-
-/** Округление до сотых: сотая доля процента на полосе в 1000 px — десятая пикселя. */
-const round2 = (value: number): number => Math.round(value * 100) / 100;
-
-/**
- * Геометрия отрезка этапа внутри окна.
- *
- * Этап, целиком выпавший из окна, даёт нулевую длину, а не отрицательный
- * отступ: вызывающий волен его не рисовать. Отрезок, начавшийся до окна,
- * прижимается к левому краю — обрезается ровно то, чего в окне нет.
- */
-export function barGeometry(stage: StageSpan, window: PlanWindow): BarGeometry {
-  const start = Math.max(0, daysBetween(window.from, stage.startsOn));
-  const end = Math.min(window.days, daysBetween(window.from, stage.endsOn) + 1);
-  const length = Math.max(0, end - start);
-
-  return {
-    offset: round2((start / window.days) * 100),
-    length: round2((length / window.days) * 100),
-  };
-}
-
-/**
- * Положение дня в окне, в процентах. `null` — день вне окна.
- *
- * Отсчёт идёт от середины дня, а не от его начала: вертикаль текущего дня
- * должна стоять посреди своей клетки, иначе она сольётся со стыком
- * вчерашнего и сегодняшнего.
- */
-export function dayOffset(day: string, window: PlanWindow): number | null {
-  const index = daysBetween(window.from, day);
-  if (index < 0 || index >= window.days) return null;
-  return round2(((index + 0.5) / window.days) * 100);
 }
 
 /* ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatPhone, isMobileNumber, isPhoneNumber, maskPhone, parseContactPhone, parsePhone,
+  formatPhone, isPhoneNumber, parseContactPhone, parsePhone,
   type PhoneNumber,
 } from "./phone.js";
 
@@ -105,18 +105,9 @@ describe("показ номера", () => {
     expect(isPhoneNumber("+7900000000")).toBe(false);
   });
 
-  it("мобильный номер отличается от городского", () => {
-    expect(isMobileNumber("+79000000000")).toBe(true);
-    expect(isMobileNumber("+74730000000")).toBe(false);
-  });
-
   it("разбивает номер на группы и не рвёт его переносом", () => {
     expect(formatPhone(номер)).toBe("+7\u00a0(900)\u00a0000-00-00");
     expect(formatPhone(номер)).not.toContain("\u0020");
-  });
-
-  it("скрывает середину, оставляя код оператора и две последние цифры", () => {
-    expect(maskPhone(номер)).toBe("+7\u00a0(900)\u00a0\u2022\u2022\u2022-\u2022\u2022-00");
   });
 
   it("разбор и показ обратимы", () => {
