@@ -43,6 +43,12 @@ function consumerSources(): string[] {
   const design = join(repoRoot, "design");
   if (existsSync(design)) {
     for (const file of readdirSync(design)) {
+      /* Собранная демонстрация — выгрузка кода экранов, которые и так
+         читаются ниже из исходников. Потребителем она ничего не добавляет,
+         кроме устаревания: лежавшая в хранилище сборка несла разметку
+         `objectrow`, снятую из кода портфелем-галереей, и четыре мёртвых
+         правила жили за её счёт (полный аудит 30.09.2026, П-53). */
+      if (file.startsWith("demo.")) continue;
       if (file.endsWith(".html") && !file.startsWith("showcase.artifact")) {
         sources.push(markupOnly(readFileSync(join(design, file), "utf8")));
       }
