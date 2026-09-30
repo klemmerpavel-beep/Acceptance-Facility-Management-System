@@ -8,7 +8,7 @@
  */
 import { chromium } from "playwright-core";
 import { launchOptions, browserSource } from "./browser.mjs";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173";
 /* Сервер спрашивается напрямую там, где нужна ссылка входа: выдаёт её он,
@@ -109,9 +109,14 @@ page.on("console", (message) => {
   else note("ошибка консоли", text.slice(0, 160));
 });
 page.on("pageerror", (error) => note("исключение страницы", String(error).slice(0, 160)));
+/* Подпись называет причину. Сорванный снимок приёмки подписывался «сеть
+   песочницы», хотя его сорвала сама проверка: читающий вывод искал сетевую
+   неполадку там, где её нет (полный аудит 30.09.2026, П-14). */
+const почему = (url) => (url.includes("/acceptance/photo/") ? "сорвано проверкой" : "сеть песочницы");
+
 page.on("requestfailed", (request) => {
   const detail = `${request.method()} ${request.url()} — ${request.failure()?.errorText ?? ""}`;
-  if (expected(request.url())) environment.push(`сеть песочницы: ${request.url().slice(0, 60)}`);
+  if (expected(request.url())) environment.push(`${почему(request.url())}: ${request.url().slice(0, 60)}`);
   else note("запрос не выполнен", detail);
 });
 page.on("response", (response) => {
@@ -513,6 +518,40 @@ const цели = async (page, где) => {
 };
 
 /**
+ * Гейт необратимого действия: норматив 15.6 «Необратимое действие называет
+ * последствия». Закрытие транша, снятие плана обмера, удаление черновика
+ * чека, шаблона документа и типовой сметы срабатывали с одного нажатия
+ * (полный аудит 30.09.2026, П-46), а обход ни одной из этих кнопок не
+ * нажимал.
+ *
+ * Проверяется поведение, а не разметка: первое нажатие не отправляет
+ * запроса, а открывает группу с опасной кнопкой и текстом последствия.
+ * Стенд не меняется — вызывающий отменяет или подтверждает сам.
+ */
+const гейт = async (лист, где, кнопка, запрос) => {
+  const ушло = [];
+  const слушать = (request) => {
+    if (запрос.test(`${request.method()} ${new URL(request.url()).pathname}`)) ушло.push(request.url());
+  };
+  лист.on("request", слушать);
+  await кнопка.click();
+  await лист.waitForTimeout(400);
+  лист.off("request", слушать);
+  if (ушло.length > 0) {
+    note("гейт", `${где}: действие ушло на сервер с первого нажатия`);
+    return false;
+  }
+  const группа = лист.locator('[role="group"]:has(.btn--danger)');
+  if ((await группа.count()) === 0) {
+    note("гейт", `${где}: после нажатия нет подтверждения с опасной кнопкой`);
+    return false;
+  }
+  const последствие = ((await группа.first().innerText()) ?? "").trim();
+  if (последствие.length < 40) note("гейт", `${где}: подтверждение не называет последствия: «${последствие}»`);
+  return true;
+};
+
+/**
  * Первичное действие раздела. Стоит в обложке — там, где начинается чтение, —
  * и ровно в одном числе: прежде кнопка лежала в заголовке рабочего полотна,
  * на главной это второй-третий экран прокрутки, а в пустом состоянии рядом
@@ -553,7 +592,7 @@ const step = async (name, file) => {
 };
 
 /**
- * Разметка текущего экрана — три правила, общие для всего продукта.
+ * Разметка текущего экрана — правила, общие для всего продукта.
  *
  * Правило на класс дефектов, а не на место: экранов много, и правило,
  * названное по имени файла, стережёт один экран и молчит на следующем,
@@ -569,6 +608,24 @@ const step = async (name, file) => {
  *    пустоту, объявляет выбор, за которым ничего не стоит.
  * 4. Прямым потомком `dl` допустимы `dt`, `dd` и `div`; абзац внутри
  *    списка определений браузеры разбирают по-своему.
+ * 5. Заголовок первого уровня на экране один. «Документы организации»
+ *    стояли двумя `h1` подряд — обложкой и заголовком полотна (полный аудит
+ *    30.09.2026, П-31).
+ * 6. Метка в строке списка не наезжает на соседа. Пилюли «Руководитель» и
+ *    «Дополнительное соглашение» не входили в дорожку под снимок и ложились
+ *    на имя (П-31).
+ * 7. Бейдж кода не растянут по дорожке: в строке расхода он вытягивался на
+ *    всю колонку объекта и читался полосой заливки, а не меткой (П-31).
+ * 8. Заголовок колонки выровнен так же, как её значения. В смете и в акте
+ *    числа стояли по правому краю, а их заголовки — по левому: «Сумма»
+ *    висела над пустотой колонки (П-32).
+ * 9. Уровни заголовков идут подряд: за `h1` карточки на вкладках «Работа»,
+ *    «Приёмка», «Отчёт» и «Транши» сразу шли `h3`, и навигация по уровням
+ *    теряла ступень (П-41). Вид заголовка от уровня не зависит — класс
+ *    `t-h3` остаётся на `h2`.
+ * 10. Ссылка `aria-controls`, `aria-labelledby`, `aria-describedby` видимого
+ *    органа ведёт на существующий узел: невыбранные вкладки «Контактов»
+ *    указывали на панель, которой в документе нет (П-41).
  */
 const разметка = async (экран) => {
   const найдено = await page.evaluate(() => {
@@ -598,6 +655,90 @@ const разметка = async (экран) => {
         if (цель === null) { беды.push(`вкладка ${имя(таб)} не названа панелью`); continue; }
         if (document.getElementById(цель) === null) {
           беды.push(`вкладка ${имя(таб)} ссылается на несуществующую панель «${цель}»`);
+        }
+      }
+    }
+
+    const видимые = (el) => {
+      const коробка = el.getBoundingClientRect();
+      return коробка.width > 0 && коробка.height > 0 && getComputedStyle(el).visibility !== "hidden";
+    };
+    const заголовков = [...document.querySelectorAll("h1")].filter(видимые).length;
+    if (заголовков !== 1) беды.push(`заголовков первого уровня ${String(заголовков)} вместо одного`);
+
+    /* Мерится текст, а не коробка: пилюля в узкой дорожке растянута ровно по
+       ней, а не переносящийся текст выходит за её край и ложится на соседа.
+       Первая редакция правила мерила коробки и на откате молчала. */
+    const правыйКрай = (el) => {
+      const текст = document.createRange();
+      текст.selectNodeContents(el);
+      return Math.max(el.getBoundingClientRect().right, текст.getBoundingClientRect().right);
+    };
+    for (const строка of document.querySelectorAll(".record, .money__row")) {
+      const дети = [...строка.children].filter(видимые);
+      for (let i = 0; i + 1 < дети.length; i += 1) {
+        const левый = { ...дети[i].getBoundingClientRect().toJSON(), right: правыйКрай(дети[i]) };
+        const правый = дети[i + 1].getBoundingClientRect();
+        const наОднойЛинии = левый.top < правый.bottom && правый.top < левый.bottom;
+        if (наОднойЛинии && левый.right > правый.left + 1) {
+          беды.push(`в строке ${имя(строка)} «${(дети[i].textContent ?? "").trim().slice(0, 24)}»`
+            + ` наезжает на соседа на ${String(Math.round(левый.right - правый.left))} px`);
+        }
+      }
+    }
+
+    for (const бейдж of document.querySelectorAll(".code-badge")) {
+      if (!видимые(бейдж)) continue;
+      const текст = document.createRange();
+      текст.selectNodeContents(бейдж);
+      const вид = getComputedStyle(бейдж);
+      const поля = Number.parseFloat(вид.paddingLeft) + Number.parseFloat(вид.paddingRight)
+        + Number.parseFloat(вид.borderLeftWidth) + Number.parseFloat(вид.borderRightWidth);
+      const лишнее = бейдж.getBoundingClientRect().width - текст.getBoundingClientRect().width - поля;
+      if (лишнее > 8) {
+        беды.push(`бейдж «${(бейдж.textContent ?? "").trim()}» растянут на ${String(Math.round(лишнее))} px сверх текста`);
+      }
+    }
+
+    const край = (el) => {
+      const значение = getComputedStyle(el).textAlign;
+      if (значение === "start") return "left";
+      if (значение === "end") return "right";
+      return значение;
+    };
+    for (const таблица of document.querySelectorAll("table")) {
+      if (!видимые(таблица)) continue;
+      const шапка = [...таблица.querySelectorAll("thead tr:last-child th")];
+      const строка = [...таблица.querySelectorAll("tbody tr")]
+        .find((ряд) => ряд.children.length === шапка.length);
+      if (строка === undefined) continue;
+      шапка.forEach((заголовок, номер) => {
+        const ячейка = строка.children[номер];
+        if (ячейка === undefined || край(ячейка) !== "right") return;
+        if (край(заголовок) !== "right") {
+          беды.push(`в таблице ${имя(таблица)} заголовок «${(заголовок.textContent ?? "").trim()}»`
+            + ` стоит «${край(заголовок)}» над значениями по правому краю`);
+        }
+      });
+    }
+
+    let прежнийУровень = 0;
+    for (const заголовок of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+      if (!видимые(заголовок) || заголовок.closest("[aria-hidden=\"true\"]") !== null) continue;
+      const уровень = Number(заголовок.tagName.slice(1));
+      if (прежнийУровень > 0 && уровень > прежнийУровень + 1) {
+        беды.push(`заголовок «${(заголовок.textContent ?? "").trim().slice(0, 30)}» — h${String(уровень)} сразу после h${String(прежнийУровень)}`);
+      }
+      прежнийУровень = уровень;
+    }
+
+    for (const атрибут of ["aria-controls", "aria-labelledby", "aria-describedby"]) {
+      for (const орган of document.querySelectorAll(`[${атрибут}]`)) {
+        if (!видимые(орган)) continue;
+        for (const опора of (орган.getAttribute(атрибут) ?? "").split(/\s+/u).filter(Boolean)) {
+          if (document.getElementById(опора) === null) {
+            беды.push(`${атрибут} у ${имя(орган)} ведёт на отсутствующий #${опора}`);
+          }
         }
       }
     }
@@ -1073,6 +1214,7 @@ if (!focusVisible) note("фокус", "первый элемент в поряд
 // объектов одной цифрой и одним словом.
 await page.click('.appbar__link:has-text("Проекты")');
 await page.waitForSelector(".objecttile");
+await разметка("объекты");
 await step("объекты", "04-obekty.png");
 await overflow("объекты, 1440");
 await усечение(page, "объекты");
@@ -1448,6 +1590,32 @@ const крошка = async () =>
 }
 
 await разметка("карточка объекта");
+/* Подпись метрики согласована с числом. «152 рабочих дней прошло» стояло
+   на карточке R-99: подпись была написана под «много» и не склонялась
+   (полный аудит 30.09.2026, П-29). Правило — русское правило числа, а не
+   перечень подписей. */
+{
+  const метрики = await page.evaluate(() => [...document.querySelectorAll(".metric")].map((метрика) => ({
+    число: Number.parseInt((метрика.querySelector(".metric__value")?.textContent ?? "").replace(/\D/gu, ""), 10),
+    подпись: (метрика.querySelector(".metric__label")?.textContent ?? "").trim().toLowerCase(),
+  })));
+  const форма = (n) => {
+    const сотни = n % 100;
+    const единицы = n % 10;
+    if (сотни > 10 && сотни < 20) return "дней";
+    if (единицы > 1 && единицы < 5) return "дня";
+    if (единицы === 1) return "день";
+    return "дней";
+  };
+  for (const { число, подпись } of метрики) {
+    if (!Number.isFinite(число) || !/(?<![а-яё])(день|дня|дней)(?![а-яё])/u.test(подпись)) continue;
+    const надо = форма(число);
+    if (!new RegExp(`(^|\\s)${надо}(?![а-яё])`, "u").test(подпись)) {
+      note("карточка", `«${String(число)} ${подпись}»: подпись не согласована с числом — нужно «${надо}»`);
+    }
+  }
+  if (метрики.length === 0) note("карточка", "метрик сроков на карточке нет — согласование проверено пустым местом");
+}
 await step("карточка объекта, обзор", "05-kartochka.png");
 /* Правка значения на месте. Проверяется путь целиком, а не наличие кнопки:
    значение меняется, новое видно в карточке, и правка уходит в журнал.
@@ -1822,7 +1990,7 @@ const internalBefore = await page.locator(".estimate__internal").count();
   }
 }
 
-await page.click('.segmented__option:has-text("Клиентская")');
+await page.click('.segmented__option:has-text("Для заказчика")');
 await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
@@ -2469,6 +2637,7 @@ await page.click('.appbar__link:has-text("Контакты")');
 await page.waitForTimeout(300);
 
 await геометрия(page, "контакты");
+await разметка("контакты");
 await step("контакты", "09b-kontakty.png");
 await overflow("контакты, 1440");
 await усечение(page, "контакты");
@@ -2490,8 +2659,13 @@ await step("форма контакта", "09c-forma-kontakta.png");
 await page.click('[aria-label="Новый контакт"] .segmented__option:has-text("Бригада")');
 await page.fill('[aria-label="Новый контакт"] .input', проба);
 await page.click('button:has-text("Добавить бригаду")');
-await page.waitForSelector('main [role="status"]');
-const подтверждение = (await page.locator('main [role="status"]').innerText()).trim();
+/* Отбор по абзацу, а не по любому живому узлу полотна: с 19.09.2026 в
+   таблице заказчиков правится порог просрочки, и каждая её строка несёт свой
+   `role="status"` для объявления исхода правки. Прежний отбор нашёл бы шесть
+   узлов и упал бы на строгом режиме — не найдя при этом ни одной ошибки
+   продукта. */
+await page.waitForSelector('main p[role="status"]');
+const подтверждение = (await page.locator('main p[role="status"]').innerText()).trim();
 if (!подтверждение.includes(проба)) {
   note("заведение", `подтверждение не назвало добавленное: «${подтверждение}»`);
 }
@@ -2603,6 +2777,13 @@ if (шаблоновНаЭкране === 0) {
   }
   await page.emulateMedia({ media: "screen" });
 
+  {
+    const удалить = page.locator('.record button:has-text("Удалить")');
+    if ((await удалить.count()) === 0) note("гейт", "документы организации: кнопки удаления шаблона нет — гейт не проверен");
+    else if (await гейт(page, "удаление шаблона", удалить.first(), /^DELETE \/api\/templates\//u)) {
+      await page.click('[role="group"] button:has-text("Не удалять")');
+    }
+  }
   await разметка("документы организации");
   await overflow("документы организации, 1440");
   await step("документы организации", "46-dokumenty-org.png");
@@ -2739,7 +2920,7 @@ if (строкДенег === 0) {
      подписью «ждёт 30 дней», которую надо сличать с порогом в уме. */
   const состояния = await page
     .locator(".money__row:not(.money__row--client):not(.spend__row) .pill").allTextContents();
-  const допустимые = ["в работе", "ждёт оплаты", "просрочено", "оплачено"];
+  const допустимые = ["в работе", "ждёт оплаты", "оплачен частично", "просрочено", "оплачено"];
   if (состояния.length !== строкДенег) {
     note("бухгалтерия", `состояние названо у ${состояния.length} строк из ${строкДенег}`);
   }
@@ -2747,6 +2928,47 @@ if (строкДенег === 0) {
     note("бухгалтерия", `состояния вне словаря: ${состояния.join(", ")}`);
   }
 
+
+  /* Частичная оплата названа словом, а не выведена из чисел: ради неё
+     заводился весь узел (ответ на вопрос 4 квиза от 19.09.2026), и строка,
+     где она спрятана в «ждёт оплаты», не отвечает на вопрос заказчика. */
+  if (!состояния.some((текст) => текст.trim() === "оплачен частично")) {
+    note("бухгалтерия", "ни одна строка не названа оплаченной частично: стенд не воспроизводит частичную оплату");
+  }
+
+  /* Недобор — расхождение отметки руководителя с платежами. Цена решения от
+     19.09.2026, и она обязана стоять числом на экране, а не в ответе
+     сервера: спрятанное расхождение выглядит согласием. */
+  const подписиОплаты = (await page
+    .locator(".money__row:not(.money__row--client):not(.spend__row) .money__paid")
+    .allTextContents()).map((текст) => текст.trim());
+  if (!подписиОплаты.some((текст) => текст.startsWith("недобор"))) {
+    note("бухгалтерия", `недобор не назван ни в одной строке: «${подписиОплаты.join(" / ")}»`);
+  }
+  if (!подписиОплаты.some((текст) => текст.startsWith("оплачено"))) {
+    note("бухгалтерия", `частичная оплата не названа суммой ни в одной строке: «${подписиОплаты.join(" / ")}»`);
+  }
+  {
+    /* Карточка «Оплачено» обязана назвать неподтверждённую часть: иначе
+       поступление завышено ровно на недобор и выглядит верным. */
+    const подписьОплачено = ((await page.locator(".statcard").filter({ hasText: "Оплачено" })
+      .locator(".statcard__note").first().textContent().catch(() => "")) ?? "").trim();
+    if (!подписьОплачено.includes("не подтверждено платежами")) {
+      note("бухгалтерия", `карточка «Оплачено» не называет недобор: «${подписьОплачено}»`);
+    }
+  }
+  {
+    /* Порог по договору назван у заказчика: просрочка без названного порога
+       читается назначенной нами, а не договором (ответ на вопрос 5 квиза). */
+    const пороги = (await page.locator(".money__row--client .money__when").allTextContents())
+      .map((текст) => текст.trim());
+    if (!пороги.some((текст) => текст.includes("по договору"))) {
+      note("бухгалтерия", `порог по договору не назван ни у одного заказчика: «${пороги.join(" / ")}»`);
+    }
+    if (!пороги.some((текст) => текст.includes("по умолчанию"))) {
+      note("бухгалтерия", `порог по умолчанию не назван ни у одного заказчика: «${пороги.join(" / ")}»`);
+    }
+  }
 
   /* Просрочка на стенде обязана быть видна словом: раздел с просроченным
      траншем и раздел без него — разные экраны, и проверка, не видевшая
@@ -2892,6 +3114,7 @@ if ((await просрочка.count()) === 0) {
   note("воронка", `пилюля просрочки без подписи: «${(await просрочка.textContent()) ?? ""}»`);
 }
 
+await разметка("воронка заявок");
 await step("воронка заявок", "41-zayavki.png");
 await overflow("воронка, 1440");
 await усечение(page, "воронка");
@@ -3005,6 +3228,7 @@ if (чиповСтадий > 0) {
   }
 }
 await overflow("воронка, 390");
+await разметка("воронка, 390 px");
 await step("воронка на телефоне", "43-zayavki-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -3076,6 +3300,9 @@ if (orgName.trim() === "") note("настройки", "название орга
       note("типовые сметы", `происхождение заготовки не названо: «${подпись.trim()}»`);
     }
     console.log(`  типовые сметы: строк ${строки}, итог сошёлся с ответом`);
+    if (await гейт(page, "снятие типовой сметы", page.locator('.blueprint button:has-text("Снять")').first(), /^DELETE \/api\/blueprints\//u)) {
+      await page.click('[role="group"] button:has-text("Не снимать")');
+    }
   }
   await page.click('.tabs__item:has-text("Организация")');
   await page.waitForTimeout(300);
@@ -3084,7 +3311,7 @@ if (orgName.trim() === "") note("настройки", "название орга
 /*
  * Люди организации: вход выдаёт руководитель.
  *
- * Стережётся не вид перечня, а два свойства. Первое: три роли продукта
+ * Стережётся не вид перечня, а два свойства. Первое: четыре роли продукта
  * различимы на экране — перечень, в котором все «пользователи», не отвечает
  * на вопрос «кто что видит». Второе: выданная ссылка показывается — выдача
  * без показа равна невыданной, и руководителю нечего передать.
@@ -3092,15 +3319,34 @@ if (orgName.trim() === "") note("настройки", "название орга
 await page.click('.tabs__item:has-text("Люди")');
 await page.waitForSelector(".records .record");
 const людейНаЭкране = await page.locator(".records .record").count();
-if (людейНаЭкране < 3) {
-  note("люди", `в перечне ${людейНаЭкране} человек: ожидались три роли`);
+if (людейНаЭкране < 4) {
+  note("люди", `в перечне ${людейНаЭкране} человек: ожидались четыре роли`);
 }
 const ролиНаЭкране = (await page.locator(".records .record > .pill").allTextContents())
   .map((текст) => текст.trim());
-for (const роль of ["Руководитель", "Прораб", "Заказчик"]) {
+for (const роль of ["Руководитель", "Прораб", "Бухгалтер", "Заказчик"]) {
   if (!ролиНаЭкране.includes(роль)) {
     note("люди", `роль «${роль}» на экране не названа: «${ролиНаЭкране.join(", ")}»`);
   }
+}
+/* Выдать вход можно каждой роли продукта. Подписи роли «Бухгалтер» на
+   экране были, а в выборе листа заведения её не было — вход бухгалтеру
+   выдавался только наполнением стенда (полный аудит 30.09.2026, П-22).
+   Перечень берётся из контракта, а не пишется здесь: роль, заведённая
+   завтра, обязана попасть и в выбор. */
+{
+  const контракт = readFileSync(new URL("../packages/contracts/src/index.ts", import.meta.url), "utf8");
+  const ролейПродукта = (/export const roleSchema = z\.enum\(\[([^\]]*)\]/u.exec(контракт)?.[1] ?? "")
+    .split(",").map((кусок) => кусок.trim().replace(/"/gu, "")).filter((кусок) => кусок !== "");
+  await page.locator("button", { hasText: "Добавить человека" }).first().click();
+  await page.waitForSelector('.sheet[aria-label="Новый человек"]');
+  const пункты = await page.locator('.sheet[aria-label="Новый человек"] select').first()
+    .locator("option").evaluateAll((узлы) => узлы.map((узел) => узел.value));
+  const недостаёт = ролейПродукта.filter((роль) => !пункты.includes(роль));
+  if (ролейПродукта.length === 0) note("люди", "перечень ролей контракта не прочитан — выбор проверен пустым");
+  if (недостаёт.length > 0) note("люди", `вход не выдаётся ролям: ${недостаёт.join(", ")}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
 }
 await page.click('.records .record:has-text("Заказчик") button:has-text("Выдать ссылку")');
 await page.waitForTimeout(900);
@@ -3118,6 +3364,7 @@ await step("люди организации", "47-lyudi.png");
 await page.click('.tabs__item:has-text("Организация")');
 await page.waitForTimeout(300);
 
+await разметка("настройки организации");
 await step("настройки организации", "17-nastroyki.png");
 await overflow("настройки, 1440");
 
@@ -3152,6 +3399,7 @@ const roadmapTitle = await page.locator(".cover h1").textContent();
 if (roadmapTitle?.trim() !== "Что дальше") {
   note("что дальше", `обложка называет экран «${roadmapTitle ?? "—"}»`);
 }
+await разметка("что дальше");
 await step("что дальше", "18-chto-dalshe.png");
 await overflow("что дальше, 1440");
 
@@ -3218,7 +3466,7 @@ if (лишние.length > 0) {
 await page.click('.segmented__option:has-text("Внутренний")');
 await page.waitForSelector('.act__table thead th:has-text("Прибыль")', { timeout: 5000 })
   .catch(() => { note("документы", "во внутреннем виде акта нет колонки прибыли"); });
-await page.click('.segmented__option:has-text("Клиентский")');
+await page.click('.segmented__option:has-text("Для заказчика")');
 await page.waitForTimeout(300);
 
 /**
@@ -3290,7 +3538,7 @@ const размерЛиста = async (кто) => {
   if (кнопокАкта > 0 && имена.length !== 2) {
     note("документы", `кнопка печати вызвала печать ${имена.length} раз вместо двух`);
   }
-  for (const [индекс, вид] of (кнопокАкта === 0 ? [] : ["клиентский", "внутренний"]).entries()) {
+  for (const [индекс, вид] of (кнопокАкта === 0 ? [] : ["для заказчика", "внутренний"]).entries()) {
     const имя = имена[индекс] ?? "";
     if (!имя.startsWith("Акт № ")) {
       note("документы", `акт (${вид} вид) сохранится под именем «${имя}»: акта в нём не назван`);
@@ -3343,7 +3591,7 @@ const размерЛиста = async (кто) => {
       + ` страниц в файле: ${String(лист.страниц)}`);
   }
   await page.emulateMedia({ media: "screen" });
-  await page.click('.segmented__option:has-text("Клиентский")');
+  await page.click('.segmented__option:has-text("Для заказчика")');
   await page.waitForTimeout(300);
 }
 
@@ -3546,6 +3794,7 @@ const panel = await page.locator(".measure").boundingBox();
 if (strip !== null && panel !== null && strip.width > panel.width + 1) {
   note("замер", "лента помещений шире плашки: раскладка на 360 px разъезжается");
 }
+await разметка("замер, 360 px");
 await step("замер на телефоне", "25-zamer-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -3993,6 +4242,7 @@ const мест = await page.locator('.sheet label:has-text("Место в гра
 if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
 await page.click('.sheet button:has-text("Отмена")');
 await page.waitForTimeout(300);
+await разметка("работа, 360 px");
 await step("работа на телефоне", "28-grafik-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4212,6 +4462,7 @@ for (const selector of [".accept__check", ".accept__section"]) {
     note("приёмка", `зона касания «${selector}» на 390 px — ${Math.round(box.height)} px вместо 44`);
   }
 }
+await разметка("приёмка, 390 px");
 await step("приёмка на телефоне", "35-priyomka-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4347,16 +4598,123 @@ const доля = надбавкаЭкрана === null
   : BigInt(Math.round(Number.parseFloat(надбавкаЭкрана.replace(/[^\d.,]/g, "").replace(",", ".")) * 100));
 if (доля === null) note("транши", "надбавка не названа на вкладке");
 
+/* Величин в строке четыре с 19.09.2026: между выработанным и остатком встало
+   оплаченное. Разбор идёт по порядку, и добавленная величина сдвинула бы
+   остаток на чужое место — первый прогон после правки это и показал. */
 for (let i = 0; i < строкиТраншей; i += 1) {
   const строка = page.locator(".tranche__row").nth(i);
   const величины = await строка.locator(".tranche__figures .num").allTextContents();
-  const [сумма, выработано, остаток] = величины.map(вКопейки);
-  if (сумма === null || выработано === null || остаток === null) {
+  const [сумма, выработано, оплачено, остаток] = величины.map(вКопейки);
+  if (сумма === null || выработано === null || оплачено === null || остаток === null) {
     note("транши", `строка ${i + 1}: величины не разобраны — «${величины.join(" / ")}»`);
     continue;
   }
   if (сумма - выработано !== остаток) {
     note("транши", `строка ${i + 1}: остаток ${остаток} не равен ${сумма} − ${выработано}`);
+  }
+  /* Оплаченное не может превышать сумму транша молча: переплата — законное
+     событие, но она обязана быть названа пилюлей расхождения, а не спрятана
+     в согласии чисел. */
+  if (оплачено > сумма) {
+    const пилюли = await строка.locator(".tranche__state .pill").allTextContents();
+    if (!пилюли.some((текст) => текст.includes("переплата"))) {
+      note("транши", `строка ${i + 1}: оплачено ${оплачено} больше суммы ${сумма}, переплата не названа`);
+    }
+  }
+}
+
+/*
+ * Частичная оплата, сторно платежа и недобор — на самом экране.
+ *
+ * Обход не читает ответ сервера, а нажимает то же, что человек: записывает
+ * платёж, раскрывает перечень и сторнирует запись. Стережётся при этом
+ * главное свойство решения от 19.09.2026 — **платёж не меняет состояния
+ * транша**. Соблазн выставить «Оплачен», когда деньги покрыли сумму, велик, и
+ * правило, читающее только числа, его бы не поймало.
+ */
+{
+  const записать = page.locator('.tranche__row button:has-text("Записать платёж")').first();
+  if ((await записать.count()) === 0) {
+    note("платежи", "кнопки записи платежа нет ни у одного транша: частичная оплата недостижима");
+  } else {
+    const строкаПлатежа = page.locator(".tranche__row").filter({
+      has: page.locator('button:has-text("Записать платёж")'),
+    }).first();
+    const состояниеДо = ((await строкаПлатежа.locator(".tranche__state .pill").first()
+      .textContent()) ?? "").trim();
+    const оплаченоДо = вКопейки(
+      (await строкаПлатежа.locator(".tranche__figures .num").nth(2).textContent()) ?? "",
+    );
+
+    await записать.click();
+    await page.waitForSelector('[aria-label="Записать платёж"]', { timeout: 5000 })
+      .catch(() => undefined);
+    /* Лист называет непокрытое до записи: человек решает сумму платежа,
+       глядя на остаток, а не считая его в уме. */
+    const текстЛиста = ((await page.locator('[aria-label="Записать платёж"]').textContent()) ?? "");
+    if (!текстЛиста.includes("Не покрыто")) {
+      note("платежи", "лист платежа не называет непокрытую часть транша");
+    }
+    if (!текстЛиста.includes("Отметку «оплачен» платёж не ставит")) {
+      note("платежи", "лист платежа не называет, что отметку оплаты он не ставит");
+    }
+    await page.fill('[aria-label="Записать платёж"] .input--num', "1000");
+    await page.click('[aria-label="Записать платёж"] button:has-text("Записать платёж")');
+    await page.waitForTimeout(900);
+
+    const состояниеПосле = ((await строкаПлатежа.locator(".tranche__state .pill").first()
+      .textContent()) ?? "").trim();
+    if (состояниеПосле !== состояниеДо) {
+      note("платежи",
+        `платёж сам сменил состояние транша: «${состояниеДо}» → «${состояниеПосле}»`);
+    }
+    const оплаченоПосле = вКопейки(
+      (await строкаПлатежа.locator(".tranche__figures .num").nth(2).textContent()) ?? "",
+    );
+    if (оплаченоДо === null || оплаченоПосле === null || оплаченоПосле - оплаченоДо !== 100000n) {
+      note("платежи", `оплаченное после платежа ${оплаченоПосле} при ${оплаченоДо} до записи`);
+    }
+
+    /* Перечень платежей раскрывается под строкой, а не листом поверх неё:
+       его читают, сверяя с суммой транша строкой выше. */
+    const раскрыть = строкаПлатежа.locator('button:has-text("Платежи")').first();
+    if ((await раскрыть.count()) === 0) {
+      note("платежи", "записанный платёж не перечислен: раскрытия нет");
+    } else {
+      await раскрыть.click();
+      await page.waitForTimeout(400);
+      const записей = await строкаПлатежа.locator(".tranche__payment").count();
+      if (записей === 0) {
+        note("платежи", "перечень платежей раскрыт и пуст");
+      } else {
+        /* Сторнируется последняя запись — та, что только что добавлена.
+           Первая в перечне может быть чужим платежом наполнения, и обход
+           отменял бы не свою работу: первый прогон правила это и показал. */
+        const сторнировать = строкаПлатежа.locator('.tranche__payment button:has-text("Сторно")').last();
+        if ((await сторнировать.count()) === 0) {
+          note("платежи", "у записанного платежа нет сторно: ошибку ввода не исправить");
+        } else {
+          await сторнировать.click();
+          await page.waitForSelector('[aria-label="Сторно платежа"]', { timeout: 5000 })
+            .catch(() => undefined);
+          await page.fill('[aria-label="Сторно платежа"] .input', "Проверка обходом");
+          await page.click('[aria-label="Сторно платежа"] button:has-text("Сторнировать")');
+          await page.waitForTimeout(900);
+
+          const послеСторно = await строкаПлатежа.locator(".tranche__payment").count();
+          if (послеСторно !== записей + 1) {
+            note("платежи",
+              `после сторно записей ${послеСторно} при ${записей} до него: пара обязана остаться в истории`);
+          }
+          const оплаченоИтог = вКопейки(
+            (await строкаПлатежа.locator(".tranche__figures .num").nth(2).textContent()) ?? "",
+          );
+          if (оплаченоИтог !== оплаченоДо) {
+            note("платежи", `после сторно оплачено ${оплаченоИтог}, до платежа было ${оплаченоДо}`);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -4379,6 +4737,31 @@ if ((await page.locator(".tranche__bar").count()) === 0) {
   }
 }
 
+/* Список траншей читается столбцом: одноимённые величины соседних строк
+   стоят на одной вертикали. Прежде «выработано» стояло на 753, 833, 838 и
+   860 px — где встанет величина, решала длина чисел (полный аудит
+   30.09.2026, П-33). Меряется правый край числа: суммы сравнивают по
+   разрядам, а разряды выровнены вправо. */
+{
+  const края = await page.evaluate(() => [...document.querySelectorAll(".tranche__row")].map((строка) =>
+    [...строка.querySelectorAll(".tranche__figures > span")].map((ячейка) =>
+      Math.round(ячейка.querySelector(".num")?.getBoundingClientRect().right ?? 0))));
+  const строк = края.length;
+  for (let номер = 0; номер < 4; номер += 1) {
+    const столбец = [...new Set(края.map((ряд) => ряд[номер]).filter((край) => край !== undefined && край > 0))];
+    if (столбец.length > 1) {
+      note("транши", `величина № ${String(номер + 1)} в ${String(строк)} строках стоит на ${String(столбец.length)} разных вертикалях: ${столбец.join(", ")} px`);
+    }
+  }
+  if (строк < 3) note("транши", `строк траншей ${String(строк)} — выравнивание столбцом проверено почти пустым списком`);
+}
+{
+  const закрыть = page.locator('.section-head button:has-text("Закрыть транш")');
+  if ((await закрыть.count()) === 0) note("гейт", "транши: кнопки закрытия нет — гейт не проверен");
+  else if (await гейт(page, "закрытие транша", закрыть.first(), /^POST .*\/closure$/u)) {
+    await page.click('[role="group"] button:has-text("Не закрывать")');
+  }
+}
 await step("транши", "36-transhi.png");
 await цели(page, "транши");
 await безымянные(page, "транши");
@@ -4416,6 +4799,7 @@ await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(400);
 await overflow("транши, 390");
 await усечение(page, "транши, 390");
+await разметка("транши, 390 px");
 await step("транши на телефоне", "38-transhi-390.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
@@ -4605,6 +4989,7 @@ if ((await page.locator("main .datatable__search input").count()) === 0) {
 console.log(`  плиток объектов на 360 px: ${mobileRows}`);
 await overflow("объекты, 360");
 await усечение(page, "объекты, 360");
+await разметка("объекты, 360 px");
 await step("объекты на телефоне", "10b-obekty-360.png");
 await step("мобильный, 360 px", "10-mobile-360.png");
 
@@ -4625,6 +5010,7 @@ if ((await page.locator("main .datatable__table").count()) > 0) {
 if ((await page.locator("main .objecttile").count()) === 0) {
   note("портфель, 768", "плитки объектов не отрисованы");
 }
+await разметка("объекты, 768 px");
 await step("объекты на планшете", "11b-obekty-768.png");
 await step("планшет, 768 px", "11-tablet-768.png");
 
@@ -4928,7 +5314,7 @@ if (выборы.size === ОЖИДАЕМЫЕ_ВЫБОРЫ.length) {
   }
 }
 
-/* --- вход тремя ролями --------------------------------------------------------
+/* --- вход всеми ролями --------------------------------------------------------
  *
  * До этой проверки обход входил одним человеком, и состав первого экрана
  * роли не стерегло ничто. Заказчик из-за этого не входил вовсе: справочник
@@ -4960,7 +5346,49 @@ const РОЛИ_ВХОДА = [
     вкладки: "Обзор|Смета|Работа|Отчёт|Документы",
     снимок: "49-vhod-zakazchik.png",
   },
+  /* Бухгалтер заведён 19.09.2026. Разделы и вкладки у него те же, что у
+     руководителя, и это не лишняя строка перечня: решение заказчика звучит
+     «всё, кроме настроек и ролей», а проверить его можно только обеими
+     половинами — равенством состава и отсутствием настроек ниже. */
+  {
+    имя: "бухгалтер",
+    почта: "buh@dolgiy.studio",
+    разделы: ["Главная", "Заявки", "Проекты", "Контакты", "Бухгалтерия"],
+    вкладки: "Обзор|Замер|Смета|Работа|Приёмка|Чеки|Отчёт|Транши|Документы|Импорт",
+    снимок: "50-vhod-buhgalter.png",
+    безНастроек: true,
+    первичноеДопустимо: true,
+  },
 ];
+
+/* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
+   сдвинули бы окно ленты. План заводится снимком проверки и снимается
+   подтверждением — стенд возвращается к «плана нет», а путь снятия
+   проходится целиком: и отказ от него, и само снятие. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.click('.appbar__link:has-text("Проекты")').catch(() => { /* уже там */ });
+  await page.waitForTimeout(600);
+  await page.locator(".objecttile", { hasText: "R-99" }).locator(".objecttile__link").first().click();
+  await page.waitForTimeout(1200);
+  await page.locator('.tabs__item:has-text("Замер")').click();
+  await page.waitForTimeout(800);
+  const поле = page.locator('label.filefield input[type="file"]');
+  if ((await поле.count()) === 0) {
+    note("гейт", "замер: поля загрузки плана нет — гейт снятия не проверен");
+  } else {
+    await поле.first().setInputFiles("scripts/fixtures/snimok.png");
+    await page.waitForSelector('button:has-text("Снять план")', { timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+    const снять = page.locator('button:has-text("Снять план")');
+    if ((await снять.count()) === 0) {
+      note("гейт", "замер: план не загрузился — гейт снятия не проверен");
+    } else if (await гейт(page, "снятие плана обмера", снять.first(), /^DELETE .*\/measure\/plan/u)) {
+      await page.click('[role="group"] .btn--danger');
+      await page.waitForSelector("label.filefield", { timeout: 5000 })
+        .catch(() => { note("гейт", "замер: подтверждённое снятие плана не вернуло поле загрузки"); });
+    }
+  }
+}
 
 for (const роль of РОЛИ_ВХОДА) {
   const ссылка = await fetch(`${API}/auth/magic-link`, {
@@ -5023,9 +5451,13 @@ for (const роль of РОЛИ_ВХОДА) {
       `${роль.имя} стоит на «${заголовок || "—"}», а такого раздела в его навигации нет`);
   }
 
+  /* Первичное действие на первом экране допустимо только той роли, которая
+     его выполнит. Прорабу и бухгалтеру заведение объекта открыто, заказчику
+     нет: показанная ему кнопка вела бы в лист, отказывающий первым запросом,
+     и читалась бы поломкой продукта. */
   const первичные = (await лист.locator(".cover .btn--primary").allTextContents())
     .map((текст) => текст.trim());
-  if (роль.имя !== "прораб" && первичные.length > 0) {
+  if (роль.имя !== "прораб" && роль.первичноеДопустимо !== true && первичные.length > 0) {
     note("вход по ролям", `${роль.имя}: первичное действие «${первичные.join(", ")}»`);
   }
 
@@ -5044,6 +5476,86 @@ for (const роль of РОЛИ_ВХОДА) {
     }
     await лист.screenshot({ path: `${SHOTS}/${роль.снимок}`, fullPage: true });
     console.log(`  снято: вход — ${роль.имя} → ${роль.снимок}`);
+  }
+
+  /* Смета объекта, где она есть, открывается каждой ролью. Первая плитка
+     заказчика — R-31 без сметы, и смету своего R-99 заказчик в обходе не
+     открывал ни разу. Отказ на отчёте импорта обнулял уже полученную смету,
+     и кабинет заказчика показывал «Сметы пока нет» рядом с итогом
+     4 250 234,35 ₽ (полный аудит 30.09.2026, П-18). */
+  await лист.click('.appbar__link:has-text("Проекты")').catch(() => { /* уже там */ });
+  await лист.waitForTimeout(600);
+  const соСметой = лист.locator(".objecttile", { hasText: "R-99" }).locator(".objecttile__link");
+  if ((await соСметой.count()) === 0) {
+    note("вход по ролям", `${роль.имя}: объекта R-99 в перечне нет — смету открыть негде`);
+  } else {
+    await соСметой.first().click();
+    await лист.waitForTimeout(1400);
+    await лист.locator('.tabs__item:has-text("Смета")').click();
+    await лист.waitForTimeout(1000);
+    const строкСметы = await лист.locator("table.estimate tbody tr").count();
+    if (строкСметы === 0) {
+      const наЭкране = ((await лист.locator(".empty__title").first().textContent().catch(() => "")) ?? "").trim();
+      note("вход по ролям", `${роль.имя}: смета R-99 не открылась — «${наЭкране || "пусто"}»`);
+    }
+    /* Черновик чека удаляет прораб: гейт проверяется его рукой. */
+    if (роль.имя === "прораб") {
+      /* Черновик заводится запросом от имени прораба и удаляется
+         подтверждением: стенд остаётся прежним, путь пройден целиком. */
+      await лист.request.post(`${BASE}/api/projects/R-99/expenses`, {
+        multipart: {
+          expense: JSON.stringify({
+            kind: "OTHER", amount: "10000", reimbursable: false, seller: "Проверка гейта",
+            spentAt: "2026-09-05", sectionId: null, note: null,
+          }),
+          file: { name: "chek.png", mimeType: "image/png", buffer: readFileSync("scripts/fixtures/snimok.png") },
+        },
+      });
+      await лист.locator('.tabs__item:has-text("Чеки")').click();
+      await лист.waitForTimeout(900);
+      const строка = лист.locator(".record", { hasText: "Проверка гейта" });
+      const удалить = строка.locator('button:has-text("Удалить")');
+      if ((await удалить.count()) === 0) {
+        note("гейт", "прораб: черновика с кнопкой удаления нет — гейт не проверен");
+      } else if (await гейт(лист, "удаление черновика чека", удалить.first(), /^DELETE .*\/expenses\//u)) {
+        await лист.click('[role="group"] .btn--danger');
+        await лист.waitForTimeout(800);
+        if ((await строка.count()) > 0) note("гейт", "прораб: подтверждённое удаление черновика не убрало его");
+      }
+      await лист.locator('.tabs__item:has-text("Смета")').click();
+      await лист.waitForTimeout(600);
+    }
+    /* Типовые сметы — настройка компании. Кнопки, ведущие в закрытый
+       сервером маршрут, у бухгалтера стояли (полный аудит 30.09.2026, П-23). */
+    if (роль.безНастроек === true) {
+      const заготовки = await лист.locator("button", { hasText: /типовую/u }).count();
+      if (заготовки > 0) {
+        note("вход по ролям", `${роль.имя}: на смете ${заготовки} кнопок типовых смет, закрытых ему сервером`);
+      }
+    }
+  }
+
+  /* Вторая половина решения от 19.09.2026: настроек и выдачи входа у роли
+     нет. Проверяется тремя местами сразу — списком «Ещё», именем в шапке
+     (оно ведёт в настройки и потому перестаёт быть кнопкой) и самим
+     маршрутом настроек на сервере. Одного списка мало: пункт можно убрать,
+     оставив экран достижимым мимо него. */
+  if (роль.безНастроек === true) {
+    await лист.click(".appbar__more > summary").catch(() => { /* список уже раскрыт */ });
+    await лист.waitForTimeout(200);
+    const пункты = (await лист.locator(".appbar__menu .appbar__menu-item").allTextContents())
+      .map((текст) => текст.trim());
+    if (пункты.includes("Настройки")) {
+      note("вход по ролям", `${роль.имя}: в списке «Ещё» стоят настройки — «${пункты.join(", ")}»`);
+    }
+    const имяКнопкой = await лист.locator("button.appbar__user").count();
+    if (имяКнопкой !== 0) {
+      note("вход по ролям", `${роль.имя}: имя в шапке осталось кнопкой, ведущей в настройки`);
+    }
+    const настройкиСервера = await fetch(`${API}/repair-types`).then((о) => о.status).catch(() => 0);
+    if (настройкиСервера === 200) {
+      note("вход по ролям", `${роль.имя}: маршрут настроек открыт без сессии — проверка ничего не стережёт`);
+    }
   }
 
   const лишние = [...new Set(отказано)];

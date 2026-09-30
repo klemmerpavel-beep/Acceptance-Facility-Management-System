@@ -2,7 +2,7 @@ import type { ProjectSummary } from "@priyomka/contracts";
 import { пусто } from "./empty.js";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
-import { STATUS_LABEL, STATUS_PILL, formatDate } from "./status.js";
+import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 import { due } from "./due.js";
 
 /**
@@ -60,7 +60,10 @@ export function readinessCell(readiness: number | null): React.JSX.Element {
  * которое должно быть заметно.
  */
 export function acceptedCell(share: number | null): React.JSX.Element {
-  if (share === null) return <span className="t-muted">нет сметы</span>;
+  /* Словом словаря: «нет сметы» было тринадцатой формулировкой мимо него
+     (полный аудит 30.09.2026, П-9). Полная форма — в графе «Принято» краткое
+     «нет» читалось бы как «ничего не принято». */
+  if (share === null) return <span className="t-muted">{пусто("смета")}</span>;
   /* Начатая работа не округляется до нуля. Столбец показывает целые
      проценты — сотые доли в списке из двадцати строк не читают, — но ноль
      здесь означает «не принято ничего», и объект с первым принятым пакетом
@@ -233,7 +236,7 @@ export function ProjectTable({
       />
       {rest > 0 && (
         <p className="t-sm t-muted">
-          Показаны первые {limit} объектов портфеля.{" "}
+          Показаны первые {limit} {plural(limit, "объект", "объекта", "объектов")} портфеля.{" "}
           <a
             href="#projects"
             onClick={(event) => { event.preventDefault(); onAll(); }}

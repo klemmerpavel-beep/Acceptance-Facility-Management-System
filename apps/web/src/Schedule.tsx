@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { завести } from "./verbs.js";
 import type { CreateWorkStage, Role, WorkerRow, WorkStage } from "@priyomka/contracts";
 import {
-  dayIndex, isDayOff, monthWindow, planWindow, shiftDay, shiftMonth, stageDateFault, windowDays,
+  dayIndex, isDayOff, monthWindow, ownerLevel, planWindow, shiftDay, shiftMonth, stageDateFault,
+  windowDays,
   type PlanWindow, type ProjectRange, type SectionWeight,
 } from "@priyomka/domain";
 import { formatPercent } from "@priyomka/ui";
@@ -51,7 +52,7 @@ function занятость(
 }
 
 /** График ведёт руководитель — как и статус объекта. Прораб его читает. */
-const canEdit = (role: Role): boolean => role === "OWNER";
+const canEdit = (role: Role): boolean => ownerLevel(role);
 
 /** Три ступени масштаба. Ширина дня — то же значение, что в токене --day-w. */
 const SCALES = [
@@ -308,7 +309,7 @@ export function Schedule({
 
   const head = (
     <div className="section-head">
-      <h3 className="t-h3">График производства работ</h3>
+      <h2 className="t-h3">График производства работ</h2>
       {/* Перенос обязателен: в ряду четыре органа управления — два
           переключателя и две кнопки, — и на 390 px они занимают 717 px.
           Переполнялся при этом сам документ, а не дорожка графика: страница

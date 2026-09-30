@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { plural } from "./status.js";
 
 /**
  * Список по единому образцу. Норматив: `docs/03_DESIGN_SYSTEM.md`, §5.14.
@@ -238,7 +239,7 @@ export function DataTable<Row>({
       {rows.length > CLIENT_LIMIT && (
         // Порог из норматива 5.14: дальше сортировка уходит на сервер.
         <p className="field__hint">
-          В разделе {rows.length} строк — больше порога в {CLIENT_LIMIT}. Сортировка и поиск
+          В разделе {rows.length} {plural(rows.length, "строка", "строки", "строк")} — больше порога в {CLIENT_LIMIT}. Сортировка и поиск
           выполняются в браузере и на таком объёме уже заметны.
         </p>
       )}

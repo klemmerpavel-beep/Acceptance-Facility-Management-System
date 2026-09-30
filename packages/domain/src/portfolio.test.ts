@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, kopecks } from "./money.js";
 import {
-  buildPortfolio, buildWeek, daysBetween, workingDaysBetween, безСметы,
+  buildPortfolio, buildWeek, daysBetween, formatDay, workingDaysBetween, безСметы,
   type PortfolioProject,
 } from "./portfolio.js";
 
@@ -180,6 +180,18 @@ describe("разница дат", () => {
     expect(daysBetween("2026-09-02", "2026-08-15")).toBe(-18);
     expect(daysBetween("2026-12-31", "2027-01-01")).toBe(1);
     expect(daysBetween("2026-02-28", "2026-03-01")).toBe(1);
+  });
+});
+
+describe("день для чтения", () => {
+  it("печатает день так, как его пишут: число, месяц, год", () => {
+    expect(formatDay("2026-09-30")).toBe("30.09.2026");
+    expect(formatDay("2026-01-05")).toBe("05.01.2026");
+  });
+
+  it("строку не в форме ГГГГ-ММ-ДД не переписывает догадкой", () => {
+    expect(formatDay("30.09.2026")).toBe("30.09.2026");
+    expect(formatDay("")).toBe("");
   });
 });
 

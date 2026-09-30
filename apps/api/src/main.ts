@@ -18,7 +18,12 @@ async function bootstrap(): Promise<void> {
   // Фильтр превращает отказ схемы в 400 с текстом отказа: без него это 500
   // «Internal server error» — неправда о том, где произошёл сбой.
   app.useGlobalFilters(new ZodExceptionFilter());
-  app.enableCors({ origin: process.env.WEB_ORIGIN ?? true, credentials: true });
+  /* Без `WEB_ORIGIN` чужие источники не допускаются вовсе. Прежде умолчанием
+     было `true` — отражение любого `Origin` вместе с разрешением куки, то
+     есть чтение ответов от имени вошедшего с любой страницы (полный аудит
+     30.09.2026, П-25). Клиенту CORS не нужен: он ходит к API через свой
+     узел (`/api` у vite и nginx). */
+  app.enableCors({ origin: process.env.WEB_ORIGIN ?? false, credentials: true });
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, "0.0.0.0");

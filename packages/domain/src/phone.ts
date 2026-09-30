@@ -123,11 +123,6 @@ export function isPhoneNumber(value: string): value is PhoneNumber {
   return /^\+7\d{10}$/.test(value);
 }
 
-/** Нормализованный номер, на который дойдёт сообщение с кодом. */
-export function isMobileNumber(value: string): value is PhoneNumber {
-  return /^\+79\d{9}$/.test(value);
-}
-
 /**
  * Показ номера: `+7 (900) 000-00-00`. Пробелы внутри — неразрывные
  * (U+00A0), иначе номер рвётся переносом строки на середине.
@@ -135,14 +130,4 @@ export function isMobileNumber(value: string): value is PhoneNumber {
 export function formatPhone(value: PhoneNumber): string {
   const d = value.slice(2);
   return `+7\u00a0(${d.slice(0, 3)})\u00a0${d.slice(3, 6)}-${d.slice(6, 8)}-${d.slice(8, 10)}`;
-}
-
-/**
- * Номер для показа рядом с полем кода: середина скрыта.
- * Полный номер в интерфейсе после отправки кода не нужен, а на общем
- * экране он лишний.
- */
-export function maskPhone(value: PhoneNumber): string {
-  const d = value.slice(2);
-  return `+7\u00a0(${d.slice(0, 3)})\u00a0\u2022\u2022\u2022-\u2022\u2022-${d.slice(8, 10)}`;
 }

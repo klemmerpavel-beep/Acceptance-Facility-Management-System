@@ -4,8 +4,8 @@ import type {
   CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
-import { sectionTitle, daysBetween, projectRange, sectionWeights, workingDaysBetween,
-  безСметы } from "@priyomka/domain";
+import { sectionTitle, daysBetween, ownerLevel, projectRange, sectionWeights,
+  workingDaysBetween, безСметы } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   applyBlueprint, createBlueprint,
@@ -234,7 +234,7 @@ export function ProjectCard({
   /* Прорабы тянутся только тому, кто правит: роль, которой поля не
      принадлежат, органов правки не видит, и список ей незачем. */
   const [прорабы, setПрорабы] = useState<Foreman[]>([]);
-  const правит = user.role === "OWNER";
+  const правит = ownerLevel(user.role);
 
   useEffect(() => {
     if (!правит) return;
@@ -269,10 +269,17 @@ export function ProjectCard({
     if (user.role !== "CLIENT") {
       void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
     }
+    /* Отчёт импорта спрашивается отдельно от сметы и заказчиком не
+       спрашивается вовсе: маршрут ему закрыт. Прежде отчёт ждали внутри
+       цепочки сметы, и отказ в нём попадал в общий `catch` — уже полученная
+       смета обнулялась, и заказчик R-99 видел «Сметы пока нет» рядом с
+       итогом 4 250 234,35 ₽ (полный аудит 30.09.2026, П-18). */
+    if (user.role !== "CLIENT") {
+      void fetchImports(project.code).then(setImports).catch(() => { setImports([]); });
+    }
     void fetchEstimate(project.code)
-      .then(async (view) => {
+      .then((view) => {
         setEstimate(view);
-        setImports(await fetchImports(project.code));
         setError(null);
       })
       .catch((cause: unknown) => {
@@ -331,7 +338,7 @@ export function ProjectCard({
      спрятанная вкладка — это удобство, а не запрет. Запрет стоит в страже
      ролей, где заказчику закрыто всё, что не названо прямо. */
   const ЗАКАЗЧИКУ: readonly Tab[] = ["overview", "work", "estimate", "report", "documents"];
-  const tabList = user.role === "OWNER"
+  const tabList = ownerLevel(user.role)
     ? [...TABS, { key: "import" as const, label: "Импорт" }]
     : user.role === "CLIENT"
       ? TABS.filter((item) => ЗАКАЗЧИКУ.includes(item.key))
@@ -361,6 +368,11 @@ export function ProjectCard({
       {/* Штамп объекта. Те же сведения, что несла цветная обложка, но
           набранные как штамп рабочего чертежа: графа, подпись, значение. */}
       <div className="container">
+        {/* Имя экрана для того, кто его не видит: у карточки нет обложки, и
+            заголовка первого уровня на ней не было вовсе — перейти к началу
+            экрана по заголовкам было не к чему (полный аудит 30.09.2026,
+            П-31). Глазом штамп называет объект и без него. */}
+        <h1 className="visually-hidden">Объект {project.code}, {project.address}</h1>
         <p className="stamp__crumbs">
           {/* Крошка называет раздел, в который возвращает, а не сущность, которая
               в нём лежит. Прежде здесь стояли «Объекты» — слово, которого нет ни
@@ -462,15 +474,20 @@ export function ProjectCard({
         <div className="project-layout">
           <aside className="stack">
             <div className="figure">
-              <span className="figure__label">Итог сметы для клиента</span>
+              <span className="figure__label">Итог сметы для заказчика</span>
+              {/* Сметы нет — величину не завели, а не «её нет в природе»:
+                  слово словаря, а не прочерк (правило 6 `07_IA.md`). Прежде
+                  здесь стояли «—» и «смета не загружена» рядом со словарным
+                  «Сметы нет» в штампе того же экрана (полный аудит
+                  30.09.2026, П-9). */}
               <span className="figure__value">
-                {project.estimateTotal === null ? "—" : money(project.estimateTotal)}
+                {project.estimateTotal === null ? пусто("смета", "краткое") : money(project.estimateTotal)}
               </span>
-              <span className="figure__note">
-                {estimate === null
-                  ? "смета не загружена"
-                  : `включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
-              </span>
+              {estimate !== null && (
+                <span className="figure__note">
+                  {`включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
+                </span>
+              )}
             </div>
 
             {/* Ориентир, названный на заявке до выезда, — рядом с итогом
@@ -543,7 +560,7 @@ export function ProjectCard({
                 значение при органе управления. У прораба органа нет —
                 нет и строки. Почтовый адрес для чеков снят: приёма писем
                 на сервере ещё нет, а адрес на экране обещает работу. */}
-            {user.role === "OWNER" && (
+            {ownerLevel(user.role) && (
               <div className="row row--between summary__status">
                 <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
                 <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
@@ -670,6 +687,7 @@ export function ProjectCard({
                 estimate={estimate}
                 events={events}
                 today={today}
+                заводитСмету={ownerLevel(user.role)}
                 onReport={() => { setTab("report"); }}
               />
               )}
@@ -744,21 +762,26 @@ export function ProjectCard({
                   <div className="empty">
                     <p className="empty__title">Сметы пока нет</p>
                     <p className="empty__text">{error}</p>
-                    {user.role === "OWNER" && (
+                    {ownerLevel(user.role) && (
                       <div className="row">
                         <button type="button" className="btn btn--primary" onClick={() => setTab("import")}>
                           Импортировать смету
                         </button>
                         {/* Второй путь к той же цели: типовая смета уже
                             лежит в организации, и заводить её файлом заново
-                            — лишняя работа. */}
-                        <button
-                          type="button"
-                          className="btn btn--secondary"
-                          onClick={() => { setЗаготовка("apply"); setEditError(null); }}
-                        >
-                          Взять типовую
-                        </button>
+                            — лишняя работа. Типовые сметы — настройка
+                            компании и бухгалтеру закрыты сервером
+                            (`@OwnerOnly`); показанная ему кнопка вела в
+                            отказ (полный аудит 30.09.2026, П-23). */}
+                        {user.role === "OWNER" && (
+                          <button
+                            type="button"
+                            className="btn btn--secondary"
+                            onClick={() => { setЗаготовка("apply"); setEditError(null); }}
+                          >
+                            Взять типовую
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -777,7 +800,7 @@ export function ProjectCard({
                 {estimate !== null && (
                   <EstimateTable
                     estimate={estimate}
-                    {...(user.role === "OWNER"
+                    {...(ownerLevel(user.role)
                       ? {
                           onEditItem: (item: EstimateItem) => {
                             setEditing(item);
@@ -920,12 +943,15 @@ function Overview({
   estimate,
   events,
   today,
+  заводитСмету,
   onReport,
 }: {
   project: ProjectSummary;
   estimate: EstimateView | null;
   events: ProjectEvent[];
   today: string;
+  /** Может ли вошедший завести смету: от этого зависит, куда зовёт пустое состояние. */
+  заводитСмету: boolean;
   /** Переход на фотоотчёт: обложка ведёт туда, откуда она взята. */
   onReport: () => void;
 }): React.JSX.Element {
@@ -986,18 +1012,26 @@ function Overview({
               <>
                 <span className="metric">
                   <span className="metric__value">{passed.working}</span>
-                  <span className="metric__label">Рабочих дней прошло</span>
+                  {/* Подпись согласуется с числом: «152 рабочих дней прошло»
+                      стояло на карточке R-99 (полный аудит 30.09.2026, П-29). */}
+                  <span className="metric__label">
+                    {plural(passed.working, "Рабочий день прошёл", "Рабочих дня прошло", "Рабочих дней прошло")}
+                  </span>
                 </span>
                 <span className="metric">
                   <span className="metric__value">{passed.calendar}</span>
-                  <span className="metric__label">Календарных прошло</span>
+                  <span className="metric__label">
+                    {plural(passed.calendar, "Календарный прошёл", "Календарных прошло", "Календарных прошло")}
+                  </span>
                 </span>
               </>
             )}
             {contract !== null && (
               <span className="metric">
                 <span className="metric__value">{contract.calendar}</span>
-                <span className="metric__label">Календарных по договору</span>
+                <span className="metric__label">
+                  {plural(contract.calendar, "Календарный по договору", "Календарных по договору", "Календарных по договору")}
+                </span>
               </span>
             )}
             {/* Плитки «Позиций в смете» здесь нет намеренно: ряд назван
@@ -1020,9 +1054,14 @@ function Overview({
         </div>
         {estimate === null ? (
           <div className="empty">
-            <p className="empty__title">Смета не загружена</p>
+            <p className="empty__title">{Пусто("смета")}</p>
+            {/* Пустое состояние зовёт к действию того, кто его читает. Прежде
+                оно описывало устройство импорта — и заказчику, и прорабу,
+                которым импорт недоступен (полный аудит 30.09.2026, П-9). */}
             <p className="empty__text">
-              Импорт разбирает книгу Excel и показывает отчёт о расхождениях до записи в базу.
+              {заводитСмету
+                ? "Импортируйте книгу Excel на вкладке «Импорт»: отчёт о расхождениях покажется до записи."
+                : "Смету заводит руководитель. Она появится здесь, как только будет готова."}
             </p>
           </div>
         ) : (

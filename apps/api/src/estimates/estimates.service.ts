@@ -11,7 +11,8 @@ import {
 import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
   estimateItemMoveFault, formatKopecks, formatPercent, kopecks, количествоТекстом,
-  milliunits,
+  milliunits, ownerLevel,
+  сколько,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -154,7 +155,7 @@ export class EstimatesService {
       const spellings = [...new Set(unresolved.map((i) => i.rawUnit.trim() || "пусто"))];
       throw new BadRequestException({
         message:
-          `Импорт остановлен: ${unresolved.length} позиций с написаниями единиц, которые не приведены ` +
+          `Импорт остановлен: ${сколько(unresolved.length, "позиция", "позиции", "позиций")} с написаниями единиц, которые не приведены ` +
           `к справочнику — ${spellings.join(", ")}. Сопоставьте их на экране импорта и повторите.`,
       });
     }
@@ -359,7 +360,7 @@ export class EstimatesService {
           + (прежниеПомещения.size === 0
             ? ""
             : `, помещений перенесено ${помещенийПеренесено} из ${прежниеПомещения.size}`),
-      });
+      }, tx);
 
       return { importId: record.id, estimateId: estimate.id, version, report: dto };
     });
@@ -494,15 +495,27 @@ export class EstimatesService {
     });
     if (!estimate) return [];
 
-    return estimate.imports.map((record) => ({
-      id: record.id,
-      estimateId: estimate.id,
-      version: estimate.version,
-      fileName: record.fileName,
-      importedAt: record.importedAt.toISOString(),
-      positions: record.positions,
-      report: record.report as unknown as ImportReport,
-    }));
+    /* Отчёт хранит фонд оплаты труда файла — посчитанный, заявленный и их
+       расхождение. Прорабу он отдавался целиком, хотя та же величина в
+       смете от него закрыта (полный аудит 30.09.2026, П-16). Разграничение
+       на уровне полей, а не экранов: отчёт прорабу остаётся, три поля —
+       нет. */
+    const внутренние = ownerLevel(user.role);
+    return estimate.imports.map((record) => {
+      const report = record.report as unknown as ImportReport;
+      const { computedWageTotal, declaredWageTotal, wageTotalDelta, ...открытое } = report;
+      return {
+        id: record.id,
+        estimateId: estimate.id,
+        version: estimate.version,
+        fileName: record.fileName,
+        importedAt: record.importedAt.toISOString(),
+        positions: record.positions,
+        report: внутренние
+          ? { ...открытое, computedWageTotal, declaredWageTotal, wageTotalDelta }
+          : открытое,
+      };
+    });
   }
 
   /** Эталонный шаблон выгрузки для объекта. */
@@ -633,7 +646,7 @@ export class EstimatesService {
              той единице, в которой количество и правили. */
           oldValue: значениеДляЖурнала(field, прежнее[field] ?? null, before.unit.code),
           newValue: значениеДляЖурнала(field, next, before.unit.code),
-        });
+        }, tx);
       }
 
       /* Помещение пишется отдельно и именем: опознаватель в журнале
@@ -648,7 +661,7 @@ export class EstimatesService {
           field: `${before.name} — помещение`,
           oldValue: before.room?.name ?? "не выбрано",
           newValue: помещение?.name ?? "не выбрано",
-        });
+        }, tx);
       }
     });
 
@@ -781,7 +794,7 @@ export class EstimatesService {
           field: `${before.name} — раздел`,
           oldValue: before.section.name,
           newValue: целевой.name,
-        });
+        }, tx);
       }
       if (input.roomId !== undefined && input.roomId !== before.roomId) {
         await this.audit.record({
@@ -792,7 +805,7 @@ export class EstimatesService {
           field: `${before.name} — помещение`,
           oldValue: before.roomId === null ? "не выбрано" : "прежнее",
           newValue: помещение?.name ?? "не выбрано",
-        });
+        }, tx);
       }
     });
 
@@ -828,7 +841,7 @@ export class EstimatesService {
         field: "надбавка «сопровождение объекта»",
         oldValue: formatPercent(basisPoints(estimate.supervisionShare)),
         newValue: formatPercent(basisPoints(input.supervisionShare)),
-      });
+      }, tx);
     });
 
     return this.view(user, code);

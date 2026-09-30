@@ -4,7 +4,8 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
-  accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, remainingQty, sum,
+  accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, ownerLevel,
+  remainingQty, sum,
   type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
 import { randomUUID } from "node:crypto";
@@ -83,7 +84,7 @@ export class AcceptanceService {
    * дал бы дюжину обращений на один экран.
    */
   private async build(user: RequestUser, projectId: string): Promise<AcceptanceView> {
-    const внутренние = user.role === "OWNER";
+    const внутренние = ownerLevel(user.role);
     const estimate = await this.prisma.estimate.findFirst({
       where: { projectId },
       orderBy: { version: "desc" },
@@ -536,7 +537,7 @@ export class AcceptanceService {
         field: `приёмка: ${section.name}, этап «${stage?.name ?? ""}»`,
         oldValue: null,
         newValue: `позиций ${String(input.positions.length)}`,
-      });
+      }, tx);
     });
 
     return this.build(user, project.id);
@@ -614,7 +615,7 @@ export class AcceptanceService {
         field: `сторно приёмки «${original.item.name}»`,
         oldValue: original.qty.toString(),
         newValue: input.reason,
-      });
+      }, tx);
     });
 
     return this.build(user, project.id);

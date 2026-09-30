@@ -3,6 +3,7 @@ import type { ActRow, ActView, SignAct } from "@priyomka/contracts";
 import {
   acceptedTotal, basisPoints, clientTotals, kopecks, milliunits, projectActLine, sum,
   type Kopecks,
+  ownerLevel, formatDay,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -131,7 +132,7 @@ export class ActsService {
     id: string,
     audience: "client" | "internal",
   ): Promise<ActView> {
-    if (audience === "internal" && user.role !== "OWNER") {
+    if (audience === "internal" && !ownerLevel(user.role)) {
       throw new ForbiddenException({
         message: "Внутренний вид акта содержит ставку и прибыль и отдаётся руководителю.",
       });
@@ -284,7 +285,7 @@ export class ActsService {
    * тот день. Будущая дата отвергается — подписанного завтра не бывает.
    */
   async sign(user: RequestUser, code: string, id: string, input: SignAct): Promise<ActRow[]> {
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Подписание акта отмечает руководитель." });
     }
     const project = await this.projectOf(user, code);
@@ -315,9 +316,9 @@ export class ActsService {
         entity: "Tranche",
         entityId: транш.id,
         field: `акт № ${String(транш.number)} — подписание`,
-        oldValue: транш.signedAt === null ? null : день(транш.signedAt),
-        newValue: input.signedAt,
-      });
+        oldValue: транш.signedAt === null ? null : formatDay(день(транш.signedAt)),
+        newValue: formatDay(input.signedAt),
+      }, tx);
     });
 
     return this.list(user, code);

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import type { AccountingView } from "@priyomka/contracts";
 import {
-  awaitingDays, clientDebts, kopecks, moneyState, moneyTotals, paymentOverdue,
-  PAYMENT_GRACE_DAYS, type TrancheMoney,
+  awaitingDays, clientDebts, graceDays, kopecks, moneyState, moneyTotals, outstanding,
+  paymentOverdue, PAYMENT_GRACE_DAYS, sum, type TrancheMoney,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { spentFacts, type SpentFacts } from "../common/expense-facts";
@@ -11,9 +11,14 @@ import type { RequestUser } from "../common/current-user";
 /**
  * Бухгалтерия: деньги заказчиков по всему портфелю.
  *
- * Раздел собирается из траншей, а не из новой сущности платежа: транш и
- * есть то, что предъявляется заказчику и оплачивается целиком. Второй учёт
- * тех же денег разошёлся бы с первым на первой частичной оплате.
+ * Раздел собирается из траншей и платежей по ним. Платёж заведён 19.09.2026
+ * ответом заказчика на вопрос 4 квиза; довод против второго учёта тех же
+ * денег не отменён, а исполнен — расхождение считается прямо и зовётся
+ * недобором (`shortfall`).
+ *
+ * Порог просрочки приходит из карточки заказчика (ответ на вопрос 5 того же
+ * квиза) и кладётся в каждый транш: арифметика домена спрашивает порог у
+ * транша, потому что просрочка — свойство денег, а не строки справочника.
  *
  * Выборка одна на весь раздел. Пройтись по объектам и спросить транши у
  * каждого значило бы сделать столько запросов, сколько объектов, — и на
@@ -30,10 +35,11 @@ export class AccountingService {
       select: {
         id: true, number: true, amount: true, status: true,
         openedAt: true, closedAt: true, paidAt: true, comment: true,
+        payments: { select: { amount: true } },
         project: {
           select: {
             code: true, address: true,
-            client: { select: { id: true, name: true } },
+            client: { select: { id: true, name: true, paymentGraceDays: true } },
           },
         },
       },
@@ -70,7 +76,13 @@ export class AccountingService {
       money: {
         status: row.status,
         amount: kopecks(row.amount),
+        /* Сторно приходит отрицательной суммой, поэтому оплаченное — простое
+           сложение всех платежей, а не сложение неотменённых. Отбор по
+           признаку «не сторнирован» дал бы тот же ответ ровно до первого
+           сторно, записанного двумя окнами сразу. */
+        paid: sum(row.payments.map((платёж) => kopecks(платёж.amount))),
         closedOn: iso(row.closedAt),
+        graceDays: row.project.client.paymentGraceDays,
       } satisfies TrancheMoney,
     }));
     const деньги = пары.map((пара) => пара.money);
@@ -83,6 +95,7 @@ export class AccountingService {
           awaiting: свод.awaiting.toString(),
           paid: свод.paid.toString(),
           overdue: свод.overdue.toString(),
+          shortfall: свод.shortfall.toString(),
           graceDays: PAYMENT_GRACE_DAYS,
         };
       })(),
@@ -101,12 +114,16 @@ export class AccountingService {
           clientName: row.project.client.name,
           number: row.number,
           amount: row.amount.toString(),
-          state: moneyState(row.status),
+          paid: транш.paid.toString(),
+          outstanding: outstanding(транш).toString(),
+          state: moneyState(транш),
           openedAt: row.openedAt.toISOString(),
           closedAt: row.closedAt === null ? null : row.closedAt.toISOString(),
           paidAt: row.paidAt === null ? null : row.paidAt.toISOString(),
           awaitingDays: awaitingDays(транш, today),
           overdue: paymentOverdue(транш, today),
+          graceDays: graceDays(транш),
+          graceByContract: транш.graceDays !== null,
           comment: row.comment,
         };
       }),
@@ -123,6 +140,7 @@ export class AccountingService {
         awaiting: строка.awaiting.toString(),
         paid: строка.paid.toString(),
         overdue: строка.overdue,
+        graceDays: строка.graceDays,
       })),
     };
   }

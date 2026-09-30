@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { CreateExpense, ExpenseView, MaterialExpense } from "@priyomka/contracts";
-import { expenseFault, expenseTotals, kopecks } from "@priyomka/domain";
+import { expenseFault, expenseTotals, formatKopecks, kopecks, ownerLevel } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
@@ -37,6 +37,15 @@ const ВИД: Readonly<Record<string, string>> = {
   DELIVERY: "доставка",
   TOOLS: "инструмент",
   OTHER: "прочее",
+};
+
+/* Подписи состояний чека для журнала — тем же доводом, что виды выше:
+   «DRAFT → CONFIRMED» печаталось в ленте объекта как есть (полный аудит
+   30.09.2026, П-20). */
+const СОСТОЯНИЕ: Readonly<Record<"DRAFT" | "CONFIRMED" | "REJECTED", string>> = {
+  DRAFT: "черновик",
+  CONFIRMED: "подтверждён",
+  REJECTED: "отклонён",
 };
 
 /** Сегодняшний день организации в виде `ГГГГ-ММ-ДД`. */
@@ -153,7 +162,7 @@ export class ExpensesService {
       }
     }
 
-    const сразуПодтверждён = user.role === "OWNER";
+    const сразуПодтверждён = ownerLevel(user.role);
     const key = `projects/${project.id}/expenses/${randomUUID()}`
       + `.${IMAGE_EXTENSION[photo.contentType]}`;
     await this.storage.put(key, photo.buffer, photo.contentType);
@@ -186,8 +195,8 @@ export class ExpensesService {
         entityId: project.id,
         field: `чек ${input.seller} — ${ВИД[input.kind] ?? input.kind}`,
         oldValue: null,
-        newValue: `${input.amount} копеек${сразуПодтверждён ? "" : ", черновик"}`,
-      });
+        newValue: `${formatKopecks(kopecks(input.amount))}${сразуПодтверждён ? "" : ", черновик"}`,
+      }, tx);
     });
 
     return this.view(user, code);
@@ -205,7 +214,7 @@ export class ExpensesService {
     id: string,
     решение: "CONFIRMED" | "REJECTED",
   ): Promise<ExpenseView> {
-    if (user.role !== "OWNER") {
+    if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Чеки подтверждает руководитель." });
     }
     const project = await this.projectOf(user, code);
@@ -213,23 +222,38 @@ export class ExpensesService {
     if (expense.status === решение) return this.view(user, code);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.materialExpense.update({
-        where: { id: expense.id },
+      /* Переход — от прочитанного состояния, и только от него. Прежде
+         «подтвердить» и «отклонить», поданные одновременно, проходили оба,
+         и журнал писал «черновик → отклонён» поверх уже подтверждённого:
+         прежнее состояние в записи было неверным (полный аудит 30.09.2026,
+         П-38). Повтор того же решения — не ошибка, а пустой жест. */
+      const { count } = await tx.materialExpense.updateMany({
+        where: { id: expense.id, status: expense.status },
         data: {
           status: решение,
           confirmedById: user.id,
           confirmedAt: new Date(),
         },
       });
+      if (count === 0) {
+        const сейчас = await tx.materialExpense.findUniqueOrThrow({
+          where: { id: expense.id },
+          select: { status: true },
+        });
+        if (сейчас.status === решение) return;
+        throw new BadRequestException({
+          message: `Чек только что ${сейчас.status === "CONFIRMED" ? "подтвердили" : "отклонили"} в другом окне. Обновите экран.`,
+        });
+      }
       await this.audit.record({
         orgId: user.orgId,
         actorId: user.id,
         entity: "MaterialExpense",
         entityId: project.id,
         field: `чек ${expense.seller} — состояние`,
-        oldValue: expense.status,
-        newValue: решение,
-      });
+        oldValue: СОСТОЯНИЕ[expense.status],
+        newValue: СОСТОЯНИЕ[решение],
+      }, tx);
     });
 
     return this.view(user, code);
@@ -248,7 +272,7 @@ export class ExpensesService {
         message: "Удаляется только черновик. Подтверждённый чек — деньги, отклонённый — история.",
       });
     }
-    if (user.role !== "OWNER" && expense.createdById !== user.id) {
+    if (!ownerLevel(user.role) && expense.createdById !== user.id) {
       throw new ForbiddenException({ message: "Чужой черновик удаляет руководитель." });
     }
 
@@ -260,9 +284,9 @@ export class ExpensesService {
         entity: "MaterialExpense",
         entityId: project.id,
         field: `чек ${expense.seller} — черновик удалён`,
-        oldValue: `${expense.amount.toString()} копеек`,
+        oldValue: formatKopecks(kopecks(expense.amount)),
         newValue: null,
-      });
+      }, tx);
     });
 
     await this.storage.remove(expense.storageKey);

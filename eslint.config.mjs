@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -45,11 +46,27 @@ import reactHooks from "eslint-plugin-react-hooks";
  * внутри позиции сметы правило не защищает — это остаётся на ревью и на
  * типах домена, где `Kopecks` и так не совместим с `number`.
  */
-const MONEY = [
-  "unitPrice", "unitWage", "wageTotal", "subtotalWage",
-  "estimateTotal", "worksTotal", "computedWorksTotal", "declaredWorksTotal",
-  "worksTotalDelta", "unitAmount", "totalAmount",
-].join("|");
+/* Перечень пополнялся руками вместе с новыми денежными полями: правило
+   стережёт имена, а не типы, и поле, не названное здесь, объявляется
+   `number` без единого замечания. Руки отстали: к 30.09.2026 контракт
+   объявлял копейками одиннадцать составных имён, которых в перечне не было, —
+   `supervisionAmount`, `trancheRemainder`, `computedEstimateTotal` и другие
+   (полный аудит 30.09.2026, П-36).
+
+   Теперь составные имена берутся из самого контракта: поле, которое
+   `packages/contracts` объявляет `kopecksString`, и есть денежное имя.
+   Одиночные слова контракт делит между деньгами и счётом (`total`,
+   `accepted`), поэтому из него берутся только составные; одиночные
+   однозначные перечислены руками, как прежде. */
+const ОДИНОЧНЫЕ = ["paid", "outstanding", "shortfall", "awaiting"];
+const ВНЕ_КОНТРАКТА = ["worksTotal", "unitAmount", "totalAmount"];
+const КОНТРАКТ = readFileSync(`${import.meta.dirname}/packages/contracts/src/index.ts`, "utf8");
+const ИЗ_КОНТРАКТА = [...КОНТРАКТ.matchAll(/^\s+([a-z]+[A-Z][A-Za-z]*)\??: kopecksString/gmu)]
+  .map(([, имя]) => имя);
+if (ИЗ_КОНТРАКТА.length < 10) {
+  throw new Error(`Денежных имён в контракте ${String(ИЗ_КОНТРАКТА.length)}: разбор контракта сломан`);
+}
+const MONEY = [...new Set([...ОДИНОЧНЫЕ, ...ВНЕ_КОНТРАКТА, ...ИЗ_КОНТРАКТА])].join("|");
 
 const MONEY_MESSAGE =
   "Денежная величина не может быть number. В домене это Kopecks (branded bigint), " +
@@ -81,6 +98,31 @@ const moneyRules = [
   {
     selector: `CallExpression[callee.name=/^(parseFloat|parseInt)$/] > Identifier[name=/^(${MONEY})$/]`,
     message: "Разбор денежной величины в число теряет точность. Используйте BigInt. " + MONEY_MESSAGE,
+  },
+  {
+    /* Деление выражения на целую константу — второе написание правила
+       округления. `(low + high) / 2n` отбрасывало полкопейки вниз,
+       `(цена * тысячные + 500n) / 1000n` повторяло умножение позиции
+       своими словами (полный аудит 30.09.2026, П-35). Деление имени на
+       константу — разбиение на целую часть и остаток при печати — законно. */
+    selector: `BinaryExpression[operator="/"][left.type="BinaryExpression"][right.bigint]`,
+    message: "Деление денег и количеств — только divideRoundHalfUp и функции домена: правило округления одно.",
+  },
+];
+
+/* ---------------------------------------------------------------------------
+ * История
+ *
+ * БП-10: изменение и его след в журнале фиксируются вместе. Клиент
+ * транзакции — обязательный довод `AuditService.record`, но компилятор
+ * пропустит и службу базы: она подходит под тип транзакции. Прежде журнал
+ * писался службой везде — 48 записей, из них 25 вне всякой транзакции
+ * (полный аудит 30.09.2026, П-37).
+ * ------------------------------------------------------------------------ */
+const historyRules = [
+  {
+    selector: `CallExpression[callee.property.name="record"][callee.object.property.name="audit"] > MemberExpression.arguments[property.name="prisma"]`,
+    message: "Журнал пишется клиентом транзакции изменения (tx), а не службой базы: иначе изменение и его след фиксируются порознь (БП-10).",
   },
 ];
 
@@ -159,7 +201,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      "no-restricted-syntax": ["error", ...moneyRules, ...styleRules],
+      "no-restricted-syntax": ["error", ...moneyRules, ...historyRules, ...styleRules],
       /* Число и большое число в шаблонной строке — обычный способ собрать
          подпись: `${count} позиций`, `${days} дней`. Запрет дал бы три
          десятка замечаний и ни одной ошибки. Всё прочее — объекты, union

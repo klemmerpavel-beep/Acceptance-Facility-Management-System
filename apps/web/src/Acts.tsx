@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatPhone, isPhoneNumber, ownerLevel } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
@@ -92,7 +93,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
     <div className="stack stack--loose">
       <div className="acts-screen stack stack--loose">
         <Announce text={объявление} />
-        <ul className="records">
+        <ul className="records records--label">
           {rows.map((row) => (
             <li className="record" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>
               <span className="code-badge">№ {row.number}</span>
@@ -118,7 +119,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   >
                     {открыт === row.trancheId ? "Свернуть" : "Открыть акт"}
                   </button>
-                  {role === "OWNER" && row.signedAt === null && (
+                  {ownerLevel(role) && row.signedAt === null && (
                     <label className="field field--inline">
                       <span className="visually-hidden">Дата подписания акта № {row.number}</span>
                       <input
@@ -141,7 +142,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
 
         {act !== null && (
           <div className="sheet-actions">
-            {role === "OWNER" && (
+            {ownerLevel(role) && (
               <div className="segmented" role="group" aria-label="Вид акта">
                 <button
                   type="button"
@@ -149,7 +150,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   aria-pressed={вид === "client"}
                   onClick={() => { setВид("client"); }}
                 >
-                  Клиентский
+                  Для заказчика
                 </button>
                 <button
                   type="button"
@@ -171,7 +172,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                 печать(имяЛиста(
                   `Акт № ${String(act.number)}`,
                   act.project.code,
-                  act.audience === "internal" ? "внутренний" : "клиентский",
+                  act.audience === "internal" ? "внутренний" : "для заказчика",
                 ));
               }}
             >
@@ -211,7 +212,13 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
           <p className="field__label--cap">Исполнитель</p>
           <p className="t-strong">{act.contractor.name}</p>
           {act.contractor.requisites !== null && <p className="t-sm">{act.contractor.requisites}</p>}
-          {act.contractor.phone !== null && <p className="t-sm t-muted">{act.contractor.phone}</p>}
+          {/* Телефон печатается так, как его пишут, а не как хранят: «+79000000001»
+              в шапке акта читалось служебной строкой (полный аудит 30.09.2026, П-21). */}
+          {act.contractor.phone !== null && (
+            <p className="t-sm t-muted">
+              {isPhoneNumber(act.contractor.phone) ? formatPhone(act.contractor.phone) : act.contractor.phone}
+            </p>
+          )}
         </div>
         <div className="act__party">
           <p className="field__label--cap">Заказчик</p>
@@ -223,17 +230,17 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
       <div className="table-scroll">
         <table className="estimate act__table">
           <caption className="visually-hidden">
-            Работы акта № {act.number}: {внутренний ? "внутренний вид" : "клиентский вид"}
+            Работы акта № {act.number}: {внутренний ? "внутренний вид" : "вид для заказчика"}
           </caption>
           <thead>
             <tr>
               <th scope="col">Работа</th>
               <th scope="col">Ед.</th>
-              <th scope="col" className="num">Кол-во</th>
-              <th scope="col" className="num">Цена</th>
-              <th scope="col" className="num">Сумма</th>
-              {внутренний && <th scope="col" className="num">Начислено</th>}
-              {внутренний && <th scope="col" className="num">Прибыль</th>}
+              <th scope="col" className="estimate__num">Кол-во</th>
+              <th scope="col" className="estimate__num">Цена</th>
+              <th scope="col" className="estimate__num">Сумма</th>
+              {внутренний && <th scope="col" className="estimate__num">Начислено</th>}
+              {внутренний && <th scope="col" className="estimate__num">Прибыль</th>}
             </tr>
           </thead>
           <tbody>
@@ -241,14 +248,14 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
               <tr key={`${line.name}-${String(индекс)}`}>
                 <td>{line.name}</td>
                 <td>{line.unit}</td>
-                <td className="num">{formatMeasure(BigInt(line.qty), "")}</td>
-                <td className="num">{formatKopecks(BigInt(line.unitPrice))}</td>
-                <td className="num">{formatKopecks(BigInt(line.total))}</td>
+                <td className="estimate__num">{formatMeasure(BigInt(line.qty), "")}</td>
+                <td className="estimate__num">{formatKopecks(BigInt(line.unitPrice))}</td>
+                <td className="estimate__num">{formatKopecks(BigInt(line.total))}</td>
                 {внутренний && (
-                  <td className="num">{formatKopecks(BigInt(line.wageTotal ?? "0"))}</td>
+                  <td className="estimate__num">{formatKopecks(BigInt(line.wageTotal ?? "0"))}</td>
                 )}
                 {внутренний && (
-                  <td className="num">
+                  <td className="estimate__num">
                     {formatKopecks(BigInt(line.profit ?? "0"))}
                     <span className="t-sm t-muted"> · {formatPercent(BigInt(line.profitShare ?? 0))}</span>
                   </td>
@@ -259,20 +266,20 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
           <tfoot>
             <tr>
               <th scope="row" colSpan={4}>Работы</th>
-              <td className="num">{formatKopecks(BigInt(act.totals.works))}</td>
-              {внутренний && <td className="num">{formatKopecks(BigInt(act.totals.wage ?? "0"))}</td>}
-              {внутренний && <td className="num">{formatKopecks(BigInt(act.totals.profit ?? "0"))}</td>}
+              <td className="estimate__num">{formatKopecks(BigInt(act.totals.works))}</td>
+              {внутренний && <td className="estimate__num">{formatKopecks(BigInt(act.totals.wage ?? "0"))}</td>}
+              {внутренний && <td className="estimate__num">{formatKopecks(BigInt(act.totals.profit ?? "0"))}</td>}
             </tr>
             <tr>
               <th scope="row" colSpan={4}>
                 Сопровождение объекта {formatPercent(BigInt(act.totals.supervisionShare))}
               </th>
-              <td className="num">{formatKopecks(BigInt(act.totals.supervision))}</td>
+              <td className="estimate__num">{formatKopecks(BigInt(act.totals.supervision))}</td>
               {внутренний && <td colSpan={2} />}
             </tr>
             <tr>
               <th scope="row" colSpan={4}>Итого к оплате</th>
-              <td className="num t-strong">{formatKopecks(BigInt(act.totals.total))}</td>
+              <td className="estimate__num t-strong">{formatKopecks(BigInt(act.totals.total))}</td>
               {внутренний && <td colSpan={2} />}
             </tr>
           </tfoot>

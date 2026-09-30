@@ -14,7 +14,7 @@ import { normalizeSpelling } from "@priyomka/importer";
 import { EstimatesService } from "./estimates.service";
 import { BlueprintsService } from "../blueprints/blueprints.service";
 import { SessionGuard } from "../auth/session.guard";
-import { Roles, RolesGuard } from "../common/roles.guard";
+import { OwnerOnly, Roles, RolesGuard } from "../common/roles.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
 
 /** Предел размера книги. Смета на 141 строку весит десятки килобайт. */
@@ -41,8 +41,12 @@ export class EstimatesController {
    * и адрес обязан называть то, что меняется. Только для объекта без сметы —
    * довод при `BlueprintsService.apply`.
    */
+  /* Типовые сметы — настройка компании: `/blueprints` бухгалтеру закрыт, и
+     применение заготовки закрыто тем же правилом (полный аудит 30.09.2026,
+     П-23). */
   @Post("from-blueprint")
   @Roles("OWNER")
+  @OwnerOnly()
   async fromBlueprint(
     @CurrentUser() user: RequestUser,
     @Param("code") code: string,

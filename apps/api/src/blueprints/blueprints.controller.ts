@@ -3,7 +3,7 @@ import type { BlueprintRow, BlueprintView } from "@priyomka/contracts";
 import { createBlueprintSchema } from "@priyomka/contracts";
 import { BlueprintsService } from "./blueprints.service";
 import { SessionGuard } from "../auth/session.guard";
-import { Roles, RolesGuard } from "../common/roles.guard";
+import { OwnerOnly, Roles, RolesGuard } from "../common/roles.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
 
 /**
@@ -17,6 +17,7 @@ import { CurrentUser, type RequestUser } from "../common/current-user";
 @Controller("blueprints")
 @UseGuards(SessionGuard, RolesGuard)
 @Roles("OWNER")
+@OwnerOnly()
 export class BlueprintsController {
   constructor(private readonly blueprints: BlueprintsService) {}
 

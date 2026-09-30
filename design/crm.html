@@ -362,11 +362,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); text-underline-offset: 2px; }
 
 /* --- типографические роли ------------------------------------------------
-   Заголовки и надзаголовки набираются узким гротеском, текст — Golos,
-   числа — моноширинным. Три роли, три гарнитуры: так набирают бланк, а не
-   страницу. Узкий гротеск не уходит в абзацы: там он нечитаем.          */
-.t-h1      { font-family: var(--font-ui); font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: 700; letter-spacing: .01em; }
-.t-h2      { font-family: var(--font-ui); font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: 700; letter-spacing: .01em; }
+   Две роли, две гарнитуры: текст и заголовки — Golos, числа — моноширинным
+   (`fonts.css`). Узкий гротеск заголовков снят редакцией 2.0; прежний
+   комментарий называл три гарнитуры и прожил её на полгода.
+
+   Вес заголовков — токеном. Прежде здесь стояло 700 мимо `--fw-h1` и
+   `--fw-h2` = 600 при загруженных 400, 500 и 600: браузер с загруженной
+   гарнитурой рисовал 600, а на запасном стеке — 700, и заголовок выглядел
+   по-разному у разных людей (находка 4.4 первого аудита интерфейса;
+   полный аудит 30.09.2026, П-10). */
+.t-h1      { font-family: var(--font-ui); font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: var(--fw-h1); letter-spacing: .01em; }
+.t-h2      { font-family: var(--font-ui); font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); letter-spacing: .01em; }
 .t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }
 .t-body    { font-size: var(--fs-body);    line-height: var(--lh-body);    font-weight: var(--fw-body); }
 .t-sm      { font-size: var(--fs-sm);      line-height: var(--lh-sm);      font-weight: var(--fw-sm); }
@@ -950,27 +956,6 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
   transition: background-color var(--dur-fast) var(--ease); }
 .appbar__menu-item:hover { background: var(--surface-2); }
 
-/* Объект в узкой раскладке — строка ведомости, а не карточка. Ссылкой
-   служит вся строка: цель нажатия равна её высоте, а не высоте заголовка
-   (реестр Д-27, Д-33). */
-.objectrow {
-  display: flex; flex-direction: column; gap: var(--space-1);
-  min-block-size: var(--tap-min);
-  padding: var(--space-3) 0;
-  border-block-end: 1px solid var(--line);
-  color: inherit; text-decoration: none;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-.objectrow:first-child { border-block-start: 1px solid var(--line); }
-/* Отклик на наведение один на продукт. Подложка --surface-2 занята
-   чередованием строк реестра и заголовками разделов сметы: на чётной строке
-   и на заголовке раздела отклик ею неотличим от покоя. Список, отвечающий
-   своим цветом, сообщает о себе как о другом роде списка, каким не является. */
-.objectrow:hover { background: var(--accent-soft); }
-.objectrow__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.objectrow__address { color: var(--accent); }
-.objectrow__foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
-
 /* Мобильная таб-панель: пять пунктов, иконка и подпись 11 px,
    учитывается безопасная зона снизу. */
 .tabbar {
@@ -1096,6 +1081,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .estimate tbody tr:hover td { background: var(--accent-soft); }
 
 .estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Заголовок числовой колонки стоит над своими числами — по правому краю — и
+   набран, как прочие заголовки. Правило шапки выше старше класса колонки, и
+   «Сумма» стояла у левого края колонки шириной в полэкрана, над пустотой,
+   моноширинным набором среди гротеска соседних заголовков (полный аудит
+   30.09.2026, П-32). */
+.estimate thead th.estimate__num { text-align: right; font-family: inherit; }
 
 /* Ячейка номера несёт ручку перестановки и сам номер. Ручка стоит слева
    от числа и занимает зону 44 px, не растягивая строку: отрицательные поля
@@ -1291,13 +1282,52 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 /* Состояние держит свою колонку: без неё пилюля и величины делят одну
    ячейку и встают друг над другом, а не рядом. */
-.tranche__state { display: flex; align-items: center; gap: var(--space-2); }
+/* Органов в колонке состояния стало больше одного: с 19.09.2026 рядом с
+   пилюлей стоят «Отметить оплату», «Записать платёж» и раскрытие платежей.
+   Без переноса они уводят строку за край окна на 390 px — поймано обходом,
+   а не глазами. */
+.tranche__state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 /* Отрицательный остаток — сигнальным, а не `--danger`: перевыработка есть
    нормальное событие, требующее закрытия акта. Тот же довод, что у заливки. */
 .tranche__over { color: var(--signal); }
+
+/* Платежи транша раскрываются под своей строкой, а не листом поверх экрана:
+   их читают, сверяя с суммой транша, которая стоит строкой выше. Лист
+   закрыл бы её собой — то самое, за что правка полей на месте пришла на
+   смену листам (раздел 5.28). */
+.tranche__payments {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column;
+  margin: 0; padding-inline-start: var(--space-4);
+  list-style: none;
+  border-inline-start: 2px solid var(--line);
+}
+.tranche__payment {
+  display: grid;
+  grid-template-columns: 6rem 9rem minmax(0, 1fr) auto;
+  align-items: center; gap: var(--space-3);
+  min-block-size: var(--tap-min);
+}
+.tranche__payment .num { text-align: end; }
+@media (max-width: 767px) {
+  /* На телефоне четыре дорожки не помещаются: строка платежа становится
+     двумя — дата с суммой и основание под ними. */
+  .tranche__payment { grid-template-columns: 6rem minmax(0, 1fr); }
+  .tranche__payment > :nth-child(3) { grid-column: 1 / -1; }
+}
 @media (min-width: 768px) {
   .tranche__row { grid-template-columns: minmax(0, 1fr) minmax(0, 34rem) 14rem; align-items: center; }
-  .tranche__figures { grid-row: 1; grid-column: 2; justify-content: space-between; }
+  /* Величины — сеткой два на два, число у правого края своей ячейки. Прежде
+     четыре величины лежали строкой с переносом и `space-between`: где они
+     встанут, решала длина чисел, и «выработано» стояло на 753, 833, 838 и
+     860 px в соседних строках — список, который обещал читаться таблицей,
+     столбцом не сравнивался (полный аудит 30.09.2026, П-33). */
+  .tranche__figures {
+    grid-row: 1; grid-column: 2;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1) var(--space-5);
+  }
+  .tranche__figures > span { display: flex; justify-content: space-between; gap: var(--space-2); }
   .tranche__state { grid-row: 1; grid-column: 3; justify-content: flex-end; }
 }
 
@@ -1643,6 +1673,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line-strong); text-align: start; white-space: nowrap; }
+/* Заголовок числовой колонки — над числами, по правому краю: правило выше
+   старше класса колонки, и «Итог сметы» стояла у левого края над суммами у
+   правого (полный аудит 30.09.2026, П-32). */
+.datatable__table th.datatable__num { text-align: end; }
 /* Высота строки задаётся токеном, а не обивкой ячейки. При обивке высоту
    назначал самый высокий орган внутри: реестр объектов давал 69 px там, где
    статус меняют пилюлей-кнопкой, и 48 там, где не меняют, — одна таблица в
@@ -2695,8 +2729,12 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    нет; разницу забирали гибкие дорожки, и строки с кнопкой стояли левее
    соседних — в ведомости, которую открывают ровно затем, чтобы сравнить
    суммы столбцом. */
+/* Дорожек восемь: седьмая добавлена 19.09.2026 под подпись оплаты — сколько
+   пришло по траншу и сколько не покрыто. Величина эта появилась вместе с
+   частичной оплатой и недобором, и всунуть её в соседнюю ячейку значило бы
+   склеить два разных факта — срок ожидания и деньги — в одной подписи. */
 .money { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none;
-  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 9rem 11rem; }
+  --money-grid: minmax(0, 2fr) minmax(0, 1.2fr) 4rem 9rem 8rem 13rem 9rem 11rem; }
 .money__row {
   display: grid;
   grid-template-columns: var(--money-grid);
@@ -2727,6 +2765,10 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    растянутая читается как полоса заливки, а не как метка. */
 .money__row .pill { justify-self: start; }
 .money__when { white-space: nowrap; }
+/* Подпись оплаты переносится, а не обрезается: «оплачено 150 000,00 ₽ из
+   380 000,00 ₽» длиннее своей дорожки, и многоточие съело бы вторую сумму —
+   ровно ту, с которой первую и сравнивают. */
+.money__paid { min-inline-size: 0; }
 .money__act { display: flex; justify-content: flex-end; }
 .money__act .btn { margin-block: calc((var(--row-h) - var(--control-h)) / 2); }
 
@@ -2739,8 +2781,21 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    ячейкой: пустая ячейка в ведомости читается как потерянное значение.
    Раскладка по дорожкам после этого: 1 — заказчик, 2–3 — подпись «ждёт
    оплаты», 4 — сумма ожидания (дорожка сумм ведомости), 5 — подпись
-   «получено», 6 — сумма полученного, 7 — метка просрочки (дорожка действия). */
+   «получено», 6 — сумма полученного, 7 — порог просрочки, 8 — метка
+   просрочки (дорожка действия). Седьмая ячейка добавлена 19.09.2026 вместе с
+   порогом по договору: просрочка, названная без порога, выглядит назначенной
+   нами, а не договором. */
 .money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }
+
+/* Строка расхода: объект — одной ячейкой на дорожках объекта и заказчика,
+   чтобы суммы встали на вертикали сумм ведомости. Порознь бейдж кода
+   растягивался на первую дорожку, а адрес резался во второй (полный аудит
+   30.09.2026, П-31). */
+.spend__project {
+  grid-column: 1 / span 2;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-inline-size: 0; font-size: var(--fs-sm);
+}
 
 /* --- 5.37 Обложка объекта на вкладке «Обзор» --------------------------------
    Карточку открывают, чтобы вспомнить, что это за объект, и снимок отвечает
@@ -2899,6 +2954,21 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   border-block-end: 1px solid var(--line);
 }
 .record:last-child { border-block-end: 0; }
+
+/* Список с меткой вместо снимка: роль человека, вид документа, номер акта.
+   Первая дорожка `.record` — 64 px под снимок чека, и метка «Руководитель»
+   или «Дополнительное соглашение» в неё не входила: пилюля не переносится и
+   наезжала на имя (полный аудит 30.09.2026, П-31). Ширина дорожки берётся
+   по самой широкой метке списка, а не числом: строки наследуют дорожки
+   списка подсеткой, и имена стоят на одной вертикали при метках любой
+   длины. */
+.records--label {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+}
+.records--label > .record { grid-column: 1 / -1; grid-template-columns: subgrid; }
+.records--label > .record > :first-child { justify-self: start; }
 
 /* Отклонённый расход остаётся в списке историей, но деньгами не считается:
    приглушение говорит это раньше пилюли. */

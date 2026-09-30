@@ -17,7 +17,12 @@ export const milliunitsString = z
   .string()
   .regex(/^-?\d+$/, "Количество передаётся в тысячных долях целым числом в строке");
 
-export const roleSchema = z.enum(["OWNER", "FOREMAN", "CLIENT"]);
+/**
+ * Четыре роли продукта. `ACCOUNTANT` заведена ответом заказчика на вопрос 7
+ * квиза от 19.09.2026: ей открыто всё, что открыто руководителю, кроме
+ * настроек организации и выдачи входа (`projection.ts`, `OWNER_LEVEL`).
+ */
+export const roleSchema = z.enum(["OWNER", "FOREMAN", "ACCOUNTANT", "CLIENT"]);
 export type Role = z.infer<typeof roleSchema>;
 
 export const projectStatusSchema = z.enum([
@@ -116,7 +121,7 @@ export type Organization = z.infer<typeof organizationSchema>;
 
 /** Правка организации: пустая строка в необязательном поле означает «стереть». */
 export const updateOrganizationSchema = z.object({
-  name: z.string().min(1, "Название обязательно").max(200).optional(),
+  name: z.string().trim().min(1, "Название обязательно").max(200).optional(),
   timeZone: timeZoneSchema.optional(),
   phone: z.string().max(32).nullable().optional(),
   // Пустая строка означает «стереть»: форма присылает очищенное поле,
@@ -418,8 +423,30 @@ export const createClientSchema = z.object({
   name: z.string().trim().min(2, "Имя или название заказчика: не короче двух знаков.").max(120),
   isCompany: z.boolean(),
   requisites: z.string().trim().max(400).nullable(),
+  /**
+   * Порог просрочки по договору, в днях. Пусто — умолчание компании.
+   *
+   * Верхняя граница — год: порог в полтора года означает опечатку, а не
+   * договорённость, и пропустить её значило бы навсегда вывести заказчика
+   * из учёта просрочки, не сказав об этом никому.
+   */
+  paymentGraceDays: z.number().int().nonnegative()
+    .max(365, "Порог просрочки: не больше 365 дней.").nullable().optional(),
 });
 export type CreateClient = z.infer<typeof createClientSchema>;
+
+/**
+ * Правка карточки заказчика.
+ *
+ * Поля необязательны порознь: экран правит по одному, а присылать заодно
+ * неизменённые значения значило бы затирать чужую правку, сделанную в
+ * соседнем окне минуту назад.
+ */
+export const updateClientSchema = createClientSchema
+  .omit({ code: true })
+  .partial()
+  .refine((правка) => Object.keys(правка).length > 0, "Нечего менять.");
+export type UpdateClient = z.infer<typeof updateClientSchema>;
 
 export const createWorkerSchema = z.object({
   name: z.string().trim().min(2, "Название бригады или имя мастера: не короче двух знаков.").max(120),
@@ -482,6 +509,13 @@ export const clientRowSchema = z.object({
   name: z.string(),
   isCompany: z.boolean(),
   requisites: z.string().nullable(),
+  /**
+   * Порог просрочки оплаты по договору, в днях. `null` — умолчание компании.
+   *
+   * Ответ заказчика на вопрос 5 квиза от 19.09.2026: единого порога по
+   * компании больше нет.
+   */
+  paymentGraceDays: z.number().int().nonnegative().nullable(),
   projects: z.number().int().nonnegative(),
   estimateTotal: kopecksString,
 });
@@ -638,9 +672,11 @@ export const importReportSchema = z.object({
   computedWorksTotal: kopecksString,
   declaredWorksTotal: kopecksString.nullable(),
   worksTotalDelta: kopecksString.nullable(),
-  computedWageTotal: kopecksString,
-  declaredWageTotal: kopecksString.nullable(),
-  wageTotalDelta: kopecksString.nullable(),
+  /* Фонд оплаты труда файла — внутренняя величина: прорабу поля не
+     приходят вовсе (полный аудит 30.09.2026, П-16). */
+  computedWageTotal: kopecksString.optional(),
+  declaredWageTotal: kopecksString.nullable().optional(),
+  wageTotalDelta: kopecksString.nullable().optional(),
   supervisionShare: z.number().int().nullable(),
   supervisionAmount: kopecksString.nullable(),
   computedEstimateTotal: kopecksString,
@@ -964,7 +1000,7 @@ const inRange = (schema: typeof measureAmountSchema, min: number, max: number, w
   }, `${what} вне допустимых границ`);
 
 export const createMeasureRoomSchema = z.object({
-  name: z.string().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
+  name: z.string().trim().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
   floorArea: inRange(measureAmountSchema, 1, AREA_MAX, "Площадь пола"),
   floorPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр пола"),
   ceilingPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр потолка"),
@@ -1249,6 +1285,46 @@ export const trancheStatusSchema = z.enum(["OPEN", "CLOSED", "PAID"]);
 export type TrancheStatus = z.infer<typeof trancheStatusSchema>;
 
 /** Транш с выведенными величинами: выработка, её клиентская сумма, остаток. */
+/**
+ * Платёж заказчика в счёт транша.
+ *
+ * Отмена — сторно, а не удаление (БП-04): запись того же вида с отрицательной
+ * суммой, ссылкой на сторнируемую и обязательной причиной.
+ */
+export const tranchePaymentSchema = z.object({
+  id: z.string().uuid(),
+  /** Копейки. У сторно отрицательная. */
+  amount: kopecksString,
+  /** День прихода денег по выписке, а не день записи в систему. */
+  paidOn: z.string().date(),
+  comment: z.string().nullable(),
+  /** Причина. Заполнена у сторно и только у него. */
+  reason: z.string().nullable(),
+  /** Сторнируемый платёж. Заполнена у сторно и только у него. */
+  reversalOfId: z.string().uuid().nullable(),
+  /** Сторнирован ли этот платёж. */
+  reversed: z.boolean(),
+  createdAt: z.string(),
+  author: z.string().nullable(),
+});
+export type TranchePayment = z.infer<typeof tranchePaymentSchema>;
+
+/** Запись платежа. Дата обязательна: деньги приходят раньше, чем их заводят. */
+export const createPaymentSchema = z.object({
+  amount: kopecksString,
+  paidOn: z.string().date("Дата платежа: ГГГГ-ММ-ДД."),
+  comment: z.string().trim().max(280, "Комментарий длиннее 280 знаков").optional(),
+});
+export type CreatePayment = z.infer<typeof createPaymentSchema>;
+
+/** Сторно платежа. Причина обязательна: спрашивают не что отменили, а почему. */
+export const reversePaymentSchema = z.object({
+  reason: z.string().trim()
+    .min(3, "Причина сторно — хотя бы три знака: через месяц спрашивают не что отменили, а почему.")
+    .max(280),
+});
+export type ReversePayment = z.infer<typeof reversePaymentSchema>;
+
 export const trancheSchema = z.object({
   id: z.string().uuid(),
   /** Ноль — предоплата (Р12). */
@@ -1269,6 +1345,19 @@ export const trancheSchema = z.object({
   signedAt: z.string().date().nullable(),
   /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
   fill: z.number().int(),
+  /** Копейки. Сумма платежей заказчика по траншу с учётом сторно. */
+  paid: kopecksString,
+  /**
+   * Копейки. Сумма транша минус оплаченное.
+   *
+   * У закрытого транша читается как долг заказчика, у оплаченного — как
+   * недобор: расхождение отметки руководителя с платежами. Решение от
+   * 19.09.2026 оставило отметку за человеком, и величина эта — цена
+   * решения, названная числом. Отрицательная — переплата.
+   */
+  outstanding: kopecksString,
+  /** Платежи по траншу, от раннего к позднему. Сторно стоит своей строкой. */
+  payments: z.array(tranchePaymentSchema),
 });
 export type Tranche = z.infer<typeof trancheSchema>;
 
@@ -1285,11 +1374,19 @@ export type Tranche = z.infer<typeof trancheSchema>;
    зарплаты по графику, касса и банковские связи письменно исключены из
    объёма (01_PROJECT.md, раздел 6.2) и здесь не появляются.
 
-   Единица — транш: это и есть то, что предъявляется заказчику и
-   оплачивается целиком. Второй сущности платежа не заводится — два учёта
-   одних денег разошлись бы на первой частичной оплате. */
+   Единица — транш: это и есть то, что предъявляется заказчику. Платёж
+   заведён отдельной записью 19.09.2026 ответом заказчика на вопрос 4 квиза;
+   довод «два учёта одних денег разойдутся» не отменён, а исполнен —
+   расхождение считается прямо и зовётся недобором (`shortfall`). */
 
-export const moneyStateSchema = z.enum(["в работе", "ждёт оплаты", "оплачено"]);
+/**
+ * Четыре состояния, а не три: частичная оплата заведена ответом заказчика на
+ * вопрос 4 квиза от 19.09.2026, и называть её одним из соседей значило бы
+ * прятать ровно то, ради чего её просили видеть.
+ */
+export const moneyStateSchema = z.enum([
+  "в работе", "ждёт оплаты", "оплачен частично", "оплачено",
+]);
 export type MoneyState = z.infer<typeof moneyStateSchema>;
 
 export const accountingRowSchema = z.object({
@@ -1304,9 +1401,17 @@ export const accountingRowSchema = z.object({
   openedAt: z.string(),
   closedAt: z.string().nullable(),
   paidAt: z.string().nullable(),
+  /** Копейки. Оплачено по траншу платежами, с учётом сторно. */
+  paid: kopecksString,
+  /** Копейки. Сумма транша минус оплаченное: долг либо недобор. */
+  outstanding: kopecksString,
   /** Сколько дней транш закрыт и не оплачен. `null` — открыт или оплачен. */
   awaitingDays: z.number().int().nonnegative().nullable(),
   overdue: z.boolean(),
+  /** Порог просрочки, по которому этот транш признан просроченным, в днях. */
+  graceDays: z.number().int().nonnegative(),
+  /** Задан ли порог договором. `false` — действует умолчание компании. */
+  graceByContract: z.boolean(),
   comment: z.string().nullable(),
 });
 export type AccountingRow = z.infer<typeof accountingRowSchema>;
@@ -1392,7 +1497,14 @@ export const accountingViewSchema = z.object({
     paid: kopecksString,
     /** Часть ожидающего, просроченная сверх порога: не слагаемое сверх трёх. */
     overdue: kopecksString,
-    /** Порог, после которого ожидание названо просрочкой, в днях. */
+    /**
+     * Часть полученного, не подтверждённая платежами: не слагаемое сверх трёх.
+     *
+     * Цена решения от 19.09.2026 «оплаченным транш называет руководитель»,
+     * названная числом. Ноль в ней — честный ноль: отметки сошлись с деньгами.
+     */
+    shortfall: kopecksString,
+    /** Порог по умолчанию, в днях. Свой порог живёт в карточке заказчика. */
     graceDays: z.number().int().positive(),
   }),
   /**
@@ -1420,6 +1532,8 @@ export const accountingViewSchema = z.object({
     awaiting: kopecksString,
     paid: kopecksString,
     overdue: z.boolean(),
+    /** Порог по договору в днях. `null` — действует умолчание компании. */
+    graceDays: z.number().int().nonnegative().nullable(),
   })),
 });
 export type AccountingView = z.infer<typeof accountingViewSchema>;
@@ -1695,7 +1809,7 @@ export const templateKindSchema = z.enum(["CONTRACT", "ANNEX", "OTHER"]);
 export type TemplateKind = z.infer<typeof templateKindSchema>;
 
 export const documentClauseSchema = z.object({
-  title: z.string().min(1, "У пункта нет заголовка").max(200),
+  title: z.string().trim().min(1, "У пункта нет заголовка").max(200),
   body: z.string().max(20_000),
 });
 export type DocumentClause = z.infer<typeof documentClauseSchema>;
@@ -1720,7 +1834,7 @@ export const templateRowSchema = z.object({
 export type TemplateRow = z.infer<typeof templateRowSchema>;
 
 export const saveTemplateSchema = z.object({
-  name: z.string().min(1, "У шаблона нет наименования").max(200),
+  name: z.string().trim().min(1, "У шаблона нет наименования").max(200),
   kind: templateKindSchema,
   clauses: z.array(documentClauseSchema).min(1, "В шаблоне нет ни одного пункта"),
 });
@@ -1728,7 +1842,7 @@ export type SaveTemplate = z.infer<typeof saveTemplateSchema>;
 
 /** Выпуск документа: шаблон и объект, по которому подставляются значения. */
 export const issueDocumentSchema = z.object({
-  projectCode: z.string().min(1, "Не выбран объект"),
+  projectCode: z.string().trim().min(1, "Не выбран объект"),
 });
 export type IssueDocument = z.infer<typeof issueDocumentSchema>;
 
@@ -1767,7 +1881,7 @@ export const personRowSchema = z.object({
 export type PersonRow = z.infer<typeof personRowSchema>;
 
 export const inviteUserSchema = z.object({
-  name: z.string().min(1, "Нужно имя").max(200),
+  name: z.string().trim().min(1, "Нужно имя").max(200),
   role: roleSchema,
   email: z.union([z.literal(""), z.string().email("Нужен адрес почты")]).nullable()
     .transform((значение) => (значение === "" ? null : значение)),

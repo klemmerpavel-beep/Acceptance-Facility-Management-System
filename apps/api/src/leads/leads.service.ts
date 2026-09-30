@@ -88,27 +88,29 @@ export class LeadsService {
   }
 
   async create(user: RequestUser, input: CreateLead): Promise<LeadCard> {
-    const lead = await this.withNumber(user.orgId, (number) => this.prisma.lead.create({
-      data: {
+    const lead = await this.withNumber(user.orgId, (number) => this.prisma.$transaction(async (tx) => {
+      const заведённая = await tx.lead.create({
+        data: {
+          orgId: user.orgId,
+          number,
+          name: input.name,
+          phone: input.phone,
+          address: input.address ?? null,
+          note: input.note ?? null,
+        },
+        select: LeadsService.SELECT,
+      });
+      await this.audit.record({
         orgId: user.orgId,
-        number,
-        name: input.name,
-        phone: input.phone,
-        address: input.address ?? null,
-        note: input.note ?? null,
-      },
-      select: LeadsService.SELECT,
+        actorId: user.id,
+        entity: "Lead",
+        entityId: заведённая.id,
+        field: "заявка заведена",
+        oldValue: null,
+        newValue: `№ ${заведённая.number}, ${заведённая.name}`,
+      }, tx);
+      return заведённая;
     }));
-
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "Lead",
-      entityId: lead.id,
-      field: "заявка заведена",
-      oldValue: null,
-      newValue: `№ ${lead.number}, ${lead.name}`,
-    });
     return LeadsService.card(lead, new Date().toISOString().slice(0, 10));
   }
 
@@ -172,45 +174,48 @@ export class LeadsService {
       }
     }
 
-    const обновлённая = await this.prisma.lead.update({
-      where: { id },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.phone === undefined ? {} : { phone: input.phone }),
-        ...(input.address === undefined ? {} : { address: input.address }),
-        ...(input.note === undefined ? {} : { note: input.note }),
-        ...(input.stage === undefined ? {} : { stage: input.stage }),
-        ...(трогаютОриентир ? { repairTypeId: typeId, area, ...снимок } : {}),
-      },
-      select: LeadsService.SELECT,
-    });
+    const обновлённая = await this.prisma.$transaction(async (tx) => {
+      const запись = await tx.lead.update({
+        where: { id },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.phone === undefined ? {} : { phone: input.phone }),
+          ...(input.address === undefined ? {} : { address: input.address }),
+          ...(input.note === undefined ? {} : { note: input.note }),
+          ...(input.stage === undefined ? {} : { stage: input.stage }),
+          ...(трогаютОриентир ? { repairTypeId: typeId, area, ...снимок } : {}),
+        },
+        select: LeadsService.SELECT,
+      });
 
-    if (input.stage !== undefined && input.stage !== lead.stage) {
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "Lead",
-        entityId: id,
-        field: "стадия",
-        oldValue: LeadsService.STAGE_LABEL[lead.stage],
-        newValue: LeadsService.STAGE_LABEL[input.stage],
-      });
-    }
-    /* Ориентир — денежная величина, и её правка пишется в журнал (БП-10)
-       рублями, а не сырыми копейками: журнал читает человек. */
-    if (трогаютОриентир) {
-      const было = LeadsService.range(lead);
-      const стало = LeadsService.range(обновлённая);
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "Lead",
-        entityId: id,
-        field: "ориентир",
-        oldValue: было === null ? null : `${formatKopecks(было.low)} — ${formatKopecks(было.high)}`,
-        newValue: стало === null ? null : `${formatKopecks(стало.low)} — ${formatKopecks(стало.high)}`,
-      });
-    }
+      if (input.stage !== undefined && input.stage !== lead.stage) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "Lead",
+          entityId: id,
+          field: "стадия",
+          oldValue: LeadsService.STAGE_LABEL[lead.stage],
+          newValue: LeadsService.STAGE_LABEL[input.stage],
+        }, tx);
+      }
+      /* Ориентир — денежная величина, и её правка пишется в журнал (БП-10)
+         рублями, а не сырыми копейками: журнал читает человек. */
+      if (трогаютОриентир) {
+        const было = LeadsService.range(lead);
+        const стало = LeadsService.range(запись);
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "Lead",
+          entityId: id,
+          field: "ориентир",
+          oldValue: было === null ? null : `${formatKopecks(было.low)} — ${formatKopecks(было.high)}`,
+          newValue: стало === null ? null : `${formatKopecks(стало.low)} — ${formatKopecks(стало.high)}`,
+        }, tx);
+      }
+      return запись;
+    });
     return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
   }
 
@@ -273,21 +278,38 @@ export class LeadsService {
         },
         select: { id: true },
       });
-      return tx.lead.update({
-        where: { id },
+      /* Заявка превращается один раз. Проверка выше читает состояние до
+         транзакции, и два одновременных превращения проходили её оба —
+         с разными кодами это два заказчика и два объекта на одну заявку
+         (полный аудит 30.09.2026, П-38). Условие на исход стоит в самой
+         записи; проигравший откатывает свои заказчика и объект. */
+      const { count } = await tx.lead.updateMany({
+        where: { id, outcome: "OPEN" },
         data: { outcome: "WON", stage: "CONTRACT", clientId: client.id, projectId: project.id },
-        select: LeadsService.SELECT,
       });
-    });
-
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "Lead",
-      entityId: id,
-      field: "превращена в объект",
-      oldValue: null,
-      newValue: `${код}, заказчик ${lead.name}`,
+      if (count === 0) {
+        throw new BadRequestException({
+          message: `Заявка № ${lead.number} уже закрыта в другом окне. Обновите экран.`,
+        });
+      }
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "Lead",
+        entityId: id,
+        field: "превращена в объект",
+        oldValue: null,
+        newValue: `${код}, заказчик ${lead.name}`,
+      }, tx);
+      return tx.lead.findUniqueOrThrow({ where: { id }, select: LeadsService.SELECT });
+    }).catch((cause: unknown) => {
+      /* Код объекта или заказчика занят одновременным превращением. */
+      if ((cause as { code?: string }).code === "P2002") {
+        throw new BadRequestException({
+          message: `Код ${код} или ${input.clientCode.trim()} только что занят. Обновите экран.`,
+        });
+      }
+      throw cause;
     });
     return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
   }
@@ -300,19 +322,26 @@ export class LeadsService {
         message: `Заявка № ${lead.number} уже закрыта: ${lead.outcome === "WON" ? "превращена в объект" : "отказ"}.`,
       });
     }
-    const обновлённая = await this.prisma.lead.update({
-      where: { id },
-      data: { outcome: "LOST", lostReason: input.reason },
-      select: LeadsService.SELECT,
-    });
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "Lead",
-      entityId: id,
-      field: "отказ",
-      oldValue: null,
-      newValue: input.reason,
+    const обновлённая = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.lead.updateMany({
+        where: { id, outcome: "OPEN" },
+        data: { outcome: "LOST", lostReason: input.reason },
+      });
+      if (count === 0) {
+        throw new BadRequestException({
+          message: `Заявка № ${lead.number} уже закрыта в другом окне. Обновите экран.`,
+        });
+      }
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "Lead",
+        entityId: id,
+        field: "отказ",
+        oldValue: null,
+        newValue: input.reason,
+      }, tx);
+      return tx.lead.findUniqueOrThrow({ where: { id }, select: LeadsService.SELECT });
     });
     return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
   }

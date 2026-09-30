@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DocumentTemplate, IssuedDocument, ProjectSummary, Role, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
-import { templateFault, unknownVariables, VARIABLES, VARIABLE_GROUPS } from "@priyomka/domain";
+import {
+  ownerLevel, templateFault, unknownVariables, VARIABLES, VARIABLE_GROUPS,
+} from "@priyomka/domain";
 import {
   createTemplate, deleteTemplate, errorMessage, fetchTemplate, fetchTemplates, issueDocument,
   updateTemplate,
 } from "./api.js";
 import { Announce } from "./Announce.js";
+import { useModalDialog } from "./modal.js";
 import { имяЛиста, печать } from "./print.js";
 import { завести } from "./verbs.js";
 
@@ -56,6 +59,11 @@ export function Documents({
   const [документ, setДокумент] = useState<IssuedDocument | null>(null);
   const [правка, setПравка] = useState<{ id: string | null; name: string; kind: string; clauses: Пункт[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Устойчивый обработчик: лист правки поднимает текст в этот компонент на
+     каждое нажатие клавиши, и новый обработчик на каждой отрисовке
+     перезапускал бы клавиатурный контракт листа — фокус уезжал бы на первое
+     поле посреди набора. */
+  const закрытьПравку = useCallback(() => { setПравка(null); setError(null); }, []);
   const [busy, setBusy] = useState(false);
   const [объявление, setОбъявление] = useState<string | null>(null);
   /* Бланк появляется ниже перечня — за сгибом на любом экране. Нажавший
@@ -78,7 +86,7 @@ export function Documents({
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
   }, [открыт]);
 
-  const правит = role === "OWNER";
+  const правит = ownerLevel(role);
 
   const выпустить = (id: string, projectCode: string): void => {
     setBusy(true);
@@ -119,7 +127,12 @@ export function Documents({
       .finally(() => { setBusy(false); });
   };
 
+  /* Удаление шаблона называет последствие до того, как случится (норматив
+     15.6); прежде шаблон удалялся с одного нажатия (полный аудит 30.09.2026,
+     П-46). */
+  const [удаляется, setУдаляется] = useState<string | null>(null);
   const удалить = (row: TemplateRow): void => {
+    setУдаляется(null);
     setBusy(true);
     deleteTemplate(row.id)
       .then((next) => {
@@ -146,7 +159,10 @@ export function Documents({
 
       <div className="docs-screen stack stack--loose">
         <div className="section-head">
-          <h1 className="t-h1">Документы организации</h1>
+          {/* Экран уже назван обложкой; второй `h1` с тем же текстом стоял
+              прямо под ней (полный аудит 30.09.2026, П-31). Здесь назван
+              перечень, а не экран. */}
+          <h2 className="t-h2">Шаблоны</h2>
           {правит && (
             <button
               type="button"
@@ -172,7 +188,7 @@ export function Documents({
             </p>
           </div>
         ) : (
-          <ul className="records">
+          <ul className="records records--label">
             {rows.map((row) => (
               <li className="record" key={row.id}>
                 <span className="pill">{ВИДЫ[row.kind] ?? row.kind}</span>
@@ -191,18 +207,33 @@ export function Documents({
                     >
                       {открыт === row.id ? "Свернуть" : "Открыть"}
                     </button>
-                    {правит && (
+                    {правит && удаляется !== row.id && (
                       <button
                         type="button"
                         className="btn btn--text"
                         disabled={busy}
-                        onClick={() => { удалить(row); }}
+                        onClick={() => { setУдаляется(row.id); }}
                       >
                         Удалить
                       </button>
                     )}
                   </span>
                 </div>
+                {правит && удаляется === row.id && (
+                  <div className="stack stack--tight" role="group" aria-label="Удаление шаблона">
+                    <p className="t-body">
+                      Шаблон «{row.name}» удалится вместе с пунктами; выпустить по нему документ будет нельзя.
+                    </p>
+                    <div className="row">
+                      <button type="button" className="btn btn--danger" disabled={busy} onClick={() => { удалить(row); }}>
+                        Удалить шаблон
+                      </button>
+                      <button type="button" className="btn btn--text" onClick={() => { setУдаляется(null); }}>
+                        Не удалять
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -287,7 +318,7 @@ export function Documents({
           busy={busy}
           onChange={setПравка}
           onSave={сохранить}
-          onClose={() => { setПравка(null); setError(null); }}
+          onClose={закрытьПравку}
         />
       )}
     </main>
@@ -354,9 +385,13 @@ function TemplateSheet({
   const правь = (изменение: Partial<typeof правка>): void => { onChange({ ...правка, ...изменение }); };
   const чужие = unknownVariables(
     правка.clauses.map((пункт) => `${пункт.title}\n${пункт.body}`).join("\n"));
+  /* Клавиатурный контракт листа — общий: Escape, Tab внутри листа, возврат
+     фокуса. Роль `dialog` и `aria-modal` стояли, контракта не было (полный
+     аудит 30.09.2026, П-30). */
+  const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
 
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-label="Шаблон документа">
+    <div className="sheet" role="dialog" aria-modal="true" aria-label="Шаблон документа" ref={dialog}>
       <div className="sheet__body stack stack--tight">
         <h2 className="t-h2">{правка.id === null ? "Новый шаблон" : "Правка шаблона"}</h2>
 
@@ -364,6 +399,7 @@ function TemplateSheet({
           <span className="field__label">Наименование</span>
           <input
             className="input"
+            ref={first}
             value={правка.name}
             onChange={(event) => { правь({ name: event.target.value }); }}
           />

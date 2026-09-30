@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ClientRow, InviteUser, PersonRow, Role } from "@priyomka/contracts";
 import { errorMessage, fetchPeople, invitePerson, relinkPerson, revokePerson } from "./api.js";
 import { Announce } from "./Announce.js";
+import { useModalDialog } from "./modal.js";
 import { завести } from "./verbs.js";
 
 /**
@@ -17,15 +18,25 @@ import { завести } from "./verbs.js";
  * Потерялась — выдаётся новая, прежняя остаётся одноразовой.
  */
 
+/**
+ * Подписи ролей — и перечень выбора роли: пункты строятся отсюда в этом
+ * порядке, от частой роли к редкой. Прежде пункты выбора набирались руками,
+ * и «Бухгалтер», заведённый 19.09.2026, попал в подписи, но не в выбор —
+ * выдать вход бухгалтеру из продукта было нельзя (полный аудит 30.09.2026,
+ * П-22). Тип `Record<Role, …>` требует каждую роль, и забыть её теперь
+ * значит не собрать продукт.
+ */
 const РОЛИ: Readonly<Record<Role, string>> = {
-  OWNER: "Руководитель",
   FOREMAN: "Прораб",
+  ACCOUNTANT: "Бухгалтер",
   CLIENT: "Заказчик",
+  OWNER: "Руководитель",
 };
 
 const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
   OWNER: "весь продукт",
   FOREMAN: "свои объекты: замер, смета, приёмка, чеки, отчёт",
+  ACCOUNTANT: "весь продукт, кроме настроек компании и выдачи входа",
   CLIENT: "свой объект: ход работ, смета и бумаги",
 };
 
@@ -34,6 +45,10 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [объявление, setОбъявление] = useState<string | null>(null);
+  /* Устойчивый обработчик: лист держит клавиатурный контракт через
+     `useModalDialog`, и новый обработчик на каждой отрисовке перезапускал бы
+     его эффект — фокус уезжал бы на первое поле. */
+  const закрытьЛист = useCallback(() => { setЗаводим(false); setError(null); }, []);
   /* Выданная ссылка живёт в состоянии экрана и исчезает при перезагрузке:
      хранить её значило бы держать доступ там, где его видно мимоходом. */
   const [ссылка, setСсылка] = useState<{ имя: string; адрес: string } | null>(null);
@@ -130,7 +145,7 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
         </div>
       )}
 
-      <ul className="records">
+      <ul className="records records--label">
         {rows.map((row) => (
           <li className="record" key={row.id}>
             <span className="pill">{РОЛИ[row.role]}</span>
@@ -176,7 +191,7 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
           clients={clients}
           busy={busy}
           onSave={пригласить}
-          onClose={() => { setЗаводим(false); setError(null); }}
+          onClose={закрытьЛист}
         />
       )}
     </div>
@@ -198,19 +213,24 @@ function InviteSheet({
   const [phone, setPhone] = useState("");
   const [clientId, setClientId] = useState("");
 
+  /* Лист держит тот же клавиатурный контракт, что прочие девятнадцать:
+     Escape закрывает, Tab не уходит за лист, фокус возвращается к кнопке,
+     открывшей его. Прежде роль `dialog` и `aria-modal` были объявлены, а
+     контракт — нет (полный аудит 30.09.2026, П-30). */
+  const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const заказчик = role === "CLIENT";
   const можно = name.trim() !== ""
     && (email.trim() !== "" || phone.trim() !== "")
     && (!заказчик || clientId !== "");
 
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-label="Новый человек">
+    <div className="sheet" role="dialog" aria-modal="true" aria-label="Новый человек" ref={dialog}>
       <div className="sheet__body stack stack--tight">
         <h2 className="t-h2">{завести("человек")}</h2>
 
         <label className="field">
           <span className="field__label">Имя</span>
-          <input className="input" value={name} onChange={(e) => { setName(e.target.value); }} />
+          <input className="input" ref={first} value={name} onChange={(e) => { setName(e.target.value); }} />
         </label>
 
         <label className="field">
@@ -220,9 +240,9 @@ function InviteSheet({
             value={role}
             onChange={(e) => { setRole(e.target.value as Role); setClientId(""); }}
           >
-            <option value="FOREMAN">Прораб</option>
-            <option value="CLIENT">Заказчик</option>
-            <option value="OWNER">Руководитель</option>
+            {Object.entries(РОЛИ).map(([роль, подпись]) => (
+              <option key={роль} value={роль}>{подпись}</option>
+            ))}
           </select>
           <span className="field__hint">{ЧТО_ВИДИТ[role]}</span>
         </label>

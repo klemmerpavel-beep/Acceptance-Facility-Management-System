@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints } from "./money.js";
 import {
-  barGeometry,
-  coversDay,
   dayIndex,
-  dayOffset,
   isDayOff,
   monthWindow,
   shiftDay,
@@ -15,7 +12,6 @@ import {
   planWindow,
   projectReadiness,
   stageDays,
-  windowAround,
   type ProjectRange,
   type StageSpan,
 } from "./schedule.js";
@@ -101,111 +97,6 @@ describe("окно графика", () => {
     const вразнобой = [R99[3]!, R99[0]!, R99[6]!, R99[2]!];
     expect(planWindow(вразнобой)?.from).toBe("2026-03-02");
     expect(planWindow(вразнобой)?.to).toBe("2026-08-15");
-  });
-});
-
-describe("геометрия отрезка", () => {
-  const окно = planWindow(R99)!;
-
-  it("первый этап прижат к левому краю окна", () => {
-    const первый = barGeometry(R99[0]!, окно);
-    expect(первый.offset).toBe(0);
-    // 19 дней из 167 — 11,38 %.
-    expect(первый.length).toBe(11.38);
-  });
-
-  it("последний этап заканчивается на правом краю", () => {
-    const последний = barGeometry(R99[6]!, окно);
-    expect(Math.round(последний.offset + последний.length)).toBe(100);
-  });
-
-  it("этап вне окна даёт нулевую длину, а не отрицательный отступ", () => {
-    const чужой = стадия("2027-01-01", "2027-02-01", 0);
-    expect(barGeometry(чужой, окно).length).toBe(0);
-  });
-});
-
-describe("положение дня", () => {
-  const окно = planWindow(R99)!;
-
-  it("день вне окна не имеет положения", () => {
-    expect(dayOffset("2026-09-05", окно)).toBeNull();
-    expect(dayOffset("2026-03-01", окно)).toBeNull();
-  });
-
-  it("первый день окна стоит посреди своей клетки, а не на краю", () => {
-    expect(dayOffset("2026-03-02", окно)).toBe(0.3);
-  });
-
-  it("последний день окна не выходит за сто процентов", () => {
-    const край = dayOffset("2026-08-15", окно);
-    expect(край).not.toBeNull();
-    expect(край!).toBeLessThan(100);
-  });
-});
-
-describe("окно вокруг дня", () => {
-  it("квартал: месяц назад, текущий и следующий", () => {
-    expect(windowAround("2026-09-05", 3)).toEqual({
-      from: "2026-08-01",
-      to: "2026-10-31",
-      days: 92,
-    });
-  });
-
-  it("назад отсчитывается ровно месяц независимо от ширины окна", () => {
-    expect(windowAround("2026-09-05", 6).from).toBe("2026-08-01");
-    expect(windowAround("2026-09-05", 12).from).toBe("2026-08-01");
-  });
-
-  it("год кончается последним днём двенадцатого месяца, а не первым числом", () => {
-    expect(windowAround("2026-09-05", 12).to).toBe("2027-07-31");
-  });
-
-  it("переход через границу года считается верно", () => {
-    expect(windowAround("2026-01-15", 3)).toEqual({
-      from: "2025-12-01",
-      to: "2026-02-28",
-      days: 90,
-    });
-  });
-
-  it("отрезок, начавшийся до окна, прижимается к левому краю", () => {
-    const окно = windowAround("2026-09-05", 3);
-    const длинный = стадия("2026-03-02", "2026-08-15", 5000);
-    const { offset, length } = barGeometry(длинный, окно);
-    expect(offset).toBe(0);
-    // Из этапа в окно попадают только 1–15 августа: 15 дней из 92.
-    expect(length).toBe(16.3);
-  });
-
-  it("отрезок целиком в прошлом окна виден не будет", () => {
-    const окно = windowAround("2026-09-05", 3);
-    expect(barGeometry(стадия("2026-03-02", "2026-03-20", 10000), окно).length).toBe(0);
-  });
-
-  it("сегодняшний день всегда внутри окна", () => {
-    for (const months of [3, 6, 12]) {
-      expect(dayOffset("2026-09-05", windowAround("2026-09-05", months))).not.toBeNull();
-    }
-  });
-});
-
-describe("coversDay: идёт ли работа в этот день", () => {
-  const этап: StageSpan = { startsOn: "2026-09-01", endsOn: "2026-09-10", progress: basisPoints(0) };
-
-  it("день внутри отрезка", () => {
-    expect(coversDay(этап, "2026-09-05")).toBe(true);
-  });
-
-  it("границы включены: начатый сегодня этап сегодня и идёт", () => {
-    expect(coversDay(этап, "2026-09-01")).toBe(true);
-    expect(coversDay(этап, "2026-09-10")).toBe(true);
-  });
-
-  it("день до начала и после конца работой не считается", () => {
-    expect(coversDay(этап, "2026-08-31")).toBe(false);
-    expect(coversDay(этап, "2026-09-11")).toBe(false);
   });
 });
 

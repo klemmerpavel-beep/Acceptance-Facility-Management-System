@@ -27,7 +27,12 @@ export function Blueprints(): React.JSX.Element {
       .catch((cause: unknown) => { setОшибка(errorMessage(cause)); });
   }, []);
 
+  /* Снятие заготовки называет последствие до того, как случится (норматив
+     15.6); прежде она снималась с одного нажатия (полный аудит 30.09.2026,
+     П-46). */
+  const [снимается, setСнимается] = useState<string | null>(null);
   const снять = (строка: BlueprintRow): void => {
+    setСнимается(null);
     setЗанят(true);
     setОшибка(null);
     void deleteBlueprint(строка.id)
@@ -74,14 +79,31 @@ export function Blueprints(): React.JSX.Element {
                 </p>
               </div>
               <p className="num blueprint__total">{formatKopecks(BigInt(строка.works))}</p>
-              <button
-                type="button"
-                className="btn btn--text"
-                disabled={занят}
-                onClick={() => { снять(строка); }}
-              >
-                Снять
-              </button>
+              {снимается !== строка.id && (
+                <button
+                  type="button"
+                  className="btn btn--text"
+                  disabled={занят}
+                  onClick={() => { setСнимается(строка.id); }}
+                >
+                  Снять
+                </button>
+              )}
+              {снимается === строка.id && (
+                <div className="stack stack--tight" role="group" aria-label="Снятие типовой сметы">
+                  <p className="t-body">
+                    Типовая смета «{строка.name}» удалится. Сметы объектов, собранные из неё, не изменятся.
+                  </p>
+                  <div className="row">
+                    <button type="button" className="btn btn--danger" disabled={занят} onClick={() => { снять(строка); }}>
+                      Снять типовую
+                    </button>
+                    <button type="button" className="btn btn--text" onClick={() => { setСнимается(null); }}>
+                      Не снимать
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

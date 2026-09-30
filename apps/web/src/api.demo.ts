@@ -24,20 +24,23 @@ import type {
   AcceptanceView, CreateAcceptance, Reversal,
   AccountingView, MoneyState, TrancheStatus,
   PhotoReport, ReportBatch,
-  CloseTranche, CreateTranche, TrancheView,
+  CloseTranche, CreatePayment, CreateTranche, TrancheView, UpdateClient,
   EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
-  awaitingDays, clientDebts, moneyState, moneyTotals, paymentOverdue, PAYMENT_GRACE_DAYS,
+  awaitingDays, clientDebts, graceDays, moneyState, moneyTotals, outstanding,
+  paymentFault, paymentOverdue, paymentReversalFault, subtract, sum, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
   estimateItemFault, estimateItemMoveFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
-  fillTemplate, formatKopecks, templateFault,
+  fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
+  сколько,
+  PREPAYMENT_NUMBER,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
@@ -55,6 +58,7 @@ interface Snapshot {
   "events-owner": ProjectEvent[];
   "events-foreman": ProjectEvent[];
   "me-client": CurrentUser;
+  "me-accountant": CurrentUser;
   "projects-client": ProjectSummary[];
   "events-client": ProjectEvent[];
   "estimate-client": EstimateView;
@@ -190,7 +194,7 @@ export const demoSignIn = (): void => {
  * на настоящем стенде. Принимать его за проверку доступа нельзя: на живом
  * сервере роль приходит с сессией и переключению не поддаётся.
  */
-export type DemoRole = "OWNER" | "FOREMAN" | "CLIENT";
+export type DemoRole = "OWNER" | "FOREMAN" | "ACCOUNTANT" | "CLIENT";
 let демоРоль: DemoRole = "OWNER";
 const слушатели = new Set<() => void>();
 
@@ -207,18 +211,24 @@ export const onDemoRoleChange = (слушатель: () => void): (() => void) =
   return () => { слушатели.delete(слушатель); };
 };
 
-/* Набор данных по роли. Ключи слепка сняты тремя заходами съёмки: каждый
-   ходил на стенд от своего имени, и отданное — ровно то, что сервер отдал
-   бы этой роли. Заказчик отдельным ключом, прораб — прежними, которые до
-   этой работы лежали в слепке без употребления. */
+/* Набор данных по роли. Ключи слепка сняты заходами съёмки: каждый ходил на
+   стенд от своего имени, и отданное — ровно то, что сервер отдал бы этой роли.
+
+   Бухгалтер получает набор руководителя, и это не подмена: решением заказчика
+   от 19.09.2026 ему открыто всё, кроме настроек компании и выдачи входа, —
+   значит, данные у них совпадают, а различаются достижимые экраны. Снимать
+   ради этого второй такой же набор значило бы удвоить слепок, не добавив ни
+   одного нового числа. Роль при этом своя, снятая со стенда ответом «кто я»:
+   по ней демонстрация и закрывает настройки. */
 const поРоли = <T,>(владельцу: T, прорабу: T, заказчику: T): T =>
-  демоРоль === "OWNER" ? владельцу : демоРоль === "FOREMAN" ? прорабу : заказчику;
+  демоРоль === "FOREMAN" ? прорабу : демоРоль === "CLIENT" ? заказчику : владельцу;
 
 const pause = (ms = 180): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function fetchCurrentUser(): Promise<CurrentUser> {
   await pause(60);
   if (!signedIn) throw new Error("Войдите по ссылке, отправленной на почту.");
+  if (демоРоль === "ACCOUNTANT") return data["me-accountant"];
   return поРоли(data["me-owner"], data["me-foreman"], data["me-client"]);
 }
 
@@ -324,14 +334,24 @@ let счётчик = 0;
 const новыйId = (): string =>
   `00000000-0000-4000-8000-${String((счётчик += 1)).padStart(12, "0")}`;
 
+/* Правки карточек живут рядом с заведёнными записями и по той же причине:
+   демонстрация обязана показывать последствие действия, а сервера у неё нет. */
+const правленые = { clients: new Map<string, ClientRow>() };
+
 export async function fetchClients(): Promise<ClientRow[]> {
   await pause(80);
-  return [...data["clients-owner"], ...заведённые.clients];
+  return [...data["clients-owner"], ...заведённые.clients].map(
+    (row) => правленые.clients.get(row.id) ?? row,
+  );
 }
 
 export async function fetchWorkers(): Promise<WorkerRow[]> {
   await pause(80);
-  return [...data.workers, ...заведённые.workers];
+  const все = [...data.workers, ...заведённые.workers];
+  if (ownerLevel(демоРоль)) return все;
+  /* Начисленное бригаде — внутренняя величина: сервер прорабу её не отдаёт,
+     а двойник отдавал слепок руководителя (полный аудит 30.09.2026, П-1). */
+  return все.map((бригада) => безКлючей(бригада, ["wageTotal"]));
 }
 
 export async function createClient(input: CreateClient): Promise<ClientRow[]> {
@@ -349,10 +369,37 @@ export async function createClient(input: CreateClient): Promise<ClientRow[]> {
     name: input.name,
     isCompany: input.isCompany,
     requisites: input.requisites,
+    paymentGraceDays: input.paymentGraceDays ?? null,
     projects: 0,
     estimateTotal: "0",
   });
   return [...data["clients-owner"], ...заведённые.clients];
+}
+
+/**
+ * Правка карточки заказчика в демонстрации.
+ *
+ * Правится и снятая запись, и заведённая здесь же: порог просрочки назначают
+ * прежде всего давним заказчикам, и запрет на правку снятых оставил бы
+ * действие без единого случая, где его можно показать.
+ */
+export async function updateClient(id: string, input: UpdateClient): Promise<ClientRow[]> {
+  await pause(120);
+  const правка = (row: ClientRow): ClientRow => row.id !== id ? row : {
+    ...row,
+    ...(input.name === undefined ? {} : { name: input.name }),
+    ...(input.isCompany === undefined ? {} : { isCompany: input.isCompany }),
+    ...(input.requisites === undefined ? {} : { requisites: input.requisites }),
+    ...(input.paymentGraceDays === undefined ? {} : { paymentGraceDays: input.paymentGraceDays }),
+  };
+  правленые.clients.set(id, правка(
+    [...data["clients-owner"], ...заведённые.clients].find((row) => row.id === id)
+    ?? { id, code: "", name: "", isCompany: false, requisites: null,
+      paymentGraceDays: null, projects: 0, estimateTotal: "0" },
+  ));
+  return [...data["clients-owner"], ...заведённые.clients].map(
+    (row) => правленые.clients.get(row.id) ?? row,
+  );
 }
 
 export async function createWorker(input: CreateWorker): Promise<WorkerRow[]> {
@@ -567,7 +614,7 @@ export async function importEstimate(
   if (unresolved.length > 0) {
     const positions = unresolved.reduce((sum, decision) => sum + decision.positions, 0);
     throw new Error(
-      `Импорт остановлен: ${positions} позиций с написаниями единиц, которые не приведены ` +
+      `Импорт остановлен: ${сколько(positions, "позиция", "позиции", "позиций")} с написаниями единиц, которые не приведены ` +
         `к справочнику — ${unresolved.map((d) => d.raw.trim()).join(", ")}. ` +
         "Сопоставьте их на экране импорта и повторите.",
     );
@@ -585,15 +632,33 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
   if (code !== "R-99") {
     throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
   }
-  /* Отдаётся правимая копия, а не снимок: иначе правка в демонстрации
-     видна на экране, но исчезает при возврате на вкладку. */
-  return сметаR99();
+  /* Руководителю и бухгалтеру отдаётся правимая копия, а не снимок: иначе
+     правка в демонстрации видна на экране, но исчезает при возврате на
+     вкладку. Прорабу и заказчику — их собственные слепки, снятые со стенда
+     от их имени: прежде смета руководителя уходила всем ролям, и в
+     переключателе «Заказчик» стояли ставка, фонд оплаты труда и прибыль
+     (полный аудит 30.09.2026, П-1). Правка руководителя в их вид не
+     переносится — демонстрация показывает, что сервер отдал бы роли, а не
+     сплав двух ответов. */
+  if (ownerLevel(демоРоль)) return сметаR99();
+  return structuredClone(демоРоль === "CLIENT" ? data["estimate-client"] : data["estimate-foreman"]);
 }
 
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
   await pause(120);
-  return code === "R-99" ? data.imports : [];
+  if (code !== "R-99") return [];
+  if (ownerLevel(демоРоль)) return data.imports;
+  /* Фонд оплаты труда отчёта — внутренняя величина: сервер прорабу три поля
+     не отдаёт (полный аудит 30.09.2026, П-16), и двойник не отдаёт тоже. */
+  return data.imports.map((запись) => ({
+    ...запись,
+    report: безКлючей(запись.report, ["computedWageTotal", "declaredWageTotal", "wageTotalDelta"]),
+  }));
 }
+
+/** Копия записи без названных ключей: так двойник снимает внутренние поля. */
+const безКлючей = <T extends object>(запись: T, ключи: readonly (keyof T)[]): T =>
+  Object.fromEntries(Object.entries(запись).filter(([ключ]) => !ключи.includes(ключ as keyof T))) as T;
 
 /* --- приёмка выполненных работ --------------------------------------------
    Правки живут в памяти вкладки до перезагрузки. Снимок не разбирается:
@@ -609,9 +674,11 @@ const приёмкаR99 = (role: "OWNER" | "FOREMAN"): AcceptanceView => {
   приёмка ??= structuredClone(data["acceptance-owner"]);
   if (role === "OWNER") return приёмка;
   /* Прорабу внутренние величины не отдаются. Ключи убираются, а не
-     обнуляются: в продукте их в ответе нет вовсе. */
+     обнуляются: в продукте их в ответе нет вовсе. Ответ собирается
+     перечислением, а не развёртыванием ответа руководителя: развёртывание
+     пропускало всякое новое поле, и начисления бригадам по неделям
+     (`accruals`) доходили до прораба (полный аудит 30.09.2026, П-1). */
   return {
-    ...приёмка,
     sections: приёмка.sections.map((section) => ({
       ...section,
       positions: section.positions.map((position) => ({
@@ -649,8 +716,14 @@ export async function fetchAcceptance(code: string): Promise<AcceptanceView> {
   if (code !== "R-99") {
     return { sections: [], batches: [], totals: { positions: 0, acceptedPositions: 0, accepted: "0" } };
   }
-  return приёмкаR99(data["me-owner"].role === "OWNER" ? "OWNER" : "FOREMAN");
+  return приёмкаПоРоли();
 }
+
+/* Проекция выбирается по роли переключателя, а не по слепку руководителя:
+   его роль «OWNER» всегда, и прораб демонстрации получал внутренние
+   величины. Тем же правилом отвечают заведение и сторно приёмки: прежде они
+   возвращали вид руководителя любой роли (полный аудит 30.09.2026, П-1). */
+const приёмкаПоРоли = (): AcceptanceView => приёмкаR99(ownerLevel(демоРоль) ? "OWNER" : "FOREMAN");
 
 export async function createAcceptance(
   _code: string,
@@ -711,7 +784,7 @@ export async function createAcceptance(
   }, ...вид.batches];
   выработатьВТранш(вид, section.id, lines, 1n);
   пересчитатьПриёмку(вид);
-  return приёмкаR99("OWNER");
+  return приёмкаПоРоли();
 }
 
 export async function reverseAcceptance(
@@ -736,7 +809,7 @@ export async function reverseAcceptance(
     }
     выработатьВТранш(вид, batch.sectionId, [line], -1n);
     пересчитатьПриёмку(вид);
-    return приёмкаR99("OWNER");
+    return приёмкаПоРоли();
   }
   throw new Error("Приёмка не найдена на этом объекте.");
 }
@@ -1244,6 +1317,18 @@ const траншиR99 = (): TrancheView => {
   return транши;
 };
 
+/**
+ * Оплаченное и непокрытое выводятся из платежей, а не хранятся.
+ *
+ * Сторно приходит отрицательной суммой, поэтому сложение идёт по всем
+ * записям: отбор неотменённых дал бы тот же ответ ровно до первого сторно.
+ */
+function пересчитатьОплату(транш: TrancheView["tranches"][number]): void {
+  const оплачено = sum(транш.payments.map((платёж) => kopecks(платёж.amount)));
+  транш.paid = оплачено.toString();
+  транш.outstanding = subtract(kopecks(транш.amount), оплачено).toString();
+}
+
 /** Величины транша пересчитываются целиком: выработка хранится, остальное выводится. */
 function пересчитатьТранш(транш: TrancheView["tranches"][number], share: number): void {
   const выработка = kopecks(транш.produced);
@@ -1280,6 +1365,7 @@ const сдвигДаты = (дата: string | null, дней: number): string |
 const СТАТУС_ПО_СОСТОЯНИЮ: Record<MoneyState, TrancheStatus> = {
   "в работе": "OPEN",
   "ждёт оплаты": "CLOSED",
+  "оплачен частично": "CLOSED",
   оплачено: "PAID",
 };
 
@@ -1296,16 +1382,33 @@ export async function fetchAccounting(): Promise<AccountingView> {
      опознавателю, как и сервер. */
   const заказчик = data["clients-owner"].find((row) => row.code === объект?.client.code);
 
-  const срез = (status: TrancheStatus, amount: string, closedAt: string | null) => ({
-    status, amount: kopecks(amount), closedOn: closedAt === null ? null : closedAt.slice(0, 10),
+  const срез = (
+    status: TrancheStatus, amount: string, closedAt: string | null,
+    paid: string, порог: number | null,
+  ) => ({
+    status,
+    amount: kopecks(amount),
+    paid: kopecks(paid),
+    closedOn: closedAt === null ? null : closedAt.slice(0, 10),
+    graceDays: порог,
   });
+
+  /* Порог берётся у заказчика справочника: он же приходит с сервера в каждой
+     строке, и второе место для той же величины разошлось бы с первым, как
+     только порог поправят на карточке. */
+  const порогЗаказчика = (clientId: string): number | null =>
+    (правленые.clients.get(clientId)
+      ?? data["clients-owner"].find((row) => row.id === clientId))?.paymentGraceDays ?? null;
 
   /* Каждая строка идёт в паре со своим срезом денег: считать их порознь и
      сводить по номеру в списке — та же ошибка, что уже стоила раздела,
      собранного по индексам. */
   const пары = [
     ...траншиR99().tranches.map((транш) => {
-      const деньги = срез(транш.status, транш.amount, транш.closedAt);
+      const деньги = срез(
+        транш.status, транш.amount, транш.closedAt, транш.paid,
+        заказчик === undefined ? null : порогЗаказчика(заказчик.id),
+      );
       return {
         деньги,
         row: {
@@ -1316,12 +1419,16 @@ export async function fetchAccounting(): Promise<AccountingView> {
           clientName: заказчик?.name ?? объект?.client.name ?? "",
           number: транш.number,
           amount: транш.amount,
-          state: moneyState(транш.status),
+          paid: транш.paid,
+          outstanding: транш.outstanding,
+          state: moneyState(деньги),
           openedAt: транш.openedAt,
           closedAt: транш.closedAt,
           paidAt: транш.paidAt,
           awaitingDays: awaitingDays(деньги, сегодня),
           overdue: paymentOverdue(деньги, сегодня),
+          graceDays: graceDays(деньги),
+          graceByContract: деньги.graceDays !== null,
           comment: транш.comment,
         },
       };
@@ -1330,7 +1437,10 @@ export async function fetchAccounting(): Promise<AccountingView> {
       .filter((row) => row.projectCode !== "R-99")
       .map((row) => {
         const closedAt = сдвигДаты(row.closedAt, возраст);
-        const деньги = срез(СТАТУС_ПО_СОСТОЯНИЮ[row.state], row.amount, closedAt);
+        const деньги = срез(
+          СТАТУС_ПО_СОСТОЯНИЮ[row.state], row.amount, closedAt, row.paid,
+          порогЗаказчика(row.clientId),
+        );
         return {
           деньги,
           row: {
@@ -1338,8 +1448,12 @@ export async function fetchAccounting(): Promise<AccountingView> {
             openedAt: сдвигДаты(row.openedAt, возраст) ?? row.openedAt,
             closedAt,
             paidAt: сдвигДаты(row.paidAt, возраст),
+            state: moneyState(деньги),
+            outstanding: outstanding(деньги).toString(),
             awaitingDays: awaitingDays(деньги, сегодня),
             overdue: paymentOverdue(деньги, сегодня),
+            graceDays: graceDays(деньги),
+            graceByContract: деньги.graceDays !== null,
           },
         };
       }),
@@ -1353,6 +1467,7 @@ export async function fetchAccounting(): Promise<AccountingView> {
       awaiting: свод.awaiting.toString(),
       paid: свод.paid.toString(),
       overdue: свод.overdue.toString(),
+      shortfall: свод.shortfall.toString(),
       graceDays: PAYMENT_GRACE_DAYS,
     },
     /* Расходы считаются из тех же чеков, что показывает вкладка: второе
@@ -1383,6 +1498,7 @@ export async function fetchAccounting(): Promise<AccountingView> {
       awaiting: строка.awaiting.toString(),
       paid: строка.paid.toString(),
       overdue: строка.overdue,
+      graceDays: строка.graceDays,
     })),
   };
 }
@@ -1404,7 +1520,7 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     amount: kopecks(input.amount),
     prepayment,
     openNumber: вид.current?.number ?? null,
-    hasPrepayment: вид.tranches.some((транш) => транш.number === 0),
+    hasPrepayment: вид.tranches.some((транш) => транш.number === PREPAYMENT_NUMBER),
   });
   if (fault !== null) throw new Error(fault);
 
@@ -1427,6 +1543,24 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     client: "0",
     remainder: input.amount,
     fill: 0,
+    /* Предоплата приходит с деньгами, значит приходит и с платежом: иначе
+       она с первой же секунды числилась бы недобором на всю сумму. Тот же
+       шаг делает сервер при заведении. */
+    paid: prepayment ? input.amount : "0",
+    outstanding: prepayment ? "0" : input.amount,
+    payments: prepayment
+      ? [{
+        id: новыйId(),
+        amount: input.amount,
+        paidOn: now.slice(0, 10),
+        comment: "Предоплата 30 %",
+        reason: null,
+        reversalOfId: null,
+        reversed: false,
+        createdAt: now,
+        author: data["me-owner"].name,
+      }]
+      : [],
   };
   пересчитатьТранш(транш, вид.supervisionShare);
   вид.tranches = [...вид.tranches, транш].sort((слева, справа) => слева.number - справа.number);
@@ -1466,6 +1600,80 @@ export async function payTranche(_code: string, id: string): Promise<TrancheView
   }
   транш.status = "PAID";
   транш.paidAt = new Date().toISOString();
+  return вид;
+}
+
+/**
+ * Запись платежа в демонстрации.
+ *
+ * Состояние транша не меняется — то же правило, что на сервере: отметку
+ * «оплачен» ставит руководитель отдельным действием (решение от 19.09.2026).
+ * Демонстрация обязана показывать продукт, а не удобную его версию, поэтому
+ * недобор здесь получается так же, как получился бы в работе.
+ */
+export async function addPayment(
+  _code: string, id: string, input: CreatePayment,
+): Promise<TrancheView> {
+  await pause(200);
+  const вид = траншиR99();
+  const транш = вид.tranches.find((строка) => строка.id === id);
+  if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
+
+  const сегодня = new Date().toISOString().slice(0, 10);
+  const fault = paymentFault({
+    amount: kopecks(input.amount),
+    paidOn: input.paidOn,
+    today: сегодня,
+    status: транш.status,
+    openedOn: транш.openedAt.slice(0, 10),
+  });
+  if (fault !== null) throw new Error(fault);
+
+  транш.payments = [...транш.payments, {
+    id: новыйId(),
+    amount: input.amount,
+    paidOn: input.paidOn,
+    comment: input.comment ?? null,
+    reason: null,
+    reversalOfId: null,
+    reversed: false,
+    createdAt: new Date().toISOString(),
+    author: data["me-owner"].name,
+  }];
+  пересчитатьОплату(транш);
+  return вид;
+}
+
+export async function reversePayment(
+  _code: string, id: string, paymentId: string, reason: string,
+): Promise<TrancheView> {
+  await pause(200);
+  const вид = траншиR99();
+  const транш = вид.tranches.find((строка) => строка.id === id);
+  if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
+  const платёж = транш.payments.find((строка) => строка.id === paymentId);
+  if (платёж === undefined) throw new Error("Платёж не найден у этого транша.");
+
+  const fault = paymentReversalFault({
+    reason,
+    reversed: платёж.reversed,
+    isReversal: платёж.reversalOfId !== null,
+  });
+  if (fault !== null) throw new Error(fault);
+
+  платёж.reversed = true;
+  транш.payments = [...транш.payments, {
+    id: новыйId(),
+    amount: (-BigInt(платёж.amount)).toString(),
+    paidOn: платёж.paidOn,
+    comment: null,
+    reason,
+    reversalOfId: платёж.id,
+    reversed: false,
+    createdAt: new Date().toISOString(),
+    author: data["me-owner"].name,
+  }];
+  пересчитатьОплату(транш);
   return вид;
 }
 

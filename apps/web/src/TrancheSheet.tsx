@@ -70,7 +70,7 @@ export function TrancheSheet({
         <p className="t-h3">Открыть транш</p>
         <form className="stack stack--tight" onSubmit={submit}>
           <label className="field">
-            <span className="field__label">Сумма платежа клиента, ₽</span>
+            <span className="field__label">Сумма платежа заказчика, ₽</span>
             <input
               ref={first}
               className="input input--num input--touch"
@@ -80,8 +80,8 @@ export function TrancheSheet({
             />
             <span className="field__hint">
               {копейки === null
-                ? "Транш есть сумма, которую платит клиент: смета с надбавкой за сопровождение."
-                : `${formatKopecks(копейки)} — сумма, которую платит клиент.`}
+                ? "Транш есть сумма, которую платит заказчик: смета с надбавкой за сопровождение."
+                : `${formatKopecks(копейки)} — сумма, которую платит заказчик.`}
             </span>
           </label>
 

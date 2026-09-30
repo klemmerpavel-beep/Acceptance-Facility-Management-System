@@ -1,4 +1,4 @@
-import { sectionTitle } from "@priyomka/domain";
+import { ownerLevel, sectionTitle } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type {
   AcceptanceLine, AcceptanceView, Role,
@@ -29,10 +29,10 @@ import { ReversalSheet } from "./ReversalSheet.js";
  */
 
 /** Отмечает прораб: это его ежедневная работа и единственный источник факта. */
-const canAccept = (role: Role): boolean => role === "OWNER" || role === "FOREMAN";
+const canAccept = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN";
 
 /** Сторнирует руководитель: право отменять начисленное шире права его создавать. */
-const canReverse = (role: Role): boolean => role === "OWNER";
+const canReverse = (role: Role): boolean => ownerLevel(role);
 
 const день = (iso: string): string => {
   const [год = "", месяц = "", число = ""] = iso.slice(0, 10).split("-");
@@ -298,7 +298,7 @@ export function Acceptance({
       {view.batches.length > 0 && (
         <div className="panel">
           <div className="section-head">
-            <h3 className="t-h3">Что принято</h3>
+            <h2 className="t-h3">Что принято</h2>
           </div>
           {view.batches.map((batch) => (
             <div className="accept__batch" key={batch.id}>
@@ -348,7 +348,7 @@ export function Acceptance({
       {view.accruals !== undefined && view.accruals.length > 0 && (
         <div className="panel">
           <div className="section-head">
-            <h3 className="t-h3">Начислено бригадам</h3>
+            <h2 className="t-h3">Начислено бригадам</h2>
             <p className="t-sm t-secondary">за неделю · всего по объекту</p>
           </div>
           <div className="accrual">

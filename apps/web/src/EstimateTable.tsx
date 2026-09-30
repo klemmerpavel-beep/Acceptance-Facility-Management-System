@@ -408,7 +408,7 @@ export function EstimateTable({
               aria-pressed={projection === "client"}
               onClick={() => setProjection("client")}
             >
-              Клиентская
+              Для заказчика
             </button>
           </div>
         )}
@@ -434,7 +434,7 @@ export function EstimateTable({
               </tr>
             )}
             <tr>
-              <th scope="col">№</th>
+              <th scope="col" className="estimate__num">№</th>
               <th scope="col">Наименование</th>
               <th scope="col">Ед.</th>
               <th scope="col" className="estimate__num">Кол.</th>
@@ -504,7 +504,7 @@ export function EstimateTable({
           разделами и подытогами — отдельная работа (реестр Д-25). */}
       {rendered > ROW_LIMIT && (
         <p className="field__hint">
-          В смете {rendered} строк — больше порога в {ROW_LIMIT}. Таблица отрисовывается целиком,
+          В смете {rendered} {plural(rendered, "строка", "строки", "строк")} — больше порога в {ROW_LIMIT}. Таблица отрисовывается целиком,
           и на таком объёме это уже заметно.
         </p>
       )}
