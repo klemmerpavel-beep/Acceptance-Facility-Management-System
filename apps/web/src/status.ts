@@ -73,13 +73,8 @@ export const formatDateTime = (iso: string): string =>
 
 /**
  * Согласование числа с существительным. «1 день», «2 дня», «5 дней» —
- * без этого подпись срока читается как машинный вывод.
+ * без этого подпись срока читается как машинный вывод. Правило переехало в
+ * домен: им пишет и сервер (полный аудит 30.09.2026, П-48); точки вызова на
+ * экранах от переезда не меняются.
  */
-export function plural(count: number, one: string, few: string, many: string): string {
-  const absolute = Math.abs(count) % 100;
-  const last = absolute % 10;
-  if (absolute > 10 && absolute < 20) return many;
-  if (last > 1 && last < 5) return few;
-  if (last === 1) return one;
-  return many;
-}
+export { plural } from "@priyomka/domain";

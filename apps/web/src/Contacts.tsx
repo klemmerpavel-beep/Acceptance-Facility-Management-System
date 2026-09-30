@@ -42,7 +42,7 @@ type Contact =
  */
 const подписьПорога = (дней: number | null): string =>
   дней === null
-    ? `${String(PAYMENT_GRACE_DAYS)} дней по умолчанию`
+    ? `${String(PAYMENT_GRACE_DAYS)} ${plural(PAYMENT_GRACE_DAYS, "день", "дня", "дней")} по умолчанию`
     : `${String(дней)} ${plural(дней, "день", "дня", "дней")} по договору`;
 
 const money = (value: string): string => formatKopecks(BigInt(value));

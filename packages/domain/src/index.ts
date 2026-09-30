@@ -15,3 +15,4 @@ export * from "./title.js";
 export * from "./directory.js";
 export * from "./expense.js";
 export * from "./template.js";
+export * from "./plural.js";

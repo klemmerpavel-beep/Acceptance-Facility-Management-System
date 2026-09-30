@@ -12,6 +12,7 @@ import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
   estimateItemMoveFault, formatKopecks, formatPercent, kopecks, количествоТекстом,
   milliunits, ownerLevel,
+  сколько,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -154,7 +155,7 @@ export class EstimatesService {
       const spellings = [...new Set(unresolved.map((i) => i.rawUnit.trim() || "пусто"))];
       throw new BadRequestException({
         message:
-          `Импорт остановлен: ${unresolved.length} позиций с написаниями единиц, которые не приведены ` +
+          `Импорт остановлен: ${сколько(unresolved.length, "позиция", "позиции", "позиций")} с написаниями единиц, которые не приведены ` +
           `к справочнику — ${spellings.join(", ")}. Сопоставьте их на экране импорта и повторите.`,
       });
     }

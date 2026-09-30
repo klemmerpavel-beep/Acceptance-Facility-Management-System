@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { plural } from "./status.js";
 import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TranchePayment, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
@@ -307,7 +308,7 @@ export function Tranches({
 
         {view.outside.batches > 0 && (
           <p className="empty__text">
-            Вне транша: {view.outside.batches} пакетов приёмки на{" "}
+            Вне транша: {view.outside.batches} {plural(view.outside.batches, "пакет", "пакета", "пакетов")} приёмки на{" "}
             {formatKopecks(BigInt(view.outside.client))}. Это приёмки, записанные до того, как
             транш завели; в транш они не переносятся — история не переписывается.
           </p>

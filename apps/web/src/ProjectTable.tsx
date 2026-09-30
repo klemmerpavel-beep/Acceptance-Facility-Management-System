@@ -2,7 +2,7 @@ import type { ProjectSummary } from "@priyomka/contracts";
 import { пусто } from "./empty.js";
 import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
-import { STATUS_LABEL, STATUS_PILL, formatDate } from "./status.js";
+import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 import { due } from "./due.js";
 
 /**
@@ -236,7 +236,7 @@ export function ProjectTable({
       />
       {rest > 0 && (
         <p className="t-sm t-muted">
-          Показаны первые {limit} объектов портфеля.{" "}
+          Показаны первые {limit} {plural(limit, "объект", "объекта", "объектов")} портфеля.{" "}
           <a
             href="#projects"
             onClick={(event) => { event.preventDefault(); onAll(); }}

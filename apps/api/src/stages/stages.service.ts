@@ -6,6 +6,7 @@ import {
   acceptedQty, acceptedShare, acceptedTotal, formatDay, kopecks, milliunits,
   planFromSections, projectRange, stageDateFault,
   type ProjectRange, type SectionWeight,
+  сколько,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -412,7 +413,7 @@ export class StagesService {
         message: sections.length === 0
           ? "В смете нет разделов верхнего уровня: заводить нечего."
           : свободные.length === 0
-            ? `Все ${String(sections.length)} разделов сметы уже ведутся этапами. `
+            ? `Все разделы сметы (${String(sections.length)}) уже ведутся этапами. `
               + "Заводить нечего — правьте существующие этапы."
             : "Свободные разделы сметы не содержат позиций работ: это заголовки, "
               + "а не работа. Заводить этапы не по чему.",
@@ -459,7 +460,7 @@ export class StagesService {
         entityId: project.id,
         field: "график заведён из сметы",
         oldValue: null,
-        newValue: `${String(предложены.length)} этапов: ${formatDay(input.from)} — `
+        newValue: `${сколько(предложены.length, "этап", "этапа", "этапов")}: ${formatDay(input.from)} — `
           + formatDay(предложены[предложены.length - 1]?.endsOn ?? input.to),
       }, tx);
     });

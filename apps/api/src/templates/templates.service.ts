@@ -5,6 +5,7 @@ import type {
 import {
   acceptedTotal, basisPoints, clientTotals, fillTemplate, formatKopecks, kopecks,
   milliunits, templateFault, formatDay, formatPhone, isPhoneNumber, количествоТекстом,
+  сколько,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -123,7 +124,7 @@ export class TemplatesService {
         entityId: шаблон.id,
         field: `шаблон «${input.name}»`,
         oldValue: id === null ? null : "правка",
-        newValue: `${String(input.clauses.length)} пунктов`,
+        newValue: сколько(input.clauses.length, "пункт", "пункта", "пунктов"),
       }, tx);
     });
 

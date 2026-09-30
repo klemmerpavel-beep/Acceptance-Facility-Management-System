@@ -5,6 +5,7 @@ import type {
 } from "@priyomka/contracts";
 import {
   measureTotals, milliunits, roomVolume, wallArea, количествоТекстом, type RoomMeasure,
+  сколько,
 } from "@priyomka/domain";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
@@ -232,7 +233,7 @@ export class MeasureService {
       entityId: projectId,
       field: `${имя} — позиции сметы переведены на обмер после перепланировки`,
       oldValue: "начальный обмер",
-      newValue: `${count.toString()} позиций`,
+      newValue: сколько(count, "позиция", "позиции", "позиций"),
     }, tx);
   }
 

@@ -39,6 +39,7 @@ import {
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
+  сколько,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
@@ -612,7 +613,7 @@ export async function importEstimate(
   if (unresolved.length > 0) {
     const positions = unresolved.reduce((sum, decision) => sum + decision.positions, 0);
     throw new Error(
-      `Импорт остановлен: ${positions} позиций с написаниями единиц, которые не приведены ` +
+      `Импорт остановлен: ${сколько(positions, "позиция", "позиции", "позиций")} с написаниями единиц, которые не приведены ` +
         `к справочнику — ${unresolved.map((d) => d.raw.trim()).join(", ")}. ` +
         "Сопоставьте их на экране импорта и повторите.",
     );

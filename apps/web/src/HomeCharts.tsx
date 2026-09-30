@@ -67,7 +67,7 @@ export function StatusBar({
 
   return (
     <div className="stack stack--tight">
-      <div className="statusbar" role="img" aria-label={`Портфель: ${String(всего)} объектов`}>
+      <div className="statusbar" role="img" aria-label={`Портфель: ${String(всего)} ${plural(всего, "объект", "объекта", "объектов")}`}>
         {/* Доли — картинка, а не органы. Прежде каждая была кнопкой, и разметка
             противоречила себе дважды: полоса объявлена `role="img"`, у которой
             потомки представительны и интерактивными быть не могут, а цель
