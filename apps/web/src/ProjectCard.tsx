@@ -474,7 +474,7 @@ export function ProjectCard({
         <div className="project-layout">
           <aside className="stack">
             <div className="figure">
-              <span className="figure__label">Итог сметы для клиента</span>
+              <span className="figure__label">Итог сметы для заказчика</span>
               {/* Сметы нет — величину не завели, а не «её нет в природе»:
                   слово словаря, а не прочерк (правило 6 `07_IA.md`). Прежде
                   здесь стояли «—» и «смета не загружена» рядом со словарным

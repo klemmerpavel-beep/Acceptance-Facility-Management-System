@@ -150,7 +150,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   aria-pressed={вид === "client"}
                   onClick={() => { setВид("client"); }}
                 >
-                  Клиентский
+                  Для заказчика
                 </button>
                 <button
                   type="button"
@@ -172,7 +172,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                 печать(имяЛиста(
                   `Акт № ${String(act.number)}`,
                   act.project.code,
-                  act.audience === "internal" ? "внутренний" : "клиентский",
+                  act.audience === "internal" ? "внутренний" : "для заказчика",
                 ));
               }}
             >
@@ -230,7 +230,7 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
       <div className="table-scroll">
         <table className="estimate act__table">
           <caption className="visually-hidden">
-            Работы акта № {act.number}: {внутренний ? "внутренний вид" : "клиентский вид"}
+            Работы акта № {act.number}: {внутренний ? "внутренний вид" : "вид для заказчика"}
           </caption>
           <thead>
             <tr>

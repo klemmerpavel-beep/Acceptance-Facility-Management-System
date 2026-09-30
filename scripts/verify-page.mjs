@@ -1956,7 +1956,7 @@ const internalBefore = await page.locator(".estimate__internal").count();
   }
 }
 
-await page.click('.segmented__option:has-text("Клиентская")');
+await page.click('.segmented__option:has-text("Для заказчика")');
 await page.waitForTimeout(200);
 const internalAfter = await page.locator(".estimate__internal").count();
 if (internalAfter !== 0) note("клиентская проекция", `внутренних ячеек осталось ${internalAfter}`);
@@ -3422,7 +3422,7 @@ if (лишние.length > 0) {
 await page.click('.segmented__option:has-text("Внутренний")');
 await page.waitForSelector('.act__table thead th:has-text("Прибыль")', { timeout: 5000 })
   .catch(() => { note("документы", "во внутреннем виде акта нет колонки прибыли"); });
-await page.click('.segmented__option:has-text("Клиентский")');
+await page.click('.segmented__option:has-text("Для заказчика")');
 await page.waitForTimeout(300);
 
 /**
@@ -3494,7 +3494,7 @@ const размерЛиста = async (кто) => {
   if (кнопокАкта > 0 && имена.length !== 2) {
     note("документы", `кнопка печати вызвала печать ${имена.length} раз вместо двух`);
   }
-  for (const [индекс, вид] of (кнопокАкта === 0 ? [] : ["клиентский", "внутренний"]).entries()) {
+  for (const [индекс, вид] of (кнопокАкта === 0 ? [] : ["для заказчика", "внутренний"]).entries()) {
     const имя = имена[индекс] ?? "";
     if (!имя.startsWith("Акт № ")) {
       note("документы", `акт (${вид} вид) сохранится под именем «${имя}»: акта в нём не назван`);
@@ -3547,7 +3547,7 @@ const размерЛиста = async (кто) => {
       + ` страниц в файле: ${String(лист.страниц)}`);
   }
   await page.emulateMedia({ media: "screen" });
-  await page.click('.segmented__option:has-text("Клиентский")');
+  await page.click('.segmented__option:has-text("Для заказчика")');
   await page.waitForTimeout(300);
 }
 

@@ -408,7 +408,7 @@ export function EstimateTable({
               aria-pressed={projection === "client"}
               onClick={() => setProjection("client")}
             >
-              Клиентская
+              Для заказчика
             </button>
           </div>
         )}
