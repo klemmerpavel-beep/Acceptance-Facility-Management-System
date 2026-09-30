@@ -173,9 +173,26 @@ export class BlueprintsService {
     return this.view(user, id);
   }
 
+  /**
+   * Снятие заготовки. Цены и ставки в ней — денежные величины, и её уход
+   * пишется в журнал, как заведение (БП-10). Прежде снятие не оставляло
+   * следа вовсе — единственное удаление сервера без записи журнала
+   * (полный аудит 30.09.2026, П-47).
+   */
   async remove(user: RequestUser, id: string): Promise<BlueprintRow[]> {
     const заготовка = await this.blueprintOf(user, id);
-    await this.prisma.estimateBlueprint.delete({ where: { id: заготовка.id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.estimateBlueprint.delete({ where: { id: заготовка.id } });
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "EstimateBlueprint",
+        entityId: заготовка.id,
+        field: `${заготовка.name} — типовая смета снята`,
+        oldValue: `позиций ${String(заготовка.items.length)}`,
+        newValue: null,
+      }, tx);
+    });
     return this.list(user);
   }
 

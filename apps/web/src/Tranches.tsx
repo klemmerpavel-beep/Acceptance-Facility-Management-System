@@ -96,6 +96,10 @@ export function Tranches({
   const [платёжПо, setПлатёжПо] = useState<string | null>(null);
   const [сторно, setСторно] = useState<{ trancheId: string; payment: TranchePayment } | null>(null);
   const [раскрыто, setРаскрыто] = useState<readonly string[]>([]);
+  /* Закрытие не отменяется: по закрытому траншу собирается акт. Действие
+     называет последствия до того, как случится (норматив 15.6); прежде оно
+     срабатывало с одного нажатия (полный аудит 30.09.2026, П-46). */
+  const [закрываю, setЗакрываю] = useState(false);
 
   const load = useCallback(() => {
     fetchTranches(code)
@@ -111,6 +115,7 @@ export function Tranches({
       .then((next) => {
         setView(next);
         setOpening(false);
+        setЗакрываю(false);
         setSheetError(null);
         setОбъявление(сказать);
         onEvents();
@@ -142,8 +147,8 @@ export function Tranches({
                 <button
                   type="button"
                   className="btn btn--secondary"
-                  disabled={busy}
-                  onClick={() => { run(closeTranche(code, открытый.id, {}), `Транш № ${String(открытый.number)} закрыт`); }}
+                  disabled={busy || закрываю}
+                  onClick={() => { setЗакрываю(true); setSheetError(null); }}
                 >
                   Закрыть транш
                 </button>
@@ -168,6 +173,29 @@ export function Tranches({
             </p>
           )
           : <TrancheStrip tranche={открытый} />}
+
+        {закрываю && открытый !== null && (
+          <div className="panel panel--pad stack stack--tight" role="group" aria-label="Закрытие транша">
+            <p className="t-body">
+              Транш № {открытый.number} закроется с выработкой {formatKopecks(BigInt(открытый.client))} для
+              заказчика из {formatKopecks(BigInt(открытый.amount))}. По нему соберётся акт № {открытый.number},
+              новая приёмка в этот транш уже не пойдёт. Закрытие не отменяется.
+            </p>
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={busy}
+                onClick={() => { run(closeTranche(code, открытый.id, {}), `Транш № ${String(открытый.number)} закрыт`); }}
+              >
+                Закрыть транш № {открытый.number}
+              </button>
+              <button type="button" className="btn btn--text" onClick={() => { setЗакрываю(false); }}>
+                Не закрывать
+              </button>
+            </div>
+          </div>
+        )}
 
         {sheetError !== null && !opening && (
           <p className="field__error" role="alert">{sheetError}</p>

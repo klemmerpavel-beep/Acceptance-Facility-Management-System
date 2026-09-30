@@ -88,6 +88,10 @@ export function Measure({
      перерисовка чтением с экрана не объявляется. */
   const [объявление, setОбъявление] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  /* Снятие плана удаляет файл: вернуть его можно только новой загрузкой.
+     Действие называет последствие до того, как случится (норматив 15.6;
+     полный аудит 30.09.2026, П-46). */
+  const [снимаюПлан, setСнимаюПлан] = useState(false);
 
   const load = useCallback(() => {
     fetchMeasure(code, set)
@@ -167,15 +171,36 @@ export function Measure({
             {view.plan.fileName}
             {view.plan.uploadedBy === null ? "" : `, загрузил ${view.plan.uploadedBy}`}
           </p>
-          {editable && (
+          {editable && !снимаюПлан && (
             <button
               type="button"
               className="btn btn--text"
               disabled={busy}
-              onClick={() => { run(deletePlan(code, set), "Обмерный план снят"); }}
+              onClick={() => { setСнимаюПлан(true); }}
             >
               Снять план
             </button>
+          )}
+          {editable && снимаюПлан && (
+            <div className="stack stack--tight" role="group" aria-label="Снятие плана">
+              <p className="t-body">
+                Снимок «{view.plan.fileName}» удалится с объекта и с диска. Помещения и их величины
+                останутся; вернуть план можно только новой загрузкой.
+              </p>
+              <div className="row">
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  disabled={busy}
+                  onClick={() => { setСнимаюПлан(false); run(deletePlan(code, set), "Обмерный план снят"); }}
+                >
+                  Снять план
+                </button>
+                <button type="button" className="btn btn--text" onClick={() => { setСнимаюПлан(false); }}>
+                  Не снимать
+                </button>
+              </div>
+            </div>
           )}
         </>
       )}

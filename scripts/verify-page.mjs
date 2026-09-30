@@ -518,6 +518,40 @@ const цели = async (page, где) => {
 };
 
 /**
+ * Гейт необратимого действия: норматив 15.6 «Необратимое действие называет
+ * последствия». Закрытие транша, снятие плана обмера, удаление черновика
+ * чека, шаблона документа и типовой сметы срабатывали с одного нажатия
+ * (полный аудит 30.09.2026, П-46), а обход ни одной из этих кнопок не
+ * нажимал.
+ *
+ * Проверяется поведение, а не разметка: первое нажатие не отправляет
+ * запроса, а открывает группу с опасной кнопкой и текстом последствия.
+ * Стенд не меняется — вызывающий отменяет или подтверждает сам.
+ */
+const гейт = async (лист, где, кнопка, запрос) => {
+  const ушло = [];
+  const слушать = (request) => {
+    if (запрос.test(`${request.method()} ${new URL(request.url()).pathname}`)) ушло.push(request.url());
+  };
+  лист.on("request", слушать);
+  await кнопка.click();
+  await лист.waitForTimeout(400);
+  лист.off("request", слушать);
+  if (ушло.length > 0) {
+    note("гейт", `${где}: действие ушло на сервер с первого нажатия`);
+    return false;
+  }
+  const группа = лист.locator('[role="group"]:has(.btn--danger)');
+  if ((await группа.count()) === 0) {
+    note("гейт", `${где}: после нажатия нет подтверждения с опасной кнопкой`);
+    return false;
+  }
+  const последствие = ((await группа.first().innerText()) ?? "").trim();
+  if (последствие.length < 40) note("гейт", `${где}: подтверждение не называет последствия: «${последствие}»`);
+  return true;
+};
+
+/**
  * Первичное действие раздела. Стоит в обложке — там, где начинается чтение, —
  * и ровно в одном числе: прежде кнопка лежала в заголовке рабочего полотна,
  * на главной это второй-третий экран прокрутки, а в пустом состоянии рядом
@@ -2743,6 +2777,13 @@ if (шаблоновНаЭкране === 0) {
   }
   await page.emulateMedia({ media: "screen" });
 
+  {
+    const удалить = page.locator('.record button:has-text("Удалить")');
+    if ((await удалить.count()) === 0) note("гейт", "документы организации: кнопки удаления шаблона нет — гейт не проверен");
+    else if (await гейт(page, "удаление шаблона", удалить.first(), /^DELETE \/api\/templates\//u)) {
+      await page.click('[role="group"] button:has-text("Не удалять")');
+    }
+  }
   await разметка("документы организации");
   await overflow("документы организации, 1440");
   await step("документы организации", "46-dokumenty-org.png");
@@ -3259,6 +3300,9 @@ if (orgName.trim() === "") note("настройки", "название орга
       note("типовые сметы", `происхождение заготовки не названо: «${подпись.trim()}»`);
     }
     console.log(`  типовые сметы: строк ${строки}, итог сошёлся с ответом`);
+    if (await гейт(page, "снятие типовой сметы", page.locator('.blueprint button:has-text("Снять")').first(), /^DELETE \/api\/blueprints\//u)) {
+      await page.click('[role="group"] button:has-text("Не снимать")');
+    }
   }
   await page.click('.tabs__item:has-text("Организация")');
   await page.waitForTimeout(300);
@@ -4711,6 +4755,13 @@ if ((await page.locator(".tranche__bar").count()) === 0) {
   }
   if (строк < 3) note("транши", `строк траншей ${String(строк)} — выравнивание столбцом проверено почти пустым списком`);
 }
+{
+  const закрыть = page.locator('.section-head button:has-text("Закрыть транш")');
+  if ((await закрыть.count()) === 0) note("гейт", "транши: кнопки закрытия нет — гейт не проверен");
+  else if (await гейт(page, "закрытие транша", закрыть.first(), /^POST .*\/closure$/u)) {
+    await page.click('[role="group"] button:has-text("Не закрывать")');
+  }
+}
 await step("транши", "36-transhi.png");
 await цели(page, "транши");
 await безымянные(page, "транши");
@@ -5310,6 +5361,35 @@ const РОЛИ_ВХОДА = [
   },
 ];
 
+/* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
+   сдвинули бы окно ленты. План заводится снимком проверки и снимается
+   подтверждением — стенд возвращается к «плана нет», а путь снятия
+   проходится целиком: и отказ от него, и само снятие. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.click('.appbar__link:has-text("Проекты")').catch(() => { /* уже там */ });
+  await page.waitForTimeout(600);
+  await page.locator(".objecttile", { hasText: "R-99" }).locator(".objecttile__link").first().click();
+  await page.waitForTimeout(1200);
+  await page.locator('.tabs__item:has-text("Замер")').click();
+  await page.waitForTimeout(800);
+  const поле = page.locator('label.filefield input[type="file"]');
+  if ((await поле.count()) === 0) {
+    note("гейт", "замер: поля загрузки плана нет — гейт снятия не проверен");
+  } else {
+    await поле.first().setInputFiles("scripts/fixtures/snimok.png");
+    await page.waitForSelector('button:has-text("Снять план")', { timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+    const снять = page.locator('button:has-text("Снять план")');
+    if ((await снять.count()) === 0) {
+      note("гейт", "замер: план не загрузился — гейт снятия не проверен");
+    } else if (await гейт(page, "снятие плана обмера", снять.first(), /^DELETE .*\/measure\/plan/u)) {
+      await page.click('[role="group"] .btn--danger');
+      await page.waitForSelector("label.filefield", { timeout: 5000 })
+        .catch(() => { note("гейт", "замер: подтверждённое снятие плана не вернуло поле загрузки"); });
+    }
+  }
+}
+
 for (const роль of РОЛИ_ВХОДА) {
   const ссылка = await fetch(`${API}/auth/magic-link`, {
     method: "POST",
@@ -5417,6 +5497,33 @@ for (const роль of РОЛИ_ВХОДА) {
     if (строкСметы === 0) {
       const наЭкране = ((await лист.locator(".empty__title").first().textContent().catch(() => "")) ?? "").trim();
       note("вход по ролям", `${роль.имя}: смета R-99 не открылась — «${наЭкране || "пусто"}»`);
+    }
+    /* Черновик чека удаляет прораб: гейт проверяется его рукой. */
+    if (роль.имя === "прораб") {
+      /* Черновик заводится запросом от имени прораба и удаляется
+         подтверждением: стенд остаётся прежним, путь пройден целиком. */
+      await лист.request.post(`${BASE}/api/projects/R-99/expenses`, {
+        multipart: {
+          expense: JSON.stringify({
+            kind: "OTHER", amount: "10000", reimbursable: false, seller: "Проверка гейта",
+            spentAt: "2026-09-05", sectionId: null, note: null,
+          }),
+          file: { name: "chek.png", mimeType: "image/png", buffer: readFileSync("scripts/fixtures/snimok.png") },
+        },
+      });
+      await лист.locator('.tabs__item:has-text("Чеки")').click();
+      await лист.waitForTimeout(900);
+      const строка = лист.locator(".record", { hasText: "Проверка гейта" });
+      const удалить = строка.locator('button:has-text("Удалить")');
+      if ((await удалить.count()) === 0) {
+        note("гейт", "прораб: черновика с кнопкой удаления нет — гейт не проверен");
+      } else if (await гейт(лист, "удаление черновика чека", удалить.first(), /^DELETE .*\/expenses\//u)) {
+        await лист.click('[role="group"] .btn--danger');
+        await лист.waitForTimeout(800);
+        if ((await строка.count()) > 0) note("гейт", "прораб: подтверждённое удаление черновика не убрало его");
+      }
+      await лист.locator('.tabs__item:has-text("Смета")').click();
+      await лист.waitForTimeout(600);
     }
     /* Типовые сметы — настройка компании. Кнопки, ведущие в закрытый
        сервером маршрут, у бухгалтера стояли (полный аудит 30.09.2026, П-23). */

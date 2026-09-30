@@ -56,6 +56,10 @@ export function Expenses({
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  /* Удалённый черновик не возвращается: снимок чека стирается с диска.
+     Действие называет последствие до того, как случится (норматив 15.6;
+     полный аудит 30.09.2026, П-46). */
+  const [удаляется, setУдаляется] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchExpenses(code)
@@ -138,7 +142,9 @@ export function Expenses({
               role={role}
               busy={busy === row.id}
               onDecide={(решение) => { run(row.id, decideExpense(code, row.id, решение)); }}
-              onDelete={() => { run(row.id, deleteExpense(code, row.id)); }}
+              удаляю={удаляется === row.id}
+              onAskDelete={(да) => { setУдаляется(да ? row.id : null); }}
+              onDelete={() => { setУдаляется(null); run(row.id, deleteExpense(code, row.id)); }}
             />
           ))}
         </ul>
@@ -161,6 +167,8 @@ function Чек({
   role,
   busy,
   onDecide,
+  удаляю,
+  onAskDelete,
   onDelete,
 }: {
   code: string;
@@ -168,6 +176,8 @@ function Чек({
   role: Role;
   busy: boolean;
   onDecide: (решение: "confirm" | "reject") => void;
+  удаляю: boolean;
+  onAskDelete: (да: boolean) => void;
   onDelete: () => void;
 }): React.JSX.Element {
   const черновик = row.status === "DRAFT";
@@ -218,10 +228,21 @@ function Чек({
             </button>
           </span>
         )}
-        {черновик && !ownerLevel(role) && (
-          <button type="button" className="btn btn--text" disabled={busy} onClick={onDelete}>
+        {черновик && !ownerLevel(role) && !удаляю && (
+          <button type="button" className="btn btn--text" disabled={busy} onClick={() => { onAskDelete(true); }}>
             Удалить
           </button>
+        )}
+        {черновик && !ownerLevel(role) && удаляю && (
+          <span className="record__actions" role="group" aria-label="Удаление черновика">
+            <span className="t-sm">Черновик и снимок чека удалятся.</span>
+            <button type="button" className="btn btn--danger" disabled={busy} onClick={onDelete}>
+              Удалить черновик
+            </button>
+            <button type="button" className="btn btn--text" onClick={() => { onAskDelete(false); }}>
+              Не удалять
+            </button>
+          </span>
         )}
       </div>
     </li>

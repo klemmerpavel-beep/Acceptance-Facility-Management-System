@@ -121,7 +121,7 @@ export type Organization = z.infer<typeof organizationSchema>;
 
 /** Правка организации: пустая строка в необязательном поле означает «стереть». */
 export const updateOrganizationSchema = z.object({
-  name: z.string().min(1, "Название обязательно").max(200).optional(),
+  name: z.string().trim().min(1, "Название обязательно").max(200).optional(),
   timeZone: timeZoneSchema.optional(),
   phone: z.string().max(32).nullable().optional(),
   // Пустая строка означает «стереть»: форма присылает очищенное поле,
@@ -1000,7 +1000,7 @@ const inRange = (schema: typeof measureAmountSchema, min: number, max: number, w
   }, `${what} вне допустимых границ`);
 
 export const createMeasureRoomSchema = z.object({
-  name: z.string().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
+  name: z.string().trim().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
   floorArea: inRange(measureAmountSchema, 1, AREA_MAX, "Площадь пола"),
   floorPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр пола"),
   ceilingPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр потолка"),
@@ -1809,7 +1809,7 @@ export const templateKindSchema = z.enum(["CONTRACT", "ANNEX", "OTHER"]);
 export type TemplateKind = z.infer<typeof templateKindSchema>;
 
 export const documentClauseSchema = z.object({
-  title: z.string().min(1, "У пункта нет заголовка").max(200),
+  title: z.string().trim().min(1, "У пункта нет заголовка").max(200),
   body: z.string().max(20_000),
 });
 export type DocumentClause = z.infer<typeof documentClauseSchema>;
@@ -1834,7 +1834,7 @@ export const templateRowSchema = z.object({
 export type TemplateRow = z.infer<typeof templateRowSchema>;
 
 export const saveTemplateSchema = z.object({
-  name: z.string().min(1, "У шаблона нет наименования").max(200),
+  name: z.string().trim().min(1, "У шаблона нет наименования").max(200),
   kind: templateKindSchema,
   clauses: z.array(documentClauseSchema).min(1, "В шаблоне нет ни одного пункта"),
 });
@@ -1842,7 +1842,7 @@ export type SaveTemplate = z.infer<typeof saveTemplateSchema>;
 
 /** Выпуск документа: шаблон и объект, по которому подставляются значения. */
 export const issueDocumentSchema = z.object({
-  projectCode: z.string().min(1, "Не выбран объект"),
+  projectCode: z.string().trim().min(1, "Не выбран объект"),
 });
 export type IssueDocument = z.infer<typeof issueDocumentSchema>;
 
@@ -1881,7 +1881,7 @@ export const personRowSchema = z.object({
 export type PersonRow = z.infer<typeof personRowSchema>;
 
 export const inviteUserSchema = z.object({
-  name: z.string().min(1, "Нужно имя").max(200),
+  name: z.string().trim().min(1, "Нужно имя").max(200),
   role: roleSchema,
   email: z.union([z.literal(""), z.string().email("Нужен адрес почты")]).nullable()
     .transform((значение) => (значение === "" ? null : значение)),

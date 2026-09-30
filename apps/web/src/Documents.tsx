@@ -127,7 +127,12 @@ export function Documents({
       .finally(() => { setBusy(false); });
   };
 
+  /* Удаление шаблона называет последствие до того, как случится (норматив
+     15.6); прежде шаблон удалялся с одного нажатия (полный аудит 30.09.2026,
+     П-46). */
+  const [удаляется, setУдаляется] = useState<string | null>(null);
   const удалить = (row: TemplateRow): void => {
+    setУдаляется(null);
     setBusy(true);
     deleteTemplate(row.id)
       .then((next) => {
@@ -202,18 +207,33 @@ export function Documents({
                     >
                       {открыт === row.id ? "Свернуть" : "Открыть"}
                     </button>
-                    {правит && (
+                    {правит && удаляется !== row.id && (
                       <button
                         type="button"
                         className="btn btn--text"
                         disabled={busy}
-                        onClick={() => { удалить(row); }}
+                        onClick={() => { setУдаляется(row.id); }}
                       >
                         Удалить
                       </button>
                     )}
                   </span>
                 </div>
+                {правит && удаляется === row.id && (
+                  <div className="stack stack--tight" role="group" aria-label="Удаление шаблона">
+                    <p className="t-body">
+                      Шаблон «{row.name}» удалится вместе с пунктами; выпустить по нему документ будет нельзя.
+                    </p>
+                    <div className="row">
+                      <button type="button" className="btn btn--danger" disabled={busy} onClick={() => { удалить(row); }}>
+                        Удалить шаблон
+                      </button>
+                      <button type="button" className="btn btn--text" onClick={() => { setУдаляется(null); }}>
+                        Не удалять
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
