@@ -368,6 +368,11 @@ export function ProjectCard({
       {/* Штамп объекта. Те же сведения, что несла цветная обложка, но
           набранные как штамп рабочего чертежа: графа, подпись, значение. */}
       <div className="container">
+        {/* Имя экрана для того, кто его не видит: у карточки нет обложки, и
+            заголовка первого уровня на ней не было вовсе — перейти к началу
+            экрана по заголовкам было не к чему (полный аудит 30.09.2026,
+            П-31). Глазом штамп называет объект и без него. */}
+        <h1 className="visually-hidden">Объект {project.code}, {project.address}</h1>
         <p className="stamp__crumbs">
           {/* Крошка называет раздел, в который возвращает, а не сущность, которая
               в нём лежит. Прежде здесь стояли «Объекты» — слово, которого нет ни
@@ -470,14 +475,19 @@ export function ProjectCard({
           <aside className="stack">
             <div className="figure">
               <span className="figure__label">Итог сметы для клиента</span>
+              {/* Сметы нет — величину не завели, а не «её нет в природе»:
+                  слово словаря, а не прочерк (правило 6 `07_IA.md`). Прежде
+                  здесь стояли «—» и «смета не загружена» рядом со словарным
+                  «Сметы нет» в штампе того же экрана (полный аудит
+                  30.09.2026, П-9). */}
               <span className="figure__value">
-                {project.estimateTotal === null ? "—" : money(project.estimateTotal)}
+                {project.estimateTotal === null ? пусто("смета", "краткое") : money(project.estimateTotal)}
               </span>
-              <span className="figure__note">
-                {estimate === null
-                  ? "смета не загружена"
-                  : `включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
-              </span>
+              {estimate !== null && (
+                <span className="figure__note">
+                  {`включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
+                </span>
+              )}
             </div>
 
             {/* Ориентир, названный на заявке до выезда, — рядом с итогом
@@ -677,6 +687,7 @@ export function ProjectCard({
                 estimate={estimate}
                 events={events}
                 today={today}
+                заводитСмету={ownerLevel(user.role)}
                 onReport={() => { setTab("report"); }}
               />
               )}
@@ -932,12 +943,15 @@ function Overview({
   estimate,
   events,
   today,
+  заводитСмету,
   onReport,
 }: {
   project: ProjectSummary;
   estimate: EstimateView | null;
   events: ProjectEvent[];
   today: string;
+  /** Может ли вошедший завести смету: от этого зависит, куда зовёт пустое состояние. */
+  заводитСмету: boolean;
   /** Переход на фотоотчёт: обложка ведёт туда, откуда она взята. */
   onReport: () => void;
 }): React.JSX.Element {
@@ -998,18 +1012,26 @@ function Overview({
               <>
                 <span className="metric">
                   <span className="metric__value">{passed.working}</span>
-                  <span className="metric__label">Рабочих дней прошло</span>
+                  {/* Подпись согласуется с числом: «152 рабочих дней прошло»
+                      стояло на карточке R-99 (полный аудит 30.09.2026, П-29). */}
+                  <span className="metric__label">
+                    {plural(passed.working, "Рабочий день прошёл", "Рабочих дня прошло", "Рабочих дней прошло")}
+                  </span>
                 </span>
                 <span className="metric">
                   <span className="metric__value">{passed.calendar}</span>
-                  <span className="metric__label">Календарных прошло</span>
+                  <span className="metric__label">
+                    {plural(passed.calendar, "Календарный прошёл", "Календарных прошло", "Календарных прошло")}
+                  </span>
                 </span>
               </>
             )}
             {contract !== null && (
               <span className="metric">
                 <span className="metric__value">{contract.calendar}</span>
-                <span className="metric__label">Календарных по договору</span>
+                <span className="metric__label">
+                  {plural(contract.calendar, "Календарный по договору", "Календарных по договору", "Календарных по договору")}
+                </span>
               </span>
             )}
             {/* Плитки «Позиций в смете» здесь нет намеренно: ряд назван
@@ -1032,9 +1054,14 @@ function Overview({
         </div>
         {estimate === null ? (
           <div className="empty">
-            <p className="empty__title">Смета не загружена</p>
+            <p className="empty__title">{Пусто("смета")}</p>
+            {/* Пустое состояние зовёт к действию того, кто его читает. Прежде
+                оно описывало устройство импорта — и заказчику, и прорабу,
+                которым импорт недоступен (полный аудит 30.09.2026, П-9). */}
             <p className="empty__text">
-              Импорт разбирает книгу Excel и показывает отчёт о расхождениях до записи в базу.
+              {заводитСмету
+                ? "Импортируйте книгу Excel на вкладке «Импорт»: отчёт о расхождениях покажется до записи."
+                : "Смету заводит руководитель. Она появится здесь, как только будет готова."}
             </p>
           </div>
         ) : (

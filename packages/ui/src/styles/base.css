@@ -32,11 +32,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); text-underline-offset: 2px; }
 
 /* --- типографические роли ------------------------------------------------
-   Заголовки и надзаголовки набираются узким гротеском, текст — Golos,
-   числа — моноширинным. Три роли, три гарнитуры: так набирают бланк, а не
-   страницу. Узкий гротеск не уходит в абзацы: там он нечитаем.          */
-.t-h1      { font-family: var(--font-ui); font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: 700; letter-spacing: .01em; }
-.t-h2      { font-family: var(--font-ui); font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: 700; letter-spacing: .01em; }
+   Две роли, две гарнитуры: текст и заголовки — Golos, числа — моноширинным
+   (`fonts.css`). Узкий гротеск заголовков снят редакцией 2.0; прежний
+   комментарий называл три гарнитуры и прожил её на полгода.
+
+   Вес заголовков — токеном. Прежде здесь стояло 700 мимо `--fw-h1` и
+   `--fw-h2` = 600 при загруженных 400, 500 и 600: браузер с загруженной
+   гарнитурой рисовал 600, а на запасном стеке — 700, и заголовок выглядел
+   по-разному у разных людей (находка 4.4 первого аудита интерфейса;
+   полный аудит 30.09.2026, П-10). */
+.t-h1      { font-family: var(--font-ui); font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: var(--fw-h1); letter-spacing: .01em; }
+.t-h2      { font-family: var(--font-ui); font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--fw-h2); letter-spacing: .01em; }
 .t-h3      { font-size: var(--fs-h3);      line-height: var(--lh-h3);      font-weight: var(--fw-h3); }
 .t-body    { font-size: var(--fs-body);    line-height: var(--lh-body);    font-weight: var(--fw-body); }
 .t-sm      { font-size: var(--fs-sm);      line-height: var(--lh-sm);      font-weight: var(--fw-sm); }

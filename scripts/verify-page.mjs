@@ -109,9 +109,14 @@ page.on("console", (message) => {
   else note("ошибка консоли", text.slice(0, 160));
 });
 page.on("pageerror", (error) => note("исключение страницы", String(error).slice(0, 160)));
+/* Подпись называет причину. Сорванный снимок приёмки подписывался «сеть
+   песочницы», хотя его сорвала сама проверка: читающий вывод искал сетевую
+   неполадку там, где её нет (полный аудит 30.09.2026, П-14). */
+const почему = (url) => (url.includes("/acceptance/photo/") ? "сорвано проверкой" : "сеть песочницы");
+
 page.on("requestfailed", (request) => {
   const detail = `${request.method()} ${request.url()} — ${request.failure()?.errorText ?? ""}`;
-  if (expected(request.url())) environment.push(`сеть песочницы: ${request.url().slice(0, 60)}`);
+  if (expected(request.url())) environment.push(`${почему(request.url())}: ${request.url().slice(0, 60)}`);
   else note("запрос не выполнен", detail);
 });
 page.on("response", (response) => {
@@ -553,7 +558,7 @@ const step = async (name, file) => {
 };
 
 /**
- * Разметка текущего экрана — три правила, общие для всего продукта.
+ * Разметка текущего экрана — правила, общие для всего продукта.
  *
  * Правило на класс дефектов, а не на место: экранов много, и правило,
  * названное по имени файла, стережёт один экран и молчит на следующем,
@@ -569,6 +574,17 @@ const step = async (name, file) => {
  *    пустоту, объявляет выбор, за которым ничего не стоит.
  * 4. Прямым потомком `dl` допустимы `dt`, `dd` и `div`; абзац внутри
  *    списка определений браузеры разбирают по-своему.
+ * 5. Заголовок первого уровня на экране один. «Документы организации»
+ *    стояли двумя `h1` подряд — обложкой и заголовком полотна (полный аудит
+ *    30.09.2026, П-31).
+ * 6. Метка в строке списка не наезжает на соседа. Пилюли «Руководитель» и
+ *    «Дополнительное соглашение» не входили в дорожку под снимок и ложились
+ *    на имя (П-31).
+ * 7. Бейдж кода не растянут по дорожке: в строке расхода он вытягивался на
+ *    всю колонку объекта и читался полосой заливки, а не меткой (П-31).
+ * 8. Заголовок колонки выровнен так же, как её значения. В смете и в акте
+ *    числа стояли по правому краю, а их заголовки — по левому: «Сумма»
+ *    висела над пустотой колонки (П-32).
  */
 const разметка = async (экран) => {
   const найдено = await page.evaluate(() => {
@@ -600,6 +616,69 @@ const разметка = async (экран) => {
           беды.push(`вкладка ${имя(таб)} ссылается на несуществующую панель «${цель}»`);
         }
       }
+    }
+
+    const видимые = (el) => {
+      const коробка = el.getBoundingClientRect();
+      return коробка.width > 0 && коробка.height > 0 && getComputedStyle(el).visibility !== "hidden";
+    };
+    const заголовков = [...document.querySelectorAll("h1")].filter(видимые).length;
+    if (заголовков !== 1) беды.push(`заголовков первого уровня ${String(заголовков)} вместо одного`);
+
+    /* Мерится текст, а не коробка: пилюля в узкой дорожке растянута ровно по
+       ней, а не переносящийся текст выходит за её край и ложится на соседа.
+       Первая редакция правила мерила коробки и на откате молчала. */
+    const правыйКрай = (el) => {
+      const текст = document.createRange();
+      текст.selectNodeContents(el);
+      return Math.max(el.getBoundingClientRect().right, текст.getBoundingClientRect().right);
+    };
+    for (const строка of document.querySelectorAll(".record, .money__row")) {
+      const дети = [...строка.children].filter(видимые);
+      for (let i = 0; i + 1 < дети.length; i += 1) {
+        const левый = { ...дети[i].getBoundingClientRect().toJSON(), right: правыйКрай(дети[i]) };
+        const правый = дети[i + 1].getBoundingClientRect();
+        const наОднойЛинии = левый.top < правый.bottom && правый.top < левый.bottom;
+        if (наОднойЛинии && левый.right > правый.left + 1) {
+          беды.push(`в строке ${имя(строка)} «${(дети[i].textContent ?? "").trim().slice(0, 24)}»`
+            + ` наезжает на соседа на ${String(Math.round(левый.right - правый.left))} px`);
+        }
+      }
+    }
+
+    for (const бейдж of document.querySelectorAll(".code-badge")) {
+      if (!видимые(бейдж)) continue;
+      const текст = document.createRange();
+      текст.selectNodeContents(бейдж);
+      const вид = getComputedStyle(бейдж);
+      const поля = Number.parseFloat(вид.paddingLeft) + Number.parseFloat(вид.paddingRight)
+        + Number.parseFloat(вид.borderLeftWidth) + Number.parseFloat(вид.borderRightWidth);
+      const лишнее = бейдж.getBoundingClientRect().width - текст.getBoundingClientRect().width - поля;
+      if (лишнее > 8) {
+        беды.push(`бейдж «${(бейдж.textContent ?? "").trim()}» растянут на ${String(Math.round(лишнее))} px сверх текста`);
+      }
+    }
+
+    const край = (el) => {
+      const значение = getComputedStyle(el).textAlign;
+      if (значение === "start") return "left";
+      if (значение === "end") return "right";
+      return значение;
+    };
+    for (const таблица of document.querySelectorAll("table")) {
+      if (!видимые(таблица)) continue;
+      const шапка = [...таблица.querySelectorAll("thead tr:last-child th")];
+      const строка = [...таблица.querySelectorAll("tbody tr")]
+        .find((ряд) => ряд.children.length === шапка.length);
+      if (строка === undefined) continue;
+      шапка.forEach((заголовок, номер) => {
+        const ячейка = строка.children[номер];
+        if (ячейка === undefined || край(ячейка) !== "right") return;
+        if (край(заголовок) !== "right") {
+          беды.push(`в таблице ${имя(таблица)} заголовок «${(заголовок.textContent ?? "").trim()}»`
+            + ` стоит «${край(заголовок)}» над значениями по правому краю`);
+        }
+      });
     }
 
     for (const список of document.querySelectorAll("dl")) {
@@ -1448,6 +1527,32 @@ const крошка = async () =>
 }
 
 await разметка("карточка объекта");
+/* Подпись метрики согласована с числом. «152 рабочих дней прошло» стояло
+   на карточке R-99: подпись была написана под «много» и не склонялась
+   (полный аудит 30.09.2026, П-29). Правило — русское правило числа, а не
+   перечень подписей. */
+{
+  const метрики = await page.evaluate(() => [...document.querySelectorAll(".metric")].map((метрика) => ({
+    число: Number.parseInt((метрика.querySelector(".metric__value")?.textContent ?? "").replace(/\D/gu, ""), 10),
+    подпись: (метрика.querySelector(".metric__label")?.textContent ?? "").trim().toLowerCase(),
+  })));
+  const форма = (n) => {
+    const сотни = n % 100;
+    const единицы = n % 10;
+    if (сотни > 10 && сотни < 20) return "дней";
+    if (единицы > 1 && единицы < 5) return "дня";
+    if (единицы === 1) return "день";
+    return "дней";
+  };
+  for (const { число, подпись } of метрики) {
+    if (!Number.isFinite(число) || !/(?<![а-яё])(день|дня|дней)(?![а-яё])/u.test(подпись)) continue;
+    const надо = форма(число);
+    if (!new RegExp(`(^|\\s)${надо}(?![а-яё])`, "u").test(подпись)) {
+      note("карточка", `«${String(число)} ${подпись}»: подпись не согласована с числом — нужно «${надо}»`);
+    }
+  }
+  if (метрики.length === 0) note("карточка", "метрик сроков на карточке нет — согласование проверено пустым местом");
+}
 await step("карточка объекта, обзор", "05-kartochka.png");
 /* Правка значения на месте. Проверяется путь целиком, а не наличие кнопки:
    значение меняется, новое видно в карточке, и правка уходит в журнал.
@@ -4551,6 +4656,24 @@ if ((await page.locator(".tranche__bar").count()) === 0) {
   }
 }
 
+/* Список траншей читается столбцом: одноимённые величины соседних строк
+   стоят на одной вертикали. Прежде «выработано» стояло на 753, 833, 838 и
+   860 px — где встанет величина, решала длина чисел (полный аудит
+   30.09.2026, П-33). Меряется правый край числа: суммы сравнивают по
+   разрядам, а разряды выровнены вправо. */
+{
+  const края = await page.evaluate(() => [...document.querySelectorAll(".tranche__row")].map((строка) =>
+    [...строка.querySelectorAll(".tranche__figures > span")].map((ячейка) =>
+      Math.round(ячейка.querySelector(".num")?.getBoundingClientRect().right ?? 0))));
+  const строк = края.length;
+  for (let номер = 0; номер < 4; номер += 1) {
+    const столбец = [...new Set(края.map((ряд) => ряд[номер]).filter((край) => край !== undefined && край > 0))];
+    if (столбец.length > 1) {
+      note("транши", `величина № ${String(номер + 1)} в ${String(строк)} строках стоит на ${String(столбец.length)} разных вертикалях: ${столбец.join(", ")} px`);
+    }
+  }
+  if (строк < 3) note("транши", `строк траншей ${String(строк)} — выравнивание столбцом проверено почти пустым списком`);
+}
 await step("транши", "36-transhi.png");
 await цели(page, "транши");
 await безымянные(page, "транши");

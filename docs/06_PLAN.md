@@ -187,7 +187,7 @@
 ## Проверка результата
 
 1. Миграции применяются с нуля на чистой базе (проверено). `docker compose up` из чистого клона не запускался: демон Docker в среде разработки недоступен — пункт 0.17.
-2. `npx vitest run` — 773 теста: деньги и правило округления на числах действующей сметы, проекция полей по роли и аудитории, сборка дерева сметы, сводка портфеля и календарь, разбор файла на обезличенной фикстуре, механические проверки норм дизайн-системы вместе с контрастом палитры.
+2. `npx vitest run` — 822 теста: деньги и правило округления на числах действующей сметы, проекция полей по роли и аудитории, сборка дерева сметы, сводка портфеля и календарь, разбор файла на обезличенной фикстуре, механические проверки норм дизайн-системы вместе с контрастом палитры.
 3. `node scripts/verify-api.mjs` — разграничение на уровне полей поверх HTTP на настоящей смете.
 4. `node scripts/verify-page.mjs` — сквозной сценарий браузером на ширинах 1440, 768 и 360 px.
 4-а. `node scripts/verify-demo.mjs` — обход собранной демонстрации браузером: слой `api.demo.ts` не стережёт ни обход страницы, ни проверка публикации, а открывает заказчик именно его.
@@ -261,11 +261,15 @@ GitHub хранит исходники, но не запускает прило�
 
 ```
 pnpm install
-createdb priyomka                                   # PostgreSQL 16
-# кластер запускается от непривилегированного пользователя:
+pnpm --filter @priyomka/api exec prisma generate    # и после каждой смены ветки
+# PostgreSQL 16; кластер запускается от непривилегированного пользователя:
 # runuser -u postgres -- pg_ctl -D <каталог> -l <журнал> start
-DATABASE_URL=... pnpm --filter @priyomka/api exec prisma migrate deploy
-DATABASE_URL=... pnpm --filter @priyomka/api exec node prisma/seed.mjs
+# вход — ролью с паролем: scram-sha-256 строку без пароля не пускает
+# runuser -u postgres -- psql -c "CREATE ROLE priyomka LOGIN PASSWORD '…'"
+# runuser -u postgres -- createdb -O priyomka priyomka
+export DATABASE_URL=postgresql://priyomka:…@127.0.0.1:5432/priyomka
+pnpm --filter @priyomka/api exec prisma migrate deploy
+pnpm --filter @priyomka/api exec node prisma/seed.mjs
 pnpm --filter @priyomka/api run build && node apps/api/dist/apps/api/src/main.js
 pnpm --filter @priyomka/web run dev
 node scripts/seed-estimate.mjs                      # смета через API, не записью в таблицы

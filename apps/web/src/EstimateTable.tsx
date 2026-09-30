@@ -434,7 +434,7 @@ export function EstimateTable({
               </tr>
             )}
             <tr>
-              <th scope="col">№</th>
+              <th scope="col" className="estimate__num">№</th>
               <th scope="col">Наименование</th>
               <th scope="col">Ед.</th>
               <th scope="col" className="estimate__num">Кол.</th>

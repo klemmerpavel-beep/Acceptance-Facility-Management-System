@@ -237,8 +237,14 @@ export function Accounting({
           <ul className="money spend">
             {view.expenses.map((строка) => (
               <li className="money__row spend__row" key={строка.projectCode}>
-                <span className="code-badge">{строка.projectCode}</span>
-                <span className="money__address" title={строка.address}>{строка.address}</span>
+                {/* Объект — одной ячейкой на двух первых дорожках, как в
+                    ведомости выше. Порознь бейдж растягивался на всю первую
+                    дорожку, а адрес резался во второй (полный аудит
+                    30.09.2026, П-31). */}
+                <span className="spend__project">
+                  <span className="code-badge">{строка.projectCode}</span>
+                  <span className="money__address" title={строка.address}>{строка.address}</span>
+                </span>
                 <span className="money__when t-sm t-muted">потрачено</span>
                 <span className="money__sum num">{formatKopecks(BigInt(строка.spent))}</span>
                 <span className="money__when t-sm t-muted">к возмещению</span>

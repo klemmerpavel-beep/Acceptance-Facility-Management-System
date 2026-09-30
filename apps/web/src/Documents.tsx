@@ -10,6 +10,7 @@ import {
   updateTemplate,
 } from "./api.js";
 import { Announce } from "./Announce.js";
+import { useModalDialog } from "./modal.js";
 import { имяЛиста, печать } from "./print.js";
 import { завести } from "./verbs.js";
 
@@ -58,6 +59,11 @@ export function Documents({
   const [документ, setДокумент] = useState<IssuedDocument | null>(null);
   const [правка, setПравка] = useState<{ id: string | null; name: string; kind: string; clauses: Пункт[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Устойчивый обработчик: лист правки поднимает текст в этот компонент на
+     каждое нажатие клавиши, и новый обработчик на каждой отрисовке
+     перезапускал бы клавиатурный контракт листа — фокус уезжал бы на первое
+     поле посреди набора. */
+  const закрытьПравку = useCallback(() => { setПравка(null); setError(null); }, []);
   const [busy, setBusy] = useState(false);
   const [объявление, setОбъявление] = useState<string | null>(null);
   /* Бланк появляется ниже перечня — за сгибом на любом экране. Нажавший
@@ -148,7 +154,10 @@ export function Documents({
 
       <div className="docs-screen stack stack--loose">
         <div className="section-head">
-          <h1 className="t-h1">Документы организации</h1>
+          {/* Экран уже назван обложкой; второй `h1` с тем же текстом стоял
+              прямо под ней (полный аудит 30.09.2026, П-31). Здесь назван
+              перечень, а не экран. */}
+          <h2 className="t-h2">Шаблоны</h2>
           {правит && (
             <button
               type="button"
@@ -174,7 +183,7 @@ export function Documents({
             </p>
           </div>
         ) : (
-          <ul className="records">
+          <ul className="records records--label">
             {rows.map((row) => (
               <li className="record" key={row.id}>
                 <span className="pill">{ВИДЫ[row.kind] ?? row.kind}</span>
@@ -289,7 +298,7 @@ export function Documents({
           busy={busy}
           onChange={setПравка}
           onSave={сохранить}
-          onClose={() => { setПравка(null); setError(null); }}
+          onClose={закрытьПравку}
         />
       )}
     </main>
@@ -356,9 +365,13 @@ function TemplateSheet({
   const правь = (изменение: Partial<typeof правка>): void => { onChange({ ...правка, ...изменение }); };
   const чужие = unknownVariables(
     правка.clauses.map((пункт) => `${пункт.title}\n${пункт.body}`).join("\n"));
+  /* Клавиатурный контракт листа — общий: Escape, Tab внутри листа, возврат
+     фокуса. Роль `dialog` и `aria-modal` стояли, контракта не было (полный
+     аудит 30.09.2026, П-30). */
+  const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
 
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-label="Шаблон документа">
+    <div className="sheet" role="dialog" aria-modal="true" aria-label="Шаблон документа" ref={dialog}>
       <div className="sheet__body stack stack--tight">
         <h2 className="t-h2">{правка.id === null ? "Новый шаблон" : "Правка шаблона"}</h2>
 
@@ -366,6 +379,7 @@ function TemplateSheet({
           <span className="field__label">Наименование</span>
           <input
             className="input"
+            ref={first}
             value={правка.name}
             onChange={(event) => { правь({ name: event.target.value }); }}
           />

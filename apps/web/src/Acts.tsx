@@ -93,7 +93,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
     <div className="stack stack--loose">
       <div className="acts-screen stack stack--loose">
         <Announce text={объявление} />
-        <ul className="records">
+        <ul className="records records--label">
           {rows.map((row) => (
             <li className="record" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>
               <span className="code-badge">№ {row.number}</span>
@@ -236,11 +236,11 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
             <tr>
               <th scope="col">Работа</th>
               <th scope="col">Ед.</th>
-              <th scope="col" className="num">Кол-во</th>
-              <th scope="col" className="num">Цена</th>
-              <th scope="col" className="num">Сумма</th>
-              {внутренний && <th scope="col" className="num">Начислено</th>}
-              {внутренний && <th scope="col" className="num">Прибыль</th>}
+              <th scope="col" className="estimate__num">Кол-во</th>
+              <th scope="col" className="estimate__num">Цена</th>
+              <th scope="col" className="estimate__num">Сумма</th>
+              {внутренний && <th scope="col" className="estimate__num">Начислено</th>}
+              {внутренний && <th scope="col" className="estimate__num">Прибыль</th>}
             </tr>
           </thead>
           <tbody>
@@ -248,14 +248,14 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
               <tr key={`${line.name}-${String(индекс)}`}>
                 <td>{line.name}</td>
                 <td>{line.unit}</td>
-                <td className="num">{formatMeasure(BigInt(line.qty), "")}</td>
-                <td className="num">{formatKopecks(BigInt(line.unitPrice))}</td>
-                <td className="num">{formatKopecks(BigInt(line.total))}</td>
+                <td className="estimate__num">{formatMeasure(BigInt(line.qty), "")}</td>
+                <td className="estimate__num">{formatKopecks(BigInt(line.unitPrice))}</td>
+                <td className="estimate__num">{formatKopecks(BigInt(line.total))}</td>
                 {внутренний && (
-                  <td className="num">{formatKopecks(BigInt(line.wageTotal ?? "0"))}</td>
+                  <td className="estimate__num">{formatKopecks(BigInt(line.wageTotal ?? "0"))}</td>
                 )}
                 {внутренний && (
-                  <td className="num">
+                  <td className="estimate__num">
                     {formatKopecks(BigInt(line.profit ?? "0"))}
                     <span className="t-sm t-muted"> · {formatPercent(BigInt(line.profitShare ?? 0))}</span>
                   </td>
@@ -266,20 +266,20 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
           <tfoot>
             <tr>
               <th scope="row" colSpan={4}>Работы</th>
-              <td className="num">{formatKopecks(BigInt(act.totals.works))}</td>
-              {внутренний && <td className="num">{formatKopecks(BigInt(act.totals.wage ?? "0"))}</td>}
-              {внутренний && <td className="num">{formatKopecks(BigInt(act.totals.profit ?? "0"))}</td>}
+              <td className="estimate__num">{formatKopecks(BigInt(act.totals.works))}</td>
+              {внутренний && <td className="estimate__num">{formatKopecks(BigInt(act.totals.wage ?? "0"))}</td>}
+              {внутренний && <td className="estimate__num">{formatKopecks(BigInt(act.totals.profit ?? "0"))}</td>}
             </tr>
             <tr>
               <th scope="row" colSpan={4}>
                 Сопровождение объекта {formatPercent(BigInt(act.totals.supervisionShare))}
               </th>
-              <td className="num">{formatKopecks(BigInt(act.totals.supervision))}</td>
+              <td className="estimate__num">{formatKopecks(BigInt(act.totals.supervision))}</td>
               {внутренний && <td colSpan={2} />}
             </tr>
             <tr>
               <th scope="row" colSpan={4}>Итого к оплате</th>
-              <td className="num t-strong">{formatKopecks(BigInt(act.totals.total))}</td>
+              <td className="estimate__num t-strong">{formatKopecks(BigInt(act.totals.total))}</td>
               {внутренний && <td colSpan={2} />}
             </tr>
           </tfoot>

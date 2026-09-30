@@ -556,6 +556,12 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .estimate tbody tr:hover td { background: var(--accent-soft); }
 
 .estimate__num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Заголовок числовой колонки стоит над своими числами — по правому краю — и
+   набран, как прочие заголовки. Правило шапки выше старше класса колонки, и
+   «Сумма» стояла у левого края колонки шириной в полэкрана, над пустотой,
+   моноширинным набором среди гротеска соседних заголовков (полный аудит
+   30.09.2026, П-32). */
+.estimate thead th.estimate__num { text-align: right; font-family: inherit; }
 
 /* Ячейка номера несёт ручку перестановки и сам номер. Ручка стоит слева
    от числа и занимает зону 44 px, не растягивая строку: отрицательные поля
@@ -786,7 +792,17 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 }
 @media (min-width: 768px) {
   .tranche__row { grid-template-columns: minmax(0, 1fr) minmax(0, 34rem) 14rem; align-items: center; }
-  .tranche__figures { grid-row: 1; grid-column: 2; justify-content: space-between; }
+  /* Величины — сеткой два на два, число у правого края своей ячейки. Прежде
+     четыре величины лежали строкой с переносом и `space-between`: где они
+     встанут, решала длина чисел, и «выработано» стояло на 753, 833, 838 и
+     860 px в соседних строках — список, который обещал читаться таблицей,
+     столбцом не сравнивался (полный аудит 30.09.2026, П-33). */
+  .tranche__figures {
+    grid-row: 1; grid-column: 2;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1) var(--space-5);
+  }
+  .tranche__figures > span { display: flex; justify-content: space-between; gap: var(--space-2); }
   .tranche__state { grid-row: 1; grid-column: 3; justify-content: flex-end; }
 }
 
@@ -1132,6 +1148,10 @@ button.appbar__link { gap: var(--space-1); border: 0; background: none;
 .datatable__table { inline-size: 100%; border-collapse: collapse; }
 .datatable__table th { padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line-strong); text-align: start; white-space: nowrap; }
+/* Заголовок числовой колонки — над числами, по правому краю: правило выше
+   старше класса колонки, и «Итог сметы» стояла у левого края над суммами у
+   правого (полный аудит 30.09.2026, П-32). */
+.datatable__table th.datatable__num { text-align: end; }
 /* Высота строки задаётся токеном, а не обивкой ячейки. При обивке высоту
    назначал самый высокий орган внутри: реестр объектов давал 69 px там, где
    статус меняют пилюлей-кнопкой, и 48 там, где не меняют, — одна таблица в
@@ -2242,6 +2262,16 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    нами, а не договором. */
 .money--clients .money__row--client > :nth-child(2) { grid-column: 2 / span 2; }
 
+/* Строка расхода: объект — одной ячейкой на дорожках объекта и заказчика,
+   чтобы суммы встали на вертикали сумм ведомости. Порознь бейдж кода
+   растягивался на первую дорожку, а адрес резался во второй (полный аудит
+   30.09.2026, П-31). */
+.spend__project {
+  grid-column: 1 / span 2;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-inline-size: 0; font-size: var(--fs-sm);
+}
+
 /* --- 5.37 Обложка объекта на вкладке «Обзор» --------------------------------
    Карточку открывают, чтобы вспомнить, что это за объект, и снимок отвечает
    на это быстрее шести чисел. Пропорция та же, что у плитки портфеля: один
@@ -2399,6 +2429,21 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   border-block-end: 1px solid var(--line);
 }
 .record:last-child { border-block-end: 0; }
+
+/* Список с меткой вместо снимка: роль человека, вид документа, номер акта.
+   Первая дорожка `.record` — 64 px под снимок чека, и метка «Руководитель»
+   или «Дополнительное соглашение» в неё не входила: пилюля не переносится и
+   наезжала на имя (полный аудит 30.09.2026, П-31). Ширина дорожки берётся
+   по самой широкой метке списка, а не числом: строки наследуют дорожки
+   списка подсеткой, и имена стоят на одной вертикали при метках любой
+   длины. */
+.records--label {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+}
+.records--label > .record { grid-column: 1 / -1; grid-template-columns: subgrid; }
+.records--label > .record > :first-child { justify-self: start; }
 
 /* Отклонённый расход остаётся в списке историей, но деньгами не считается:
    приглушение говорит это раньше пилюли. */
