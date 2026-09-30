@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Dashboard, LeadStage } from "@priyomka/contracts";
 import {
-  acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, guidelineRange,
+  acceptedTotal, basisPoints, buildPortfolio, buildWeek, daysBetween, divideRoundHalfUp, guidelineRange,
   kopecks, milliunits, taskState,
   type CalendarEvent, type Kopecks, type Milliunits, type PortfolioProject,
   ownerLevel,
@@ -173,8 +173,10 @@ export class SummaryService {
         ))
         .filter((вилка): вилка is NonNullable<typeof вилка> => вилка !== null)
         /* Середина вилки, а не её край: сумма нижних границ занижала бы
-           портфель воронки, сумма верхних — завышала. */
-        .map((вилка) => (вилка.low + вилка.high) / 2n);
+           портфель воронки, сумма верхних — завышала. Делится по единому
+           правилу округления: `/ 2n` отбрасывало полкопейки нечётной суммы
+           вниз (полный аудит 30.09.2026, П-35). */
+        .map((вилка) => kopecks(divideRoundHalfUp(вилка.low + вилка.high, 2n)));
 
       return {
         stages: STAGE_LABELS.map(({ stage, label }) => ({

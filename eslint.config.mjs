@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -45,15 +46,27 @@ import reactHooks from "eslint-plugin-react-hooks";
  * внутри позиции сметы правило не защищает — это остаётся на ревью и на
  * типах домена, где `Kopecks` и так не совместим с `number`.
  */
-/* Перечень пополняется вместе с новыми денежными полями: правило стережёт
-   имена, а не типы, и поле, не названное здесь, объявляется `number` без
-   единого замечания. Узел «деньги» от 19.09.2026 добавил четыре. */
-const MONEY = [
-  "unitPrice", "unitWage", "wageTotal", "subtotalWage",
-  "estimateTotal", "worksTotal", "computedWorksTotal", "declaredWorksTotal",
-  "worksTotalDelta", "unitAmount", "totalAmount",
-  "paid", "outstanding", "shortfall", "awaiting",
-].join("|");
+/* Перечень пополнялся руками вместе с новыми денежными полями: правило
+   стережёт имена, а не типы, и поле, не названное здесь, объявляется
+   `number` без единого замечания. Руки отстали: к 30.09.2026 контракт
+   объявлял копейками одиннадцать составных имён, которых в перечне не было, —
+   `supervisionAmount`, `trancheRemainder`, `computedEstimateTotal` и другие
+   (полный аудит 30.09.2026, П-36).
+
+   Теперь составные имена берутся из самого контракта: поле, которое
+   `packages/contracts` объявляет `kopecksString`, и есть денежное имя.
+   Одиночные слова контракт делит между деньгами и счётом (`total`,
+   `accepted`), поэтому из него берутся только составные; одиночные
+   однозначные перечислены руками, как прежде. */
+const ОДИНОЧНЫЕ = ["paid", "outstanding", "shortfall", "awaiting"];
+const ВНЕ_КОНТРАКТА = ["worksTotal", "unitAmount", "totalAmount"];
+const КОНТРАКТ = readFileSync(`${import.meta.dirname}/packages/contracts/src/index.ts`, "utf8");
+const ИЗ_КОНТРАКТА = [...КОНТРАКТ.matchAll(/^\s+([a-z]+[A-Z][A-Za-z]*)\??: kopecksString/gmu)]
+  .map(([, имя]) => имя);
+if (ИЗ_КОНТРАКТА.length < 10) {
+  throw new Error(`Денежных имён в контракте ${String(ИЗ_КОНТРАКТА.length)}: разбор контракта сломан`);
+}
+const MONEY = [...new Set([...ОДИНОЧНЫЕ, ...ВНЕ_КОНТРАКТА, ...ИЗ_КОНТРАКТА])].join("|");
 
 const MONEY_MESSAGE =
   "Денежная величина не может быть number. В домене это Kopecks (branded bigint), " +
@@ -85,6 +98,15 @@ const moneyRules = [
   {
     selector: `CallExpression[callee.name=/^(parseFloat|parseInt)$/] > Identifier[name=/^(${MONEY})$/]`,
     message: "Разбор денежной величины в число теряет точность. Используйте BigInt. " + MONEY_MESSAGE,
+  },
+  {
+    /* Деление выражения на целую константу — второе написание правила
+       округления. `(low + high) / 2n` отбрасывало полкопейки вниз,
+       `(цена * тысячные + 500n) / 1000n` повторяло умножение позиции
+       своими словами (полный аудит 30.09.2026, П-35). Деление имени на
+       константу — разбиение на целую часть и остаток при печати — законно. */
+    selector: `BinaryExpression[operator="/"][left.type="BinaryExpression"][right.bigint]`,
+    message: "Деление денег и количеств — только divideRoundHalfUp и функции домена: правило округления одно.",
   },
 ];
 

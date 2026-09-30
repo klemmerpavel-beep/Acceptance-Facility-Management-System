@@ -5,7 +5,7 @@ import type {
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
   estimateItemFault, estimateItemMoveFault, estimateItemWarning, measureSourcesFor,
-  MEASURE_LABEL, kopecks, milliunits, type MeasureSource,
+  MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 
@@ -319,9 +319,12 @@ export function EstimateItemSheet({
             </label>
           </div>
 
+          {/* Сумма позиции — тем же умножением, что у сервера. Прежде здесь
+              стояло второе написание правила, `(цена × тысячные + 500) / 1000`
+              (полный аудит 30.09.2026, П-35). */}
           <p className="field__hint">
             {разобрано
-              ? `Сумма позиции ${formatKopecks((цена * тысячные + 500n) / 1000n)}`
+              ? `Сумма позиции ${formatKopecks(multiplyByQuantity(kopecks(цена), milliunits(тысячные)))}`
               : "Количество и деньги вводятся с запятой: «406,91» и «1 150,50»."}
           </p>
 

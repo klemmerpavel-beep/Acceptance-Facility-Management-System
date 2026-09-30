@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ClientRow, Organization, RepairType, Unit } from "@priyomka/contracts";
-import { formatPhone, isPhoneNumber } from "@priyomka/domain";
+import { formatPhone, isPhoneNumber, parseRubles } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
   createRepairType, errorMessage, fetchOrganization, fetchRepairTypes, fetchUnits,
@@ -365,6 +365,23 @@ function RepairTypes(): React.JSX.Element {
   );
 }
 
+/**
+ * Тариф за квадратный метр: рубли строкой → целые копейки строкой.
+ *
+ * Разбор — доменным `parseRubles`, целыми числами. Прежде тариф шёл через
+ * `Number(…) * 100` и `Math.round`: «1e3» принималось тарифом 1 000 ₽,
+ * «0x10» — 16 ₽, а «10,005» молча округлялось плавающей точкой вниз, мимо
+ * единственного правила округления (БП-08; полный аудит 30.09.2026, П-34).
+ */
+export function тарифВКопейках(ввод: string): string | null {
+  try {
+    const копейки = parseRubles(ввод);
+    return копейки > 0n ? копейки.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Лист типа ремонта. Тариф вводится рублями, хранится копейками. */
 function RepairTypeSheet({
   type,
@@ -378,7 +395,7 @@ function RepairTypeSheet({
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const [name, setName] = useState(type?.name ?? "");
   const [rate, setRate] = useState(
-    type === null ? "" : (Number(type.ratePerSqm) / 100).toString().replace(".", ","),
+    type === null ? "" : formatKopecks(BigInt(type.ratePerSqm), false),
   );
   const [spread, setSpread] = useState(
     type === null ? "15" : (type.spread / 100).toString().replace(".", ","),
@@ -386,18 +403,13 @@ function RepairTypeSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const копейки = (значение: string): string | null => {
-    const число = Number(значение.replace(",", ".").trim());
-    if (!Number.isFinite(число) || число <= 0) return null;
-    return Math.round(число * 100).toString();
-  };
   const сотые = (значение: string): number | null => {
     const число = Number(значение.replace(",", ".").trim());
     if (!Number.isFinite(число) || число < 0 || число > 100) return null;
     return Math.round(число * 100);
   };
 
-  const тариф = копейки(rate);
+  const тариф = тарифВКопейках(rate);
   const отклонение = сотые(spread);
   const ready = name.trim().length >= 2 && тариф !== null && отклонение !== null;
 
