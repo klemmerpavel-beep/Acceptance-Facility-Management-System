@@ -269,10 +269,17 @@ export function ProjectCard({
     if (user.role !== "CLIENT") {
       void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
     }
+    /* Отчёт импорта спрашивается отдельно от сметы и заказчиком не
+       спрашивается вовсе: маршрут ему закрыт. Прежде отчёт ждали внутри
+       цепочки сметы, и отказ в нём попадал в общий `catch` — уже полученная
+       смета обнулялась, и заказчик R-99 видел «Сметы пока нет» рядом с
+       итогом 4 250 234,35 ₽ (полный аудит 30.09.2026, П-18). */
+    if (user.role !== "CLIENT") {
+      void fetchImports(project.code).then(setImports).catch(() => { setImports([]); });
+    }
     void fetchEstimate(project.code)
-      .then(async (view) => {
+      .then((view) => {
         setEstimate(view);
-        setImports(await fetchImports(project.code));
         setError(null);
       })
       .catch((cause: unknown) => {
@@ -751,19 +758,24 @@ export function ProjectCard({
                         </button>
                         {/* Второй путь к той же цели: типовая смета уже
                             лежит в организации, и заводить её файлом заново
-                            — лишняя работа. */}
-                        <button
-                          type="button"
-                          className="btn btn--secondary"
-                          onClick={() => { setЗаготовка("apply"); setEditError(null); }}
-                        >
-                          Взять типовую
-                        </button>
+                            — лишняя работа. Типовые сметы — настройка
+                            компании и бухгалтеру закрыты сервером
+                            (`@OwnerOnly`); показанная ему кнопка вела в
+                            отказ (полный аудит 30.09.2026, П-23). */}
+                        {user.role === "OWNER" && (
+                          <button
+                            type="button"
+                            className="btn btn--secondary"
+                            onClick={() => { setЗаготовка("apply"); setEditError(null); }}
+                          >
+                            Взять типовую
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
-                {estimate !== null && ownerLevel(user.role) && (
+                {estimate !== null && user.role === "OWNER" && (
                   <div className="row">
                     <button
                       type="button"

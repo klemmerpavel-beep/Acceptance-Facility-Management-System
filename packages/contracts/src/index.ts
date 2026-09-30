@@ -672,9 +672,11 @@ export const importReportSchema = z.object({
   computedWorksTotal: kopecksString,
   declaredWorksTotal: kopecksString.nullable(),
   worksTotalDelta: kopecksString.nullable(),
-  computedWageTotal: kopecksString,
-  declaredWageTotal: kopecksString.nullable(),
-  wageTotalDelta: kopecksString.nullable(),
+  /* Фонд оплаты труда файла — внутренняя величина: прорабу поля не
+     приходят вовсе (полный аудит 30.09.2026, П-16). */
+  computedWageTotal: kopecksString.optional(),
+  declaredWageTotal: kopecksString.nullable().optional(),
+  wageTotalDelta: kopecksString.nullable().optional(),
   supervisionShare: z.number().int().nullable(),
   supervisionAmount: kopecksString.nullable(),
   computedEstimateTotal: kopecksString,
@@ -1317,7 +1319,9 @@ export type CreatePayment = z.infer<typeof createPaymentSchema>;
 
 /** Сторно платежа. Причина обязательна: спрашивают не что отменили, а почему. */
 export const reversePaymentSchema = z.object({
-  reason: z.string().trim().min(3, "Назовите причину сторно.").max(280),
+  reason: z.string().trim()
+    .min(3, "Причина сторно — хотя бы три знака: через месяц спрашивают не что отменили, а почему.")
+    .max(280),
 });
 export type ReversePayment = z.infer<typeof reversePaymentSchema>;
 

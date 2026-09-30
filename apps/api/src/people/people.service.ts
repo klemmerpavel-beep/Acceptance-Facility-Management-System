@@ -127,7 +127,7 @@ export class PeopleService {
       newValue: input.role,
     });
 
-    return this.auth.issueForemanLink(заведён.id);
+    return this.auth.issueForemanLink(заведён.id, user.orgId);
   }
 
   /**
@@ -156,7 +156,7 @@ export class PeopleService {
       oldValue: null,
       newValue: "выдана заново",
     });
-    return this.auth.issueForemanLink(человек.id);
+    return this.auth.issueForemanLink(человек.id, user.orgId);
   }
 
   /**

@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import type {
   MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom,
 } from "@priyomka/contracts";
-import { measureTotals, milliunits, roomVolume, wallArea, type RoomMeasure } from "@priyomka/domain";
+import {
+  measureTotals, milliunits, roomVolume, wallArea, количествоТекстом, type RoomMeasure,
+} from "@priyomka/domain";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -83,6 +85,14 @@ const НАБОР_В_ЖУРНАЛ: Record<MeasureSetKind, string> = {
   INITIAL: "",
   REPLANNED: " (после перепланировки)",
 };
+
+/**
+ * Помещение в журнале: «10,00 м², высота 2,70 м». Прежде журнал печатал
+ * хранимые тысячные — «10000 тысячных м², высота 2700», — и запись о десяти
+ * метрах читалась как о десяти тысячах (полный аудит 30.09.2026, П-20).
+ */
+const помещениеДляЖурнала = (площадь: string | bigint, высота: string | bigint): string =>
+  `${количествоТекстом(milliunits(площадь), "м²")}, высота ${количествоТекстом(milliunits(высота), "м")}`;
 
 @Injectable()
 export class MeasureService {
@@ -281,7 +291,7 @@ export class MeasureService {
         entityId: project.id,
         field: `${input.name} — помещение внесено${НАБОР_В_ЖУРНАЛ[set]}`,
         oldValue: null,
-        newValue: `${input.floorArea} тысячных м², высота ${input.height}`,
+        newValue: помещениеДляЖурнала(input.floorArea, input.height),
       });
       if (set === "REPLANNED") {
         await this.перевестиПозиции(
@@ -394,7 +404,7 @@ export class MeasureService {
         entity: "MeasureRoom",
         entityId: project.id,
         field: `${room.name} — помещение удалено${НАБОР_В_ЖУРНАЛ[room.set]}`,
-        oldValue: `${room.floorArea.toString()} тысячных м², высота ${room.height.toString()}`,
+        oldValue: помещениеДляЖурнала(room.floorArea, room.height),
         newValue: null,
       });
     });

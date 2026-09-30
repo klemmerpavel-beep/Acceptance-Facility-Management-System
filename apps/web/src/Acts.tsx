@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ownerLevel } from "@priyomka/domain";
+import { formatPhone, isPhoneNumber, ownerLevel } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
@@ -212,7 +212,13 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
           <p className="field__label--cap">Исполнитель</p>
           <p className="t-strong">{act.contractor.name}</p>
           {act.contractor.requisites !== null && <p className="t-sm">{act.contractor.requisites}</p>}
-          {act.contractor.phone !== null && <p className="t-sm t-muted">{act.contractor.phone}</p>}
+          {/* Телефон печатается так, как его пишут, а не как хранят: «+79000000001»
+              в шапке акта читалось служебной строкой (полный аудит 30.09.2026, П-21). */}
+          {act.contractor.phone !== null && (
+            <p className="t-sm t-muted">
+              {isPhoneNumber(act.contractor.phone) ? formatPhone(act.contractor.phone) : act.contractor.phone}
+            </p>
+          )}
         </div>
         <div className="act__party">
           <p className="field__label--cap">Заказчик</p>

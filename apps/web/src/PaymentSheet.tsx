@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Tranche } from "@priyomka/contracts";
+import { reversePaymentSchema, type Tranche } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
 import { kopecks, paymentFault, subtract } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
@@ -150,6 +150,17 @@ export function PaymentSheet({
  * Устроено как сторно приёмки и по тому же доводу: лист называет
  * последствие, а не спрашивает «вы уверены».
  */
+/**
+ * Готова ли причина сторно — тем же правилом, что применит сервер.
+ *
+ * Лист пускал причину от одного знака, а контракт требует трёх: «ок»
+ * проходило на экране и возвращалось отказом «Назовите причину сторно» —
+ * человеку, который её назвал (полный аудит 30.09.2026, П-26). Правило
+ * берётся из схемы контракта, а не пишется здесь второй раз.
+ */
+export const причинаСторноГотова = (причина: string): boolean =>
+  reversePaymentSchema.safeParse({ reason: причина }).success;
+
 export function PaymentReversalSheet({
   payment,
   busy,
@@ -165,7 +176,7 @@ export function PaymentReversalSheet({
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const [reason, setReason] = useState("");
-  const ready = reason.trim().length > 0;
+  const ready = причинаСторноГотова(reason);
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();

@@ -3,7 +3,7 @@ import type { ActRow, ActView, SignAct } from "@priyomka/contracts";
 import {
   acceptedTotal, basisPoints, clientTotals, kopecks, milliunits, projectActLine, sum,
   type Kopecks,
-  ownerLevel,
+  ownerLevel, formatDay,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -316,8 +316,8 @@ export class ActsService {
         entity: "Tranche",
         entityId: транш.id,
         field: `акт № ${String(транш.number)} — подписание`,
-        oldValue: транш.signedAt === null ? null : день(транш.signedAt),
-        newValue: input.signedAt,
+        oldValue: транш.signedAt === null ? null : formatDay(день(транш.signedAt)),
+        newValue: formatDay(input.signedAt),
       });
     });
 

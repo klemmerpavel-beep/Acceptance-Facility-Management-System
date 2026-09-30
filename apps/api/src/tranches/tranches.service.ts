@@ -17,7 +17,7 @@ import {
   subtract,
   trancheFault,
   trancheFill,
-  trancheRemainder,
+  trancheRemainder, formatDay,
   type BasisPoints,
   type Kopecks,
 } from "@priyomka/domain";
@@ -382,7 +382,7 @@ export class TranchesService {
       orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: платёж.id,
       field: `платёж по траншу № ${String(транш.number)}`,
       oldValue: null,
-      newValue: `${formatKopecks(kopecks(платёж.amount))} от ${input.paidOn}`,
+      newValue: `${formatKopecks(kopecks(платёж.amount))} от ${formatDay(input.paidOn)}`,
     });
 
     return this.build(project.id, project.supervisionShare);

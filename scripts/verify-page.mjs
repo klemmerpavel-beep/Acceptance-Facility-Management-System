@@ -8,7 +8,7 @@
  */
 import { chromium } from "playwright-core";
 import { launchOptions, browserSource } from "./browser.mjs";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173";
 /* Сервер спрашивается напрямую там, где нужна ссылка входа: выдаёт её он,
@@ -3148,6 +3148,25 @@ for (const роль of ["Руководитель", "Прораб", "Бухга�
     note("люди", `роль «${роль}» на экране не названа: «${ролиНаЭкране.join(", ")}»`);
   }
 }
+/* Выдать вход можно каждой роли продукта. Подписи роли «Бухгалтер» на
+   экране были, а в выборе листа заведения её не было — вход бухгалтеру
+   выдавался только наполнением стенда (полный аудит 30.09.2026, П-22).
+   Перечень берётся из контракта, а не пишется здесь: роль, заведённая
+   завтра, обязана попасть и в выбор. */
+{
+  const контракт = readFileSync(new URL("../packages/contracts/src/index.ts", import.meta.url), "utf8");
+  const ролейПродукта = (/export const roleSchema = z\.enum\(\[([^\]]*)\]/u.exec(контракт)?.[1] ?? "")
+    .split(",").map((кусок) => кусок.trim().replace(/"/gu, "")).filter((кусок) => кусок !== "");
+  await page.locator("button", { hasText: "Добавить человека" }).first().click();
+  await page.waitForSelector('.sheet[aria-label="Новый человек"]');
+  const пункты = await page.locator('.sheet[aria-label="Новый человек"] select').first()
+    .locator("option").evaluateAll((узлы) => узлы.map((узел) => узел.value));
+  const недостаёт = ролейПродукта.filter((роль) => !пункты.includes(роль));
+  if (ролейПродукта.length === 0) note("люди", "перечень ролей контракта не прочитан — выбор проверен пустым");
+  if (недостаёт.length > 0) note("люди", `вход не выдаётся ролям: ${недостаёт.join(", ")}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+}
 await page.click('.records .record:has-text("Заказчик") button:has-text("Выдать ссылку")');
 await page.waitForTimeout(900);
 if ((await page.locator(".invite__link").count()) === 0) {
@@ -5214,6 +5233,36 @@ for (const роль of РОЛИ_ВХОДА) {
     }
     await лист.screenshot({ path: `${SHOTS}/${роль.снимок}`, fullPage: true });
     console.log(`  снято: вход — ${роль.имя} → ${роль.снимок}`);
+  }
+
+  /* Смета объекта, где она есть, открывается каждой ролью. Первая плитка
+     заказчика — R-31 без сметы, и смету своего R-99 заказчик в обходе не
+     открывал ни разу. Отказ на отчёте импорта обнулял уже полученную смету,
+     и кабинет заказчика показывал «Сметы пока нет» рядом с итогом
+     4 250 234,35 ₽ (полный аудит 30.09.2026, П-18). */
+  await лист.click('.appbar__link:has-text("Проекты")').catch(() => { /* уже там */ });
+  await лист.waitForTimeout(600);
+  const соСметой = лист.locator(".objecttile", { hasText: "R-99" }).locator(".objecttile__link");
+  if ((await соСметой.count()) === 0) {
+    note("вход по ролям", `${роль.имя}: объекта R-99 в перечне нет — смету открыть негде`);
+  } else {
+    await соСметой.first().click();
+    await лист.waitForTimeout(1400);
+    await лист.locator('.tabs__item:has-text("Смета")').click();
+    await лист.waitForTimeout(1000);
+    const строкСметы = await лист.locator("table.estimate tbody tr").count();
+    if (строкСметы === 0) {
+      const наЭкране = ((await лист.locator(".empty__title").first().textContent().catch(() => "")) ?? "").trim();
+      note("вход по ролям", `${роль.имя}: смета R-99 не открылась — «${наЭкране || "пусто"}»`);
+    }
+    /* Типовые сметы — настройка компании. Кнопки, ведущие в закрытый
+       сервером маршрут, у бухгалтера стояли (полный аудит 30.09.2026, П-23). */
+    if (роль.безНастроек === true) {
+      const заготовки = await лист.locator("button", { hasText: /типовую/u }).count();
+      if (заготовки > 0) {
+        note("вход по ролям", `${роль.имя}: на смете ${заготовки} кнопок типовых смет, закрытых ему сервером`);
+      }
+    }
   }
 
   /* Вторая половина решения от 19.09.2026: настроек и выдачи входа у роли

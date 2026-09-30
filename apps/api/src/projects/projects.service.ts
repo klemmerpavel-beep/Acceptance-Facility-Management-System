@@ -10,7 +10,7 @@ import type {
 import {
   acceptedShare, basisPoints, clientTotals, estimateAgainstGuideline, kopecks,
   nextProjectCode, projectReadiness, trancheRemainder,
-  ownerLevel,
+  ownerLevel, formatDay,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -267,6 +267,11 @@ export class ProjectsService {
 
     const день = (значение: Date | null): string | null =>
       значение === null ? null : значение.toISOString().slice(0, 10);
+    /* Сравнивается машинный день, в журнал пишется человеческий, а прораб —
+       именем: журнал печатал «2026-08-15» и опознаватели прорабов вместо
+       имён (полный аудит 30.09.2026, П-20). */
+    const деньДляЖурнала = (значение: string | null): string | null =>
+      значение === null ? null : formatDay(значение);
 
     /* Поля перечислены вместе со своими прежним и новым значением: список
        ведётся один раз и служит и записи в базу, и записям журнала. Две
@@ -283,15 +288,22 @@ export class ProjectsService {
         данные: { address: patch.address } });
     }
     if (patch.deadline !== undefined && patch.deadline !== день(project.deadline)) {
-      поля.push({ имя: "срок", было: день(project.deadline), стало: patch.deadline,
+      поля.push({ имя: "срок", было: деньДляЖурнала(день(project.deadline)), стало: деньДляЖурнала(patch.deadline),
         данные: { deadline: patch.deadline === null ? null : new Date(patch.deadline) } });
     }
     if (patch.startedAt !== undefined && patch.startedAt !== день(project.startedAt)) {
-      поля.push({ имя: "начало работ", было: день(project.startedAt), стало: patch.startedAt,
+      поля.push({ имя: "начало работ", было: деньДляЖурнала(день(project.startedAt)),
+        стало: деньДляЖурнала(patch.startedAt),
         данные: { startedAt: patch.startedAt === null ? null : new Date(patch.startedAt) } });
     }
     if (patch.foremanId !== undefined && patch.foremanId !== project.foremanId) {
-      поля.push({ имя: "прораб", было: project.foremanId, стало: patch.foremanId,
+      const опознаватели = [project.foremanId, patch.foremanId].filter((id): id is string => id !== null);
+      const имена = new Map((await this.prisma.user.findMany({
+        where: { orgId: user.orgId, id: { in: опознаватели } },
+        select: { id: true, name: true },
+      })).map((человек) => [человек.id, человек.name]));
+      const имя = (id: string | null): string | null => (id === null ? null : имена.get(id) ?? null);
+      поля.push({ имя: "прораб", было: имя(project.foremanId), стало: имя(patch.foremanId),
         данные: { foremanId: patch.foremanId } });
     }
     if (patch.keysCount !== undefined && patch.keysCount !== project.keysCount) {
@@ -365,12 +377,22 @@ export class ProjectsService {
      * залить ленту дубликатом того, что рядом показано подробнее.
      */
     const внутренние = ownerLevel(user.role);
-    /* Чеки видят обе роли: расход заводит и прораб, и «кто провёл этот
-       чек» спрашивают на объекте, а не в кабинете. Денежных величин
-       разграничения это не касается — сумма чека не ставка и не прибыль. */
+    /* Чеки видят руководитель и прораб: расход заводит и прораб, и «кто
+       провёл этот чек» спрашивают на объекте, а не в кабинете. Денежных
+       величин разграничения это не касается — сумма чека не ставка и не
+       прибыль.
+
+       Заказчику — только то, что открыто ему экраном: статус объекта и
+       график. Чеки и обмер ему закрыты маршрутами, а лента, заведённая
+       раньше его роли, отдавала ему общий с прорабом набор — закупки
+       компании с поставщиком и суммой, черновики и отклонённые (полный
+       аудит 30.09.2026, П-17). Запись журнала есть обход поля: правило
+       выше о смете действует и здесь. */
     const поОбъекту = внутренние
       ? ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense", "EstimateItem", "Estimate"]
-      : ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense"];
+      : user.role === "CLIENT"
+        ? ["Project"]
+        : ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense"];
 
     const [этапы, транши] = await Promise.all([
       this.prisma.workStage.findMany({

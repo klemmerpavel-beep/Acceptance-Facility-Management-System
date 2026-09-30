@@ -11,7 +11,7 @@ import {
 import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
   estimateItemMoveFault, formatKopecks, formatPercent, kopecks, количествоТекстом,
-  milliunits,
+  milliunits, ownerLevel,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -494,15 +494,27 @@ export class EstimatesService {
     });
     if (!estimate) return [];
 
-    return estimate.imports.map((record) => ({
-      id: record.id,
-      estimateId: estimate.id,
-      version: estimate.version,
-      fileName: record.fileName,
-      importedAt: record.importedAt.toISOString(),
-      positions: record.positions,
-      report: record.report as unknown as ImportReport,
-    }));
+    /* Отчёт хранит фонд оплаты труда файла — посчитанный, заявленный и их
+       расхождение. Прорабу он отдавался целиком, хотя та же величина в
+       смете от него закрыта (полный аудит 30.09.2026, П-16). Разграничение
+       на уровне полей, а не экранов: отчёт прорабу остаётся, три поля —
+       нет. */
+    const внутренние = ownerLevel(user.role);
+    return estimate.imports.map((record) => {
+      const report = record.report as unknown as ImportReport;
+      const { computedWageTotal, declaredWageTotal, wageTotalDelta, ...открытое } = report;
+      return {
+        id: record.id,
+        estimateId: estimate.id,
+        version: estimate.version,
+        fileName: record.fileName,
+        importedAt: record.importedAt.toISOString(),
+        positions: record.positions,
+        report: внутренние
+          ? { ...открытое, computedWageTotal, declaredWageTotal, wageTotalDelta }
+          : открытое,
+      };
+    });
   }
 
   /** Эталонный шаблон выгрузки для объекта. */

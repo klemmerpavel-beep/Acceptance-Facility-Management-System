@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { CreateExpense, ExpenseView, MaterialExpense } from "@priyomka/contracts";
-import { expenseFault, expenseTotals, kopecks, ownerLevel } from "@priyomka/domain";
+import { expenseFault, expenseTotals, formatKopecks, kopecks, ownerLevel } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
@@ -37,6 +37,15 @@ const ВИД: Readonly<Record<string, string>> = {
   DELIVERY: "доставка",
   TOOLS: "инструмент",
   OTHER: "прочее",
+};
+
+/* Подписи состояний чека для журнала — тем же доводом, что виды выше:
+   «DRAFT → CONFIRMED» печаталось в ленте объекта как есть (полный аудит
+   30.09.2026, П-20). */
+const СОСТОЯНИЕ: Readonly<Record<"DRAFT" | "CONFIRMED" | "REJECTED", string>> = {
+  DRAFT: "черновик",
+  CONFIRMED: "подтверждён",
+  REJECTED: "отклонён",
 };
 
 /** Сегодняшний день организации в виде `ГГГГ-ММ-ДД`. */
@@ -186,7 +195,7 @@ export class ExpensesService {
         entityId: project.id,
         field: `чек ${input.seller} — ${ВИД[input.kind] ?? input.kind}`,
         oldValue: null,
-        newValue: `${input.amount} копеек${сразуПодтверждён ? "" : ", черновик"}`,
+        newValue: `${formatKopecks(kopecks(input.amount))}${сразуПодтверждён ? "" : ", черновик"}`,
       });
     });
 
@@ -227,8 +236,8 @@ export class ExpensesService {
         entity: "MaterialExpense",
         entityId: project.id,
         field: `чек ${expense.seller} — состояние`,
-        oldValue: expense.status,
-        newValue: решение,
+        oldValue: СОСТОЯНИЕ[expense.status],
+        newValue: СОСТОЯНИЕ[решение],
       });
     });
 
@@ -260,7 +269,7 @@ export class ExpensesService {
         entity: "MaterialExpense",
         entityId: project.id,
         field: `чек ${expense.seller} — черновик удалён`,
-        oldValue: `${expense.amount.toString()} копеек`,
+        oldValue: formatKopecks(kopecks(expense.amount)),
         newValue: null,
       });
     });

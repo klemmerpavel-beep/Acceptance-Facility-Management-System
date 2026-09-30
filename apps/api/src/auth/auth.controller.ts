@@ -11,7 +11,6 @@ import {
 import { AuthService } from "./auth.service";
 import { SESSION_COOKIE, SessionGuard } from "./session.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
-import { OwnerOnly, Roles, RolesGuard } from "../common/roles.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -63,14 +62,11 @@ export class AuthController {
     return { ok: true };
   }
 
-  @Post("foreman-link")
-  @UseGuards(SessionGuard, RolesGuard)
-  @Roles("OWNER")
-  @OwnerOnly()
-  async requestForemanLink(@Body() body: { userId?: string }): Promise<{ token: string }> {
-    if (!body.userId) throw new Error("Укажите прораба, для которого нужна ссылка");
-    return this.auth.issueForemanLink(body.userId);
-  }
+  /* Маршрута `POST /auth/foreman-link` больше нет. Он выдавал ссылку входа на
+     любой `userId` и не спрашивал организацию: руководитель одной студии
+     входил руководителем другой (полный аудит 30.09.2026, П-15). Клиент им
+     не пользовался — вход выдаётся через `/people` с отбором по своей
+     организации. */
 
   /**
    * Обмен ссылки на сессию. Отвечает переадресацией в приложение, а не

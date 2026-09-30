@@ -1,5 +1,5 @@
 import { randomBytes, createHash, randomInt, timingSafeEqual } from "node:crypto";
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { AuthPurpose } from "@prisma/client";
 import { formatPhone, parsePhone, type PhoneNumber } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
@@ -48,9 +48,19 @@ export class AuthService {
     return this.createToken(user.id, AuthPurpose.MAGIC_LINK, MAGIC_LINK_TTL_MS);
   }
 
-  /** Персональная ссылка прораба. Выдаёт руководитель. */
-  async issueForemanLink(userId: string): Promise<{ token: string }> {
-    return this.createToken(userId, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS);
+  /**
+   * Персональная ссылка. Выдаёт руководитель — и только человеку своей
+   * организации.
+   *
+   * Организация спрашивается здесь, а не только у вызывающего: прежде метод
+   * брал один `userId`, и маршрут, забывший отбор, выдавал вход в чужую
+   * организацию (полный аудит 30.09.2026, П-15). Проверка на месте выдачи
+   * не зависит от того, кто и откуда её позовёт.
+   */
+  async issueForemanLink(userId: string, orgId: string): Promise<{ token: string }> {
+    const свой = await this.prisma.user.findFirst({ where: { id: userId, orgId }, select: { id: true } });
+    if (!свой) throw new NotFoundException({ message: "Человек не найден или недоступен." });
+    return this.createToken(свой.id, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS);
   }
 
   private async createToken(userId: string, purpose: AuthPurpose, ttlMs: number) {
@@ -84,10 +94,14 @@ export class AuthService {
     if (record.purpose === AuthPurpose.MAGIC_LINK && record.usedAt) throw invalid;
 
     if (record.purpose === AuthPurpose.MAGIC_LINK) {
-      await this.prisma.authToken.update({
-        where: { id: record.id },
+      /* Гасится условным обновлением: прочитать «не погашена» и погасить
+         двумя шагами значило открыть две сессии двумя параллельными
+         переходами по одной ссылке (полный аудит 30.09.2026, П-24). */
+      const погашена = await this.prisma.authToken.updateMany({
+        where: { id: record.id, usedAt: null },
         data: { usedAt: new Date() },
       });
+      if (погашена.count === 0) throw invalid;
     }
 
     return this.openSession(record.userId);
@@ -153,8 +167,21 @@ export class AuthService {
     const record = await this.liveCode(user.id);
     if (!record) throw invalid;
 
-    if (record.attempts >= SMS_MAX_ATTEMPTS) {
-      await this.prisma.authToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    /* Попытка занимается до сравнения, одним условным обновлением. Прежде
+       счётчик читался, сравнивался и прибавлялся тремя шагами, и сорок
+       параллельных неверных кодов сверялись все сорок: предел в пять
+       попыток держался только для того, кто ждёт ответа (полный аудит
+       30.09.2026, П-24). Условие в запросе к базе исполняется атомарно:
+       шестой запрос не находит строки и сравнения не получает. */
+    const занята = await this.prisma.authToken.updateMany({
+      where: { id: record.id, usedAt: null, attempts: { lt: SMS_MAX_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (занята.count === 0) {
+      await this.prisma.authToken.updateMany({
+        where: { id: record.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
       throw new UnauthorizedException({
         message: "Код заблокирован после пяти неверных попыток. Запросите новый.",
       });
@@ -163,15 +190,15 @@ export class AuthService {
     const expected = Buffer.from(record.tokenHash);
     const given = Buffer.from(codeHash(user.id, code));
     // Хеши равной длины, сравнение постоянного времени: утечки по времени нет.
-    if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
-      await this.prisma.authToken.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw invalid;
-    }
+    if (expected.length !== given.length || !timingSafeEqual(expected, given)) throw invalid;
 
-    await this.prisma.authToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    /* Гасится тем же условным обновлением: два параллельных верных кода не
+       открывают двух сессий. */
+    const погашен = await this.prisma.authToken.updateMany({
+      where: { id: record.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (погашен.count === 0) throw invalid;
     return this.openSession(user.id);
   }
 

@@ -4,11 +4,12 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptedTotal, basisPoints, clientTotals, fillTemplate, formatKopecks, kopecks,
-  milliunits, templateFault,
+  milliunits, templateFault, formatDay, formatPhone, isPhoneNumber, количествоТекстом,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
+import { projectScope } from "../common/project-scope";
 
 /**
  * Шаблоны документов организации.
@@ -164,8 +165,12 @@ export class TemplatesService {
     });
     if (!шаблон) throw new NotFoundException({ message: "Шаблон не найден или недоступен." });
 
+    /* Видимость объекта — общим правилом, а не отбором по организации:
+       прорабу, которому `/projects/R-42` отвечает 404, выпуск документа по
+       R-42 отдавал имя, реквизиты и адрес чужого заказчика (полный аудит
+       30.09.2026, П-19). */
     const project = await this.prisma.project.findFirst({
-      where: { orgId: user.orgId, code: projectCode },
+      where: { ...projectScope(user), code: projectCode },
       include: { client: { select: { name: true, requisites: true } } },
     });
     if (!project) {
@@ -202,26 +207,33 @@ export class TemplatesService {
         clientTotals(работы, basisPoints(смета.supervisionShare)).total);
     }
 
+    /* Площадь — тем же правилом, что количество в смете: целые тысячные и
+       запятая. Прежде сумма уходила в число с плавающей точкой и печаталась
+       в договоре как «80.53 м²»; дата — как «2026-09-30», телефон — как
+       «+79000000001» (полный аудит 30.09.2026, П-21). */
     const площадь = обмер.length === 0
       ? null
-      : `${(Number(обмер.reduce((сумма, комната) => сумма + комната.floorArea, 0n)) / 1000).toFixed(2)} м²`;
+      : количествоТекстом(milliunits(обмер.reduce((сумма, комната) => сумма + комната.floorArea, 0n)), "м²");
 
     const сегодня = день(new Date());
+    const телефон = организация.phone !== null && isPhoneNumber(организация.phone)
+      ? formatPhone(организация.phone)
+      : организация.phone;
     const значения: Record<string, string | null> = {
       "организация.наименование": организация.name,
-      "организация.телефон": организация.phone,
+      "организация.телефон": телефон,
       "организация.почта": организация.email,
       "исполнитель.наименование": организация.name,
       "исполнитель.реквизиты": организация.requisites,
       "контрагент.наименование": project.client.name,
       "контрагент.реквизиты": project.client.requisites,
       "документ.номер": project.code,
-      "документ.дата": сегодня,
+      "документ.дата": formatDay(сегодня),
       "объект.код": project.code,
       "объект.адрес": project.address,
       "объект.площадь": площадь,
       "объект.смета": итогСметы,
-      "система.сегодня": сегодня,
+      "система.сегодня": formatDay(сегодня),
       "система.автор": автор?.name ?? null,
     };
 

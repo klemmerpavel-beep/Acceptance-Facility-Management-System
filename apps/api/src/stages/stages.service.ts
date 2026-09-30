@@ -3,7 +3,7 @@ import type {
   CreateWorkStage, PlanFromEstimate, UpdateWorkStage, WorkStage,
 } from "@priyomka/contracts";
 import {
-  acceptedQty, acceptedShare, acceptedTotal, kopecks, milliunits,
+  acceptedQty, acceptedShare, acceptedTotal, formatDay, kopecks, milliunits,
   planFromSections, projectRange, stageDateFault,
   type ProjectRange, type SectionWeight,
 } from "@priyomka/domain";
@@ -311,7 +311,7 @@ export class StagesService {
       entityId: stage.id,
       field: "этап заведён",
       oldValue: null,
-      newValue: `${input.name}: ${input.startsOn} — ${input.endsOn}`,
+      newValue: `${input.name}: ${formatDay(input.startsOn)} — ${formatDay(input.endsOn)}`,
     });
 
     return this.list(project.id);
@@ -456,8 +456,8 @@ export class StagesService {
       entityId: project.id,
       field: "график заведён из сметы",
       oldValue: null,
-      newValue: `${String(предложены.length)} этапов: ${input.from} — `
-        + (предложены[предложены.length - 1]?.endsOn ?? input.to),
+      newValue: `${String(предложены.length)} этапов: ${formatDay(input.from)} — `
+        + formatDay(предложены[предложены.length - 1]?.endsOn ?? input.to),
     });
 
     return this.list(project.id);
@@ -508,8 +508,12 @@ export class StagesService {
 
     /* В журнал уходит то, что изменилось, а не всё тело запроса: строка
        «сроки: те же → те же» ничего не сообщает и мешает искать нужное. */
+    /* Сравниваются машинные дни, пишутся — человеческие: журнал читает
+       человек (полный аудит 30.09.2026, П-20). */
     const было = `${iso(прежний.startsOn)} — ${iso(прежний.endsOn)}`;
     const стало = `${startsOn} — ${endsOn}`;
+    const дляЖурнала = (сроки: string): string =>
+      сроки.split(" — ").map(formatDay).join(" — ");
     if (было !== стало) {
       await this.audit.record({
         orgId: user.orgId,
@@ -517,8 +521,8 @@ export class StagesService {
         entity: "WorkStage",
         entityId: id,
         field: `сроки этапа «${input.name ?? прежний.name}»`,
-        oldValue: было,
-        newValue: стало,
+        oldValue: дляЖурнала(было),
+        newValue: дляЖурнала(стало),
       });
     }
     /* Смена раздела и смена бригады пишутся в журнал наравне со сроками:
@@ -587,7 +591,7 @@ export class StagesService {
       entity: "WorkStage",
       entityId: id,
       field: "этап снят",
-      oldValue: `${stage.name}: ${iso(stage.startsOn)} — ${iso(stage.endsOn)}`,
+      oldValue: `${stage.name}: ${formatDay(iso(stage.startsOn))} — ${formatDay(iso(stage.endsOn))}`,
       newValue: null,
     });
 

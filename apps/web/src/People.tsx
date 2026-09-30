@@ -17,11 +17,19 @@ import { завести } from "./verbs.js";
  * Потерялась — выдаётся новая, прежняя остаётся одноразовой.
  */
 
+/**
+ * Подписи ролей — и перечень выбора роли: пункты строятся отсюда в этом
+ * порядке, от частой роли к редкой. Прежде пункты выбора набирались руками,
+ * и «Бухгалтер», заведённый 19.09.2026, попал в подписи, но не в выбор —
+ * выдать вход бухгалтеру из продукта было нельзя (полный аудит 30.09.2026,
+ * П-22). Тип `Record<Role, …>` требует каждую роль, и забыть её теперь
+ * значит не собрать продукт.
+ */
 const РОЛИ: Readonly<Record<Role, string>> = {
-  OWNER: "Руководитель",
   FOREMAN: "Прораб",
   ACCOUNTANT: "Бухгалтер",
   CLIENT: "Заказчик",
+  OWNER: "Руководитель",
 };
 
 const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
@@ -222,9 +230,9 @@ function InviteSheet({
             value={role}
             onChange={(e) => { setRole(e.target.value as Role); setClientId(""); }}
           >
-            <option value="FOREMAN">Прораб</option>
-            <option value="CLIENT">Заказчик</option>
-            <option value="OWNER">Руководитель</option>
+            {Object.entries(РОЛИ).map(([роль, подпись]) => (
+              <option key={роль} value={роль}>{подпись}</option>
+            ))}
           </select>
           <span className="field__hint">{ЧТО_ВИДИТ[role]}</span>
         </label>
