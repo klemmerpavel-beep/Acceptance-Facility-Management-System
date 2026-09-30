@@ -362,24 +362,26 @@ export class DirectoryService {
       where: { orgId: user.orgId },
       _max: { order: true },
     });
-    const тип = await this.prisma.repairType.create({
-      data: {
+    await this.prisma.$transaction(async (tx) => {
+      const тип = await tx.repairType.create({
+        data: {
+          orgId: user.orgId,
+          name: input.name,
+          ratePerSqm: BigInt(input.ratePerSqm),
+          spread: input.spread,
+          order: (последний._max.order ?? -1) + 1,
+        },
+        select: { id: true },
+      });
+      await this.audit.record({
         orgId: user.orgId,
-        name: input.name,
-        ratePerSqm: BigInt(input.ratePerSqm),
-        spread: input.spread,
-        order: (последний._max.order ?? -1) + 1,
-      },
-      select: { id: true },
-    });
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "RepairType",
-      entityId: тип.id,
-      field: "тариф за квадратный метр",
-      oldValue: null,
-      newValue: `${input.name}: ${formatKopecks(kopecks(input.ratePerSqm))} ± ${formatPercent(BigInt(input.spread))}`,
+        actorId: user.id,
+        entity: "RepairType",
+        entityId: тип.id,
+        field: "тариф за квадратный метр",
+        oldValue: null,
+        newValue: `${input.name}: ${formatKopecks(kopecks(input.ratePerSqm))} ± ${formatPercent(BigInt(input.spread))}`,
+      }, tx);
     });
     return this.repairTypes(user);
   }
@@ -399,25 +401,27 @@ export class DirectoryService {
     });
     if (было === null) throw new NotFoundException({ message: "Тип ремонта не найден." });
 
-    await this.prisma.repairType.update({
-      where: { id },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.ratePerSqm === undefined ? {} : { ratePerSqm: BigInt(input.ratePerSqm) }),
-        ...(input.spread === undefined ? {} : { spread: input.spread }),
-      },
-    });
-    if (input.ratePerSqm !== undefined && BigInt(input.ratePerSqm) !== было.ratePerSqm) {
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "RepairType",
-        entityId: id,
-        field: "тариф за квадратный метр",
-        oldValue: formatKopecks(kopecks(было.ratePerSqm)),
-        newValue: formatKopecks(kopecks(input.ratePerSqm)),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.repairType.update({
+        where: { id },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.ratePerSqm === undefined ? {} : { ratePerSqm: BigInt(input.ratePerSqm) }),
+          ...(input.spread === undefined ? {} : { spread: input.spread }),
+        },
       });
-    }
+      if (input.ratePerSqm !== undefined && BigInt(input.ratePerSqm) !== было.ratePerSqm) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "RepairType",
+          entityId: id,
+          field: "тариф за квадратный метр",
+          oldValue: formatKopecks(kopecks(было.ratePerSqm)),
+          newValue: formatKopecks(kopecks(input.ratePerSqm)),
+        }, tx);
+      }
+    });
     return this.repairTypes(user);
   }
 }

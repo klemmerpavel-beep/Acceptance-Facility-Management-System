@@ -166,7 +166,7 @@ export class BlueprintsService {
         field: `${input.name} — типовая смета заведена`,
         oldValue: null,
         newValue: `из ${project.code}, позиций ${смета.items.length}`,
-      });
+      }, tx);
       return заготовка.id;
     });
 
@@ -267,7 +267,7 @@ export class BlueprintsService {
         field: `Смета заведена из типовой «${заготовка.name}»`,
         oldValue: null,
         newValue: `позиций ${заготовка.items.length}`,
-      });
+      }, tx);
     });
   }
 }

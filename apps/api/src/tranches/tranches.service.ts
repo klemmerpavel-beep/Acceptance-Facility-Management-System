@@ -238,44 +238,55 @@ export class TranchesService {
        завели бы транш с одним номером. */
     const number = prepayment ? 0 : nextTrancheNumber(заведённые.map((транш) => транш.number));
     const now = new Date();
-    const транш = await this.prisma.tranche.create({
-      data: {
-        projectId: project.id,
-        number,
-        amount: kopecks(input.amount),
-        status: prepayment ? "PAID" : "OPEN",
-        paidAt: prepayment ? now : null,
-        comment: input.comment ?? null,
-        createdById: user.id,
-        /* Предоплата приходит с деньгами, значит приходит и с платежом.
-           Без этой записи предоплаченный транш с первого же дня числился бы
-           недобором на всю сумму: отметка «оплачен» стоит, платежей нет. */
-        ...(prepayment
-          ? {
-            payments: {
-              create: {
-                amount: kopecks(input.amount),
-                paidOn: now,
-                comment: "Предоплата 30 %",
-                createdById: user.id,
+    await this.prisma.$transaction(async (tx) => {
+      const транш = await tx.tranche.create({
+        data: {
+          projectId: project.id,
+          number,
+          amount: kopecks(input.amount),
+          status: prepayment ? "PAID" : "OPEN",
+          paidAt: prepayment ? now : null,
+          comment: input.comment ?? null,
+          createdById: user.id,
+          /* Предоплата приходит с деньгами, значит приходит и с платежом.
+             Без этой записи предоплаченный транш с первого же дня числился бы
+             недобором на всю сумму: отметка «оплачен» стоит, платежей нет. */
+          ...(prepayment
+            ? {
+              payments: {
+                create: {
+                  amount: kopecks(input.amount),
+                  paidOn: now,
+                  comment: "Предоплата 30 %",
+                  createdById: user.id,
+                },
               },
-            },
-          }
-          : {}),
-      },
-      select: { id: true, amount: true },
-    });
+            }
+            : {}),
+        },
+        select: { id: true, amount: true },
+      });
 
-    await this.audit.record({
-      orgId: project.orgId,
-      actorId: user.id,
-      entity: "Tranche",
-      entityId: транш.id,
-      field: prepayment ? "предоплата" : "открыт",
-      oldValue: null,
-      /* Сумма пишется рублями: журнал читает человек, и «45000000 копеек»
-         он в уме не делит. Форма общая с экранами. */
-      newValue: `транш № ${String(number)} на ${formatKopecks(kopecks(транш.amount))}`,
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "Tranche",
+        entityId: транш.id,
+        field: prepayment ? "предоплата" : "открыт",
+        oldValue: null,
+        /* Сумма пишется рублями: журнал читает человек, и «45000000 копеек»
+           он в уме не делит. Форма общая с экранами. */
+        newValue: `транш № ${String(number)} на ${formatKopecks(kopecks(транш.amount))}`,
+      }, tx);
+    }).catch((cause: unknown) => {
+      /* Два окна, заведшие транш одновременно, получили один номер; ключ
+         (объект, номер) пустил первое. Второму — отказ словами, а не 500. */
+      if ((cause as { code?: string }).code === "P2002") {
+        throw new BadRequestException({
+          message: `Транш № ${String(number)} уже заведён в другом окне. Обновите экран.`,
+        });
+      }
+      throw cause;
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -300,17 +311,29 @@ export class TranchesService {
       });
     }
 
-    await this.prisma.tranche.update({
-      where: { id },
-      data: {
-        status: "CLOSED",
-        closedAt: new Date(),
-        ...(input.comment === undefined ? {} : { comment: input.comment }),
-      },
-    });
-    await this.audit.record({
-      orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
-      field: "состояние", oldValue: "открыт", newValue: "закрыт",
+    await this.prisma.$transaction(async (tx) => {
+      /* Переход ставится условием на прежнее состояние, а не на прочитанное
+         выше: два одновременных закрытия проходили проверку оба и писали
+         в журнал два «открыт → закрыт» (полный аудит 30.09.2026, П-38). */
+      const { count } = await tx.tranche.updateMany({
+        where: { id, status: "OPEN" },
+        data: {
+          status: "CLOSED",
+          closedAt: new Date(),
+          ...(input.comment === undefined ? {} : { comment: input.comment }),
+        },
+      });
+      if (count === 0) {
+        throw new BadRequestException({
+          message: `Транш № ${String(транш.number)} уже закрыт. Закрыть его второй раз нельзя.`,
+        });
+      }
+      /* Запись называет транш: «Транш: состояние, открыт → закрыт» не
+         говорила, какой из пяти (П-38). */
+      await this.audit.record({
+        orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
+        field: `состояние транша № ${String(транш.number)}`, oldValue: "открыт", newValue: "закрыт",
+      }, tx);
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -334,10 +357,20 @@ export class TranchesService {
       });
     }
 
-    await this.prisma.tranche.update({ where: { id }, data: { status: "PAID", paidAt: new Date() } });
-    await this.audit.record({
-      orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
-      field: "состояние", oldValue: "закрыт", newValue: "оплачен",
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.tranche.updateMany({
+        where: { id, status: "CLOSED" },
+        data: { status: "PAID", paidAt: new Date() },
+      });
+      if (count === 0) {
+        throw new BadRequestException({
+          message: `Транш № ${String(транш.number)} уже отмечен оплаченным.`,
+        });
+      }
+      await this.audit.record({
+        orgId: project.orgId, actorId: user.id, entity: "Tranche", entityId: id,
+        field: `состояние транша № ${String(транш.number)}`, oldValue: "закрыт", newValue: "оплачен",
+      }, tx);
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -367,22 +400,24 @@ export class TranchesService {
     });
     if (отказ !== null) throw new BadRequestException({ message: отказ });
 
-    const платёж = await this.prisma.tranchePayment.create({
-      data: {
-        trancheId: id,
-        amount: kopecks(input.amount),
-        paidOn: new Date(`${input.paidOn}T00:00:00.000Z`),
-        comment: input.comment ?? null,
-        createdById: user.id,
-      },
-      select: { id: true, amount: true },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const платёж = await tx.tranchePayment.create({
+        data: {
+          trancheId: id,
+          amount: kopecks(input.amount),
+          paidOn: new Date(`${input.paidOn}T00:00:00.000Z`),
+          comment: input.comment ?? null,
+          createdById: user.id,
+        },
+        select: { id: true, amount: true },
+      });
 
-    await this.audit.record({
-      orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: платёж.id,
-      field: `платёж по траншу № ${String(транш.number)}`,
-      oldValue: null,
-      newValue: `${formatKopecks(kopecks(платёж.amount))} от ${formatDay(input.paidOn)}`,
+      await this.audit.record({
+        orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: платёж.id,
+        field: `платёж по траншу № ${String(транш.number)}`,
+        oldValue: null,
+        newValue: `${formatKopecks(kopecks(платёж.amount))} от ${formatDay(input.paidOn)}`,
+      }, tx);
     });
 
     return this.build(project.id, project.supervisionShare);
@@ -418,23 +453,32 @@ export class TranchesService {
     /* Сторно датируется днём сторнируемого платежа, а не сегодняшним.
        Иначе пара «платёж + сторно» разъезжалась бы по датам, и оплаченное
        на любой промежуточный день считалось бы неверно. */
-    const сторно = await this.prisma.tranchePayment.create({
-      data: {
-        trancheId: id,
-        amount: negate(kopecks(платёж.amount)),
-        paidOn: платёж.paidOn,
-        reason: input.reason,
-        reversalOfId: платёж.id,
-        createdById: user.id,
-      },
-      select: { id: true, amount: true },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const сторно = await tx.tranchePayment.create({
+        data: {
+          trancheId: id,
+          amount: negate(kopecks(платёж.amount)),
+          paidOn: платёж.paidOn,
+          reason: input.reason,
+          reversalOfId: платёж.id,
+          createdById: user.id,
+        },
+        select: { id: true, amount: true },
+      });
 
-    await this.audit.record({
-      orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: сторно.id,
-      field: `сторно платежа по траншу № ${String(транш.number)}`,
-      oldValue: formatKopecks(kopecks(платёж.amount)),
-      newValue: input.reason,
+      await this.audit.record({
+        orgId: project.orgId, actorId: user.id, entity: "TranchePayment", entityId: сторно.id,
+        field: `сторно платежа по траншу № ${String(транш.number)}`,
+        oldValue: formatKopecks(kopecks(платёж.amount)),
+        newValue: input.reason,
+      }, tx);
+    }).catch((cause: unknown) => {
+      /* Сторно одно на платёж — ключ `reversalOfId`. Второе одновременное
+         получает отказ словами, как и последовательное. */
+      if ((cause as { code?: string }).code === "P2002") {
+        throw new BadRequestException({ message: "Этот платёж уже сторнирован." });
+      }
+      throw cause;
     });
 
     return this.build(project.id, project.supervisionShare);

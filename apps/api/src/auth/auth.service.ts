@@ -1,6 +1,6 @@
 import { randomBytes, createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
-import { AuthPurpose } from "@prisma/client";
+import { AuthPurpose, type Prisma } from "@prisma/client";
 import { formatPhone, parsePhone, type PhoneNumber } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
@@ -57,15 +57,21 @@ export class AuthService {
    * организацию (полный аудит 30.09.2026, П-15). Проверка на месте выдачи
    * не зависит от того, кто и откуда её позовёт.
    */
-  async issueForemanLink(userId: string, orgId: string): Promise<{ token: string }> {
-    const свой = await this.prisma.user.findFirst({ where: { id: userId, orgId }, select: { id: true } });
+  /* Клиент транзакции — чтобы выдача ссылки и её запись в журнале
+     фиксировались вместе (П-37). */
+  async issueForemanLink(
+    userId: string, orgId: string, tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<{ token: string }> {
+    const свой = await tx.user.findFirst({ where: { id: userId, orgId }, select: { id: true } });
     if (!свой) throw new NotFoundException({ message: "Человек не найден или недоступен." });
-    return this.createToken(свой.id, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS);
+    return this.createToken(свой.id, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS, tx);
   }
 
-  private async createToken(userId: string, purpose: AuthPurpose, ttlMs: number) {
+  private async createToken(
+    userId: string, purpose: AuthPurpose, ttlMs: number, tx: Prisma.TransactionClient = this.prisma,
+  ) {
     const token = newToken();
-    await this.prisma.authToken.create({
+    await tx.authToken.create({
       data: {
         userId,
         tokenHash: hash(token),

@@ -105,29 +105,31 @@ export class PeopleService {
       }
     }
 
-    const заведён = await this.prisma.user.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const заведён = await tx.user.create({
+        data: {
+          orgId: user.orgId,
+          role: input.role,
+          name: input.name,
+          email: input.email,
+          phone: input.phone,
+          clientId: input.clientId,
+        },
+        select: { id: true },
+      });
+
+      await this.audit.record({
         orgId: user.orgId,
-        role: input.role,
-        name: input.name,
-        email: input.email,
-        phone: input.phone,
-        clientId: input.clientId,
-      },
-      select: { id: true },
-    });
+        actorId: user.id,
+        entity: "User",
+        entityId: заведён.id,
+        field: `доступ «${input.name}»`,
+        oldValue: null,
+        newValue: input.role,
+      }, tx);
 
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "User",
-      entityId: заведён.id,
-      field: `доступ «${input.name}»`,
-      oldValue: null,
-      newValue: input.role,
+      return this.auth.issueForemanLink(заведён.id, user.orgId, tx);
     });
-
-    return this.auth.issueForemanLink(заведён.id, user.orgId);
   }
 
   /**
@@ -147,16 +149,18 @@ export class PeopleService {
     if (человек.id === user.id) {
       throw new BadRequestException({ message: "Себе ссылка не нужна: вы уже вошли." });
     }
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "User",
-      entityId: человек.id,
-      field: `ссылка входа «${человек.name}»`,
-      oldValue: null,
-      newValue: "выдана заново",
+    return this.prisma.$transaction(async (tx) => {
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "User",
+        entityId: человек.id,
+        field: `ссылка входа «${человек.name}»`,
+        oldValue: null,
+        newValue: "выдана заново",
+      }, tx);
+      return this.auth.issueForemanLink(человек.id, user.orgId, tx);
     });
-    return this.auth.issueForemanLink(человек.id, user.orgId);
   }
 
   /**
@@ -201,7 +205,7 @@ export class PeopleService {
         field: `доступ «${человек.name}» снят`,
         oldValue: человек.role,
         newValue: null,
-      });
+      }, tx);
     });
 
     return this.list(user);

@@ -124,7 +124,7 @@ export class TemplatesService {
         field: `шаблон «${input.name}»`,
         oldValue: id === null ? null : "правка",
         newValue: `${String(input.clauses.length)} пунктов`,
-      });
+      }, tx);
     });
 
     return this.list(user);
@@ -147,7 +147,7 @@ export class TemplatesService {
         field: `шаблон «${шаблон.name}» удалён`,
         oldValue: шаблон.name,
         newValue: null,
-      });
+      }, tx);
     });
     return this.list(user);
   }

@@ -359,7 +359,7 @@ export class EstimatesService {
           + (прежниеПомещения.size === 0
             ? ""
             : `, помещений перенесено ${помещенийПеренесено} из ${прежниеПомещения.size}`),
-      });
+      }, tx);
 
       return { importId: record.id, estimateId: estimate.id, version, report: dto };
     });
@@ -645,7 +645,7 @@ export class EstimatesService {
              той единице, в которой количество и правили. */
           oldValue: значениеДляЖурнала(field, прежнее[field] ?? null, before.unit.code),
           newValue: значениеДляЖурнала(field, next, before.unit.code),
-        });
+        }, tx);
       }
 
       /* Помещение пишется отдельно и именем: опознаватель в журнале
@@ -660,7 +660,7 @@ export class EstimatesService {
           field: `${before.name} — помещение`,
           oldValue: before.room?.name ?? "не выбрано",
           newValue: помещение?.name ?? "не выбрано",
-        });
+        }, tx);
       }
     });
 
@@ -793,7 +793,7 @@ export class EstimatesService {
           field: `${before.name} — раздел`,
           oldValue: before.section.name,
           newValue: целевой.name,
-        });
+        }, tx);
       }
       if (input.roomId !== undefined && input.roomId !== before.roomId) {
         await this.audit.record({
@@ -804,7 +804,7 @@ export class EstimatesService {
           field: `${before.name} — помещение`,
           oldValue: before.roomId === null ? "не выбрано" : "прежнее",
           newValue: помещение?.name ?? "не выбрано",
-        });
+        }, tx);
       }
     });
 
@@ -840,7 +840,7 @@ export class EstimatesService {
         field: "надбавка «сопровождение объекта»",
         oldValue: formatPercent(basisPoints(estimate.supervisionShare)),
         newValue: formatPercent(basisPoints(input.supervisionShare)),
-      });
+      }, tx);
     });
 
     return this.view(user, code);

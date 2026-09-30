@@ -159,33 +159,35 @@ export class ProjectsService {
       });
     }
 
-    const project = await this.prisma.project.create({
-      data: {
-        orgId: user.orgId,
-        code: input.code,
-        address: input.address,
-        clientId: client.id,
-        deadline: input.deadline === null ? null : new Date(input.deadline),
-        ...(input.foremanId === undefined ? {} : { foremanId: input.foremanId }),
-        ...(input.startedAt === undefined || input.startedAt === null
-          ? {}
-          : { startedAt: new Date(input.startedAt) }),
-        ...(input.keysCount === undefined ? {} : { keysCount: input.keysCount }),
-        ...(input.supervisionShare === undefined
-          ? {}
-          : { supervisionShare: input.supervisionShare }),
-      },
-      select: { id: true },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.create({
+        data: {
+          orgId: user.orgId,
+          code: input.code,
+          address: input.address,
+          clientId: client.id,
+          deadline: input.deadline === null ? null : new Date(input.deadline),
+          ...(input.foremanId === undefined ? {} : { foremanId: input.foremanId }),
+          ...(input.startedAt === undefined || input.startedAt === null
+            ? {}
+            : { startedAt: new Date(input.startedAt) }),
+          ...(input.keysCount === undefined ? {} : { keysCount: input.keysCount }),
+          ...(input.supervisionShare === undefined
+            ? {}
+            : { supervisionShare: input.supervisionShare }),
+        },
+        select: { id: true },
+      });
 
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "Project",
-      entityId: project.id,
-      field: "создан",
-      oldValue: null,
-      newValue: `${input.code} — ${input.address}`,
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "Project",
+        entityId: project.id,
+        field: "создан",
+        oldValue: null,
+        newValue: `${input.code} — ${input.address}`,
+      }, tx);
     });
 
     return this.byCode(user, input.code);
@@ -209,15 +211,27 @@ export class ProjectsService {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
     if (project.status !== status) {
-      await this.prisma.project.update({ where: { id: project.id }, data: { status } });
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "Project",
-        entityId: project.id,
-        field: "status",
-        oldValue: project.status,
-        newValue: status,
+      await this.prisma.$transaction(async (tx) => {
+        /* Прежний статус в журнале — тот, от которого перевели, а не тот,
+           что прочитали до гонки (П-38). */
+        const { count } = await tx.project.updateMany({
+          where: { id: project.id, status: project.status },
+          data: { status },
+        });
+        if (count === 0) {
+          throw new BadRequestException({
+            message: `Статус объекта ${code} только что изменили в другом окне. Обновите экран.`,
+          });
+        }
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "Project",
+          entityId: project.id,
+          field: "status",
+          oldValue: project.status,
+          newValue: status,
+        }, tx);
       });
     }
     return this.byCode(user, code);
@@ -312,21 +326,23 @@ export class ProjectsService {
     }
 
     if (поля.length > 0) {
-      await this.prisma.project.update({
-        where: { id: project.id },
-        data: Object.assign({}, ...поля.map((поле) => поле.данные)) as Record<string, unknown>,
-      });
-      for (const поле of поля) {
-        await this.audit.record({
-          orgId: user.orgId,
-          actorId: user.id,
-          entity: "Project",
-          entityId: project.id,
-          field: поле.имя,
-          oldValue: поле.было,
-          newValue: поле.стало,
+      await this.prisma.$transaction(async (tx) => {
+        await tx.project.update({
+          where: { id: project.id },
+          data: Object.assign({}, ...поля.map((поле) => поле.данные)) as Record<string, unknown>,
         });
-      }
+        for (const поле of поля) {
+          await this.audit.record({
+            orgId: user.orgId,
+            actorId: user.id,
+            entity: "Project",
+            entityId: project.id,
+            field: поле.имя,
+            oldValue: поле.было,
+            newValue: поле.стало,
+          }, tx);
+        }
+      });
     }
     return this.byCode(user, code);
   }

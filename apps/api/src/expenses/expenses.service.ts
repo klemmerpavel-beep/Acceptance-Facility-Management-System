@@ -196,7 +196,7 @@ export class ExpensesService {
         field: `чек ${input.seller} — ${ВИД[input.kind] ?? input.kind}`,
         oldValue: null,
         newValue: `${formatKopecks(kopecks(input.amount))}${сразуПодтверждён ? "" : ", черновик"}`,
-      });
+      }, tx);
     });
 
     return this.view(user, code);
@@ -222,14 +222,29 @@ export class ExpensesService {
     if (expense.status === решение) return this.view(user, code);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.materialExpense.update({
-        where: { id: expense.id },
+      /* Переход — от прочитанного состояния, и только от него. Прежде
+         «подтвердить» и «отклонить», поданные одновременно, проходили оба,
+         и журнал писал «черновик → отклонён» поверх уже подтверждённого:
+         прежнее состояние в записи было неверным (полный аудит 30.09.2026,
+         П-38). Повтор того же решения — не ошибка, а пустой жест. */
+      const { count } = await tx.materialExpense.updateMany({
+        where: { id: expense.id, status: expense.status },
         data: {
           status: решение,
           confirmedById: user.id,
           confirmedAt: new Date(),
         },
       });
+      if (count === 0) {
+        const сейчас = await tx.materialExpense.findUniqueOrThrow({
+          where: { id: expense.id },
+          select: { status: true },
+        });
+        if (сейчас.status === решение) return;
+        throw new BadRequestException({
+          message: `Чек только что ${сейчас.status === "CONFIRMED" ? "подтвердили" : "отклонили"} в другом окне. Обновите экран.`,
+        });
+      }
       await this.audit.record({
         orgId: user.orgId,
         actorId: user.id,
@@ -238,7 +253,7 @@ export class ExpensesService {
         field: `чек ${expense.seller} — состояние`,
         oldValue: СОСТОЯНИЕ[expense.status],
         newValue: СОСТОЯНИЕ[решение],
-      });
+      }, tx);
     });
 
     return this.view(user, code);
@@ -271,7 +286,7 @@ export class ExpensesService {
         field: `чек ${expense.seller} — черновик удалён`,
         oldValue: formatKopecks(kopecks(expense.amount)),
         newValue: null,
-      });
+      }, tx);
     });
 
     await this.storage.remove(expense.storageKey);

@@ -318,7 +318,7 @@ export class ActsService {
         field: `акт № ${String(транш.number)} — подписание`,
         oldValue: транш.signedAt === null ? null : formatDay(день(транш.signedAt)),
         newValue: formatDay(input.signedAt),
-      });
+      }, tx);
     });
 
     return this.list(user, code);

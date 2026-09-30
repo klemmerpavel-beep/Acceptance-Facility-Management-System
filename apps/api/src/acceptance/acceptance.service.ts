@@ -537,7 +537,7 @@ export class AcceptanceService {
         field: `приёмка: ${section.name}, этап «${stage?.name ?? ""}»`,
         oldValue: null,
         newValue: `позиций ${String(input.positions.length)}`,
-      });
+      }, tx);
     });
 
     return this.build(user, project.id);
@@ -615,7 +615,7 @@ export class AcceptanceService {
         field: `сторно приёмки «${original.item.name}»`,
         oldValue: original.qty.toString(),
         newValue: input.reason,
-      });
+      }, tx);
     });
 
     return this.build(user, project.id);

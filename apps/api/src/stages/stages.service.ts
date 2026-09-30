@@ -290,28 +290,30 @@ export class StagesService {
       _max: { order: true },
     });
 
-    const stage = await this.prisma.workStage.create({
-      data: {
-        projectId: project.id,
-        name: input.name,
-        order: (последний._max.order ?? -1) + 1,
-        startsOn: new Date(input.startsOn),
-        endsOn: new Date(input.endsOn),
-        progress: input.progress,
-        ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
-        ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
-      },
-      select: { id: true },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const stage = await tx.workStage.create({
+        data: {
+          projectId: project.id,
+          name: input.name,
+          order: (последний._max.order ?? -1) + 1,
+          startsOn: new Date(input.startsOn),
+          endsOn: new Date(input.endsOn),
+          progress: input.progress,
+          ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
+          ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
+        },
+        select: { id: true },
+      });
 
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "WorkStage",
-      entityId: stage.id,
-      field: "этап заведён",
-      oldValue: null,
-      newValue: `${input.name}: ${formatDay(input.startsOn)} — ${formatDay(input.endsOn)}`,
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "WorkStage",
+        entityId: stage.id,
+        field: "этап заведён",
+        oldValue: null,
+        newValue: `${input.name}: ${formatDay(input.startsOn)} — ${formatDay(input.endsOn)}`,
+      }, tx);
     });
 
     return this.list(project.id);
@@ -434,30 +436,32 @@ export class StagesService {
 
     /* Одной транзакцией: график, заведённый наполовину, хуже незаведённого —
        человек не отличит его от того, что он сам собирался построить. */
-    await this.prisma.$transaction(
-      предложены.map((stage, индекс) => this.prisma.workStage.create({
-        data: {
-          projectId: project.id,
-          name: stage.name,
-          order: следующий + индекс,
-          startsOn: new Date(stage.startsOn),
-          endsOn: new Date(stage.endsOn),
-          progress: 0,
-          sectionId: stage.sectionId,
-        },
-        select: { id: true },
-      })),
-    );
+    await this.prisma.$transaction(async (tx) => {
+      for (const [индекс, stage] of предложены.entries()) {
+        await tx.workStage.create({
+          data: {
+            projectId: project.id,
+            name: stage.name,
+            order: следующий + индекс,
+            startsOn: new Date(stage.startsOn),
+            endsOn: new Date(stage.endsOn),
+            progress: 0,
+            sectionId: stage.sectionId,
+          },
+          select: { id: true },
+        });
+      }
 
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "WorkStage",
-      entityId: project.id,
-      field: "график заведён из сметы",
-      oldValue: null,
-      newValue: `${String(предложены.length)} этапов: ${formatDay(input.from)} — `
-        + formatDay(предложены[предложены.length - 1]?.endsOn ?? input.to),
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "WorkStage",
+        entityId: project.id,
+        field: "график заведён из сметы",
+        oldValue: null,
+        newValue: `${String(предложены.length)} этапов: ${formatDay(input.from)} — `
+          + formatDay(предложены[предложены.length - 1]?.endsOn ?? input.to),
+      }, tx);
     });
 
     return this.list(project.id);
@@ -494,17 +498,14 @@ export class StagesService {
 
     await this.checkBindings(user.orgId, project.id, input, id);
 
-    await this.prisma.workStage.update({
-      where: { id },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        startsOn: new Date(startsOn),
-        endsOn: new Date(endsOn),
-        ...(input.progress === undefined ? {} : { progress: input.progress }),
-        ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
-        ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
-      },
-    });
+    /* Имена раздела и бригады читаются до транзакции: чтение службой базы
+       внутри неё заняло бы второе соединение пула при удержанном первом. */
+    const сменаРаздела = input.sectionId !== undefined && input.sectionId !== прежний.sectionId
+      ? await Promise.all([this.sectionName(прежний.sectionId), this.sectionName(input.sectionId)])
+      : null;
+    const сменаБригады = input.brigadeId !== undefined && input.brigadeId !== прежний.brigadeId
+      ? await Promise.all([this.brigadeName(прежний.brigadeId), this.brigadeName(input.brigadeId)])
+      : null;
 
     /* В журнал уходит то, что изменилось, а не всё тело запроса: строка
        «сроки: те же → те же» ничего не сообщает и мешает искать нужное. */
@@ -514,62 +515,70 @@ export class StagesService {
     const стало = `${startsOn} — ${endsOn}`;
     const дляЖурнала = (сроки: string): string =>
       сроки.split(" — ").map(formatDay).join(" — ");
-    if (было !== стало) {
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "WorkStage",
-        entityId: id,
-        field: `сроки этапа «${input.name ?? прежний.name}»`,
-        oldValue: дляЖурнала(было),
-        newValue: дляЖурнала(стало),
-      });
-    }
-    /* Смена раздела и смена бригады пишутся в журнал наравне со сроками:
-       этой парой решается, кому уйдёт сдельная оплата за принятые позиции
-       раздела. Записывается имя, а не опознаватель: журнал читает человек. */
-    if (input.sectionId !== undefined && input.sectionId !== прежний.sectionId) {
-      const [было, стало] = await Promise.all([
-        this.sectionName(прежний.sectionId),
-        this.sectionName(input.sectionId),
-      ]);
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "WorkStage",
-        entityId: id,
-        field: `раздел сметы у этапа «${input.name ?? прежний.name}»`,
-        oldValue: было,
-        newValue: стало,
-      });
-    }
-    if (input.brigadeId !== undefined && input.brigadeId !== прежний.brigadeId) {
-      const [было, стало] = await Promise.all([
-        this.brigadeName(прежний.brigadeId),
-        this.brigadeName(input.brigadeId),
-      ]);
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "WorkStage",
-        entityId: id,
-        field: `бригада у этапа «${input.name ?? прежний.name}»`,
-        oldValue: было,
-        newValue: стало,
-      });
-    }
+    const этап = input.name ?? прежний.name;
 
-    if (input.progress !== undefined && input.progress !== прежний.progress) {
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "WorkStage",
-        entityId: id,
-        field: `готовность этапа «${input.name ?? прежний.name}»`,
-        oldValue: `${String(прежний.progress / 100)} %`,
-        newValue: `${String(input.progress / 100)} %`,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workStage.update({
+        where: { id },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          startsOn: new Date(startsOn),
+          endsOn: new Date(endsOn),
+          ...(input.progress === undefined ? {} : { progress: input.progress }),
+          ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
+          ...(input.brigadeId === undefined ? {} : { brigadeId: input.brigadeId }),
+        },
       });
-    }
+
+      if (было !== стало) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "WorkStage",
+          entityId: id,
+          field: `сроки этапа «${этап}»`,
+          oldValue: дляЖурнала(было),
+          newValue: дляЖурнала(стало),
+        }, tx);
+      }
+      /* Смена раздела и смена бригады пишутся в журнал наравне со сроками:
+         этой парой решается, кому уйдёт сдельная оплата за принятые позиции
+         раздела. Записывается имя, а не опознаватель: журнал читает человек. */
+      if (сменаРаздела !== null) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "WorkStage",
+          entityId: id,
+          field: `раздел сметы у этапа «${этап}»`,
+          oldValue: сменаРаздела[0],
+          newValue: сменаРаздела[1],
+        }, tx);
+      }
+      if (сменаБригады !== null) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "WorkStage",
+          entityId: id,
+          field: `бригада у этапа «${этап}»`,
+          oldValue: сменаБригады[0],
+          newValue: сменаБригады[1],
+        }, tx);
+      }
+
+      if (input.progress !== undefined && input.progress !== прежний.progress) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "WorkStage",
+          entityId: id,
+          field: `готовность этапа «${этап}»`,
+          oldValue: `${String(прежний.progress / 100)} %`,
+          newValue: `${String(input.progress / 100)} %`,
+        }, tx);
+      }
+    });
 
     return this.list(project.id);
   }
@@ -584,15 +593,17 @@ export class StagesService {
     /* Удаление физическое. Этап — план, а не денежная запись: сторно нужно
        там, где число уже вошло в начисление, а плановый отрезок ничего не
        начисляет. Журнал при этом остаётся. */
-    await this.prisma.workStage.delete({ where: { id } });
-    await this.audit.record({
-      orgId: user.orgId,
-      actorId: user.id,
-      entity: "WorkStage",
-      entityId: id,
-      field: "этап снят",
-      oldValue: `${stage.name}: ${formatDay(iso(stage.startsOn))} — ${formatDay(iso(stage.endsOn))}`,
-      newValue: null,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workStage.delete({ where: { id } });
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "WorkStage",
+        entityId: id,
+        field: "этап снят",
+        oldValue: `${stage.name}: ${formatDay(iso(stage.startsOn))} — ${formatDay(iso(stage.endsOn))}`,
+        newValue: null,
+      }, tx);
     });
 
     return this.list(project.id);
