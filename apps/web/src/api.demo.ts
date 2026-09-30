@@ -37,7 +37,7 @@ import {
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
-  fillTemplate, formatKopecks, templateFault,
+  fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
@@ -345,7 +345,11 @@ export async function fetchClients(): Promise<ClientRow[]> {
 
 export async function fetchWorkers(): Promise<WorkerRow[]> {
   await pause(80);
-  return [...data.workers, ...заведённые.workers];
+  const все = [...data.workers, ...заведённые.workers];
+  if (ownerLevel(демоРоль)) return все;
+  /* Начисленное бригаде — внутренняя величина: сервер прорабу её не отдаёт,
+     а двойник отдавал слепок руководителя (полный аудит 30.09.2026, П-1). */
+  return все.map((бригада) => безКлючей(бригада, ["wageTotal"]));
 }
 
 export async function createClient(input: CreateClient): Promise<ClientRow[]> {
@@ -626,15 +630,33 @@ export async function fetchEstimate(code: string): Promise<EstimateView> {
   if (code !== "R-99") {
     throw new Error(`У объекта ${code} нет сметы. Импортируйте её на вкладке «Импорт».`);
   }
-  /* Отдаётся правимая копия, а не снимок: иначе правка в демонстрации
-     видна на экране, но исчезает при возврате на вкладку. */
-  return сметаR99();
+  /* Руководителю и бухгалтеру отдаётся правимая копия, а не снимок: иначе
+     правка в демонстрации видна на экране, но исчезает при возврате на
+     вкладку. Прорабу и заказчику — их собственные слепки, снятые со стенда
+     от их имени: прежде смета руководителя уходила всем ролям, и в
+     переключателе «Заказчик» стояли ставка, фонд оплаты труда и прибыль
+     (полный аудит 30.09.2026, П-1). Правка руководителя в их вид не
+     переносится — демонстрация показывает, что сервер отдал бы роли, а не
+     сплав двух ответов. */
+  if (ownerLevel(демоРоль)) return сметаR99();
+  return structuredClone(демоРоль === "CLIENT" ? data["estimate-client"] : data["estimate-foreman"]);
 }
 
 export async function fetchImports(code: string): Promise<ImportRecord[]> {
   await pause(120);
-  return code === "R-99" ? data.imports : [];
+  if (code !== "R-99") return [];
+  if (ownerLevel(демоРоль)) return data.imports;
+  /* Фонд оплаты труда отчёта — внутренняя величина: сервер прорабу три поля
+     не отдаёт (полный аудит 30.09.2026, П-16), и двойник не отдаёт тоже. */
+  return data.imports.map((запись) => ({
+    ...запись,
+    report: безКлючей(запись.report, ["computedWageTotal", "declaredWageTotal", "wageTotalDelta"]),
+  }));
 }
+
+/** Копия записи без названных ключей: так двойник снимает внутренние поля. */
+const безКлючей = <T extends object>(запись: T, ключи: readonly (keyof T)[]): T =>
+  Object.fromEntries(Object.entries(запись).filter(([ключ]) => !ключи.includes(ключ as keyof T))) as T;
 
 /* --- приёмка выполненных работ --------------------------------------------
    Правки живут в памяти вкладки до перезагрузки. Снимок не разбирается:
@@ -650,9 +672,11 @@ const приёмкаR99 = (role: "OWNER" | "FOREMAN"): AcceptanceView => {
   приёмка ??= structuredClone(data["acceptance-owner"]);
   if (role === "OWNER") return приёмка;
   /* Прорабу внутренние величины не отдаются. Ключи убираются, а не
-     обнуляются: в продукте их в ответе нет вовсе. */
+     обнуляются: в продукте их в ответе нет вовсе. Ответ собирается
+     перечислением, а не развёртыванием ответа руководителя: развёртывание
+     пропускало всякое новое поле, и начисления бригадам по неделям
+     (`accruals`) доходили до прораба (полный аудит 30.09.2026, П-1). */
   return {
-    ...приёмка,
     sections: приёмка.sections.map((section) => ({
       ...section,
       positions: section.positions.map((position) => ({
@@ -690,8 +714,14 @@ export async function fetchAcceptance(code: string): Promise<AcceptanceView> {
   if (code !== "R-99") {
     return { sections: [], batches: [], totals: { positions: 0, acceptedPositions: 0, accepted: "0" } };
   }
-  return приёмкаR99(data["me-owner"].role === "OWNER" ? "OWNER" : "FOREMAN");
+  return приёмкаПоРоли();
 }
+
+/* Проекция выбирается по роли переключателя, а не по слепку руководителя:
+   его роль «OWNER» всегда, и прораб демонстрации получал внутренние
+   величины. Тем же правилом отвечают заведение и сторно приёмки: прежде они
+   возвращали вид руководителя любой роли (полный аудит 30.09.2026, П-1). */
+const приёмкаПоРоли = (): AcceptanceView => приёмкаR99(ownerLevel(демоРоль) ? "OWNER" : "FOREMAN");
 
 export async function createAcceptance(
   _code: string,
@@ -752,7 +782,7 @@ export async function createAcceptance(
   }, ...вид.batches];
   выработатьВТранш(вид, section.id, lines, 1n);
   пересчитатьПриёмку(вид);
-  return приёмкаR99("OWNER");
+  return приёмкаПоРоли();
 }
 
 export async function reverseAcceptance(
@@ -777,7 +807,7 @@ export async function reverseAcceptance(
     }
     выработатьВТранш(вид, batch.sectionId, [line], -1n);
     пересчитатьПриёмку(вид);
-    return приёмкаR99("OWNER");
+    return приёмкаПоРоли();
   }
   throw new Error("Приёмка не найдена на этом объекте.");
 }
