@@ -316,6 +316,62 @@ if (доступВыдан.status === 201) {
 const себе = await owner(`/people/${яРуководитель.id}`, { method: "DELETE" });
 check(себе.status === 400, `руководитель снял доступ себе с кодом ${себе.status}`);
 
+/* --- снятие доступа не стирает авторство ---------------------------------------
+   Снятие удаляло строку человека, и `onDelete: SetNull` оставлял его записи в
+   журнале без автора (полный аудит 30.09.2026, П-51). Решение от 01.10.2026 —
+   мягкое снятие: запись остаётся, вход закрыт, повторная выдача по той же
+   почте возвращает ту же запись. Проверяется на человеке, оставившем след в
+   ленте объекта: правка числа ключей R-99 и её возврат руководителем.
+   -------------------------------------------------------------------------- */
+{
+  const ПОЧТА = "snyatie-proverka@dolgiy.studio";
+  const ИМЯ = "Проверка снятия";
+  const выдан = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: ИМЯ, role: "ACCOUNTANT", email: ПОЧТА, phone: null, clientId: null }),
+  });
+  check(выдан.status === 201, `человек для проверки снятия заведён с кодом ${выдан.status}`);
+  const { token: первая } = выдан.status === 201 ? await выдан.json() : { token: "" };
+  const вход = await fetch(`${BASE}/auth/consume?token=${первая}`, { redirect: "manual" });
+  const кука = вход.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const снимаемый = (путь, init = {}) => fetch(`${BASE}${путь}`, { ...init, headers: { cookie: кука, ...init.headers } });
+  const кто = await снимаемый("/auth/me").then((r) => r.json());
+  const ключи = await owner("/projects/R-99").then((r) => r.json()).then((объект) => объект.keysCount);
+  const правка = (кем, число) => кем("/projects/R-99", {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keysCount: число }),
+  });
+  check((await правка(снимаемый, ключи + 1)).ok, "человек для проверки снятия не смог править объект");
+  check((await правка(owner, ключи)).ok, "руководитель не вернул число ключей R-99");
+
+  const снят = await owner(`/people/${кто.id}`, { method: "DELETE" });
+  check(снят.status === 200, `снятие доступа дало код ${снят.status}`);
+  const лента = await owner("/projects/R-99/events?limit=200").then((r) => r.json());
+  check(лента.some((событие) => событие.actor === ИМЯ),
+    "после снятия доступа записи человека в ленте R-99 остались без автора");
+  check((await снимаемый("/auth/me")).status === 401, "сессия пережила снятие доступа");
+  const письмо = await fetch(`${BASE}/auth/magic-link`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ПОЧТА }),
+  }).then((r) => r.json());
+  check(письмо.token === undefined, "снятому выдана ссылка входа по почте");
+  check((await owner(`/people/${кто.id}/link`, { method: "POST" })).status === 404,
+    "снятому выдана новая персональная ссылка");
+  const послеСнятия = await owner("/people").then((r) => r.json());
+  check(!послеСнятия.some((человек) => человек.id === кто.id), "снятый стоит в списке людей с доступом");
+
+  const возврат = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: ИМЯ, role: "ACCOUNTANT", email: ПОЧТА, phone: null, clientId: null }),
+  });
+  check(возврат.status === 201, `повторная выдача входа снятому дала код ${возврат.status}`);
+  const { token: вторая } = возврат.status === 201 ? await возврат.json() : { token: "" };
+  const снова = await fetch(`${BASE}/auth/consume?token=${вторая}`, { redirect: "manual" });
+  const кукаСнова = снова.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const ктоСнова = await fetch(`${BASE}/auth/me`, { headers: { cookie: кукаСнова } }).then((r) => r.json());
+  check(ктоСнова.id === кто.id,
+    `повторная выдача завела новую запись (${String(ктоСнова.id)}) вместо возврата прежней (${String(кто.id)})`);
+}
+
 /* --- вход на человека чужой организации --------------------------------------
    `POST /auth/foreman-link` выдавал ссылку входа на любой `userId`: страж
    спрашивал роль вызывающего, а сервис не спрашивал ничего. Руководитель
