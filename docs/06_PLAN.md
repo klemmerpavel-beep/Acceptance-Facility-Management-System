@@ -270,7 +270,7 @@ pnpm --filter @priyomka/api exec prisma generate    # и после каждой
 export DATABASE_URL=postgresql://priyomka:…@127.0.0.1:5432/priyomka
 pnpm --filter @priyomka/api exec prisma migrate deploy
 pnpm --filter @priyomka/api exec node prisma/seed.mjs
-pnpm --filter @priyomka/api run build && node apps/api/dist/apps/api/src/main.js
+pnpm --filter @priyomka/api run build && AUTH_ECHO=1 node apps/api/dist/apps/api/src/main.js   # флаг: код входа в ответе (П-28)
 pnpm --filter @priyomka/web run dev
 node scripts/seed-estimate.mjs                      # смета через API, не записью в таблицы
 node scripts/verify-api.mjs && node scripts/verify-page.mjs

@@ -4,6 +4,7 @@ import { AuthPurpose, type Prisma } from "@prisma/client";
 import { formatPhone, parsePhone, type PhoneNumber } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
+import { echoesSecrets } from "./echo";
 
 /** Магическая ссылка руководителя живёт минуты: она приходит на почту. */
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
@@ -155,10 +156,11 @@ export class AuthService {
         expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
       },
     });
-    // На стенде код возвращается в теле и показывается на экране. В
-    // промышленной среде поле не приходит: код уходит сообщением.
+    // На стенде с флагом `AUTH_ECHO=1` код возвращается в теле и
+    // показывается на экране. Без флага поле не приходит: код уходит
+    // сообщением (`echo.ts`, П-28).
     const issued = { phone: shown, retryAfterSeconds: SMS_RESEND_MS / 1000 };
-    return process.env.NODE_ENV === "production" ? issued : { ...issued, code };
+    return echoesSecrets() ? { ...issued, code } : issued;
   }
 
   /** Обменивает код на сессию. Считает попытки: код короткий. */

@@ -9,6 +9,7 @@ import {
   type SmsCodeIssued,
 } from "@priyomka/contracts";
 import { AuthService } from "./auth.service";
+import { echoesSecrets } from "./echo";
 import { SESSION_COOKIE, SessionGuard } from "./session.guard";
 import { CurrentUser, type RequestUser } from "../common/current-user";
 
@@ -18,14 +19,14 @@ export class AuthController {
 
   /**
    * Запрос ссылки входа. Ответ одинаков для существующего и несуществующего
-   * адреса. Токен возвращается в теле только вне промышленной среды: в
-   * промышленной его отправляет почтовый отправитель.
+   * адреса. Токен возвращается в теле только на стенде с флагом `AUTH_ECHO=1`
+   * (`echo.ts`); без флага его отправляет почтовый отправитель.
    */
   @Post("magic-link")
   async requestMagicLink(@Body() body: unknown): Promise<{ sent: true; token?: string }> {
     const { email } = requestMagicLinkSchema.parse(body);
     const issued = await this.auth.issueLink(email);
-    if (issued && process.env.NODE_ENV !== "production") {
+    if (issued && echoesSecrets()) {
       return { sent: true, token: issued.token };
     }
     return { sent: true };
@@ -33,9 +34,9 @@ export class AuthController {
 
   /**
    * Запрос кода подтверждения на номер телефона. Ответ одинаков для
-   * существующего и несуществующего номера. На стенде код приходит в теле
-   * и показывается на экране: отправщик сообщений подключается перед
-   * пилотом заменой одного вызова, экран при этом не меняется.
+   * существующего и несуществующего номера. На стенде с флагом `AUTH_ECHO=1`
+   * код приходит в теле и показывается на экране: отправщик сообщений
+   * подключается к пилоту заменой одного вызова, экран при этом не меняется.
    */
   @Post("phone/request")
   async requestSmsCode(@Body() body: unknown): Promise<SmsCodeIssued> {

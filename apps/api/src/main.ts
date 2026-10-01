@@ -5,9 +5,11 @@ import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
+import { assertEchoAllowed } from "./auth/echo";
 import { ZodExceptionFilter } from "./common/zod-exception.filter";
 
 async function bootstrap(): Promise<void> {
+  assertEchoAllowed();
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
   await app.register(cookie);
   // Смета приходит книгой Excel: тело запроса многочастное.
