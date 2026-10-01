@@ -1615,6 +1615,8 @@ export const leadCardSchema = z.object({
   tasks: z.array(leadTaskSchema),
   /** Код заведённого объекта. `null` — заявка ещё не превращена. */
   projectCode: z.string().nullable(),
+  /** День обезличивания отказной заявки. `null` — персональные данные на месте. */
+  anonymizedAt: z.string().nullable(),
 });
 export type LeadCard = z.infer<typeof leadCardSchema>;
 

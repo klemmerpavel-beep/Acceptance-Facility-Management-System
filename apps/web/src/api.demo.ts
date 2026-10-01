@@ -1866,6 +1866,7 @@ export async function createLead(input: CreateLead): Promise<LeadCard> {
     guideline: null,
     tasks: [],
     projectCode: null,
+    anonymizedAt: null,
   };
   доска().columns[0]?.leads.unshift(lead);
   return lead;
@@ -1935,6 +1936,14 @@ export async function convertLead(): Promise<LeadCard> {
 export async function loseLead(id: string, input: LoseLead): Promise<LeadCard> {
   await pause(180);
   return правка(id, (lead) => ({ ...lead, outcome: "LOST", lostReason: input.reason }));
+}
+
+export async function anonymizeLead(id: string): Promise<LeadCard> {
+  await pause(180);
+  return правка(id, (lead) => ({
+    ...lead, name: "Обезличено", phone: "", address: null, note: null,
+    anonymizedAt: data["summary-owner"].today,
+  }));
 }
 
 export async function addLeadTask(id: string, input: CreateLeadTask): Promise<LeadCard> {

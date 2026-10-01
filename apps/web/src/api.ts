@@ -606,6 +606,10 @@ export const convertLead = (id: string, input: ConvertLead): Promise<LeadCard> =
 export const loseLead = (id: string, input: LoseLead): Promise<LeadCard> =>
   request(`/leads/${id}/loss`, leadCardSchema, json(input));
 
+/** Обезличивание отказной заявки (П-40): имя, телефон, адрес и заметка. */
+export const anonymizeLead = (id: string): Promise<LeadCard> =>
+  request(`/leads/${id}/anonymization`, leadCardSchema, json({}));
+
 export const addLeadTask = (id: string, input: CreateLeadTask): Promise<LeadCard> =>
   request(`/leads/${id}/tasks`, leadCardSchema, json(input));
 

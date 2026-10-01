@@ -46,7 +46,7 @@ export class LeadsService {
 
   private static readonly SELECT = {
     id: true, number: true, name: true, phone: true, address: true, note: true,
-    stage: true, outcome: true, lostReason: true, createdAt: true,
+    stage: true, outcome: true, lostReason: true, createdAt: true, anonymizedAt: true,
     repairTypeId: true, area: true, rateSnapshot: true, spreadSnapshot: true,
     repairType: { select: { name: true } },
     project: { select: { code: true } },
@@ -346,6 +346,53 @@ export class LeadsService {
     return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
   }
 
+  /**
+   * Обезличивание отказной заявки.
+   *
+   * Имя и телефон физического лица из отказной заявки хранились бессрочно,
+   * хотя цель обработки — сделка — отпала с отказом (ст. 21 152-ФЗ; полный
+   * аудит 30.09.2026, П-40). Решение заказчика от 01.10.2026: действие
+   * руководителя сейчас, срок хранения — вместе с политикой обработки.
+   *
+   * Заменяются имя, телефон, адрес и заметка. Причина отказа, стадия,
+   * ориентир и задачи остаются: это сведения о воронке. Журнал заявки не
+   * трогается — запись о заведении хранит имя, и так решено заказчиком;
+   * запись об обезличивании персональных данных не несёт. Действие
+   * однократно и не отменяется: прежних значений больше нет нигде, кроме
+   * журнала.
+   */
+  async anonymize(user: RequestUser, id: string): Promise<LeadCard> {
+    const lead = await this.own(user, id);
+    if (lead.outcome !== "LOST") {
+      throw new BadRequestException({
+        message: `Заявка № ${lead.number} не закрыта отказом: обезличивается только отказная заявка.`,
+      });
+    }
+    const обновлённая = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.lead.updateMany({
+        where: { id, orgId: user.orgId, outcome: "LOST", anonymizedAt: null },
+        data: { name: LeadsService.ОБЕЗЛИЧЕНО, phone: "", address: null, note: null, anonymizedAt: new Date() },
+      });
+      if (count === 0) {
+        throw new BadRequestException({ message: `Заявка № ${lead.number} уже обезличена.` });
+      }
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "Lead",
+        entityId: id,
+        field: "персональные данные",
+        oldValue: null,
+        newValue: "обезличены: имя, телефон, адрес, заметка",
+      }, tx);
+      return tx.lead.findUniqueOrThrow({ where: { id }, select: LeadsService.SELECT });
+    });
+    return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
+  }
+
+  /** Имя обезличенной заявки: слово, а не пустота, — доска печатает имя первым. */
+  private static readonly ОБЕЗЛИЧЕНО = "Обезличено";
+
   async addTask(user: RequestUser, id: string, input: CreateLeadTask): Promise<LeadCard> {
     const lead = await this.own(user, id);
     await this.prisma.leadTask.create({
@@ -442,7 +489,7 @@ export class LeadsService {
     id: string; number: number; name: string; phone: string;
     address: string | null; note: string | null;
     stage: LeadStage; outcome: "OPEN" | "WON" | "LOST"; lostReason: string | null;
-    createdAt: Date; repairTypeId: string | null;
+    createdAt: Date; anonymizedAt: Date | null; repairTypeId: string | null;
     area: bigint | null; rateSnapshot: bigint | null; spreadSnapshot: number | null;
     repairType: { name: string } | null;
     project: { code: string } | null;
@@ -481,6 +528,7 @@ export class LeadsService {
         };
       }),
       projectCode: lead.project?.code ?? null,
+      anonymizedAt: lead.anonymizedAt === null ? null : lead.anonymizedAt.toISOString().slice(0, 10),
     };
   }
 }
