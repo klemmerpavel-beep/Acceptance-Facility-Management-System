@@ -4364,31 +4364,38 @@ await page.waitForTimeout(900);
 const послеСнятия = await page.locator(".gantt__row").count();
 if (послеСнятия !== 7) note("график", `после снятия строк ${послеСнятия} вместо семи`);
 
-/* График на телефоне: колонка названия уже, день той же ширины. */
+/* График на телефоне — перечень этапов вместо диаграммы (план, пункт 7.5).
+   Прежде здесь стерегли обратное: дневная сетка на 360 px с днём той же
+   ширины, что на десктопе. Под дни оставалось меньше сотни пикселей, и
+   отрезок этапа сжимался в точку; решением заказчика от 02.10.2026 до
+   480 px диаграмму заменяет перечень — тот же, что на «Обзоре». */
 await page.setViewportSize({ width: 360, height: 780 });
 await page.waitForTimeout(400);
-const деньУзко = await page.locator(".gantt__scale .gantt__day").first().boundingBox();
-if (узкий !== null && деньУзко !== null && Math.abs(деньУзко.width - узкий.width) > 1) {
-  note("график", `на 360 px день сжался до ${Math.round(деньУзко.width)} px`);
+if ((await page.locator(".gantt__canvas").count()) > 0) {
+  note("7.5 перечень этапов", "на 360 px вкладка «Работа» показывает диаграмму Ганта, а не перечень этапов");
 }
-/* Ручка перестановки на телефоне не показывается: её работу делает поле
-   «Место в графике» в листе. Проверяется и то, что её нет, и то, что путь
-   к листу открыт целью нужного размера. */
-if (await page.locator(".gantt__move").first().isVisible()) {
-  note("график", "ручка перестановки показана на 360 px, где её тянуть нечем");
+const строкПеречня = await page.locator("#panel-work .stagelist__row").count();
+if (строкПеречня !== 7) {
+  note("7.5 перечень этапов", `на 360 px в перечне этапов ${строкПеречня} строк вместо семи`);
 }
-const названиеЭтапа = await page.locator(".gantt__title").first().boundingBox();
-if (названиеЭтапа !== null && названиеЭтапа.height < 48) {
-  note("график", `название этапа на 360 px — ${Math.round(названиеЭтапа.height)} px вместо 48`);
+/* Путь к листу этапа открыт целью нужного размера: перестановку и даты на
+   телефоне правят в листе, тянуть отрезок там нечем. */
+const названиеЭтапа = await page.locator(".stagelist__open").first().boundingBox();
+if (названиеЭтапа === null) {
+  note("7.5 перечень этапов", "на 360 px этап перечня не открывается: кнопки названия нет");
+} else {
+  if (названиеЭтапа.height < 48) {
+    note("7.5 перечень этапов", `название этапа на 360 px — ${Math.round(названиеЭтапа.height)} px вместо 48`);
+  }
+  await page.click(".stagelist__open");
+  await page.waitForSelector(".sheet select");
+  /* Счёт идёт по своему полю, а не по всем полям выбора листа: их стало
+     три — место в графике, раздел сметы и бригада. */
+  const мест = await page.locator('.sheet label:has-text("Место в графике") select option').count();
+  if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
+  await page.click('.sheet button:has-text("Отмена")');
+  await page.waitForTimeout(300);
 }
-await page.click(".gantt__title");
-await page.waitForSelector(".sheet select");
-/* Счёт идёт по своему полю, а не по всем полям выбора листа: их стало
-   три — место в графике, раздел сметы и бригада. */
-const мест = await page.locator('.sheet label:has-text("Место в графике") select option').count();
-if (мест !== 7) note("график", `в поле «Место в графике» ${мест} мест вместо семи`);
-await page.click('.sheet button:has-text("Отмена")');
-await page.waitForTimeout(300);
 await разметка("работа, 360 px");
 await step("работа на телефоне", "28-grafik-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
@@ -5807,6 +5814,214 @@ for (const роль of РОЛИ_ВХОДА) {
     note("вход по ролям", `${роль.имя} тратит отказы на входе: ${лишние.join(", ")}`);
   }
   await свой.close();
+}
+
+/*
+ * Телефон 390 × 844 по всем ролям (план, этап Э7: пункты 7.1, 7.2, 7.5, 7.6).
+ *
+ * Замер исходного состояния 02.10.2026 нашёл то, чего обход на одной роли не
+ * видел: «Бухгалтерия» шире окна на 574 px, «Контакты» — на 64 px, а полоса
+ * вкладок карточки R-99 стояла на 983–1074 px, ниже первого экрана у всех
+ * четырёх ролей. Сравнение идёт с `innerWidth`, а не с шириной корня: так
+ * требование записано в плане, и так его видит телефон. Эмуляция мобильного
+ * окна не включается — при ней браузер растягивает окно под содержимое, и
+ * превышение исчезает из замера вместе с дефектом.
+ */
+{
+  const РОЛИ_ТЕЛЕФОНА = [
+    { имя: "руководитель", почта: "owner@dolgiy.studio", руководит: true },
+    { имя: "бухгалтер", почта: "buh@dolgiy.studio", руководит: true },
+    { имя: "прораб", почта: "foreman@dolgiy.studio", руководит: false },
+    { имя: "заказчик", почта: "client@dolgiy.studio", руководит: false },
+  ];
+  const РАЗДЕЛЫ = [
+    ["home", "Главная"], ["requests", "Заявки"], ["projects", "Проекты"],
+    ["contacts", "Контакты"], ["accounting", "Бухгалтерия"],
+  ];
+  const ВКЛАДКИ = {
+    "Обзор": "", "Замер": "/measure", "Смета": "/estimate", "Работа": "/work", "Приёмка": "/acceptance",
+    "Чеки": "/expenses", "Отчёт": "/report", "Транши": "/tranches", "Документы": "/documents", "Импорт": "/import",
+  };
+
+  for (const роль of РОЛИ_ТЕЛЕФОНА) {
+    const ссылка = await fetch(`${API}/auth/magic-link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: роль.почта }),
+    }).then((отклик) => отклик.json()).catch(() => ({}));
+    if (typeof ссылка.token !== "string") {
+      note("7.1 узкая ширина", `${роль.имя}: сервер не выдал ссылку входа — телефон не проверен`);
+      continue;
+    }
+    const телефон = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU" });
+    const лист = await телефон.newPage();
+    await лист.goto(`${BASE}/api/auth/consume?token=${ссылка.token}`, { waitUntil: "networkidle" })
+      .catch(() => { /* переадресация на чужой узел — ожидаемо */ });
+
+    const открыть = async (адрес) => {
+      await лист.goto(`${BASE}/${адрес}`, { waitUntil: "networkidle" });
+      await лист.waitForTimeout(500);
+    };
+    const ширина = async (где) => {
+      const лишнее = await лист.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (лишнее > 0) note("7.1 узкая ширина", `${роль.имя}: «${где}» шире окна на ${лишнее} px`);
+    };
+
+    /* 7.1. Разделы шапки — у каждой роли все, а не только свои: закрытый
+       роли раздел показывает пустое состояние, и оно тоже не шире окна. */
+    for (const [ключ, подпись] of РАЗДЕЛЫ) {
+      await открыть(`#${ключ}`);
+      await ширина(подпись);
+      if (ключ === "contacts" && (await лист.locator(".datatable").count()) > 0) {
+        const таблиц = await лист.locator(".datatable table").count();
+        const карточек = await лист.locator(".datatable__card").count();
+        if (таблиц > 0 || карточек === 0) {
+          note("7.1 таблицы карточками", `${роль.имя}: «Контакты» на 390 px — таблиц ${таблиц}, карточек ${карточек}`);
+        }
+      }
+      if (ключ === "accounting" && роль.руководит) {
+        const строкВедомости = await лист.locator(".money__row").count();
+        const карточек = await лист.locator(".moneycard").count();
+        if (строкВедомости > 0 || карточек === 0) {
+          note("7.1 таблицы карточками", `${роль.имя}: «Бухгалтерия» на 390 px — строк ведомости ${строкВедомости}, карточек ${карточек}`);
+        }
+        const заКраем = await лист.evaluate(() => [...document.querySelectorAll("button")]
+          .filter((кнопка) => (кнопка.textContent ?? "").includes("Отметить оплату"))
+          .filter((кнопка) => кнопка.getBoundingClientRect().right > window.innerWidth).length);
+        if (заКраем > 0) note("7.1 узкая ширина", `${роль.имя}: кнопок «Отметить оплату» за краем экрана — ${заКраем}`);
+        const безИмени = await лист.evaluate(() => {
+          const свод = [...document.querySelectorAll("section")]
+            .find((раздел) => раздел.querySelector("h2")?.textContent?.trim() === "По заказчикам");
+          if (свод === undefined) return -1;
+          return [...свод.querySelectorAll(".moneycard__name")]
+            .filter((имя) => (имя.textContent ?? "").trim() === "" || имя.getBoundingClientRect().width < 40).length;
+        });
+        if (безИмени !== 0) {
+          note("7.1 таблицы карточками", безИмени < 0
+            ? `${роль.имя}: свода «По заказчикам» на 390 px нет`
+            : `${роль.имя}: в своде «По заказчикам» ${безИмени} заказчиков без читаемого имени`);
+        }
+      }
+    }
+
+    /* 7.2. Карточка объекта: компактная шапка, свёрнутая сводка, полоса
+       вкладок на первом экране и прилипшая при прокрутке. */
+    await открыть("#R-99");
+    const шапка = ((await лист.locator(".cardhead").first().innerText().catch(() => "")) ?? "").replace(/\s+/gu, " ");
+    if (!шапка.includes("R-99") || (await лист.locator(".cardhead__back").count()) !== 1) {
+      note("7.2 карточка на телефоне", `${роль.имя}: нет компактной шапки «‹ код адрес» — «${шапка.slice(0, 60)}»`);
+    }
+    const свёрнута = await лист.locator('.cardsummary__toggle[aria-expanded="false"]').count();
+    const штампов = await лист.locator(".stamp").count();
+    if (свёрнута !== 1 || штампов !== 0) {
+      note("7.2 карточка на телефоне", `${роль.имя}: сводка не свёрнута — переключателей ${свёрнута}, штампов на виду ${штампов}`);
+    } else {
+      await лист.click(".cardsummary__toggle");
+      await лист.waitForTimeout(200);
+      if ((await лист.locator(".stamp").count()) !== 1) {
+        note("7.2 карточка на телефоне", `${роль.имя}: раскрытая сводка не показывает штамп объекта`);
+      }
+      await лист.click(".cardsummary__toggle");
+      await лист.waitForTimeout(200);
+    }
+    const верхВкладок = await лист.evaluate(() => {
+      const полоса = document.querySelector('.tabs[role="tablist"]');
+      return полоса === null ? null : Math.round(полоса.getBoundingClientRect().top + window.scrollY);
+    });
+    if (верхВкладок === null || верхВкладок >= 844) {
+      note("7.2 карточка на телефоне", `${роль.имя}: верх полосы вкладок ${String(верхВкладок)} px — ниже первого экрана 844`);
+    }
+    await лист.evaluate(() => { window.scrollTo(0, document.documentElement.scrollHeight); });
+    await лист.waitForTimeout(300);
+    const прилипла = await лист.evaluate(() => {
+      const полоса = document.querySelector('.tabs[role="tablist"]');
+      return полоса === null ? null : Math.round(полоса.getBoundingClientRect().top);
+    });
+    if (прилипла === null || Math.abs(прилипла) > 1) {
+      note("7.2 карточка на телефоне", `${роль.имя}: полоса вкладок не прилипает — после прокрутки её верх ${String(прилипла)} px`);
+    }
+    await лист.evaluate(() => { window.scrollTo(0, 0); });
+
+    /* 7.5. «График работ» на «Обзоре»: перечень этапов с отметкой текущего
+       и переход во вкладку «Работа». У R-99 семь этапов, шестой заявлен на
+       80 % — он и текущий. */
+    const этаповОбзора = await лист.locator("#panel-overview .stagelist__row").count();
+    const отмечено = await лист.locator('#panel-overview .stagelist__row[aria-current="step"]').count();
+    if (этаповОбзора !== 7 || отмечено !== 1) {
+      note("7.5 перечень этапов", `${роль.имя}: «График работ» на «Обзоре» — этапов ${этаповОбзора} из семи, отмечено текущих ${отмечено} вместо одного`);
+    }
+
+    const вкладки = (await лист.locator(".tabs__item").allTextContents()).map((текст) => текст.trim());
+    for (const вкладка of вкладки) {
+      const путь = ВКЛАДКИ[вкладка];
+      if (путь === undefined) continue;
+      await открыть(`#R-99${путь}`);
+      await ширина(`R-99 · ${вкладка}`);
+
+      if (вкладка === "Работа") {
+        const диаграмм = await лист.locator(".gantt__canvas").count();
+        const строк = await лист.locator("#panel-work .stagelist__row").count();
+        if (диаграмм > 0 || строк !== 7) {
+          note("7.5 перечень этапов", `${роль.имя}: «Работа» на 390 px — диаграмм ${диаграмм}, строк перечня ${строк} из семи`);
+        }
+      }
+
+      if (вкладка === "Смета") {
+        /* 7.6. Смета карточками; ставка и ЗП — только уровню руководителя;
+           итоги и шапка не обрезаны. */
+        const таблиц = await лист.locator("table.estimate").count();
+        const групп = await лист.locator(".estgroup").count();
+        if (таблиц > 0 || групп === 0) {
+          note("7.6 смета на телефоне", `${роль.имя}: таблиц сметы ${таблиц}, групп карточками ${групп}`);
+        } else {
+          await лист.click(".estgroup__head");
+          await лист.waitForTimeout(300);
+          const перваяКарточка = ((await лист.locator(".estcard").first().innerText().catch(() => "")) ?? "");
+          if (!перваяКарточка.includes("×") || !перваяКарточка.includes("=")) {
+            note("7.6 смета на телефоне", `${роль.имя}: позиция не читается «кол-во × цена = сумма»: «${перваяКарточка.replace(/\s+/gu, " ").slice(0, 80)}»`);
+          }
+          const внутренних = await лист.locator(".estcard__internal").count();
+          if (роль.руководит && внутренних === 0) {
+            note("7.6 смета на телефоне", `${роль.имя}: в карточках позиций нет ставки и ЗП`);
+          }
+          if (!роль.руководит && внутренних > 0) {
+            note("7.6 смета на телефоне", `${роль.имя}: в карточках позиций видны ставка и ЗП — ${внутренних}`);
+          }
+        }
+        const итоги = await лист.evaluate(() => [...document.querySelectorAll(".esttotals__row")]
+          .map((строка) => {
+            const сумма = строка.querySelector("dd");
+            const коробка = сумма?.getBoundingClientRect();
+            return {
+              подпись: (строка.querySelector("dt")?.textContent ?? "").trim().slice(0, 30),
+              обрезана: сумма === null || сумма === undefined
+                || сумма.scrollWidth > сумма.clientWidth + 1
+                || (коробка?.right ?? 0) > window.innerWidth,
+            };
+          }));
+        for (const подпись of ["Итого по работам", "Сопровождение", "Итого для заказчика"]) {
+          const строка = итоги.find((итог) => итог.подпись.startsWith(подпись));
+          if (строка === undefined) note("7.6 смета на телефоне", `${роль.имя}: итога «${подпись}» нет`);
+          else if (строка.обрезана) note("7.6 смета на телефоне", `${роль.имя}: итог «${подпись}» обрезан`);
+        }
+        const шапкаСметы = await лист.evaluate(() => {
+          const узел = document.querySelector("#panel-estimate .panel__head");
+          return узел === null ? 0 : узел.scrollWidth - узел.clientWidth;
+        });
+        if (шапкаСметы > 1) note("7.6 смета на телефоне", `${роль.имя}: шапка сметы обрезана на ${шапкаСметы} px`);
+        const единицы = await лист.evaluate(() => [...document.querySelectorAll(".otherexp")]
+          .filter((строка) => {
+            const цена = строка.querySelector(".otherexp__price .num")?.getBoundingClientRect();
+            const единица = строка.querySelector(".otherexp__unit")?.getBoundingClientRect();
+            return цена === undefined || единица === undefined || единица.top < цена.bottom - 1;
+          }).length);
+        if (единицы > 0) {
+          note("7.6 смета на телефоне", `${роль.имя}: в «Прочих расходах» единица не перенесена строкой у ${единицы} строк`);
+        }
+      }
+    }
+    await телефон.close();
+  }
 }
 
 await browser.close();

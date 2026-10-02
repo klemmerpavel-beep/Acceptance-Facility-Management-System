@@ -4,6 +4,7 @@ import { formatKopecks } from "@priyomka/ui";
 import { errorMessage, fetchAccounting, payTranche } from "./api.js";
 import { Announce } from "./Announce.js";
 import { formatDate, plural } from "./status.js";
+import { useNarrow } from "./media.js";
 
 /**
  * Раздел «Бухгалтерия»: деньги заказчиков по всему портфелю.
@@ -69,6 +70,11 @@ export function Accounting({
   const [объявление, setОбъявление] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [фильтр, setФильтр] = useState<MoneyState | "все">("все");
+  /* До 480 px ведомость, расходы и свод — карточками (план, пункт 7.1).
+     Восемь дорожек ведомости требуют около 950 px, и на 390 px страница
+     уезжала вбок на 574 px вместе с кнопками «Отметить оплату», а свод по
+     заказчикам терял имя — первую дорожку сжимало до нуля. */
+  const узко = useNarrow();
 
   const load = useCallback(() => {
     fetchAccounting()
@@ -171,6 +177,43 @@ export function Accounting({
 
         {строки.length === 0 ? (
           <p className="t-sm t-muted">В этом состоянии траншей нет — отбор сузил список до пустого.</p>
+        ) : узко ? (
+          <ul className="moneycards">
+            {строки.map((row) => (
+              <li className="moneycard" key={row.id}>
+                <button
+                  type="button"
+                  className="money__project"
+                  onClick={() => { onOpenProject(row.projectCode); }}
+                >
+                  <span className="code-badge">{row.projectCode}</span>
+                  <span className="money__address" title={row.address}>{row.address}</span>
+                </button>
+                <span className="moneycard__line t-sm t-muted">{row.clientName}</span>
+                <span className="moneycard__line">
+                  <span className="money__num num">Транш № {row.number}</span>
+                  <span className="money__sum num">{formatKopecks(BigInt(row.amount))}</span>
+                </span>
+                <span className="moneycard__line">
+                  <span className={ПИЛЮЛЯ(row).className}>{ПИЛЮЛЯ(row).label}</span>
+                  <span className="t-sm t-muted">{ПОДПИСЬ_СРОКА(row)}</span>
+                </span>
+                {ПОДПИСЬ_ОПЛАТЫ(row) !== "" && (
+                  <span className="moneycard__line t-sm t-muted">{ПОДПИСЬ_ОПЛАТЫ(row)}</span>
+                )}
+                {ЖДЁТ(row.state) && (
+                  <button
+                    type="button"
+                    className="btn btn--secondary moneycard__act"
+                    disabled={busy !== null}
+                    onClick={() => { отметить(row); }}
+                  >
+                    Отметить оплату
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         ) : (
           <ul className="money">
             {строки.map((row) => (
@@ -234,6 +277,26 @@ export function Accounting({
               оплаты, и правило «состояние названо словом» к ней не
               относится. Чужой класс сделал бы её девятой строкой реестра
               клиентских денег — для проверки и для читателя одинаково. */}
+          {узко ? (
+            <ul className="moneycards">
+              {view.expenses.map((строка) => (
+                <li className="moneycard" key={строка.projectCode}>
+                  <span className="spend__project">
+                    <span className="code-badge">{строка.projectCode}</span>
+                    <span className="money__address" title={строка.address}>{строка.address}</span>
+                  </span>
+                  <span className="moneycard__line">
+                    <span className="t-sm t-muted">потрачено</span>
+                    <span className="money__sum num">{formatKopecks(BigInt(строка.spent))}</span>
+                  </span>
+                  <span className="moneycard__line">
+                    <span className="t-sm t-muted">к возмещению</span>
+                    <span className="money__sum num t-muted">{formatKopecks(BigInt(строка.reimbursable))}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
           <ul className="money spend">
             {view.expenses.map((строка) => (
               <li className="money__row spend__row" key={строка.projectCode}>
@@ -254,6 +317,7 @@ export function Accounting({
               </li>
             ))}
           </ul>
+          )}
         </section>
       )}
 
@@ -266,6 +330,31 @@ export function Accounting({
           {/* Подпись стоит перед числом: «ждёт оплаты 0,00 ₽» читается слева
               направо, а число с подписью после него заставляет возвращаться
               глазом. */}
+          {узко ? (
+            <ul className="moneycards">
+              {view.clients.map((client) => (
+                <li className="moneycard" key={client.clientId}>
+                  <span className="moneycard__line">
+                    <span className="moneycard__name">{client.name}</span>
+                    {client.overdue && <span className="pill pill--danger">есть просрочка</span>}
+                  </span>
+                  <span className="moneycard__line">
+                    <span className="t-sm t-muted">ждёт оплаты</span>
+                    <span className="money__sum num">{formatKopecks(BigInt(client.awaiting))}</span>
+                  </span>
+                  <span className="moneycard__line">
+                    <span className="t-sm t-muted">получено</span>
+                    <span className="money__sum num t-muted">{formatKopecks(BigInt(client.paid))}</span>
+                  </span>
+                  <span className="moneycard__line t-sm t-muted">
+                    {client.graceDays === null
+                      ? "порог по умолчанию"
+                      : `порог по договору: ${client.graceDays} ${plural(client.graceDays, "день", "дня", "дней")}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
           <ul className="money money--clients">
             {view.clients.map((client) => (
               <li className="money__row money__row--client" key={client.clientId}>
@@ -289,6 +378,7 @@ export function Accounting({
               </li>
             ))}
           </ul>
+          )}
         </section>
       )}
     </main>

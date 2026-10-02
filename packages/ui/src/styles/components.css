@@ -2610,3 +2610,130 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .blueprint { flex-wrap: wrap; }
   .blueprint__total { margin-inline-start: 0; }
 }
+
+/* --- Э7. Телефон: узкая раскладка до 480 px ---------------------------------
+   Решение заказчика от 02.10.2026 вернуло мобильную версию в объёме пунктов
+   7.1, 7.2, 7.5 и 7.6. Вид переключает разметка (`useNarrow`, норматив 5.12);
+   здесь — только оформление карточек, в которые разметка превращает строки
+   таблиц, и правила, которым другой разметки не нужно: липкая полоса вкладок
+   и перенос единицы прочих расходов. Оформление — токенами продукта.       */
+
+/* Нижняя панель стоит над кнопкой замечания: её список «Ещё» раскрывается
+   вверх, в ту же зону, и кнопка закрывала нижний пункт списка. */
+.tabbar { z-index: 10; }
+
+/* Кнопка замечания на телефоне — значок без подписи у левого края над
+   нижней панелью (пункт 7.1). Справа стоят суммы и доли: числа продукта
+   выровнены по правому краю, и значок в правом углу закрывал их на каждом
+   экране. Слева — подписи, которые читаются и с краем под значком. */
+.feedback__open--icon { inline-size: var(--tap-min); block-size: var(--tap-min);
+  min-inline-size: var(--tap-min); padding: 0; justify-content: center;
+  inset-inline-start: var(--space-2); inset-inline-end: auto;
+  border-radius: var(--radius-pill); }
+
+/* «Смотреть глазами» в одну строку: четыре роли делят ширину поровну. */
+.demorole--narrow { flex-wrap: nowrap; padding: var(--space-1) var(--space-2); }
+.demorole--narrow .segmented { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; }
+.demorole--narrow .segmented__option { flex: 1 1 0; min-inline-size: 0;
+  padding-inline: var(--space-1); font-size: var(--fs-cap); overflow: hidden; text-overflow: ellipsis; }
+
+/* Таблица карточками: строка — карточка, колонка — пара «подпись — значение». */
+.datatable__order { display: flex; align-items: center; gap: var(--space-2); }
+.datatable__cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.datatable__card { display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3) var(--space-4); border-block-end: 1px solid var(--line); }
+.datatable__card:last-child { border-block-end: 0; }
+.datatable__field { display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--space-3); min-inline-size: 0; }
+.datatable__label { flex: none; font-size: var(--fs-cap); color: var(--ink-3); }
+.datatable__value { min-inline-size: 0; text-align: end; overflow-wrap: anywhere; font-size: var(--fs-sm); }
+
+/* Ведомость денег карточками: объект, заказчик, сумма, состояние, действие. */
+.moneycards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.moneycard { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0;
+  padding-block: var(--space-3); border-block-end: 1px solid var(--line); }
+.moneycard:last-child { border-block-end: 0; }
+.moneycard__line { display: flex; justify-content: space-between; align-items: center;
+  gap: var(--space-3); min-inline-size: 0; flex-wrap: wrap; }
+.moneycard__name { min-inline-size: 0; font-weight: 500; overflow-wrap: anywhere; }
+.moneycard__act { align-self: stretch; }
+
+/* Шапка карточки объекта на телефоне: «‹ код адрес» одной строкой. */
+.cardhead { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0;
+  padding-block: var(--space-3); }
+.cardhead__back { display: inline-flex; align-items: center; justify-content: center; flex: none;
+  inline-size: var(--tap-min); block-size: var(--tap-min); padding: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);
+  color: var(--ink); cursor: pointer; }
+.cardhead__address { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-h3); font-weight: 600; }
+
+/* Сводка объекта, свёрнутая под одну строку. */
+.cardsummary { display: flex; flex-direction: column; gap: var(--space-3); }
+.cardsummary__toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  column-gap: var(--space-2); inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-2) var(--space-3); text-align: start; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font-family: inherit; color: var(--ink); }
+.cardsummary__title { font-weight: 600; }
+.cardsummary__hint { grid-column: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardsummary__toggle .disclosure { grid-column: 2; grid-row: 1 / span 2; }
+.cardsummary__toggle[aria-expanded="true"] .disclosure { transform: rotate(180deg); }
+
+/* Полоса вкладок прилипает к верху окна (пункт 7.2): на телефоне вкладка
+   длиннее экрана, и без полосы под рукой к соседней вкладке листали назад. */
+@media (max-width: 480px) {
+  .tabs { position: sticky; inset-block-start: 0; z-index: 3; background: var(--bg); }
+}
+
+/* Перечень этапов (пункт 7.5): «Обзор» и вкладка «Работа» на телефоне. */
+.stagelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.stagelist__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start;
+  column-gap: var(--space-3); padding: var(--space-3) var(--space-4); border-block-end: 1px solid var(--line); }
+.stagelist__row:last-child { border-block-end: 0; }
+.stagelist__row--current { background: var(--accent-soft); }
+.stagelist__num { color: var(--ink-3); min-inline-size: 2ch; }
+.stagelist__body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+.stagelist__name { font-weight: 500; overflow-wrap: anywhere; }
+.stagelist__open { min-block-size: var(--control-h-touch); padding: 0; text-align: start;
+  background: none; border: 0; font-family: inherit; font-size: inherit; color: var(--accent); cursor: pointer; }
+.stagelist__mark { align-self: start; }
+.stagelist__pct { display: flex; flex-direction: column; align-items: end; gap: var(--space-1); white-space: nowrap; }
+
+/* Смета карточками (пункт 7.6). */
+.estgroups, .estcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.estgroup { border-block-end: 1px solid var(--line); }
+.estgroup__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  column-gap: var(--space-2); inline-size: 100%; min-block-size: var(--tap-min);
+  padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--level, 0) * var(--space-4));
+  text-align: start; background: var(--surface-2); border: 0; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-sm); color: var(--ink); }
+.estgroup__head[aria-expanded="true"] .disclosure { transform: rotate(180deg); }
+.estgroup__title { min-inline-size: 0; overflow-wrap: anywhere; font-weight: 500; }
+.estgroup__sum { white-space: nowrap; }
+.estgroup__internal { margin: 0; padding: var(--space-2) var(--space-4); text-align: end; color: var(--ink-2); }
+.estcard { display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3) var(--space-4); border-block-start: 1px solid var(--line); }
+.estcard__name { margin: 0; overflow-wrap: anywhere; }
+.estcard__calc { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: var(--space-1);
+  font-size: var(--fs-sm); }
+.estcard__internal { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end;
+  column-gap: var(--space-3); color: var(--ink-2); }
+.estcard__edit { align-self: flex-end; }
+.esttotals { margin: 0; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.esttotals__row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+  column-gap: var(--space-3); }
+.esttotals__row dt { min-inline-size: 0; overflow-wrap: anywhere; }
+.esttotals__row dd { margin: 0; margin-inline-start: auto; white-space: nowrap; }
+.esttotals__row--internal { color: var(--ink-2); font-size: var(--fs-sm); }
+.esttotals__row--total { font-weight: 600; border-block-start: 1px solid var(--line); padding-block-start: var(--space-2); }
+
+/* Прочие расходы: цена и единица — отдельными элементами; на телефоне
+   единица уходит строкой под цену (пункт 7.6). */
+.otherexp { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin: 0; }
+.otherexp__price { text-align: end; white-space: nowrap; }
+@media (max-width: 480px) {
+  .otherexp__price { white-space: normal; }
+  .otherexp__unit { display: block; }
+}

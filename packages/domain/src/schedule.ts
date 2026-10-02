@@ -294,3 +294,35 @@ export function stageDateWarning(dates: StageDates, range: ProjectRange): string
   const дней = daysBetween(range.to, dates.endsOn);
   return `Окончание ${день(dates.endsOn)} позже срока сдачи ${день(range.to)} на ${String(дней)} дн.`;
 }
+
+/* ---------------------------------------------------------------------------
+   Текущий этап графика
+   -------------------------------------------------------------------------- */
+
+/** Как текущий этап стоит к сегодняшнему дню. */
+export type StageWhen = "before" | "now" | "late";
+
+/**
+ * Текущий этап графика: первый по порядку, работа которого не заявлена
+ * законченной, или `null`, когда заявлены законченными все.
+ *
+ * Текущим назван этап работы, а не этап календаря. Этап, в сроки которого
+ * попадает сегодняшний день, — ответ на вопрос «что должно идти», а
+ * перечень отвечает на «что идёт»: на объекте, отставшем от графика, первый
+ * незаконченный этап может стоять месяц как вышедший из срока, и именно его
+ * должен видеть открывший карточку. Как этап стоит к сегодняшнему дню,
+ * говорит вторая половина ответа — впереди, идёт или срок прошёл.
+ *
+ * Выводится, а не хранится (план, пункт 7.5): «текущий» по записи разошёлся
+ * бы с заявленной готовностью на первой же её правке.
+ */
+export function currentStage(
+  stages: readonly (StageDates & { readonly progress: number })[],
+  today: string,
+): { readonly index: number; readonly when: StageWhen } | null {
+  const index = stages.findIndex((stage) => stage.progress < 10_000);
+  const stage = stages[index];
+  if (stage === undefined) return null;
+  const when: StageWhen = today < stage.startsOn ? "before" : today > stage.endsOn ? "late" : "now";
+  return { index, when };
+}

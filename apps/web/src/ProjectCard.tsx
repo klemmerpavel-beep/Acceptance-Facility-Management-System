@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
   ClosedTranches, CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
-  ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
+  ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman, WorkStage,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, ownerLevel, projectRange, sectionWeights,
   workingDaysBetween, безСметы } from "@priyomka/domain";
@@ -11,8 +11,11 @@ import {
   applyBlueprint, createBlueprint, fetchClosedTranches,
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
-  acceptancePhotoUrl, updateProject, fetchForemen,
+  acceptancePhotoUrl, updateProject, fetchForemen, fetchStages, planStages,
 } from "./api.js";
+import { PlanSheet } from "./PlanSheet.js";
+import { StageList } from "./StageList.js";
+import { useNarrow } from "./media.js";
 import { FieldEdit } from "./FieldEdit.js";
 import { EstimateTable } from "./EstimateTable.js";
 import { EventFeed } from "./Dashboard.js";
@@ -385,301 +388,366 @@ export function ProjectCard({
       : { date: formatDate(project.deadline), days: daysBetween(today, project.deadline) };
   const overdue = deadline !== null && deadline.days < 0;
   const срок = due(project.deadline, today);
+  /* Телефон: компактная шапка и свёрнутая сводка (план, пункт 7.2). */
+  const узко = useNarrow();
+  const [сводкаОткрыта, setСводкаОткрыта] = useState(false);
+
+  const штамп = (
+    <div className="stamp">
+      <div className="stamp__cell">
+        <span className="t-cap">Объект</span>
+        <span className="stamp__value stamp__value--code">{project.code}</span>
+      </div>
+      <div className="stamp__cell stamp__cell--wide">
+        <span className="t-cap">Адрес</span>
+        {правитель === undefined ? (
+          <span className="stamp__value" title={project.address}>{project.address}</span>
+        ) : (
+          <FieldEdit
+            подпись="Адрес объекта"
+            значение={project.address}
+            показ={<span className="stamp__value" title={project.address}>{project.address}</span>}
+            onSave={(новое) => правитель({ address: новое })}
+          />
+        )}
+      </div>
+      <div className="stamp__cell">
+        {/* Графа называет то поле, которое печатает. «Стадия» была
+            неверной подписью дважды: значение берётся из status — того
+            же поля и того же словаря, что пилюля рядом, — а слово
+            «стадия» в предметной области занято воронкой заявок
+            (LeadStage) и этапом графика (WorkStage). Одно слово на три
+            разные вещи заставляет читателя гадать, о чём речь. */}
+        <span className="t-cap">Статус</span>
+        <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
+      </div>
+      <div className="stamp__cell">
+        <span className="t-cap">Срок</span>
+        {(() => {
+          const вид = (
+            <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
+              {deadline === null ? пусто("срок", "краткое") : deadline.date}
+            </span>
+          );
+          if (правитель === undefined) return вид;
+          return (
+            <FieldEdit
+              подпись="Срок сдачи"
+              вид="date"
+              значение={project.deadline ?? ""}
+              показ={вид}
+              onSave={(новое) => правитель({ deadline: новое === "" ? null : новое })}
+            />
+          );
+        })()}
+      </div>
+      <div className="stamp__cell">
+        <span className="t-cap">Прораб</span>
+        {(() => {
+          const имя = project.foreman?.name ?? пусто("прораб", "краткое");
+          const вид = <span className="stamp__value" title={имя}>{имя}</span>;
+          if (правитель === undefined) return вид;
+          return (
+            <FieldEdit
+              подпись="Прораб объекта"
+              вид="select"
+              значение={project.foreman?.id ?? ""}
+              показ={вид}
+              варианты={прорабы.map((п) => ({ значение: п.id, подпись: п.name }))}
+              onSave={(новое) => правитель({ foremanId: новое === "" ? null : новое })}
+            />
+          );
+        })()}
+      </div>
+      <div className="stamp__cell">
+        <span className="t-cap">Смета</span>
+        {/* Объект без сметы помечается пилюлей, а не строчным «нет» тем же
+            видом, что и редакция рядом: ответ заказчика на вопрос 8 квиза
+            от 14.09.2026 требует, чтобы продукт называл незавершённое
+            заведение, а значение, набранное как все прочие значения
+            штампа, ничего не называет — его прочитывают как заполненную
+            графу. Пометка выводится из итога сметы: второе поле под то же
+            утверждение разошлось бы с первым на первой правке. */}
+        {безСметы(project.estimateTotal) ? (
+          <span className="pill pill--warn">{Пусто("смета")}</span>
+        ) : (
+          <span className="stamp__value stamp__value--code">
+            ред. {project.estimateVersion}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const сводкаОбъекта = (
+    <>
+      <div className="figure">
+        <span className="figure__label">Итог сметы для заказчика</span>
+        {/* Сметы нет — величину не завели, а не «её нет в природе»:
+            слово словаря, а не прочерк (правило 6 `07_IA.md`). Прежде
+            здесь стояли «—» и «смета не загружена» рядом со словарным
+            «Сметы нет» в штампе того же экрана (полный аудит
+            30.09.2026, П-9). */}
+        <span className="figure__value">
+          {project.estimateTotal === null ? пусто("смета", "краткое") : money(project.estimateTotal)}
+        </span>
+        {estimate !== null && (
+          <span className="figure__note">
+            {`включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
+          </span>
+        )}
+      </div>
+
+      {/* Ориентир, названный на заявке до выезда, — рядом с итогом
+          сметы: в этом соседстве весь его смысл. Видно, на сколько
+          промахнулись, когда смета готова. Объект заведён руками —
+          строки нет: ориентира никто не называл. */}
+      {project.guideline !== null && (
+        <div className="figure">
+          <span className="figure__label">
+            Ориентир по заявке № {project.guideline.leadNumber}
+          </span>
+          <span className="figure__value figure__value--range">
+            {money(project.guideline.low)} — {money(project.guideline.high)}
+          </span>
+          <span className="figure__note">
+            {money(project.guideline.rate)} за м² ±
+            {formatPercent(BigInt(project.guideline.spread))}
+            {" · "}
+            {project.guideline.verdict === null
+              ? "сметы ещё нет — сверять не с чем"
+              : project.guideline.verdict.verdict === "внутри"
+                ? "смета внутри вилки"
+                : `смета ${project.guideline.verdict.verdict} вилки на ${money(project.guideline.verdict.delta)}`}
+          </span>
+        </div>
+      )}
+
+      {/* Потрачено на материалы. Стоит рядом с итогом сметы и остатком
+          транша — тремя величинами, ради которых карточку открывают
+          вечером (модуль 1 объёма). Показывается всегда, включая ноль:
+          ноль здесь настоящий — чеков нет, потрачено ноль, и пустоты
+          у этой величины не бывает.
+
+          Считается только по подтверждённым: черновик — заявка, а не
+          расход, и вечерний вопрос «сколько ушло» не должен зависеть
+          от того, разобрал ли руководитель черновики. */}
+      <div className="figure">
+        <span className="figure__label">Потрачено на материалы</span>
+        <span className="figure__value">{money(project.spentMaterials)}</span>
+        <span className="figure__note">по подтверждённым чекам</span>
+      </div>
+
+      {/* Остаток текущего транша — та величина, ради которой руководитель
+          открывает систему вечером (объём полевого испытания, решение
+          № 3). Полоса с тремя величинами живёт на своей вкладке: в
+          сводке нужен ответ на один вопрос — сколько ещё можно
+          выработать. Транша нет — строки нет: ноль означал бы
+          «выработан ровно до копейки». */}
+      {project.trancheRemainder !== null && (
+        <div className="figure">
+          <span className="figure__label">Остаток текущего транша</span>
+          <span
+            className={
+              BigInt(project.trancheRemainder) < 0n
+                ? "figure__value tranche__over"
+                : "figure__value"
+            }
+          >
+            {money(project.trancheRemainder)}
+          </span>
+          <span className="figure__note">
+            {BigInt(project.trancheRemainder) < 0n
+              ? "перевыработка: пора закрывать транш актом"
+              : "до следующего акта и оплаты"}
+          </span>
+        </div>
+      )}
+
+      {/* Стадию называет штамп; здесь она стоит только как текущее
+          значение при органе управления. У прораба органа нет —
+          нет и строки. Почтовый адрес для чеков снят: приёма писем
+          на сервере ещё нет, а адрес на экране обещает работу. */}
+      {ownerLevel(user.role) && (
+        <div className="row row--between summary__status">
+          <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
+          <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
+            Изменить статус
+          </button>
+        </div>
+      )}
+
+      {/* Тон плашки — ступень общей шкалы срочности, а не постоянный
+          акцент: слово «просрочено» при спокойном цвете сообщало
+          разное двумя каналами сразу (аудит Б-4). */}
+      <div className={`tile tile--due ${ТОН_СРОКА[срок.level]} row row--between`}>
+        <div className="figure">
+          <span className="figure__label">
+            {deadline === null ? "Срок" : overdue ? "Просрочено на" : "Осталось"}
+          </span>
+          <span className="figure__value">
+            {deadline === null ? "—" : Math.abs(deadline.days)}
+          </span>
+          <span className="figure__note">
+            {deadline === null
+              ? пусто("срок")
+              : plural(deadline.days, "день", "дня", "дней")}
+          </span>
+        </div>
+        {/* Шкала показывается, когда есть хоть одна из величин. Прежде
+            условие смотрело только на заявленную, и объект с приёмкой,
+            но без графика не показывал ничего — при том, что принятое
+            как раз и есть то, ради чего продукт заведён. */}
+        {(project.acceptedShare !== null || project.readiness !== null) && (
+          <ReadinessScale accepted={project.acceptedShare} declared={project.readiness} />
+        )}
+      </div>
+
+      {/* Заголовок вынесен из списка: прямым потомком «dl» допустимы
+          только «dt», «dd» и «div», и абзац внутри списка определений
+          браузер разбирает по-своему. Список назван заголовком через
+          «aria-labelledby» — связь остаётся, разметка становится
+          действительной. */}
+      <div className="deflist">
+        <p className="deflist__head" id="card-info-head">Информация</p>
+        <dl className="deflist__body" aria-labelledby="card-info-head">
+        <div className="deflist__row">
+          <dt className="deflist__term">Заказчик</dt>
+          <dd className="deflist__value">{project.client.name}</dd>
+        </div>
+        <div className="deflist__row">
+          <dt className="deflist__term">Реквизиты заказчика</dt>
+          <dd className="deflist__value">
+            {project.client.requisites ?? (project.client.isCompany ? "Юридическое лицо" : "Физическое лицо")}
+          </dd>
+        </div>
+        <div className="deflist__row">
+          <dt className="deflist__term">Начало работ</dt>
+          <dd className="deflist__value">
+            {правитель === undefined ? (
+              project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)
+            ) : (
+              <FieldEdit
+                подпись="Начало работ"
+                вид="date"
+                значение={project.startedAt ?? ""}
+                показ={project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)}
+                onSave={(новое) => правитель({ startedAt: новое === "" ? null : новое })}
+              />
+            )}
+          </dd>
+        </div>
+        <div className="deflist__row">
+          <dt className="deflist__term">Ключи</dt>
+          <dd className="deflist__value">
+            {правитель === undefined ? `${String(project.keysCount)} компл.` : (
+              <FieldEdit
+                подпись="Комплектов ключей"
+                вид="number"
+                значение={String(project.keysCount)}
+                показ={`${String(project.keysCount)} компл.`}
+                onSave={(новое) => правитель({ keysCount: Number.parseInt(новое, 10) })}
+              />
+            )}
+          </dd>
+        </div>
+        <div className="deflist__row">
+          <dt className="deflist__term">Позиций в смете</dt>
+          <dd className="deflist__value">
+            {project.estimateVersion === null ? пусто("смета", "краткое") : project.positions}
+          </dd>
+        </div>
+        {/* Строки «Сопровождение» здесь нет: та же величина стоит
+            примечанием к итогу сметы выше — «включая сопровождение
+            объекта 12 % — 455 382,25 ₽», и там она названа вместе с
+            суммой, которую объясняет. Сводка липкая и живёт в высоту
+            окна: каждая лишняя строка отнимает место у нужной. */}
+        </dl>
+      </div>
+    </>
+  );
 
   return (
     <>
       {/* Штамп объекта. Те же сведения, что несла цветная обложка, но
           набранные как штамп рабочего чертежа: графа, подпись, значение. */}
-      <div className="container">
+      <div className="container" data-project-code={project.code}>
         {/* Имя экрана для того, кто его не видит: у карточки нет обложки, и
             заголовка первого уровня на ней не было вовсе — перейти к началу
             экрана по заголовкам было не к чему (полный аудит 30.09.2026,
             П-31). Глазом штамп называет объект и без него. */}
         <h1 className="visually-hidden">Объект {project.code}, {project.address}</h1>
-        <p className="stamp__crumbs">
-          {/* Крошка называет раздел, в который возвращает, а не сущность, которая
-              в нём лежит. Прежде здесь стояли «Объекты» — слово, которого нет ни
-              в одном пункте навигации: карточка открывается и с «Главной», и с
-              «Проектов», и возвращала крошка туда, откуда пришли, обещая третье
-              место. Находка Е-1: раздел зовётся «Проекты», вещь в нём — объект,
-              и смешаны они были именно здесь. */}
-          <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>{откуда}</a>
-          <svg className="icon icon--sm" aria-hidden="true"><use href="#i-crumb" /></svg>
-          <span>{project.code}</span>
-        </p>
-        <div className="stamp">
-          <div className="stamp__cell">
-            <span className="t-cap">Объект</span>
-            <span className="stamp__value stamp__value--code">{project.code}</span>
+        {узко ? (
+          /* Телефон (план, пункт 7.2): шапка «‹ код адрес» в одну строку.
+             Крошки и штамп из шести граф занимали первый экран целиком, и
+             до вкладок прораб листал 983 px. Штамп не пропал — он в сводке
+             ниже, свёрнутой под одну строку. */
+          <div className="cardhead">
+            <button
+              type="button"
+              className="cardhead__back"
+              aria-label={`Назад: ${откуда}`}
+              onClick={onBack}
+            >
+              <svg className="icon" aria-hidden="true"><use href="#i-back" /></svg>
+            </button>
+            <span className="code-badge">{project.code}</span>
+            <span className="cardhead__address" title={project.address}>{project.address}</span>
           </div>
-          <div className="stamp__cell stamp__cell--wide">
-            <span className="t-cap">Адрес</span>
-            {правитель === undefined ? (
-              <span className="stamp__value" title={project.address}>{project.address}</span>
-            ) : (
-              <FieldEdit
-                подпись="Адрес объекта"
-                значение={project.address}
-                показ={<span className="stamp__value" title={project.address}>{project.address}</span>}
-                onSave={(новое) => правитель({ address: новое })}
-              />
-            )}
-          </div>
-          <div className="stamp__cell">
-            {/* Графа называет то поле, которое печатает. «Стадия» была
-                неверной подписью дважды: значение берётся из status — того
-                же поля и того же словаря, что пилюля рядом, — а слово
-                «стадия» в предметной области занято воронкой заявок
-                (LeadStage) и этапом графика (WorkStage). Одно слово на три
-                разные вещи заставляет читателя гадать, о чём речь. */}
-            <span className="t-cap">Статус</span>
-            <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
-          </div>
-          <div className="stamp__cell">
-            <span className="t-cap">Срок</span>
-            {(() => {
-              const вид = (
-                <span className={overdue ? "stamp__value stamp__value--code stamp__value--late" : "stamp__value stamp__value--code"}>
-                  {deadline === null ? пусто("срок", "краткое") : deadline.date}
-                </span>
-              );
-              if (правитель === undefined) return вид;
-              return (
-                <FieldEdit
-                  подпись="Срок сдачи"
-                  вид="date"
-                  значение={project.deadline ?? ""}
-                  показ={вид}
-                  onSave={(новое) => правитель({ deadline: новое === "" ? null : новое })}
-                />
-              );
-            })()}
-          </div>
-          <div className="stamp__cell">
-            <span className="t-cap">Прораб</span>
-            {(() => {
-              const имя = project.foreman?.name ?? пусто("прораб", "краткое");
-              const вид = <span className="stamp__value" title={имя}>{имя}</span>;
-              if (правитель === undefined) return вид;
-              return (
-                <FieldEdit
-                  подпись="Прораб объекта"
-                  вид="select"
-                  значение={project.foreman?.id ?? ""}
-                  показ={вид}
-                  варианты={прорабы.map((п) => ({ значение: п.id, подпись: п.name }))}
-                  onSave={(новое) => правитель({ foremanId: новое === "" ? null : новое })}
-                />
-              );
-            })()}
-          </div>
-          <div className="stamp__cell">
-            <span className="t-cap">Смета</span>
-            {/* Объект без сметы помечается пилюлей, а не строчным «нет» тем же
-                видом, что и редакция рядом: ответ заказчика на вопрос 8 квиза
-                от 14.09.2026 требует, чтобы продукт называл незавершённое
-                заведение, а значение, набранное как все прочие значения
-                штампа, ничего не называет — его прочитывают как заполненную
-                графу. Пометка выводится из итога сметы: второе поле под то же
-                утверждение разошлось бы с первым на первой правке. */}
-            {безСметы(project.estimateTotal) ? (
-              <span className="pill pill--warn">{Пусто("смета")}</span>
-            ) : (
-              <span className="stamp__value stamp__value--code">
-                ред. {project.estimateVersion}
-              </span>
-            )}
-          </div>
-        </div>
+        ) : (
+          <>
+          <p className="stamp__crumbs">
+            {/* Крошка называет раздел, в который возвращает, а не сущность, которая
+                в нём лежит. Прежде здесь стояли «Объекты» — слово, которого нет ни
+                в одном пункте навигации: карточка открывается и с «Главной», и с
+                «Проектов», и возвращала крошка туда, откуда пришли, обещая третье
+                место. Находка Е-1: раздел зовётся «Проекты», вещь в нём — объект,
+                и смешаны они были именно здесь. */}
+            <a href="#" onClick={(event) => { event.preventDefault(); onBack(); }}>{откуда}</a>
+            <svg className="icon icon--sm" aria-hidden="true"><use href="#i-crumb" /></svg>
+            <span>{project.code}</span>
+          </p>
+            {штамп}
+          </>
+        )}
       </div>
 
       <main className="container">
         <div className="project-layout">
-          <aside className="stack">
-            <div className="figure">
-              <span className="figure__label">Итог сметы для заказчика</span>
-              {/* Сметы нет — величину не завели, а не «её нет в природе»:
-                  слово словаря, а не прочерк (правило 6 `07_IA.md`). Прежде
-                  здесь стояли «—» и «смета не загружена» рядом со словарным
-                  «Сметы нет» в штампе того же экрана (полный аудит
-                  30.09.2026, П-9). */}
-              <span className="figure__value">
-                {project.estimateTotal === null ? пусто("смета", "краткое") : money(project.estimateTotal)}
-              </span>
-              {estimate !== null && (
-                <span className="figure__note">
-                  {`включая сопровождение объекта ${formatPercent(BigInt(estimate.totals.supervisionShare))} — ${money(estimate.totals.supervision)}`}
-                </span>
-              )}
-            </div>
-
-            {/* Ориентир, названный на заявке до выезда, — рядом с итогом
-                сметы: в этом соседстве весь его смысл. Видно, на сколько
-                промахнулись, когда смета готова. Объект заведён руками —
-                строки нет: ориентира никто не называл. */}
-            {project.guideline !== null && (
-              <div className="figure">
-                <span className="figure__label">
-                  Ориентир по заявке № {project.guideline.leadNumber}
-                </span>
-                <span className="figure__value figure__value--range">
-                  {money(project.guideline.low)} — {money(project.guideline.high)}
-                </span>
-                <span className="figure__note">
-                  {money(project.guideline.rate)} за м² ±
-                  {formatPercent(BigInt(project.guideline.spread))}
+          {узко ? (
+            /* Сводка на телефоне свёрнута под одну строку (план, пункт
+               7.2): штамп, деньги, срок и сведения стояли над вкладками
+               высотой около 700 px, и полоса вкладок уходила ниже первого
+               экрана у всех ролей. Строка-заголовок несёт статус и итог —
+               два ответа, ради которых сводку открывают чаще всего. */
+            <section className="cardsummary">
+              <button
+                type="button"
+                className="cardsummary__toggle"
+                aria-expanded={сводкаОткрыта}
+                /* Ссылка — только на то, что есть в документе: свёрнутая
+                   сводка не рисуется вовсе (норматив 5.12). */
+                aria-controls={сводкаОткрыта ? "card-summary" : undefined}
+                onClick={() => { setСводкаОткрыта(!сводкаОткрыта); }}
+              >
+                <span className="cardsummary__title">Сводка объекта</span>
+                <span className="cardsummary__hint t-sm t-muted">
+                  {STATUS_LABEL[project.status]}
                   {" · "}
-                  {project.guideline.verdict === null
-                    ? "сметы ещё нет — сверять не с чем"
-                    : project.guideline.verdict.verdict === "внутри"
-                      ? "смета внутри вилки"
-                      : `смета ${project.guideline.verdict.verdict} вилки на ${money(project.guideline.verdict.delta)}`}
+                  {project.estimateTotal === null ? пусто("смета", "краткое") : money(project.estimateTotal)}
                 </span>
-              </div>
-            )}
-
-            {/* Потрачено на материалы. Стоит рядом с итогом сметы и остатком
-                транша — тремя величинами, ради которых карточку открывают
-                вечером (модуль 1 объёма). Показывается всегда, включая ноль:
-                ноль здесь настоящий — чеков нет, потрачено ноль, и пустоты
-                у этой величины не бывает.
-
-                Считается только по подтверждённым: черновик — заявка, а не
-                расход, и вечерний вопрос «сколько ушло» не должен зависеть
-                от того, разобрал ли руководитель черновики. */}
-            <div className="figure">
-              <span className="figure__label">Потрачено на материалы</span>
-              <span className="figure__value">{money(project.spentMaterials)}</span>
-              <span className="figure__note">по подтверждённым чекам</span>
-            </div>
-
-            {/* Остаток текущего транша — та величина, ради которой руководитель
-                открывает систему вечером (объём полевого испытания, решение
-                № 3). Полоса с тремя величинами живёт на своей вкладке: в
-                сводке нужен ответ на один вопрос — сколько ещё можно
-                выработать. Транша нет — строки нет: ноль означал бы
-                «выработан ровно до копейки». */}
-            {project.trancheRemainder !== null && (
-              <div className="figure">
-                <span className="figure__label">Остаток текущего транша</span>
-                <span
-                  className={
-                    BigInt(project.trancheRemainder) < 0n
-                      ? "figure__value tranche__over"
-                      : "figure__value"
-                  }
-                >
-                  {money(project.trancheRemainder)}
-                </span>
-                <span className="figure__note">
-                  {BigInt(project.trancheRemainder) < 0n
-                    ? "перевыработка: пора закрывать транш актом"
-                    : "до следующего акта и оплаты"}
-                </span>
-              </div>
-            )}
-
-            {/* Стадию называет штамп; здесь она стоит только как текущее
-                значение при органе управления. У прораба органа нет —
-                нет и строки. Почтовый адрес для чеков снят: приёма писем
-                на сервере ещё нет, а адрес на экране обещает работу. */}
-            {ownerLevel(user.role) && (
-              <div className="row row--between summary__status">
-                <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
-                <button type="button" className="btn btn--text" onClick={() => setStatusOpen(true)}>
-                  Изменить статус
-                </button>
-              </div>
-            )}
-
-            {/* Тон плашки — ступень общей шкалы срочности, а не постоянный
-                акцент: слово «просрочено» при спокойном цвете сообщало
-                разное двумя каналами сразу (аудит Б-4). */}
-            <div className={`tile tile--due ${ТОН_СРОКА[срок.level]} row row--between`}>
-              <div className="figure">
-                <span className="figure__label">
-                  {deadline === null ? "Срок" : overdue ? "Просрочено на" : "Осталось"}
-                </span>
-                <span className="figure__value">
-                  {deadline === null ? "—" : Math.abs(deadline.days)}
-                </span>
-                <span className="figure__note">
-                  {deadline === null
-                    ? пусто("срок")
-                    : plural(deadline.days, "день", "дня", "дней")}
-                </span>
-              </div>
-              {/* Шкала показывается, когда есть хоть одна из величин. Прежде
-                  условие смотрело только на заявленную, и объект с приёмкой,
-                  но без графика не показывал ничего — при том, что принятое
-                  как раз и есть то, ради чего продукт заведён. */}
-              {(project.acceptedShare !== null || project.readiness !== null) && (
-                <ReadinessScale accepted={project.acceptedShare} declared={project.readiness} />
+                <svg className="icon icon--sm disclosure" aria-hidden="true"><use href="#i-chevron" /></svg>
+              </button>
+              {сводкаОткрыта && (
+                <div className="stack" id="card-summary">
+                  {штамп}
+                  {сводкаОбъекта}
+                </div>
               )}
-            </div>
-
-            {/* Заголовок вынесен из списка: прямым потомком «dl» допустимы
-                только «dt», «dd» и «div», и абзац внутри списка определений
-                браузер разбирает по-своему. Список назван заголовком через
-                «aria-labelledby» — связь остаётся, разметка становится
-                действительной. */}
-            <div className="deflist">
-              <p className="deflist__head" id="card-info-head">Информация</p>
-              <dl className="deflist__body" aria-labelledby="card-info-head">
-              <div className="deflist__row">
-                <dt className="deflist__term">Заказчик</dt>
-                <dd className="deflist__value">{project.client.name}</dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Реквизиты заказчика</dt>
-                <dd className="deflist__value">
-                  {project.client.requisites ?? (project.client.isCompany ? "Юридическое лицо" : "Физическое лицо")}
-                </dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Начало работ</dt>
-                <dd className="deflist__value">
-                  {правитель === undefined ? (
-                    project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)
-                  ) : (
-                    <FieldEdit
-                      подпись="Начало работ"
-                      вид="date"
-                      значение={project.startedAt ?? ""}
-                      показ={project.startedAt === null ? пусто("началоРабот", "краткое") : formatDate(project.startedAt)}
-                      onSave={(новое) => правитель({ startedAt: новое === "" ? null : новое })}
-                    />
-                  )}
-                </dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Ключи</dt>
-                <dd className="deflist__value">
-                  {правитель === undefined ? `${String(project.keysCount)} компл.` : (
-                    <FieldEdit
-                      подпись="Комплектов ключей"
-                      вид="number"
-                      значение={String(project.keysCount)}
-                      показ={`${String(project.keysCount)} компл.`}
-                      onSave={(новое) => правитель({ keysCount: Number.parseInt(новое, 10) })}
-                    />
-                  )}
-                </dd>
-              </div>
-              <div className="deflist__row">
-                <dt className="deflist__term">Позиций в смете</dt>
-                <dd className="deflist__value">
-                  {project.estimateVersion === null ? пусто("смета", "краткое") : project.positions}
-                </dd>
-              </div>
-              {/* Строки «Сопровождение» здесь нет: та же величина стоит
-                  примечанием к итогу сметы выше — «включая сопровождение
-                  объекта 12 % — 455 382,25 ₽», и там она названа вместе с
-                  суммой, которую объясняет. Сводка липкая и живёт в высоту
-                  окна: каждая лишняя строка отнимает место у нужной. */}
-              </dl>
-            </div>
-          </aside>
+            </section>
+          ) : (
+            <aside className="stack">{сводкаОбъекта}</aside>
+          )}
 
           <div className="stack stack--loose">
             {/* Шаблон вкладок целиком: вкладка связана с панелью, панель
@@ -712,6 +780,11 @@ export function ProjectCard({
                 today={today}
                 заводитСмету={ownerLevel(user.role)}
                 onReport={() => { setTab("report"); }}
+                onWork={() => { setTab("work"); }}
+                onPlanned={() => {
+                  load();
+                  void fetchProject(project.code).then(onChanged).catch(() => { /* сводка не обязательна */ });
+                }}
               />
               )}
             </div>
@@ -847,10 +920,17 @@ export function ProjectCard({
                   <div className="panel panel--pad stack stack--tight">
                     <p className="figure__label">Прочие расходы · цена без объёма, приёмке не подлежат</p>
                     <hr className="rule" />
+                    {/* Единица — своим элементом, а не хвостом цены: на
+                        телефоне она уходит строкой под цену (план, пункт
+                        7.6), и «13 500,00 ₽ / этаж» не рвётся посреди суммы. */}
                     {estimate.otherExpenses.map((expense) => (
-                      <p className="row row--between" key={expense.id}>
+                      <p className="otherexp" key={expense.id}>
                         <span className="t-sm">{expense.name}</span>
-                        <span className="num">{money(expense.unitPrice)} / {expense.unit}</span>
+                        <span className="otherexp__price">
+                          <span className="num">{money(expense.unitPrice)}</span>
+                          {" "}
+                          <span className="otherexp__unit t-sm t-muted">за {expense.unit}</span>
+                        </span>
                       </p>
                     ))}
                   </div>
@@ -972,6 +1052,8 @@ function Overview({
   today,
   заводитСмету,
   onReport,
+  onWork,
+  onPlanned,
 }: {
   project: ProjectSummary;
   estimate: EstimateView | null;
@@ -981,7 +1063,26 @@ function Overview({
   заводитСмету: boolean;
   /** Переход на фотоотчёт: обложка ведёт туда, откуда она взята. */
   onReport: () => void;
+  /** Переход во вкладку «Работа», где график правят. */
+  onWork: () => void;
+  /** График разложен из сметы: сводка и журнал перечитываются. */
+  onPlanned: () => void;
 }): React.JSX.Element {
+  /* Этапы графика читаются здесь, а не приходят со сводкой: в сводке нет
+     принятой доли этапа (она стоит двух выборок на объект и на портфеле не
+     нужна), а перечень без неё называл бы заявленное принятым. */
+  const [этапы, setЭтапы] = useState<WorkStage[] | null>(null);
+  const [этапыОтказ, setЭтапыОтказ] = useState<string | null>(null);
+  const [раскладка, setРаскладка] = useState(false);
+  const [раскладкаИдёт, setРаскладкаИдёт] = useState(false);
+  const [раскладкаОтказ, setРаскладкаОтказ] = useState<string | null>(null);
+  useEffect(() => {
+    setЭтапы(null);
+    fetchStages(project.code)
+      .then((next) => { setЭтапы(next); setЭтапыОтказ(null); })
+      .catch((cause: unknown) => { setЭтапыОтказ(errorMessage(cause)); });
+  }, [project.code]);
+
   const started = project.startedAt;
   const contract =
     started !== null && project.deadline !== null
@@ -1018,6 +1119,74 @@ function Overview({
           {project.cover === null ? Пусто("снимки") : "Все снимки объекта"}
         </span>
       </button>
+
+      {/* График работ — тот же перечень, что на вкладке «Работа» телефона
+          (план, пункт 7.5): этап, сроки, заявлено и принято, отметка
+          текущего. Здесь он только читается: правят график там, куда ведёт
+          ссылка. */}
+      <section className="stack" aria-labelledby="overview-plan-head">
+        <div className="section-head">
+          <h2 className="t-h2" id="overview-plan-head">График работ</h2>
+          {этапы !== null && этапы.length > 0 && (
+            <button type="button" className="btn btn--text" onClick={onWork}>
+              Открыть во вкладке «Работа»
+            </button>
+          )}
+        </div>
+        {этапыОтказ !== null ? (
+          <p className="field__error" role="alert">{этапыОтказ}</p>
+        ) : этапы === null ? (
+          <span className="skeleton skeleton--row" />
+        ) : этапы.length === 0 ? (
+          <div className="empty">
+            <p className="empty__title">График не составлен</p>
+            <p className="empty__text">
+              {!заводитСмету
+                ? "График составляет руководитель. Этапы появятся здесь, как только он будет готов."
+                : estimate === null
+                  ? "Этапы раскладываются из разделов сметы, а сметы у объекта ещё нет."
+                  : "Этапы раскладываются из разделов сметы одним действием; сроки потом правятся во вкладке «Работа»."}
+            </p>
+            {заводитСмету && estimate !== null && (
+              <div className="row">
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => { setРаскладка(true); setРаскладкаОтказ(null); }}
+                >
+                  <svg className="icon" aria-hidden="true"><use href="#i-estimate" /></svg>
+                  График из сметы
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <StageList stages={этапы} today={today} />
+        )}
+      </section>
+
+      {раскладка && estimate !== null && (
+        <PlanSheet
+          sections={sectionWeights(estimate.sections)}
+          range={projectRange(project)}
+          after={null}
+          busy={раскладкаИдёт}
+          error={раскладкаОтказ}
+          onPlan={(from, to) => {
+            setРаскладкаИдёт(true);
+            planStages(project.code, from, to)
+              .then((next) => {
+                setЭтапы(next);
+                setРаскладка(false);
+                setРаскладкаОтказ(null);
+                onPlanned();
+              })
+              .catch((cause: unknown) => { setРаскладкаОтказ(errorMessage(cause)); })
+              .finally(() => { setРаскладкаИдёт(false); });
+          }}
+          onClose={() => { setРаскладка(false); setРаскладкаОтказ(null); }}
+        />
+      )}
 
       <section className="stack">
         <div className="section-head">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { demoRole, setDemoRole, type DemoRole as Роль } from "./api.demo.js";
+import { useNarrow } from "./media.js";
 
 /**
  * Переключатель роли демонстрации.
@@ -32,10 +33,15 @@ const ПОДПИСИ: readonly { роль: Роль; подпись: string; ч�
 export function DemoRoleSwitch({ onChange }: { onChange: () => void }): React.JSX.Element {
   const [роль, setРоль] = useState<Роль>(demoRole());
   const текущая = ПОДПИСИ.find((строка) => строка.роль === роль);
+  /* На телефоне панель — одна строка из четырёх ролей (план, пункт 7.1):
+     подпись и пояснение переносились на вторую и третью строки, и панель
+     отнимала у первого экрана 120 px. Подпись остаётся для того, кто
+     слушает; пояснение роли — подсказкой на самой роли. */
+  const узко = useNarrow();
 
   return (
-    <div className="demorole">
-      <span className="demorole__label t-cap">Смотреть глазами</span>
+    <div className={узко ? "demorole demorole--narrow" : "demorole"}>
+      <span className={узко ? "visually-hidden" : "demorole__label t-cap"}>Смотреть глазами</span>
       <div className="segmented" role="group" aria-label="Роль в демонстрации">
         {ПОДПИСИ.map((строка) => (
           <button
@@ -43,6 +49,7 @@ export function DemoRoleSwitch({ onChange }: { onChange: () => void }): React.JS
             type="button"
             className="segmented__option"
             aria-pressed={роль === строка.роль}
+            title={строка.что}
             onClick={() => {
               setDemoRole(строка.роль);
               setРоль(строка.роль);
@@ -55,7 +62,7 @@ export function DemoRoleSwitch({ onChange }: { onChange: () => void }): React.JS
       </div>
       {/* Что видит выбранная роль — рядом с выбором, а не под ним: иначе
           переключатель отвечает на «кто», не отвечая на «что». */}
-      <span className="demorole__note t-sm t-muted">{текущая?.что}</span>
+      {!узко && <span className="demorole__note t-sm t-muted">{текущая?.что}</span>}
     </div>
   );
 }
