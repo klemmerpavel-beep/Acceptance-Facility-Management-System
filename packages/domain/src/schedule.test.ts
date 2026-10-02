@@ -12,6 +12,7 @@ import {
   planWindow,
   projectReadiness,
   stageDays,
+  currentStage,
   type ProjectRange,
   type StageSpan,
 } from "./schedule.js";
@@ -239,5 +240,29 @@ describe("календарная арифметика окна правки", ()
     expect(isDayOff("2026-09-05")).toBe(true);
     expect(isDayOff("2026-09-06")).toBe(true);
     expect(isDayOff("2026-09-07")).toBe(false);
+  });
+});
+
+describe("текущий этап графика (план, пункт 7.5)", () => {
+  const этапы = [
+    { startsOn: "2026-03-02", endsOn: "2026-03-20", progress: 10_000 },
+    { startsOn: "2026-03-21", endsOn: "2026-04-15", progress: 8_000 },
+    { startsOn: "2026-04-16", endsOn: "2026-05-30", progress: 0 },
+  ];
+
+  it("текущий — первый незаконченный, а не тот, в чьи сроки попал сегодняшний день", () => {
+    expect(currentStage(этапы, "2026-05-01")).toEqual({ index: 1, when: "late" });
+  });
+
+  it("называет, как этап стоит к сегодняшнему дню: впереди, идёт, срок прошёл", () => {
+    expect(currentStage(этапы, "2026-03-10")).toEqual({ index: 1, when: "before" });
+    expect(currentStage(этапы, "2026-03-21")).toEqual({ index: 1, when: "now" });
+    expect(currentStage(этапы, "2026-04-15")).toEqual({ index: 1, when: "now" });
+    expect(currentStage(этапы, "2026-04-16")).toEqual({ index: 1, when: "late" });
+  });
+
+  it("график, заявленный законченным целиком, текущего этапа не имеет", () => {
+    expect(currentStage(этапы.map((этап) => ({ ...этап, progress: 10_000 })), "2026-05-01")).toBeNull();
+    expect(currentStage([], "2026-05-01")).toBeNull();
   });
 });

@@ -14,6 +14,8 @@ import {
 import { StageSheet, type StageSection } from "./StageSheet.js";
 import { PlanSheet } from "./PlanSheet.js";
 import { Announce } from "./Announce.js";
+import { useNarrow } from "./media.js";
+import { StageList } from "./StageList.js";
 
 /**
  * Вкладка «Работа» карточки объекта — правка графика производства работ.
@@ -163,6 +165,11 @@ export function Schedule({
   const [fault, setFault] = useState<{ id: string; text: string } | null>(null);
   const [row, setRow] = useState<{ id: string; fromY: number; height: number } | null>(null);
   const panel = useRef<HTMLDivElement>(null);
+  /* На телефоне вкладка показывает перечень этапов вместо диаграммы (план,
+     пункт 7.5): дневная сетка на 390 px оставляла под дни меньше сотни
+     пикселей. Органы диаграммы — месяц, масштаб, полный экран — уходят
+     вместе с ней: листать и масштабировать перечню нечего. */
+  const узко = useNarrow();
 
   const load = useCallback(() => {
     fetchStages(code)
@@ -315,6 +322,7 @@ export function Schedule({
           Переполнялся при этом сам документ, а не дорожка графика: страница
           уезжала вбок целиком, вместе с шапкой и вкладками. */}
       <div className="row row--wrap">
+        {!узко && (<>
         <div className="segmented" role="group" aria-label="Месяц">
           <button type="button" className="segmented__option" onClick={() => { setAnchor(shiftMonth(месяц, -1)); }}>
             <svg className="icon icon--sm" aria-hidden="true"><use href="#i-back" /></svg>
@@ -351,6 +359,7 @@ export function Schedule({
           <svg className="icon" aria-hidden="true"><use href="#i-expand" /></svg>
           На весь экран
         </button>
+        </>)}
         {editable && свободные.length > 0 && (
           /* Показывается, только когда есть что раскладывать. Погашенная
              кнопка не объясняет, почему она погашена, а исчезнувшая хотя бы
@@ -381,6 +390,8 @@ export function Schedule({
             ? "График не заведён. Первый этап задаёт срок, от которого считается готовность объекта."
             : "График не заведён."}
         </p>
+      ) : узко ? (
+        <StageList stages={stages} today={today} onOpen={(stage) => { setEditing({ stage }); }} />
       ) : (
         <div
           className="panel"

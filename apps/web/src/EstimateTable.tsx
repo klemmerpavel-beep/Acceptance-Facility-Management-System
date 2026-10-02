@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
 import { plural } from "./status.js";
+import { useNarrow } from "./media.js";
 
 type Projection = "internal" | "client";
 /**
@@ -128,6 +129,11 @@ export function EstimateTable({
      каждый пиксель давал бы обращение, а отказ приходил бы посреди жеста.
      Тот же приём, что у отрезка графика. */
   const [взятая, setВзятая] = useState<{ id: string; fromY: number; height: number } | null>(null);
+  /* До 480 px позиции — карточками (план, пункт 7.6): таблица из шести,
+     а у руководителя из десяти колонок на 390 px прокручивалась по двум
+     осям в окне высотой в треть экрана, и наименование уезжало влево при
+     каждом взгляде на сумму. */
+  const узко = useNarrow();
 
   const toggle = (id: string): void =>
     setCollapsed((current) => {
@@ -262,6 +268,9 @@ export function EstimateTable({
               <td className="estimate__num estimate__internal" />
             </>
           )}
+          {/* Ячейка действия есть и у подытога: без неё строка короче шапки
+              на одну клетку, и рамка подытога обрывалась у руководителя. */}
+          {editable && <td className="estimate__act" />}
         </tr>
       );
 
@@ -342,77 +351,228 @@ export function EstimateTable({
       ];
     });
 
-  return (
-    <div className="panel panel--sheet panel--flush">
-      <div className="panel__head">
-        <div className="row">
-          <p className="t-h3">
-            {estimate.positions} {plural(estimate.positions, "позиция", "позиции", "позиций")}
-            {" · "}
-            {sections} {plural(sections, "раздел", "раздела", "разделов")}
-          </p>
-          {estimate.worksTotalDelta !== null && BigInt(estimate.worksTotalDelta) !== 0n && (
-            <span className="pill pill--danger">
-              Расхождение {money(estimate.worksTotalDelta)}
-            </span>
-          )}
-          {/* Один орган с двумя состояниями, а не два рядом: «свернуть» и
-              «развернуть» взаимоисключающи, и показывать оба значит
-              предлагать выбор там, где его нет. Подпись называет то, что
-              произойдёт, а не то, что сейчас. */}
-          {всеРазделы.size > 0 && (
-            <button
-              type="button"
-              className="btn btn--text"
-              onClick={() => {
-                setCollapsed((current) => (current.size === 0 ? всеРазделы : new Set()));
-              }}
-            >
-              {collapsed.size === 0 ? "Свернуть все" : "Развернуть все"}
-            </button>
-          )}
-        </div>
-        {/* Два переключателя рядом: способ показать и кому показать. Один
-            орган с четырьмя состояниями смешал бы независимые решения. */}
-        <div className="segmented" role="group" aria-label="Группировка сметы">
+  const шапка = (
+    <div className="panel__head">
+      {/* На телефоне ряд переносится: счёт позиций, пилюля расхождения и
+          «Развернуть все» в 358 px одной строкой не встают, и кнопка
+          обрезалась краем панели. */}
+      <div className={узко ? "row row--wrap" : "row"}>
+        <p className="t-h3">
+          {estimate.positions} {plural(estimate.positions, "позиция", "позиции", "позиций")}
+          {" · "}
+          {sections} {plural(sections, "раздел", "раздела", "разделов")}
+        </p>
+        {estimate.worksTotalDelta !== null && BigInt(estimate.worksTotalDelta) !== 0n && (
+          <span className="pill pill--danger">
+            Расхождение {money(estimate.worksTotalDelta)}
+          </span>
+        )}
+        {/* Один орган с двумя состояниями, а не два рядом: «свернуть» и
+            «развернуть» взаимоисключающи, и показывать оба значит
+            предлагать выбор там, где его нет. Подпись называет то, что
+            произойдёт, а не то, что сейчас. */}
+        {всеРазделы.size > 0 && (
           <button
             type="button"
-            className="segmented__option"
-            aria-pressed={grouping === "sections"}
-            onClick={() => { setGrouping("sections"); }}
+            className="btn btn--text"
+            onClick={() => {
+              setCollapsed((current) => (current.size === 0 ? всеРазделы : new Set()));
+            }}
           >
-            По смете
+            {collapsed.size === 0 ? "Свернуть все" : "Развернуть все"}
           </button>
-          <button
-            type="button"
-            className="segmented__option"
-            aria-pressed={grouping === "stages"}
-            onClick={() => { setGrouping("stages"); }}
-          >
-            По этапам
-          </button>
-        </div>
-        {hasInternal && (
-          <div className="segmented" role="group" aria-label="Проекция сметы">
-            <button
-              type="button"
-              className="segmented__option"
-              aria-pressed={projection === "internal"}
-              onClick={() => setProjection("internal")}
-            >
-              Внутренняя
-            </button>
-            <button
-              type="button"
-              className="segmented__option"
-              aria-pressed={projection === "client"}
-              onClick={() => setProjection("client")}
-            >
-              Для заказчика
-            </button>
-          </div>
         )}
       </div>
+      {/* Два переключателя рядом: способ показать и кому показать. Один
+          орган с четырьмя состояниями смешал бы независимые решения. */}
+      <div className="segmented" role="group" aria-label="Группировка сметы">
+        <button
+          type="button"
+          className="segmented__option"
+          aria-pressed={grouping === "sections"}
+          onClick={() => { setGrouping("sections"); }}
+        >
+          По смете
+        </button>
+        <button
+          type="button"
+          className="segmented__option"
+          aria-pressed={grouping === "stages"}
+          onClick={() => { setGrouping("stages"); }}
+        >
+          По этапам
+        </button>
+      </div>
+      {hasInternal && (
+        <div className="segmented" role="group" aria-label="Проекция сметы">
+          <button
+            type="button"
+            className="segmented__option"
+            aria-pressed={projection === "internal"}
+            onClick={() => setProjection("internal")}
+          >
+            Внутренняя
+          </button>
+          <button
+            type="button"
+            className="segmented__option"
+            aria-pressed={projection === "client"}
+            onClick={() => setProjection("client")}
+          >
+            Для заказчика
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  /** Позиция карточкой: «наименование; кол-во × цена = сумма». */
+  const карточкаПозиции = (item: EstimateItem): React.JSX.Element => (
+    <li className="estcard" key={item.id}>
+      <p className="estcard__name">
+        <span className="t-muted num">{item.order}.</span> {item.name}
+        {item.room !== null && <span className="t-sm t-muted"> · {item.room.name}</span>}
+      </p>
+      <p className="estcard__calc">
+        {/* Знаки — текст формулы, а не значки: «2 м² × 500,00 ₽ = 1 000,00 ₽»
+            читается вслух так же, как глазами. */}
+        <span className="num">{formatQty(BigInt(item.qty))} {item.unit}</span>
+        {" × "}
+        <span className="num">{money(item.unitPrice)}</span>
+        {" = "}
+        <b className="num">{money(item.total)}</b>
+      </p>
+      {/* Ставка и ЗП — только когда сервер их прислал и выбрана внутренняя
+          проекция: разграничение стоит в ответе сервера, карточка лишь не
+          печатает того, чего ей не дали. */}
+      {showInternal && (
+        <p className="estcard__internal t-sm">
+          <span>ставка ЗП <span className="num">{money(item.unitWage)}</span></span>
+          <span>ЗП <span className="num">{money(item.wageTotal)}</span></span>
+          <span>прибыль <span className="num">{money(item.profit)}</span></span>
+        </p>
+      )}
+      {editable && (
+        <button type="button" className="btn btn--text estcard__edit" onClick={() => { onEditItem(item); }}>
+          Править
+        </button>
+      )}
+    </li>
+  );
+
+  /**
+   * Группа карточкой: заголовок сворачивает группу и несёт её подытог.
+   * Подытог свёрнут в строку заголовка, а не стоит отдельной строкой под
+   * позициями: свёрнутая смета читается ведомостью «раздел — сумма», и
+   * сумма раздела видна, не раскрывая его.
+   */
+  const группаКарточкой = (
+    key: string,
+    title: React.ReactNode,
+    subtotal: string,
+    subtotalWage: string | undefined,
+    level: number,
+    свёрнута: boolean,
+    переключить: () => void,
+    содержимое: () => React.JSX.Element[],
+  ): React.JSX.Element => (
+    <li className="estgroup" key={key} style={{ ["--level" as string]: level }}>
+      <button type="button" className="estgroup__head" aria-expanded={!свёрнута} onClick={переключить}>
+        <svg className="icon icon--sm disclosure" aria-hidden="true"><use href="#i-chevron" /></svg>
+        <span className="estgroup__title">{title}</span>
+        <span className="estgroup__sum num">{subtotal}</span>
+      </button>
+      {!свёрнута && (
+        <>
+          <ul className="estcards">{содержимое()}</ul>
+          {showInternal && subtotalWage !== undefined && (
+            <p className="estgroup__internal t-sm">ЗП по группе <span className="num">{subtotalWage}</span></p>
+          )}
+        </>
+      )}
+    </li>
+  );
+
+  const разделыКарточками = (nodes: readonly EstimateSectionNode[]): React.JSX.Element[] =>
+    nodes.map((node) => группаКарточкой(
+      node.id,
+      sectionTitle(node.name),
+      money(node.subtotal),
+      node.subtotalWage === undefined ? undefined : money(node.subtotalWage),
+      node.level - 1,
+      collapsed.has(node.id),
+      () => { toggle(node.id); },
+      () => [...node.items.map(карточкаПозиции), ...разделыКарточками(node.children)],
+    ));
+
+  const узлыКарточками = (nodes: readonly GroupNode<EstimateItem>[], level = 0): React.JSX.Element[] =>
+    nodes.map((node) => группаКарточкой(
+      node.key,
+      <><span className="t-cap">{УРОВЕНЬ[node.kind]}</span> {node.label}</>,
+      formatKopecks(node.subtotal),
+      node.subtotalWage === undefined ? undefined : formatKopecks(node.subtotalWage),
+      level,
+      свёрнутыеУзлы.has(node.key),
+      () => {
+        setСвёрнутыеУзлы((текущие) => {
+          const дальше = new Set(текущие);
+          if (дальше.has(node.key)) дальше.delete(node.key);
+          else дальше.add(node.key);
+          return дальше;
+        });
+      },
+      () => [...node.items.map(карточкаПозиции), ...узлыКарточками(node.children, level + 1)],
+    ));
+
+  if (узко) {
+    return (
+      <div className="panel panel--sheet panel--flush">
+        {шапка}
+        <ul className="estgroups" aria-label="Смета объекта">
+          {grouping === "sections" ? разделыКарточками(estimate.sections) : узлыКарточками(дерево)}
+        </ul>
+        {/* Итоги — списком определений, а не строкой таблицы: подпись и
+            сумма переносятся по своим строкам и не обрезаются ни при какой
+            длине числа. */}
+        <dl className="esttotals">
+          <div className="esttotals__row">
+            <dt>
+              Итого по работам
+              {estimate.declaredWorksTotal !== null && (
+                <span className="t-sm t-muted"> · в файле заявлено {money(estimate.declaredWorksTotal)}</span>
+              )}
+            </dt>
+            <dd className="num">{money(estimate.totals.works)}</dd>
+          </div>
+          {showInternal && (
+            <div className="esttotals__row esttotals__row--internal">
+              <dt>ЗП · прибыль</dt>
+              <dd className="num">{money(estimate.totals.wage)} · {money(estimate.totals.profit)}</dd>
+            </div>
+          )}
+          <div className="esttotals__row">
+            <dt>
+              Сопровождение объекта {formatPercent(BigInt(estimate.totals.supervisionShare))}
+              {onEditSupervision !== undefined && (
+                <button type="button" className="btn btn--text" onClick={onEditSupervision}>
+                  Изменить надбавку
+                </button>
+              )}
+            </dt>
+            <dd className="num">{money(estimate.totals.supervision)}</dd>
+          </div>
+          <div className="esttotals__row esttotals__row--total">
+            <dt>Итого для заказчика</dt>
+            <dd className="num">{money(estimate.totals.estimate)}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel panel--sheet panel--flush">
+      {шапка}
 
       <div className="table-scroll table-scroll--view">
         <table className="estimate">

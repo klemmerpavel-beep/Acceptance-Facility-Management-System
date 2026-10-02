@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useModalDialog } from "./modal.js";
+import { useNarrow } from "./media.js";
 
 /**
  * Приём замечаний по демонстрации.
@@ -55,7 +56,9 @@ const обстановка = (): { section: string; project: string; tab: string
   const текст = (узел: Element | null): string => (узел?.textContent ?? "").trim();
   return {
     section: текст(document.querySelector('[aria-current="page"]')),
-    project: текст(document.querySelector(".stamp__value--code")),
+    /* Код объекта — из атрибута карточки, а не из штампа: на телефоне штамп
+       свёрнут в сводку и в документе его нет. */
+    project: document.querySelector("[data-project-code]")?.getAttribute("data-project-code") ?? "",
     tab: текст(document.querySelector('[role="tab"][aria-selected="true"]')),
     width: window.innerWidth,
   };
@@ -63,16 +66,21 @@ const обстановка = (): { section: string; project: string; tab: string
 
 export function Feedback(): React.JSX.Element | null {
   const [открыт, setОткрыт] = useState(false);
+  /* На телефоне — значок без подписи (план, пункт 7.1): кнопка с подписью
+     занимала треть ширины над нижней панелью и закрывала суммы в правой
+     половине карточек. Имя у значка остаётся — для того, кто слушает. */
+  const узко = useNarrow();
   if (ПРИЁМНИК === "") return null;
   return (
     <>
       <button
         type="button"
-        className="btn btn--primary feedback__open"
+        className={узко ? "btn btn--primary feedback__open feedback__open--icon" : "btn btn--primary feedback__open"}
+        aria-label={узко ? "Замечание" : undefined}
         onClick={() => { setОткрыт(true); }}
       >
         <svg className="icon" aria-hidden="true"><use href="#i-request" /></svg>
-        Замечание
+        {!узко && "Замечание"}
       </button>
       {открыт && <FeedbackSheet onClose={() => { setОткрыт(false); }} />}
     </>

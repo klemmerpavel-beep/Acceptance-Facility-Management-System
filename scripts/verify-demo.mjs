@@ -391,6 +391,134 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Телефон 390 × 844 (план, этап Э7: пункты 7.1 и 7.2) ---------------------
+   Демонстрацию заказчик открывает и с телефона, а два её органа живут
+   только здесь: кнопка «Замечание» и панель «Смотреть глазами». На 390 px
+   кнопка с подписью закрывала суммы карточек над нижней панелью, а панель
+   ролей переносилась в три строки. Обход идёт по всем четырём ролям
+   двойника: слой `api.demo.ts` отдаёт каждой свой состав, и ширину стережёт
+   каждая. Сравнение — с `innerWidth`, как записано в плане. */
+await page.setViewportSize({ width: 390, height: 844 });
+await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+await page.waitForTimeout(800);
+{
+  const панель = await page.evaluate(() => {
+    const узел = document.querySelector(".demorole");
+    if (узел === null) return null;
+    const видимые = [...узел.children].filter((ребёнок) => !ребёнок.classList.contains("visually-hidden"));
+    const верхи = new Set(видимые.map((ребёнок) => Math.round(ребёнок.getBoundingClientRect().top)));
+    const обрезанных = [...узел.querySelectorAll(".segmented__option")]
+      .filter((роль) => роль.scrollWidth > роль.clientWidth + 1).length;
+    return { строк: верхи.size, лишнее: узел.scrollWidth - узел.clientWidth, обрезанных };
+  });
+  if (панель === null) {
+    note("7.1 смотреть глазами", "на 390 px панели ролей нет");
+  } else if (панель.строк !== 1 || панель.лишнее > 1 || панель.обрезанных > 0) {
+    note("7.1 смотреть глазами",
+      `на 390 px панель ролей в ${панель.строк} строки, шире себя на ${панель.лишнее} px, обрезанных ролей ${панель.обрезанных}`);
+  }
+
+  const кнопка = page.locator(".feedback__open");
+  if ((await кнопка.count()) === 1) {
+    const подпись = (await кнопка.innerText()).trim();
+    const имя = await кнопка.getAttribute("aria-label");
+    if (подпись !== "" || имя !== "Замечание") {
+      note("7.1 замечание", `на 390 px кнопка замечания — «${подпись}», имя «${String(имя)}»: ожидался значок с именем «Замечание»`);
+    }
+  }
+
+  /* Кнопка стоит над нижней панелью, не шире значка и не закрывает чисел
+     насовсем: в конце любой страницы под ней пустое поле. При прокрутке
+     содержимое проходит под значком так же, как под самой нижней панелью, —
+     плавающий орган иначе не устроен; дефектом было число, которое из-под
+     подписанной кнопки нельзя вывести никакой прокруткой. Пункты списка
+     «Ещё», раскрытого вверх в ту же зону, проверяются ниже. */
+  const перекрытия = async (где) => {
+    await page.evaluate(() => { window.scrollTo(0, document.documentElement.scrollHeight); });
+    await page.waitForTimeout(200);
+    const итог = await page.evaluate(() => {
+      const кнопка = document.querySelector(".feedback__open");
+      const панель = document.querySelector(".tabbar");
+      if (кнопка === null) return { нет: true, надПанелью: true, чисел: [] };
+      const к = кнопка.getBoundingClientRect();
+      const надПанелью = панель === null || к.bottom <= панель.getBoundingClientRect().top + 1;
+      const чисел = [...document.querySelectorAll(".num, .statcard__value, .figure__value, .score__value, .money__sum")]
+        .filter((узел) => !кнопка.contains(узел))
+        .map((узел) => ({ узел, р: узел.getBoundingClientRect() }))
+        .filter(({ р }) => р.width > 0 && р.bottom > 0 && р.top < window.innerHeight)
+        .filter(({ р }) => р.left < к.right && р.right > к.left && р.top < к.bottom && р.bottom > к.top)
+        .map(({ узел }) => (узел.textContent ?? "").trim().slice(0, 24));
+      return { нет: false, надПанелью, чисел, ширина: Math.round(к.width), высота: Math.round(к.height) };
+    });
+    if (итог.нет) return;
+    if (!итог.надПанелью) note("7.1 замечание", `${где}: кнопка замечания заходит на нижнюю панель`);
+    if (итог.ширина > 48 || итог.высота > 48) {
+      note("7.1 замечание", `${где}: кнопка замечания ${итог.ширина} × ${итог.высота} px — шире значка`);
+    }
+    if (итог.чисел.length > 0) {
+      note("7.1 замечание", `${где}: в конце страницы кнопка замечания закрывает числа — ${итог.чисел.join("; ")}`);
+    }
+  };
+
+  const РАЗДЕЛЫ = [["home", "Главная"], ["requests", "Заявки"], ["projects", "Проекты"], ["contacts", "Контакты"], ["accounting", "Бухгалтерия"]];
+  const ВКЛАДКИ = {
+    "Обзор": "", "Замер": "/measure", "Смета": "/estimate", "Работа": "/work", "Приёмка": "/acceptance",
+    "Чеки": "/expenses", "Отчёт": "/report", "Транши": "/tranches", "Документы": "/documents", "Импорт": "/import",
+  };
+  for (const роль of ["Руководитель", "Прораб", "Бухгалтер", "Заказчик"]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(800);
+    const экраны = [...РАЗДЕЛЫ.map(([ключ, подпись]) => [`#${ключ}`, подпись])];
+    await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const вкладки = (await page.locator(".tabs__item").allTextContents()).map((текст) => текст.trim());
+    for (const вкладка of вкладки) {
+      if (ВКЛАДКИ[вкладка] !== undefined) экраны.push([`#R-99${ВКЛАДКИ[вкладка]}`, `R-99 · ${вкладка}`]);
+    }
+    for (const [адрес, подпись] of экраны) {
+      await page.goto(`${BASE}/${адрес}`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      const лишнее = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (лишнее > 0) note("7.1 узкая ширина", `демонстрация, ${роль.toLowerCase()}: «${подпись}» шире окна на ${лишнее} px`);
+      await перекрытия(`${роль.toLowerCase()}, «${подпись}»`);
+    }
+    if (вкладки.length > 0) {
+      await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      const верх = await page.evaluate(() => {
+        const полоса = document.querySelector('.tabs[role="tablist"]');
+        return полоса === null ? null : Math.round(полоса.getBoundingClientRect().top + window.scrollY);
+      });
+      if (верх === null || верх >= 844) {
+        note("7.2 карточка на телефоне", `демонстрация, ${роль.toLowerCase()}: верх полосы вкладок ${String(верх)} px — ниже первого экрана`);
+      }
+    }
+  }
+
+  /* Список «Ещё» нижней панели раскрывается вверх — в зону кнопки. */
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  const ещё = page.locator(".tabbar__more > summary");
+  if ((await ещё.count()) > 0) {
+    await ещё.click();
+    await page.waitForTimeout(300);
+    const закрыто = await page.evaluate(() => [...document.querySelectorAll(".tabbar__menu button, .tabbar__menu a")]
+      .filter((пункт) => {
+        const р = пункт.getBoundingClientRect();
+        const сверху = document.elementFromPoint(р.left + р.width / 2, р.top + р.height / 2);
+        return сверху === null || !пункт.contains(сверху);
+      })
+      .map((пункт) => (пункт.textContent ?? "").trim()));
+    if (закрыто.length > 0) note("7.1 замечание", `пункты списка «Ещё» закрыты сверху: ${закрыто.join(", ")}`);
+    await ещё.click();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
 await browser.close();
 server.close();
 

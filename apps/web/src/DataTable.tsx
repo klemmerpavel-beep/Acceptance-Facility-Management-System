@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { plural } from "./status.js";
+import { useNarrow } from "./media.js";
 
 /**
  * Список по единому образцу. Норматив: `docs/03_DESIGN_SYSTEM.md`, §5.14.
@@ -80,6 +81,11 @@ export function DataTable<Row>({
   const [query, setQuery] = useState("");
   const [size, setSize] = useState<number>(PAGE_SIZES[0]);
   const [page, setPage] = useState(0);
+  /* До 480 px строка — карточка «подпись — значение» (план, пункт 7.1).
+     Таблица из шести колонок на 390 px уводила страницу вбок на 64 px:
+     прокрутка внутри обёртки спасает документ, но не читателя — половина
+     колонок остаётся за краем, и сравнивать строки приходится вслепую. */
+  const узко = useNarrow();
 
   const found = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -122,6 +128,32 @@ export function DataTable<Row>({
           </div>
         )}
         <div className="datatable__controls">
+          {/* Сортировка карточек — списком: заголовков колонок, по которым
+              щёлкают на десктопе, у карточек нет, а порядок по-прежнему
+              нужен — «у кого больше итог» спрашивают и с телефона. */}
+          {узко && (
+            <label className="datatable__order">
+              <span className="field__label">Порядок</span>
+              <span className="selectwrap">
+                <select
+                  className="input"
+                  value={sort === null ? "" : `${sort.key}:${sort.descending ? "desc" : "asc"}`}
+                  onChange={(event) => {
+                    const [key = "", направление] = event.target.value.split(":");
+                    setPage(0);
+                    setSort(key === "" ? null : { key, descending: направление === "desc" });
+                  }}
+                >
+                  <option value="">Как заведено</option>
+                  {columns.flatMap((column) => [
+                    <option key={`${column.key}:asc`} value={`${column.key}:asc`}>{column.label} ↑</option>,
+                    <option key={`${column.key}:desc`} value={`${column.key}:desc`}>{column.label} ↓</option>,
+                  ])}
+                </select>
+                <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
+              </span>
+            </label>
+          )}
           <label className="datatable__search">
             <svg className="icon" aria-hidden="true"><use href="#i-search" /></svg>
             <span className="visually-hidden">{searchLabel}</span>
@@ -140,6 +172,21 @@ export function DataTable<Row>({
           <p className="empty__title">{emptyTitle}</p>
           <p className="empty__text">{query.trim() === "" ? emptyText : "Поиск ничего не нашёл. Измените запрос."}</p>
         </div>
+      ) : узко ? (
+        <ul className="datatable__cards" aria-label={подпись}>
+          {shown.map((row) => (
+            <li className="datatable__card" key={rowKey(row)}>
+              {columns.map((column) => (
+                <div className="datatable__field" key={column.key}>
+                  <span className="datatable__label">{column.label}</span>
+                  <span className={column.numeric === true ? "datatable__value num" : "datatable__value"}>
+                    {column.render === undefined ? column.value(row) : column.render(row)}
+                  </span>
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="table-scroll">
           <table className="datatable__table">
