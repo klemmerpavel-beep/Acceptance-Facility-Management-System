@@ -29,6 +29,7 @@ import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { tabArrowHandler } from "./tabs.js";
+import type { Вкладка } from "./route.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 import { КРУПНАЯ_ОБЛОЖКА } from "./coverTone.js";
 import { due, type DueLevel } from "./due.js";
@@ -200,6 +201,8 @@ export function ProjectCard({
   units,
   today,
   откуда,
+  tab,
+  onTab,
   onBack,
   onChanged,
 }: {
@@ -209,10 +212,13 @@ export function ProjectCard({
   today: string;
   /** Подпись раздела, куда возвращает крошка. Крошка называет место, а не вещь. */
   откуда: string;
+  /** Вкладка живёт в адресе (`#R-99/estimate`) и потому у оболочки (П-50). */
+  tab: Вкладка;
+  onTab: (tab: Вкладка) => void;
   onBack: () => void;
   onChanged: (project: ProjectSummary) => void;
 }): React.JSX.Element {
-  const [tab, setTab] = useState<Tab>("overview");
+  const setTab = onTab;
   const [estimate, setEstimate] = useState<EstimateView | null>(null);
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [events, setEvents] = useState<ProjectEvent[]>([]);
@@ -354,6 +360,12 @@ export function ProjectCard({
     : user.role === "CLIENT"
       ? TABS.filter((item) => ЗАКАЗЧИКУ.includes(item.key))
       : [...TABS];
+
+  /* Вкладка из адреса может быть закрыта роли: прорабу «Импорт», заказчику
+     «Чеки». Такой адрес открывает «Обзор», а не пустую карточку. */
+  useEffect(() => {
+    if (!tabList.some((item) => item.key === tab)) onTab("overview");
+  });
 
   const onTabKey = tabArrowHandler(
     tabList.map((item) => item.key),

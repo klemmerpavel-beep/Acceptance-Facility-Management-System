@@ -4,6 +4,7 @@ import { formatKopecks } from "@priyomka/ui";
 import { DataTable, type Column } from "./DataTable.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 import { due } from "./due.js";
+import { простойЩелчок } from "./route.js";
 
 /**
  * Объекты таблицей — один набор колонок на главную и на раздел «Проекты».
@@ -112,7 +113,11 @@ export function projectColumns(
         // клавиатурой, и в новой вкладке средствами браузера.
         <a
           href={`#${project.code}`}
-          onClick={(event) => { event.preventDefault(); onOpen(project); }}
+          onClick={(event) => {
+            if (!простойЩелчок(event)) return;
+            event.preventDefault();
+            onOpen(project);
+          }}
         >
           {project.address}
         </a>

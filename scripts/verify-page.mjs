@@ -5504,6 +5504,78 @@ const РОЛИ_ВХОДА = [
   }
 }
 
+/*
+ * Адреса экранов (полный аудит 30.09.2026, П-50; решение заказчика от
+ * 01.10.2026). Прежде адресная строка в продукте не участвовала: «Назад»
+ * уводил из продукта, перезагрузка возвращала на «Главную», ссылку на объект
+ * нельзя было передать. Проверяются исходы, ради которых решение принято:
+ * переход пишет адрес, «Назад» и «Вперёд» возвращают экран и вкладку,
+ * перезагрузка и ссылка в новой вкладке открывают названный экран, а адрес
+ * чужого объекта поправляется, а не открывает пустоту.
+ */
+{
+  const где = async (лист = page) => ({
+    адрес: await лист.evaluate(() => window.location.hash),
+    заголовок: ((await лист.locator("h1").first().textContent().catch(() => null)) ?? "").trim(),
+    вкладка: ((await лист.locator('[role="tab"][aria-selected="true"]').first()
+      .textContent({ timeout: 1500 }).catch(() => null)) ?? "").trim(),
+  });
+  const ждать = () => page.waitForTimeout(700);
+  const сверить = async (шаг, адрес, вкладка, лист = page) => {
+    const место = await где(лист);
+    if (место.адрес !== адрес) note("адрес", `${шаг}: адрес «${место.адрес}» вместо «${адрес}»`);
+    if (вкладка !== null && (!место.заголовок.includes("R-99") || место.вкладка !== вкладка)) {
+      note("адрес", `${шаг}: на экране «${место.заголовок}», вкладка «${место.вкладка}» вместо R-99 и «${вкладка}»`);
+    }
+    if (вкладка === null && место.вкладка !== "") {
+      note("адрес", `${шаг}: карточка объекта осталась на экране («${место.вкладка}»)`);
+    }
+  };
+
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".appbar");
+  await сверить("вход", "#home", null);
+  await page.click('.appbar__link:has-text("Проекты")');
+  await ждать();
+  await сверить("раздел", "#projects", null);
+  await page.locator('a[href="#R-99"]').first().click();
+  await ждать();
+  await сверить("объект", "#R-99", "Обзор");
+  await page.click('[role="tab"]:has-text("Смета")');
+  await ждать();
+  await сверить("вкладка", "#R-99/estimate", "Смета");
+  await page.goBack({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Назад» с вкладки", "#R-99", "Обзор");
+  await page.goBack({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Назад» с объекта", "#projects", null);
+  await page.goForward({ waitUntil: "commit" });
+  await page.goForward({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Вперёд» дважды", "#R-99/estimate", "Смета");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector(".appbar");
+  await ждать();
+  await сверить("перезагрузка", "#R-99/estimate", "Смета");
+
+  const вторая = await page.context().newPage();
+  await вторая.goto(`${BASE}/#R-99/tranches`, { waitUntil: "networkidle" });
+  await вторая.waitForSelector(".appbar");
+  await вторая.waitForTimeout(700);
+  await сверить("ссылка в новой вкладке", "#R-99/tranches", "Транши", вторая);
+  /* Объекта с таким кодом нет: адрес поправляется на раздел объектов и
+     заменяет запись истории — «Назад» не возвращает на него снова. */
+  await вторая.goto(`${BASE}/#Z-1`, { waitUntil: "networkidle" });
+  await вторая.waitForSelector(".appbar");
+  await вторая.waitForTimeout(700);
+  await сверить("несуществующий объект", "#projects", null, вторая);
+  await вторая.close();
+
+  await page.click('.appbar__link:has-text("Главная")');
+  await ждать();
+}
+
 for (const роль of РОЛИ_ВХОДА) {
   const ссылка = await fetch(`${API}/auth/magic-link`, {
     method: "POST",

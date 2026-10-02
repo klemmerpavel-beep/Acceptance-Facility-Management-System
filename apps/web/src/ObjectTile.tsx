@@ -2,6 +2,7 @@ import type { ProjectSummary } from "@priyomka/contracts";
 import { due } from "./due.js";
 import { STATUS_LABEL, STATUS_PILL } from "./status.js";
 import { ОБЛОЖКА_СТАТУСА } from "./coverTone.js";
+import { простойЩелчок } from "./route.js";
 
 /**
  * Плитка объекта.
@@ -81,7 +82,11 @@ export function ObjectTile({
           className="objecttile__link t-h3"
           href={`#${project.code}`}
           title={project.address}
-          onClick={(event) => { event.preventDefault(); onOpen(project); }}
+          onClick={(event) => {
+            if (!простойЩелчок(event)) return;
+            event.preventDefault();
+            onOpen(project);
+          }}
         >
           {project.address}
         </a>
