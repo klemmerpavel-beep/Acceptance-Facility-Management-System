@@ -2249,6 +2249,59 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
   await page.waitForTimeout(300);
 }
 
+/* Предупреждение о закрытых траншах (полный аудит 30.09.2026, П-27; решение
+ * от 01.10.2026 — акт следует за сметой, правка предупреждает).
+ *
+ * Надбавка задевает каждый закрытый транш, а после проверки сервера их на
+ * стенде три: лист надбавки обязан назвать их по настоящему перечню. Позиции
+ * действующей редакции в закрытом транше на стенде не бывает — проверка
+ * сервера заводит новую редакцию после закрытия, — поэтому лист позиции
+ * проверяется ответом, подставленным на пути запроса. Так стережётся, что
+ * лист спрашивает перечень при открытии и называет транш, подписанный акт и
+ * оплату; правильность самого перечня стережёт `verify-api`. */
+{
+  const заметка = () => page.locator('.sheet [role="note"]').first().textContent({ timeout: 2000 }).catch(() => null);
+  if ((await page.locator('.btn--text:has-text("Изменить надбавку")').count()) > 0) {
+    await page.click('.btn--text:has-text("Изменить надбавку")');
+    await page.waitForTimeout(600);
+    const текст = await заметка();
+    if (текст === null || !/закрыт[а-я]* транш/u.test(текст) || !/№ \d/u.test(текст)) {
+      note("правка сметы", `лист надбавки не называет закрытые транши: «${текст ?? "молча"}»`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  }
+  const перваяПозиция = await page.evaluate(async () => {
+    const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((ответ) => ответ.json());
+    const все = [];
+    const обойти = (раздел) => { все.push(...(раздел.items ?? [])); (раздел.children ?? []).forEach(обойти); };
+    (вид.sections ?? []).forEach(обойти);
+    const имена = все.map((позиция) => позиция.name);
+    return все.find((позиция) => имена.indexOf(позиция.name) === имена.lastIndexOf(позиция.name)) ?? null;
+  });
+  const строка = перваяПозиция === null
+    ? null
+    : page.locator("table.estimate tbody tr").filter({ hasText: перваяПозиция.name }).first();
+  if (строка === null || (await строка.count()) === 0) {
+    note("правка сметы", "позиции с единственным именем для проверки предупреждения нет");
+  } else {
+    const ПУТЬ = "**/api/projects/R-99/estimate/closed-tranches";
+    await page.route(ПУТЬ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: 7, paid: true, signedAt: "2026-09-12", items: [перваяПозиция.id] }] }),
+    }));
+    await строка.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(600);
+    const текст = (await заметка()) ?? "";
+    for (const нужно of ["закрытом транше № 7", "Подписан акт № 7 (12.09.2026)", "Оплачен транш № 7"]) {
+      if (!текст.includes(нужно)) note("правка сметы", `лист позиции не называет «${нужно}»: «${текст || "молча"}»`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+    await page.unroute(ПУТЬ);
+  }
+}
+
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);

@@ -13,7 +13,7 @@ import type {
   DisplacedByImport,
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
-  ClientRow, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
+  ClientRow, ClosedTranches, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
@@ -77,6 +77,8 @@ interface Snapshot {
   capturedOn: string;
   "estimate-owner": EstimateView;
   "estimate-foreman": EstimateView;
+  /** Закрытые транши R-99 и принятые в них позиции: предупреждение листов правки (П-27). */
+  "closed-tranches": ClosedTranches;
   imports: ImportRecord[];
   "leads-owner": LeadBoard;
   "repair-types": RepairType[];
@@ -627,6 +629,26 @@ export async function importEstimate(
  * сервера порознь: у прораба внутренних величин нет не потому, что их
  * скрыл интерфейс, а потому, что сервер их не отдал.
  */
+/* Состояние траншей — живое: в демонстрации транш закрывают и отмечают
+   оплаченным. Позиции, принятые в транше, знает только слепок сервера, и
+   транш, закрытый в самой демонстрации, называется предупреждением
+   надбавки, но не позиции: какие позиции в нём приняты, слепок не знает. */
+export async function fetchClosedTranches(code: string): Promise<ClosedTranches> {
+  await pause(120);
+  if (code !== "R-99") return { tranches: [] };
+  const снятые = new Map(data["closed-tranches"].tranches.map((транш) => [транш.number, транш]));
+  return {
+    tranches: траншиR99().tranches
+      .filter((транш) => транш.status !== "OPEN" && (снятые.has(транш.number) || BigInt(транш.client) > 0n))
+      .map((транш) => ({
+        number: транш.number,
+        paid: транш.status === "PAID",
+        signedAt: снятые.get(транш.number)?.signedAt ?? null,
+        items: снятые.get(транш.number)?.items ?? [],
+      })),
+  };
+}
+
 export async function fetchEstimate(code: string): Promise<EstimateView> {
   await pause(320);
   if (code !== "R-99") {

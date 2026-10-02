@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
-  CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
+  ClosedTranches, CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, ownerLevel, projectRange, sectionWeights,
   workingDaysBetween, безСметы } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
-  applyBlueprint, createBlueprint,
+  applyBlueprint, createBlueprint, fetchClosedTranches,
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen,
@@ -225,6 +225,17 @@ export function ProjectCard({
      выбирают из канонического набора, а не пишут свободно. */
   const [editing, setEditing] = useState<EstimateItem | null>(null);
   const [supervisionOpen, setSupervisionOpen] = useState(false);
+  /* Закрытые транши читаются при открытии листа правки, а не со сметой:
+     транш закрывают на другой вкладке, и снятый заранее перечень молчал бы
+     о закрытом минуту назад (П-27). Отказ чтения листа не блокирует —
+     предупреждение молчит, правка остаётся доступной. */
+  const [закрытые, setЗакрытые] = useState<ClosedTranches["tranches"]>([]);
+  const прочестьЗакрытые = (): void => {
+    setЗакрытые([]);
+    fetchClosedTranches(project.code)
+      .then((ответ) => { setЗакрытые(ответ.tranches); })
+      .catch(() => { setЗакрытые([]); });
+  };
   /* Лист типовой сметы: «save» — сохранить смету объекта заготовкой,
      «apply» — взять заготовку в объект без сметы. Одна вещь, два действия. */
   const [заготовка, setЗаготовка] = useState<"save" | "apply" | null>(null);
@@ -805,10 +816,12 @@ export function ProjectCard({
                           onEditItem: (item: EstimateItem) => {
                             setEditing(item);
                             setEditError(null);
+                            прочестьЗакрытые();
                           },
                           onEditSupervision: () => {
                             setSupervisionOpen(true);
                             setEditError(null);
+                            прочестьЗакрытые();
                           },
                           onMoveItem: (item: EstimateItem, шагов: number) => {
                             переставить(estimate, project.code, item, шагов, сохранить, setEditError);
@@ -879,6 +892,7 @@ export function ProjectCard({
               : разделПозиции(estimate.sections, editing.id)?.id ?? ""
           }
           measure={measure}
+          closed={закрытые}
           busy={editBusy}
           error={editError}
           onSave={(input, раздел) => {
@@ -925,6 +939,7 @@ export function ProjectCard({
         <SupervisionSheet
           share={estimate.totals.supervisionShare}
           works={estimate.totals.works}
+          closed={закрытые}
           busy={editBusy}
           error={editError}
           onSave={(share) => {

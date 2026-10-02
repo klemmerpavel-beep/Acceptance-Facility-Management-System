@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type {
-  DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
+  ClosedTranches, DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
   MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
@@ -810,6 +810,34 @@ export class EstimatesService {
     });
 
     return this.view(user, code);
+  }
+
+  /**
+   * Закрытые транши объекта и позиции, принятые в них, — для предупреждения
+   * в листах правки позиции и надбавки (решение заказчика от 01.10.2026,
+   * П-27). Отбор по редакции сметы не делается: счёт транша и акт по нему
+   * его тоже не делают.
+   */
+  async closedTranches(user: RequestUser, code: string): Promise<ClosedTranches> {
+    const project = await this.projectOf(user, code);
+    const транши = await this.prisma.tranche.findMany({
+      where: { projectId: project.id, status: { in: ["CLOSED", "PAID"] } },
+      orderBy: { number: "asc" },
+      select: {
+        number: true, status: true, signedAt: true,
+        batches: { select: { acceptances: { select: { itemId: true } } } },
+      },
+    });
+    return {
+      tranches: транши
+        .map((транш) => ({
+          number: транш.number,
+          paid: транш.status === "PAID",
+          signedAt: транш.signedAt === null ? null : транш.signedAt.toISOString().slice(0, 10),
+          items: [...new Set(транш.batches.flatMap((пакет) => пакет.acceptances.map((строка) => строка.itemId)))],
+        }))
+        .filter((транш) => транш.items.length > 0),
+    };
   }
 
   /**

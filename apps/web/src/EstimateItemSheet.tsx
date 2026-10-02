@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type {
-  EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
+  ClosedTranches, EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
 } from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
@@ -8,6 +8,7 @@ import {
   MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
+import { предупреждениеОЗакрытых } from "./closed-tranches.js";
 
 /**
  * Правка позиции сметы — действие руководителя.
@@ -57,6 +58,7 @@ export function EstimateItemSheet({
   sections,
   sectionId,
   measure,
+  closed,
   busy,
   error,
   onSave,
@@ -80,6 +82,8 @@ export function EstimateItemSheet({
   /** Раздел, в котором позиция стоит сейчас. */
   sectionId: string;
   measure: MeasureView | null;
+  /** Закрытые транши объекта: лист называет те, что изменит правка (П-27). */
+  closed: ClosedTranches["tranches"];
   busy: boolean;
   error: string | null;
   /** `раздел` пуст, когда его не меняли: «не трогал» — не «перенеси сюда». */
@@ -95,6 +99,7 @@ export function EstimateItemSheet({
   const [roomId, setRoomId] = useState(item.room?.id ?? "");
   const [разделПозиции, setРазделПозиции] = useState(sectionId);
 
+  const предупреждение = предупреждениеОЗакрытых(closed, { позиция: item.id });
   const тысячные = количествоВТысячные(qty);
   const цена = рублиВКопейки(price);
   const ставка = рублиВКопейки(wage);
@@ -172,6 +177,7 @@ export function EstimateItemSheet({
       <button type="button" className="scrim" aria-label="Закрыть" onClick={onClose} />
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Правка позиции" ref={dialog}>
         <p className="t-h3">Позиция сметы</p>
+        {предупреждение !== null && <p className="panel panel--pad t-sm" role="note">{предупреждение}</p>}
         <form className="stack stack--tight" onSubmit={submit}>
           <label className="field">
             <span className="field__label">Наименование</span>

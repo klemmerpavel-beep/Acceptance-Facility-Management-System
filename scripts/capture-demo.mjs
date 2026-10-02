@@ -74,6 +74,7 @@ const snapshot = {
   organization: await owner("/organization"),
   unitDirectory: await owner("/units"),
   "estimate-owner": estimateOwner,
+  "closed-tranches": await owner("/projects/R-99/estimate/closed-tranches"),
   "estimate-foreman": await foreman("/projects/R-99/estimate"),
   measure: await owner("/projects/R-99/measure"),
   /* Второй набор обмера снимается отдельным запросом: наборов два, и
