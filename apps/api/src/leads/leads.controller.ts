@@ -71,6 +71,12 @@ export class LeadsController {
     return this.leads.lose(user, id, loseLeadSchema.parse(body));
   }
 
+  /** Обезличивание отказной заявки: решение заказчика от 01.10.2026 (П-40). */
+  @Post(":id/anonymization")
+  anonymize(@CurrentUser() user: RequestUser, @Param("id") id: string): Promise<LeadCard> {
+    return this.leads.anonymize(user, id);
+  }
+
   @Post(":id/tasks")
   addTask(
     @CurrentUser() user: RequestUser,

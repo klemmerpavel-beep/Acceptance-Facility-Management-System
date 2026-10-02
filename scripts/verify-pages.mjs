@@ -121,6 +121,32 @@ const вопросов = (аудит.match(/<fieldset>/gu) ?? []).length;
 if (вопросов !== 12) note(`на странице аудита ${вопросов} вопросов вместо двенадцати`);
 if (!аудит.includes("Скопировать")) note("на странице аудита нет кнопки переноса ответов");
 
+/* 7. Гарнитуры из сборки (решение заказчика от 01.10.2026, П-52). Ни одна
+      опубликованная страница, таблица и сценарий не обращаются к узлам
+      Google Fonts: адрес заказчика не уходит третьей стороне. Таблица
+      объявлений и каждый названный в ней файл лежат на сайте — иначе
+      страница молча наберётся запасным стеком. */
+const опубликовано = [];
+const обойти = (каталог) => {
+  for (const запись of readdirSync(каталог, { withFileTypes: true })) {
+    const путь = join(каталог, запись.name);
+    if (запись.isDirectory()) обойти(путь);
+    else if (/\.(?:html|css|js)$/u.test(запись.name)) опубликовано.push(путь);
+  }
+};
+обойти(site);
+for (const путь of опубликовано) {
+  if (/\/\/fonts\.(?:googleapis|gstatic)\.com/u.test(readFileSync(путь, "utf8"))) {
+    note(`${путь.slice(root.length)} обращается к Google Fonts: адрес заказчика уходит третьей стороне`);
+  }
+}
+const гарнитуры = existsSync(join(site, "fonts.css")) ? readFileSync(join(site, "fonts.css"), "utf8") : "";
+const файлыГарнитур = [...гарнитуры.matchAll(/url\("([^"]+)"\)/gu)].map((пара) => пара[1] ?? "");
+if (файлыГарнитур.length === 0) note("в site/fonts.css нет ни одного файла гарнитуры");
+for (const файл of файлыГарнитур) {
+  if (!existsSync(join(site, файл))) note(`файла гарнитуры site/${файл} нет`);
+}
+
 if (problems.length > 0) {
   console.error(`Дефектов публикации: ${problems.length}\n`
     + problems.map((p) => `  ${p}`).join("\n"));

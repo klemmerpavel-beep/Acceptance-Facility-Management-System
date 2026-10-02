@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import { applyPercent, basisPoints, kopecks } from "@priyomka/domain";
+import type { ClosedTranches } from "@priyomka/contracts";
 import { useModalDialog } from "./modal.js";
+import { предупреждениеОЗакрытых } from "./closed-tranches.js";
 
 /**
  * Надбавка «сопровождение объекта» — процент, который клиент платит поверх
@@ -27,6 +29,7 @@ export function процентВБазисные(input: string): number | null {
 export function SupervisionSheet({
   share,
   works,
+  closed,
   busy,
   error,
   onSave,
@@ -34,6 +37,8 @@ export function SupervisionSheet({
 }: {
   share: number;
   works: string;
+  /** Закрытые транши объекта: надбавка входит в сумму каждого (П-27). */
+  closed: ClosedTranches["tranches"];
   busy: boolean;
   error: string | null;
   onSave: (share: number) => void;
@@ -42,6 +47,7 @@ export function SupervisionSheet({
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const [value, setValue] = useState(formatPercent(BigInt(share)).replace(/\s*%$/u, "").trim());
 
+  const предупреждение = предупреждениеОЗакрытых(closed, "надбавка");
   const базисные = процентВБазисные(value);
   const выше100 = базисные !== null && базисные > 10_000;
   const ready = базисные !== null && !выше100;
@@ -59,6 +65,7 @@ export function SupervisionSheet({
       <button type="button" className="scrim" aria-label="Закрыть" onClick={onClose} />
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Надбавка" ref={dialog}>
         <p className="t-h3">Сопровождение объекта</p>
+        {предупреждение !== null && <p className="panel panel--pad t-sm" role="note">{предупреждение}</p>}
         <form className="stack stack--tight" onSubmit={submit}>
           <label className="field">
             <span className="field__label">Надбавка, %</span>

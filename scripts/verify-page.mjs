@@ -72,10 +72,11 @@ const геометрия = async (page, где) => {
 
 /**
  * Ожидаемые события, не являющиеся дефектами страницы:
- *   401 на /auth/me до входа — так проверяется наличие сессии;
- *   недоступность fonts.googleapis.com — исходящая сеть песочницы закрыта,
- *   на машине пользователя гарнитуры загрузятся, а до тех пор работает
- *   запасной стек, объявленный в токенах.
+ *   401 на /auth/me до входа — так проверяется наличие сессии.
+ *
+ * Недоступность fonts.googleapis.com ожидаемой больше не считается: с
+ * 02.10.2026 гарнитуры раздаются из сборки (П-52), и всякое обращение
+ * продукта к узлам Google Fonts — дефект, а не сеть песочницы.
  *
  * Опознаётся только адрес. Прежде список кончался тремя оговорками по
  * тексту сообщения — «401 (Unauthorized)», «404 (Not Found)»,
@@ -92,7 +93,7 @@ const геометрия = async (page, где) => {
 let снимкиОтключены = false;
 
 const expected = (url) =>
-  url.endsWith("/auth/me") || url.includes("fonts.googleapis.com") || url.includes("fonts.gstatic.com")
+  url.endsWith("/auth/me")
   || (снимкиОтключены && url.includes("/acceptance/photo/"))
   // Объект без сметы отвечает 404 на запрос сметы; карточка показывает
   // честное пустое состояние. Это поведение продукта, а не сбой страницы.
@@ -109,6 +110,16 @@ page.on("console", (message) => {
   else note("ошибка консоли", text.slice(0, 160));
 });
 page.on("pageerror", (error) => note("исключение страницы", String(error).slice(0, 160)));
+/* Гарнитуры — из сборки (решение заказчика от 01.10.2026, П-52): адрес
+   пользователя не уходит третьей стороне. Ловится сам запрос, а не его
+   исход — в песочнице узел недоступен, у пользователя доступен. */
+const кGoogle = new Set();
+page.on("request", (request) => {
+  const адрес = request.url();
+  if (!/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//u.test(адрес) || кGoogle.has(адрес)) return;
+  кGoogle.add(адрес);
+  note("гарнитуры", `продукт обращается к Google Fonts: ${адрес.slice(0, 80)}`);
+});
 /* Подпись называет причину. Сорванный снимок приёмки подписывался «сеть
    песочницы», хотя его сорвала сама проверка: читающий вывод искал сетевую
    неполадку там, где её нет (полный аудит 30.09.2026, П-14). */
@@ -2249,6 +2260,59 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
   await page.waitForTimeout(300);
 }
 
+/* Предупреждение о закрытых траншах (полный аудит 30.09.2026, П-27; решение
+ * от 01.10.2026 — акт следует за сметой, правка предупреждает).
+ *
+ * Надбавка задевает каждый закрытый транш, а после проверки сервера их на
+ * стенде три: лист надбавки обязан назвать их по настоящему перечню. Позиции
+ * действующей редакции в закрытом транше на стенде не бывает — проверка
+ * сервера заводит новую редакцию после закрытия, — поэтому лист позиции
+ * проверяется ответом, подставленным на пути запроса. Так стережётся, что
+ * лист спрашивает перечень при открытии и называет транш, подписанный акт и
+ * оплату; правильность самого перечня стережёт `verify-api`. */
+{
+  const заметка = () => page.locator('.sheet [role="note"]').first().textContent({ timeout: 2000 }).catch(() => null);
+  if ((await page.locator('.btn--text:has-text("Изменить надбавку")').count()) > 0) {
+    await page.click('.btn--text:has-text("Изменить надбавку")');
+    await page.waitForTimeout(600);
+    const текст = await заметка();
+    if (текст === null || !/закрыт[а-я]* транш/u.test(текст) || !/№ \d/u.test(текст)) {
+      note("правка сметы", `лист надбавки не называет закрытые транши: «${текст ?? "молча"}»`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+  }
+  const перваяПозиция = await page.evaluate(async () => {
+    const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((ответ) => ответ.json());
+    const все = [];
+    const обойти = (раздел) => { все.push(...(раздел.items ?? [])); (раздел.children ?? []).forEach(обойти); };
+    (вид.sections ?? []).forEach(обойти);
+    const имена = все.map((позиция) => позиция.name);
+    return все.find((позиция) => имена.indexOf(позиция.name) === имена.lastIndexOf(позиция.name)) ?? null;
+  });
+  const строка = перваяПозиция === null
+    ? null
+    : page.locator("table.estimate tbody tr").filter({ hasText: перваяПозиция.name }).first();
+  if (строка === null || (await строка.count()) === 0) {
+    note("правка сметы", "позиции с единственным именем для проверки предупреждения нет");
+  } else {
+    const ПУТЬ = "**/api/projects/R-99/estimate/closed-tranches";
+    await page.route(ПУТЬ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: 7, paid: true, signedAt: "2026-09-12", items: [перваяПозиция.id] }] }),
+    }));
+    await строка.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(600);
+    const текст = (await заметка()) ?? "";
+    for (const нужно of ["закрытом транше № 7", "Подписан акт № 7 (12.09.2026)", "Оплачен транш № 7"]) {
+      if (!текст.includes(нужно)) note("правка сметы", `лист позиции не называет «${нужно}»: «${текст || "молча"}»`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+    await page.unroute(ПУТЬ);
+  }
+}
+
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
@@ -3209,6 +3273,40 @@ if ((await сОриентиром.count()) === 0) {
   await page.waitForTimeout(300);
 }
 
+/* Обезличивание отказной заявки (полный аудит 30.09.2026, П-40; решение от
+   01.10.2026). Действие не отменяется и потому идёт через подтверждение,
+   называющее последствия. Проверяется на заявке, заведённой выше: отказ,
+   обезличивание, и в шапке листа нет ни имени, ни телефона. */
+{
+  const своя = page.locator(".leadcard").filter({ hasText: пробаЗаявки }).first();
+  if ((await своя.count()) === 0) {
+    note("обезличивание", "заявки, заведённой обходом, на доске нет");
+  } else {
+    await своя.click();
+    await page.waitForSelector('.sheet[role="dialog"]');
+    await page.click('.sheet button:has-text("Отказ")');
+    await page.fill("#lead-loss-reason", "Проверка: обезличивание");
+    await page.click('.sheet button:has-text("Закрыть отказом")');
+    await page.waitForTimeout(900);
+    const обезличить = page.locator('.sheet button:has-text("Обезличить")');
+    if ((await обезличить.count()) === 0) {
+      note("обезличивание", "у отказной заявки нет действия «Обезличить»");
+    } else if (await гейт(page, "обезличивание заявки", обезличить.first(), /^POST \/api\/leads\/[^/]+\/anonymization$/u)) {
+      await page.click('.sheet [role="group"] .btn--danger');
+      await page.waitForTimeout(900);
+      const шапка = ((await page.locator('.sheet[role="dialog"] > .t-h3').first().textContent()) ?? "")
+        + ((await page.locator('.sheet[role="dialog"] > .t-secondary').first().textContent()) ?? "");
+      if (шапка.includes(пробаЗаявки) || /00-99/u.test(шапка)) {
+        note("обезличивание", `после подтверждения в шапке листа остались данные: «${шапка.trim()}»`);
+      }
+      const лист = (await page.locator('.sheet[role="dialog"]').textContent()) ?? "";
+      if (!/обезличена/u.test(лист)) note("обезличивание", "лист не называет, что заявка обезличена");
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  }
+}
+
 /* Телефон: четыре колонки в его ширину не помещаются, и доска становится
    лентой стадий. Документ вбок не едет — прокручивается лента. */
 await page.setViewportSize({ width: 390, height: 844 });
@@ -3868,8 +3966,13 @@ if ((await изСметы.count()) === 0) {
 }
 
 /* График открывается там, где работа есть. Работы R-99 идут по 15 августа,
-   а «сегодня» стенда — 5 сентября: открытие на текущем месяце дало бы
-   пустое полотно. */
+   а «сегодня» — позже: открытие на текущем месяце дало бы пустое полотно.
+
+   «Сегодня» графика — настоящая дата сервера, а не дата стенда. Проверка,
+   записанная под «сегодня сентябрь», покраснела 01.10.2026 без единой правки
+   продукта (полный аудит, П-54). Месяц сегодняшнего дня выводится из тех же
+   часов, что у сервера, и отметка ищется в нём. */
+const сегодняГрафика = new Date().toISOString().slice(0, 10);
 const месяцОткрытия = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
 if (месяцОткрытия !== "Август 2026") {
   note("график", `открылся месяц «${месяцОткрытия}» вместо августа, где стоят этапы`);
@@ -3879,7 +3982,7 @@ if (клеток !== 31) note("график", `в августе ${клеток}
 const выходных = await page.locator(".gantt__scale .gantt__day--off").count();
 if (выходных !== 10) note("график", `выходных отмечено ${выходных} вместо десяти`);
 if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 0) {
-  note("график", "в августе отмечен текущий день, хотя сегодня сентябрь");
+  note("график", `в августе отмечен текущий день, хотя сегодня ${сегодняГрафика}`);
 }
 
 /* Колонки шапки и строк стоят на одних вертикалях. Проверяется числом:
@@ -3938,8 +4041,30 @@ if (сентябрь === месяцОткрытия) note("график", `по�
 if ((await page.locator(".gantt__scale .gantt__day").count()) !== 30) {
   note("график", "в сентябре не тридцать дней");
 }
-if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 1) {
-  note("график", "текущий день в сентябре не отмечен");
+const вСентябре = сегодняГрафика.startsWith("2026-09");
+if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== (вСентябре ? 1 : 0)) {
+  note("график", вСентябре
+    ? "текущий день в сентябре не отмечен"
+    : `в сентябре отмечен текущий день, хотя сегодня ${сегодняГрафика}`);
+}
+/* Отметка сегодняшнего дня — в его собственном месяце. Шагов не больше двух
+   лет: дальше полотно стенда устаревает целиком, и это повод для правки
+   наполнения, а не для пятидесяти нажатий. */
+const шаговДоСегодня = (Number(сегодняГрафика.slice(0, 4)) - 2026) * 12 + Number(сегодняГрафика.slice(5, 7)) - 9;
+if (шаговДоСегодня < 0 || шаговДоСегодня > 24) {
+  note("график", `сегодня ${сегодняГрафика} вне двух лет от полотна стенда — наполнение устарело`);
+} else if (шаговДоСегодня > 0) {
+  for (let шаг = 0; шаг < шаговДоСегодня; шаг += 1) {
+    await page.click('.segmented button:has-text("Вперёд")');
+    await page.waitForTimeout(150);
+  }
+  if ((await page.locator(".gantt__scale .gantt__day--today").count()) !== 1) {
+    note("график", `текущий день ${сегодняГрафика} не отмечен в своём месяце`);
+  }
+  for (let шаг = 0; шаг < шаговДоСегодня; шаг += 1) {
+    await page.click('.segmented button:has-text("Назад")');
+    await page.waitForTimeout(150);
+  }
 }
 await page.click('.segmented button:has-text("Назад")');
 await page.waitForTimeout(300);
@@ -5388,6 +5513,78 @@ const РОЛИ_ВХОДА = [
         .catch(() => { note("гейт", "замер: подтверждённое снятие плана не вернуло поле загрузки"); });
     }
   }
+}
+
+/*
+ * Адреса экранов (полный аудит 30.09.2026, П-50; решение заказчика от
+ * 01.10.2026). Прежде адресная строка в продукте не участвовала: «Назад»
+ * уводил из продукта, перезагрузка возвращала на «Главную», ссылку на объект
+ * нельзя было передать. Проверяются исходы, ради которых решение принято:
+ * переход пишет адрес, «Назад» и «Вперёд» возвращают экран и вкладку,
+ * перезагрузка и ссылка в новой вкладке открывают названный экран, а адрес
+ * чужого объекта поправляется, а не открывает пустоту.
+ */
+{
+  const где = async (лист = page) => ({
+    адрес: await лист.evaluate(() => window.location.hash),
+    заголовок: ((await лист.locator("h1").first().textContent().catch(() => null)) ?? "").trim(),
+    вкладка: ((await лист.locator('[role="tab"][aria-selected="true"]').first()
+      .textContent({ timeout: 1500 }).catch(() => null)) ?? "").trim(),
+  });
+  const ждать = () => page.waitForTimeout(700);
+  const сверить = async (шаг, адрес, вкладка, лист = page) => {
+    const место = await где(лист);
+    if (место.адрес !== адрес) note("адрес", `${шаг}: адрес «${место.адрес}» вместо «${адрес}»`);
+    if (вкладка !== null && (!место.заголовок.includes("R-99") || место.вкладка !== вкладка)) {
+      note("адрес", `${шаг}: на экране «${место.заголовок}», вкладка «${место.вкладка}» вместо R-99 и «${вкладка}»`);
+    }
+    if (вкладка === null && место.вкладка !== "") {
+      note("адрес", `${шаг}: карточка объекта осталась на экране («${место.вкладка}»)`);
+    }
+  };
+
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".appbar");
+  await сверить("вход", "#home", null);
+  await page.click('.appbar__link:has-text("Проекты")');
+  await ждать();
+  await сверить("раздел", "#projects", null);
+  await page.locator('a[href="#R-99"]').first().click();
+  await ждать();
+  await сверить("объект", "#R-99", "Обзор");
+  await page.click('[role="tab"]:has-text("Смета")');
+  await ждать();
+  await сверить("вкладка", "#R-99/estimate", "Смета");
+  await page.goBack({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Назад» с вкладки", "#R-99", "Обзор");
+  await page.goBack({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Назад» с объекта", "#projects", null);
+  await page.goForward({ waitUntil: "commit" });
+  await page.goForward({ waitUntil: "commit" });
+  await ждать();
+  await сверить("«Вперёд» дважды", "#R-99/estimate", "Смета");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector(".appbar");
+  await ждать();
+  await сверить("перезагрузка", "#R-99/estimate", "Смета");
+
+  const вторая = await page.context().newPage();
+  await вторая.goto(`${BASE}/#R-99/tranches`, { waitUntil: "networkidle" });
+  await вторая.waitForSelector(".appbar");
+  await вторая.waitForTimeout(700);
+  await сверить("ссылка в новой вкладке", "#R-99/tranches", "Транши", вторая);
+  /* Объекта с таким кодом нет: адрес поправляется на раздел объектов и
+     заменяет запись истории — «Назад» не возвращает на него снова. */
+  await вторая.goto(`${BASE}/#Z-1`, { waitUntil: "networkidle" });
+  await вторая.waitForSelector(".appbar");
+  await вторая.waitForTimeout(700);
+  await сверить("несуществующий объект", "#projects", null, вторая);
+  await вторая.close();
+
+  await page.click('.appbar__link:has-text("Главная")');
+  await ждать();
 }
 
 for (const роль of РОЛИ_ВХОДА) {

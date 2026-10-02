@@ -4,6 +4,7 @@ import { AuthPurpose, type Prisma } from "@prisma/client";
 import { formatPhone, parsePhone, type PhoneNumber } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
+import { echoesSecrets } from "./echo";
 
 /** Магическая ссылка руководителя живёт минуты: она приходит на почту. */
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
@@ -41,7 +42,8 @@ export class AuthService {
    * не даёт войти.
    */
   async issueLink(email: string): Promise<{ token: string } | null> {
-    const user = await this.prisma.user.findFirst({ where: { email } });
+    // Снятый доступ не возвращается письмом: запись осталась ради авторства (П-51).
+    const user = await this.prisma.user.findFirst({ where: { email, revokedAt: null } });
     // Ответ не различает «нет такого адреса» и «ссылка отправлена»:
     // иначе форма входа становится проверялкой существования адресов.
     if (!user) return null;
@@ -62,7 +64,7 @@ export class AuthService {
   async issueForemanLink(
     userId: string, orgId: string, tx: Prisma.TransactionClient = this.prisma,
   ): Promise<{ token: string }> {
-    const свой = await tx.user.findFirst({ where: { id: userId, orgId }, select: { id: true } });
+    const свой = await tx.user.findFirst({ where: { id: userId, orgId, revokedAt: null }, select: { id: true } });
     if (!свой) throw new NotFoundException({ message: "Человек не найден или недоступен." });
     return this.createToken(свой.id, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS, tx);
   }
@@ -90,11 +92,14 @@ export class AuthService {
   async consume(token: string): Promise<{ sessionToken: string; expiresAt: Date }> {
     const record = await this.prisma.authToken.findUnique({
       where: { tokenHash: hash(token) },
+      include: { user: { select: { revokedAt: true } } },
     });
     const invalid = new UnauthorizedException({
       message: "Ссылка входа недействительна или истекла. Запросите новую.",
     });
     if (!record || record.expiresAt < new Date()) throw invalid;
+    // Ссылки снятого удаляются вместе с доступом; проверка — на случай гонки с выдачей.
+    if (record.user.revokedAt !== null) throw invalid;
     // Код подтверждения обменивается своим маршрутом, где считаются попытки.
     if (record.purpose === AuthPurpose.SMS_CODE) throw invalid;
     if (record.purpose === AuthPurpose.MAGIC_LINK && record.usedAt) throw invalid;
@@ -132,7 +137,7 @@ export class AuthService {
   async issueSmsCode(rawPhone: string): Promise<{ phone: string; code?: string; retryAfterSeconds: number }> {
     const phone = this.normalizePhone(rawPhone);
     const shown = formatPhone(phone);
-    const user = await this.prisma.user.findFirst({ where: { phone } });
+    const user = await this.prisma.user.findFirst({ where: { phone, revokedAt: null } });
     if (!user) return { phone: shown, retryAfterSeconds: SMS_RESEND_MS / 1000 };
 
     const live = await this.liveCode(user.id);
@@ -155,10 +160,11 @@ export class AuthService {
         expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
       },
     });
-    // На стенде код возвращается в теле и показывается на экране. В
-    // промышленной среде поле не приходит: код уходит сообщением.
+    // На стенде с флагом `AUTH_ECHO=1` код возвращается в теле и
+    // показывается на экране. Без флага поле не приходит: код уходит
+    // сообщением (`echo.ts`, П-28).
     const issued = { phone: shown, retryAfterSeconds: SMS_RESEND_MS / 1000 };
-    return process.env.NODE_ENV === "production" ? issued : { ...issued, code };
+    return echoesSecrets() ? { ...issued, code } : issued;
   }
 
   /** Обменивает код на сессию. Считает попытки: код короткий. */
@@ -168,7 +174,7 @@ export class AuthService {
       message: "Код не подошёл. Проверьте цифры или запросите новый.",
     });
 
-    const user = await this.prisma.user.findFirst({ where: { phone } });
+    const user = await this.prisma.user.findFirst({ where: { phone, revokedAt: null } });
     if (!user) throw invalid;
     const record = await this.liveCode(user.id);
     if (!record) throw invalid;
@@ -240,6 +246,7 @@ export class AuthService {
       include: { user: { include: { organization: true } } },
     });
     if (!session || session.expiresAt < new Date()) return null;
+    if (session.user.revokedAt !== null) return null;
     // Сравнение постоянного времени: хеши равной длины, утечки по времени нет.
     if (!timingSafeEqual(Buffer.from(session.tokenHash), Buffer.from(digest))) return null;
 

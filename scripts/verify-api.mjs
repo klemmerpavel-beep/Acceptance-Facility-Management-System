@@ -7,7 +7,9 @@
  * ответа. Здесь это делается на настоящем сервере и настоящей смете из
  * 132 позиций, а не на выдуманном объекте.
  */
-import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const BASE = process.env.API ?? "http://127.0.0.1:3000";
 const INTERNAL = ["unitWage", "wageTotal", "profit", "profitShare", "subtotalWage", "wage"];
@@ -315,6 +317,62 @@ if (доступВыдан.status === 201) {
 const себе = await owner(`/people/${яРуководитель.id}`, { method: "DELETE" });
 check(себе.status === 400, `руководитель снял доступ себе с кодом ${себе.status}`);
 
+/* --- снятие доступа не стирает авторство ---------------------------------------
+   Снятие удаляло строку человека, и `onDelete: SetNull` оставлял его записи в
+   журнале без автора (полный аудит 30.09.2026, П-51). Решение от 01.10.2026 —
+   мягкое снятие: запись остаётся, вход закрыт, повторная выдача по той же
+   почте возвращает ту же запись. Проверяется на человеке, оставившем след в
+   ленте объекта: правка числа ключей R-99 и её возврат руководителем.
+   -------------------------------------------------------------------------- */
+{
+  const ПОЧТА = "snyatie-proverka@dolgiy.studio";
+  const ИМЯ = "Проверка снятия";
+  const выдан = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: ИМЯ, role: "ACCOUNTANT", email: ПОЧТА, phone: null, clientId: null }),
+  });
+  check(выдан.status === 201, `человек для проверки снятия заведён с кодом ${выдан.status}`);
+  const { token: первая } = выдан.status === 201 ? await выдан.json() : { token: "" };
+  const вход = await fetch(`${BASE}/auth/consume?token=${первая}`, { redirect: "manual" });
+  const кука = вход.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const снимаемый = (путь, init = {}) => fetch(`${BASE}${путь}`, { ...init, headers: { cookie: кука, ...init.headers } });
+  const кто = await снимаемый("/auth/me").then((r) => r.json());
+  const ключи = await owner("/projects/R-99").then((r) => r.json()).then((объект) => объект.keysCount);
+  const правка = (кем, число) => кем("/projects/R-99", {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keysCount: число }),
+  });
+  check((await правка(снимаемый, ключи + 1)).ok, "человек для проверки снятия не смог править объект");
+  check((await правка(owner, ключи)).ok, "руководитель не вернул число ключей R-99");
+
+  const снят = await owner(`/people/${кто.id}`, { method: "DELETE" });
+  check(снят.status === 200, `снятие доступа дало код ${снят.status}`);
+  const лента = await owner("/projects/R-99/events?limit=200").then((r) => r.json());
+  check(лента.some((событие) => событие.actor === ИМЯ),
+    "после снятия доступа записи человека в ленте R-99 остались без автора");
+  check((await снимаемый("/auth/me")).status === 401, "сессия пережила снятие доступа");
+  const письмо = await fetch(`${BASE}/auth/magic-link`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ПОЧТА }),
+  }).then((r) => r.json());
+  check(письмо.token === undefined, "снятому выдана ссылка входа по почте");
+  check((await owner(`/people/${кто.id}/link`, { method: "POST" })).status === 404,
+    "снятому выдана новая персональная ссылка");
+  const послеСнятия = await owner("/people").then((r) => r.json());
+  check(!послеСнятия.some((человек) => человек.id === кто.id), "снятый стоит в списке людей с доступом");
+
+  const возврат = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: ИМЯ, role: "ACCOUNTANT", email: ПОЧТА, phone: null, clientId: null }),
+  });
+  check(возврат.status === 201, `повторная выдача входа снятому дала код ${возврат.status}`);
+  const { token: вторая } = возврат.status === 201 ? await возврат.json() : { token: "" };
+  const снова = await fetch(`${BASE}/auth/consume?token=${вторая}`, { redirect: "manual" });
+  const кукаСнова = снова.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const ктоСнова = await fetch(`${BASE}/auth/me`, { headers: { cookie: кукаСнова } }).then((r) => r.json());
+  check(ктоСнова.id === кто.id,
+    `повторная выдача завела новую запись (${String(ктоСнова.id)}) вместо возврата прежней (${String(кто.id)})`);
+}
+
 /* --- вход на человека чужой организации --------------------------------------
    `POST /auth/foreman-link` выдавал ссылку входа на любой `userId`: страж
    спрашивал роль вызывающего, а сервис не спрашивал ничего. Руководитель
@@ -475,6 +533,93 @@ check(blocked.status === 401, `верный код принят после пя�
    дефекте, а проверка через раз хуже отсутствующей. Правка доказана прогоном
    с чтением счётчика в базе: до неё сорок параллельных попыток сверялись
    12, 13, 34 и 40 раз, после — не больше пяти. */
+
+/* --- код входа в ответе — только по флагу стенда ---------------------------
+   Прежде эхо включалось всяким режимом, кроме `production`, а поставка по
+   умолчанию шла в `development`: стенд по `.env.example` пускал любого
+   руководителем (полный аудит 30.09.2026, П-28). Решение от 01.10.2026 — эхо
+   только по `AUTH_ECHO=1`. Этот стенд поднят с флагом, поэтому правило
+   проверяется вторым экземпляром той же сборки: без флага и без NODE_ENV он
+   обязан молчать, с флагом в промышленном режиме — не запуститься.
+   -------------------------------------------------------------------------- */
+const СЕРВЕР = new URL("../apps/api/dist/apps/api/src/main.js", import.meta.url).pathname;
+
+function поднятьСервер(окружение) {
+  const процесс = spawn(process.execPath, [СЕРВЕР], { env: окружение, stdio: ["ignore", "pipe", "pipe"] });
+  let вывод = "";
+  процесс.stdout.on("data", (кусок) => { вывод += кусок; });
+  процесс.stderr.on("data", (кусок) => { вывод += кусок; });
+  const выход = new Promise((готово) => { процесс.on("exit", (код) => { готово(код); }); });
+  return { процесс, выход, вывод: () => вывод };
+}
+
+/** Ждёт, пока сервер ответит, или пока процесс выйдет; `true` — ответил. */
+async function дождатьсяСервера(адрес, выход) {
+  let вышел = false;
+  void выход.then(() => { вышел = true; });
+  for (let попытка = 0; попытка < 120 && !вышел; попытка += 1) {
+    try {
+      await fetch(`${адрес}/auth/me`);
+      return true;
+    } catch {
+      await new Promise((готово) => { setTimeout(готово, 250); });
+    }
+  }
+  return false;
+}
+
+{
+  const почта = "eho-proverka@dolgiy.studio";
+  const номер = "+79000000077";
+  const заведён = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Проверка эха", role: "ACCOUNTANT", email: почта, phone: номер, clientId: null }),
+  });
+  check(заведён.status === 201, `человек для проверки эха заведён с кодом ${заведён.status}`);
+  const запрос = (адрес, путь, тело) => fetch(`${адрес}${путь}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  }).then((r) => r.json());
+
+  if (!existsSync(СЕРВЕР)) {
+    check(false, `сборки сервера нет (${СЕРВЕР}) — правило эха кода разоружено`);
+  } else {
+    const безФлага = { ...process.env, PORT: "3091" };
+    delete безФлага.AUTH_ECHO;
+    delete безФлага.NODE_ENV;
+    const второй = поднятьСервер(безФлага);
+    const адрес = "http://127.0.0.1:3091";
+    const поднят = await дождатьсяСервера(адрес, второй.выход);
+    check(поднят, `сервер без флага стенда не поднялся: ${второй.вывод().slice(-300)}`);
+    if (поднят) {
+      const ссылка = await запрос(адрес, "/auth/magic-link", { email: почта });
+      check(ссылка.sent === true && ссылка.token === undefined,
+        "без флага стенда ссылка входа пришла в теле ответа: войти может любой, кто знает почту");
+      const код = await запрос(адрес, "/auth/phone/request", { phone: номер });
+      check(код.sent === true && код.code === undefined,
+        "без флага стенда код входа пришёл в теле ответа: войти может любой, кто знает номер");
+    }
+    второй.процесс.kill();
+    await второй.выход;
+
+    /* Контроль: молчание без флага — следствие флага, а не незнакомого адреса.
+       Стенд с флагом выдаёт ссылку той же почте, а на номер отвечает, что код
+       уже выдан секунду назад, — значит, второй экземпляр его выдал и не
+       показал. */
+    const контроль = await запрос(BASE, "/auth/magic-link", { email: почта });
+    check(typeof контроль.token === "string", "стенд с флагом не выдал ссылку — проверка эха прошла вхолостую");
+    await new Promise((готово) => { setTimeout(готово, 1100); });
+    const повтор = await запрос(BASE, "/auth/phone/request", { phone: номер });
+    check(повтор.code === undefined && повтор.retryAfterSeconds < 60,
+      `сервер без флага кода не выдал вовсе — проверка эха прошла вхолостую (${JSON.stringify(повтор)})`);
+
+    const промышленный = поднятьСервер({ ...process.env, PORT: "3092", AUTH_ECHO: "1", NODE_ENV: "production" });
+    const запустился = await дождатьсяСервера("http://127.0.0.1:3092", промышленный.выход);
+    if (запустился) промышленный.процесс.kill();
+    const кодВыхода = await промышленный.выход;
+    check(!запустился && кодВыхода !== 0 && /AUTH_ECHO=1 при NODE_ENV=production/u.test(промышленный.вывод()),
+      `сервер с флагом стенда в промышленном режиме ${запустился ? "запустился" : `вышел с кодом ${String(кодВыхода)} без объяснения`}`);
+  }
+}
 
 /* Чужой источник не получает разрешения читать ответы от имени вошедшего.
    Без `WEB_ORIGIN` сервер отражал любой `Origin` вместе с разрешением куки —
@@ -1087,7 +1232,22 @@ const свой = new FormData();
   kind: "OTHER", amount: "200000", reimbursable: false,
   seller: "Проверка API", spentAt: "2026-09-05", sectionId: null, note: null,
 }));
-свой.append("file", new Blob([readFileSync(new URL("./fixtures/snimok.png", import.meta.url))]), "chek.png");
+/* Снимок чека — с метаданными, как с телефона: модель устройства, координаты
+   места съёмки и ориентация «повернуть на 90°». Хранилище обязано получить
+   кадр без них и повёрнутым (полный аудит 30.09.2026, П-39; решение от
+   01.10.2026). Снимок собирается той же `sharp`, что стоит на сервере. */
+const sharp = createRequire(new URL("../apps/api/package.json", import.meta.url))("sharp");
+const снимокСМетаданными = await sharp({
+  create: { width: 48, height: 24, channels: 3, background: { r: 200, g: 120, b: 40 } },
+})
+  .jpeg()
+  .withMetadata({ orientation: 6 })
+  .withExif({
+    IFD0: { Make: "ProverkaPhone", Model: "Proverka-1" },
+    IFD3: { GPSLatitudeRef: "N", GPSLatitude: "55/1 45/1 0/1", GPSLongitudeRef: "E", GPSLongitude: "37/1 37/1 0/1" },
+  })
+  .toBuffer();
+свой.append("file", new Blob([снимокСМетаданными]), "chek.jpg");
 const свойЗаведён = await foreman("/projects/R-99/expenses", { method: "POST", body: свой })
   .then((r) => r.json());
 check(свойЗаведён.totals.drafts === 2,
@@ -1096,6 +1256,15 @@ check(свойЗаведён.totals.spent === "5220000",
   `черновик прораба попал в потраченное: ${свойЗаведён.totals.spent} вместо 5220000`);
 const черновик = свойЗаведён.rows.find((строка) => строка.seller === "Проверка API");
 check(черновик?.status === "DRAFT", `чек прораба заведён как «${черновик?.status}» вместо черновика`);
+{
+  const хранится = Buffer.from(await owner(`/projects/R-99/expenses/${черновик?.id}/file`)
+    .then((r) => r.arrayBuffer()));
+  const кадр = await sharp(хранится).metadata().catch(() => null);
+  check(!хранится.includes(Buffer.from("Exif\0\0")) && !хранится.includes("ProverkaPhone"),
+    "снимок чека хранится с метаданными: координаты и устройство уходят вместе с ним");
+  check(кадр?.width === 24 && кадр?.height === 48 && кадр?.orientation === undefined,
+    `снимок чека не повёрнут по ориентации: ${String(кадр?.width)}×${String(кадр?.height)}, ориентация ${String(кадр?.orientation)}`);
+}
 
 /* Прораб не подтверждает свой же черновик: право признать расход деньгами
    студии шире права его заявить. */
@@ -2458,6 +2627,25 @@ check(
 const повторноеЗакрытие = await создать(owner, `/projects/R-99/tranches/${текущийId}/closure`, {});
 check(повторноеЗакрытие.status === 400, `транш закрыт второй раз с кодом ${повторноеЗакрытие.status}`);
 
+/* Что изменит правка сметы. Акт следует за сметой, и правка цены принятой
+   позиции или надбавки меняет закрытый транш и акт по нему (полный аудит
+   30.09.2026, П-27). Решение от 01.10.2026 — оставить и предупреждать: листы
+   правки называют задетые транши по этому перечню. Приёмка и её сторно
+   выше легли в только что закрытый транш — он обязан назвать позицию. */
+{
+  const закрытые = await owner("/projects/R-99/estimate/closed-tranches").then((r) => r.json());
+  const номер = послеЗакрытия.tranches.find((транш) => транш.id === текущийId)?.number;
+  const транш = (закрытые.tranches ?? []).find((строка) => строка.number === номер);
+  check(транш !== undefined && транш.items.includes(позицияТранша?.id),
+    `перечень закрытых траншей не называет транш № ${String(номер)} с принятой в нём позицией`);
+  check(!(закрытые.tranches ?? []).some((строка) => строка.items.length === 0),
+    "в перечне закрытых траншей стоит транш без принятых позиций: правка его не задевает");
+  check((await foreman("/projects/R-99/estimate/closed-tranches")).status === 403,
+    "прорабу отдан перечень закрытых траншей");
+  check((await client("/projects/R-99/estimate/closed-tranches")).status === 403,
+    "заказчику отдан перечень закрытых траншей");
+}
+
 const малый = await создать(owner, "/projects/R-99/tranches", {
   amount: "100", comment: "Проверка перевыработки",
 });
@@ -3053,6 +3241,38 @@ check(
   выполненная.tasks?.find((task) => task.id === задача?.id)?.state === "выполнена",
   "отметка выполнения не сняла просрочку",
 );
+
+/* --- обезличивание отказной заявки --------------------------------------------
+   Имя и телефон из отказной заявки хранились бессрочно (полный аудит
+   30.09.2026, П-40). Решение от 01.10.2026: действие руководителя; карточка
+   обезличивается, журнал заявки — нет, и запись о действии персональных
+   данных не несёт. Обезличивается только отказная заявка и только один раз.
+   -------------------------------------------------------------------------- */
+{
+  const ИМЯ = "Проверка API, вторая";
+  check((await создать(owner, `/leads/${первая.id}/anonymization`, {})).status === 400,
+    "обезличена заявка, превращённая в объект");
+  check((await создать(foreman, `/leads/${вторая.id}/anonymization`, {})).status === 403,
+    "прораб обезличил заявку");
+  const обезличена = await создать(owner, `/leads/${вторая.id}/anonymization`, {});
+  check(обезличена.status === 201, `обезличивание отказной заявки дало код ${обезличена.status}`);
+  const карточка = await owner("/leads?open=false").then((r) => r.json())
+    .then((доскаВсех) => доскаВсех.columns.flatMap((column) => column.leads).find((lead) => lead.id === вторая.id));
+  const текстКарточки = JSON.stringify(карточка ?? {});
+  check(карточка !== undefined && !текстКарточки.includes(ИМЯ) && !/000-?00-?97|0000097/u.test(текстКарточки)
+    && карточка.address === null && карточка.note === null,
+    `после обезличивания карточка хранит персональные данные: ${текстКарточки.slice(0, 200)}`);
+  check(карточка?.anonymizedAt !== null && карточка?.lostReason === "Проверка: выбрали другого подрядчика",
+    "обезличивание не отмечено датой или унесло причину отказа");
+  check((await создать(owner, `/leads/${вторая.id}/anonymization`, {})).status === 400,
+    "заявка обезличена повторно");
+  const журнал = await owner(`/leads/${вторая.id}/events`).then((r) => r.json());
+  const запись = журнал.find((событие) => событие.title.includes("персональные данные"));
+  check(запись !== undefined && !JSON.stringify(запись).includes(ИМЯ),
+    `запись об обезличивании отсутствует или несёт имя: ${JSON.stringify(запись ?? null)}`);
+  check(журнал.some((событие) => (событие.detail ?? "").includes(ИМЯ)),
+    "журнал заявки переписан обезличиванием, а решено не трогать его");
+}
 
 /* Журнал заявки читается: записи писались с первого дня, но читать их было
    негде — ровно тот же дефект, что был у журнала объекта. */

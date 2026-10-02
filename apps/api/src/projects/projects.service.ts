@@ -142,7 +142,7 @@ export class ProjectsService {
        сообщением базы вместо человеческого. */
     if (input.foremanId !== undefined && input.foremanId !== null) {
       const прораб = await this.prisma.user.findFirst({
-        where: { id: input.foremanId, orgId: user.orgId, role: "FOREMAN" },
+        where: { id: input.foremanId, orgId: user.orgId, role: "FOREMAN", revokedAt: null },
       });
       if (!прораб) {
         throw new BadRequestException({ message: "Такого прораба нет в организации." });
@@ -272,7 +272,7 @@ export class ProjectsService {
        драйвера вместо человеческого. */
     if (patch.foremanId !== undefined && patch.foremanId !== null) {
       const прораб = await this.prisma.user.findFirst({
-        where: { id: patch.foremanId, orgId: user.orgId, role: "FOREMAN" },
+        where: { id: patch.foremanId, orgId: user.orgId, role: "FOREMAN", revokedAt: null },
       });
       if (!прораб) {
         throw new BadRequestException({ message: "Такого прораба нет в организации." });

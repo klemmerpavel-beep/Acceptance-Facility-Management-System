@@ -71,10 +71,16 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const browser = await chromium.launch(launchOptions());
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
 
-/* Единственное ожидаемое событие — недоступность шрифтов: исходящая сеть
-   песочницы закрыта. Всё остальное на странице без сервера есть дефект:
-   ходить ей некуда. */
-const ожидаемо = (url) => url.includes("fonts.googleapis.com") || url.includes("fonts.gstatic.com");
+/* Ожидаемых событий нет. Прежде им была недоступность шрифтов Google — с
+   02.10.2026 гарнитуры раздаются из сборки (П-52), и обращение опубликованной
+   страницы к узлам Google Fonts само есть дефект: адрес заказчика уходит
+   третьей стороне. Всё на странице без сервера — дефект: ходить ей некуда. */
+const ожидаемо = () => false;
+page.on("request", (request) => {
+  if (/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//u.test(request.url())) {
+    note("гарнитуры", `страница обращается к Google Fonts: ${request.url().slice(0, 80)}`);
+  }
+});
 
 page.on("console", (message) => {
   if (message.type() !== "error") return;

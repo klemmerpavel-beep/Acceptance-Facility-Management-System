@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
+import { безМетаданных } from "../common/clean-image";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { detectImageType, ALLOWED_IMAGE_TYPES, IMAGE_EXTENSION } from "./image-type";
@@ -436,7 +437,9 @@ export class MeasureService {
 
     const previous = await this.prisma.measurePlan.findFirst({ where: { projectId: project.id, set } });
     const key = `projects/${project.id}/plan/${randomUUID()}.${IMAGE_EXTENSION[contentType]}`;
-    await this.storage.put(key, body, contentType);
+    /* План снимают телефоном в квартире заказчика: метаданные несут её
+       координаты (П-39). */
+    await this.storage.put(key, await безМетаданных(body, contentType), contentType);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.measurePlan.upsert({

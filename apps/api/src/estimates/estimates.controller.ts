@@ -3,7 +3,7 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type {
-  DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
+  ClosedTranches, DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
 } from "@priyomka/contracts";
 import {
   applyBlueprintSchema, moveEstimateItemSchema, unitOverridesSchema,
@@ -161,6 +161,13 @@ export class EstimatesController {
     @Body() body: unknown,
   ): Promise<EstimateView> {
     return this.estimates.updateItem(user, code, id, updateEstimateItemSchema.parse(body));
+  }
+
+  /** Закрытые транши и принятые в них позиции: что изменит правка (П-27). */
+  @Get("closed-tranches")
+  @Roles("OWNER")
+  closedTranches(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ClosedTranches> {
+    return this.estimates.closedTranches(user, code);
   }
 
   /** Надбавка «сопровождение объекта» действующей редакции. */

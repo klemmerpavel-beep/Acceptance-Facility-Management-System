@@ -6,9 +6,15 @@
  * Подключение гарнитур выносится отдельной ссылкой: внешние стили
  * допускаются только с fonts.googleapis.com, и правило @import внутри
  * встроенного блока там не срабатывает.
+ *
+ * С 02.10.2026 продукт раздаёт гарнитуры из сборки (П-52): в стилях стоят
+ * объявления @font-face с файлами рядом. Однофайловой версии файлов рядом
+ * нет, поэтому объявления снимаются, а гарнитуры подключаются ссылкой на
+ * Google Fonts — версия для артефактов её сохраняет (`fonts.mjs`).
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { GOOGLE_FONTS } from "./fonts.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const assets = join(root, "apps/web/dist-demo/assets");
@@ -80,6 +86,12 @@ for (;;) {
   }
   css = css.slice(0, at) + css.slice(ruleEnd);
 }
+
+/* Объявления гарнитур из сборки ссылаются на файлы рядом со стилями —
+   в одном файле их нет. Снимаются целиком; гарнитуры приходят ссылкой. */
+const объявлений = (css.match(/@font-face\s*\{[^}]*\}/gu) ?? []).length;
+css = css.replace(/@font-face\s*\{[^}]*\}/gu, "");
+if (объявлений > 0) fontUrls.push(GOOGLE_FONTS);
 
 const js = readFileSync(join(assets, jsFile), "utf8").replaceAll("</script", "<\\/script");
 const fontLinks = fontUrls.map((url) => `<link rel="stylesheet" href="${url}">`).join("\n");

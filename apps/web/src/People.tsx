@@ -96,7 +96,7 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
       .then((next) => {
         setRows(next);
         setError(null);
-        setОбъявление(`Доступ «${row.name}» снят`);
+        setОбъявление(`Доступ «${row.name}» снят; записи в журнале остаются с его именем`);
       })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
@@ -123,6 +123,8 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
       <p className="t-sm t-muted">
         Вход в систему выдаёт руководитель: самостоятельной регистрации нет. Человек получает
         личную ссылку, она действует ограниченное время и обменивается на вход один раз.
+        Снятие доступа закрывает вход, а записи человека в журнале остаются с его именем;
+        вернуть доступ — завести человека снова по той же почте или телефону.
       </p>
 
       {error !== null && <p className="field__error" role="alert">{error}</p>}

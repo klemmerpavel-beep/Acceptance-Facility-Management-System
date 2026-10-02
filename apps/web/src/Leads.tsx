@@ -208,7 +208,7 @@ function Column({
               <span className="num leadcard__number">№ {lead.number}</span>
               <span className="t-sm t-muted">{formatDate(lead.createdAt.slice(0, 10))}</span>
             </span>
-            <span className="t-h3 leadcard__name">{lead.name}, {lead.phone}</span>
+            <span className="t-h3 leadcard__name">{lead.phone === "" ? lead.name : `${lead.name}, ${lead.phone}`}</span>
             {/* Вилка ориентира на карточке — отступление продукта от
                 артборда: макет её не показывает. Она здесь потому, что
                 воронку открывают ради вопроса «сколько это стоит», и

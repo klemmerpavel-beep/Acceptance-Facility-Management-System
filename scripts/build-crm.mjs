@@ -14,14 +14,15 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { GOOGLE_FONTS } from "./fonts.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const styles = join(root, "packages/ui/src/styles");
 const design = join(root, "design");
 
-const FONTS =
-  "https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600" +
-  "&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
+/* Ссылка на Google Fonts — для версии артефакта и исходника публикации;
+   публикация подменяет её гарнитурами из сборки (`fonts.mjs`, П-52). */
+const FONTS = GOOGLE_FONTS;
 const TITLE = "Приёмка: три экрана";
 
 // Порядок тот же, что в index.css: токены, база, сетка, компоненты.

@@ -56,11 +56,12 @@
 ## Как поднять стенд
 
 ```bash
-cp .env.example .env      # задайте пароли
+cp .env.example .env      # задайте пароли; для стенда показа — NODE_ENV=development и AUTH_ECHO=1
 docker compose up --build # база, объектное хранилище, API с миграциями, веб-клиент
 ```
 
-Веб-клиент — http://localhost:5173, API — http://localhost:3000.
+Веб-клиент — http://localhost:5173, API — http://localhost:3000; база, хранилище и API
+слушают только локальный адрес машины.
 
 Без Docker:
 
@@ -69,7 +70,7 @@ pnpm install
 pnpm --filter @priyomka/api exec prisma generate
 DATABASE_URL=… pnpm --filter @priyomka/api run migrate:deploy
 DATABASE_URL=… node apps/api/prisma/seed.mjs   # обезличенный стенд
-pnpm --filter @priyomka/api run build && pnpm --filter @priyomka/api run start
+pnpm --filter @priyomka/api run build && AUTH_ECHO=1 pnpm --filter @priyomka/api run start
 pnpm --filter @priyomka/web run dev
 ```
 
@@ -79,9 +80,10 @@ pnpm --filter @priyomka/web run dev
 входит по номеру телефона в два шага: номер, затем шестизначный код. Прочие не
 вводят ничего — им руководитель выдаёт персональную ссылку; самостоятельной
 регистрации в продукте нет. Бухгалтеру открыто всё, что открыто руководителю,
-кроме настроек компании и выдачи входа. Вне промышленной
-среды код и ссылка показываются прямо в ответе: ни отправка сообщений, ни почтовый
-отправитель на стенде не настроены.
+кроме настроек компании и выдачи входа. На стенде с флагом `AUTH_ECHO=1` код и
+ссылка показываются прямо в ответе: ни отправка сообщений, ни почтовый отправитель
+не настроены. Без флага они в ответ не попадают — и вход без отправщика невозможен;
+флаг в промышленном режиме сервер не запустит (решение от 01.10.2026, П-28).
 
 ## Проверки
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { LeadCard, LeadStage, ProjectEvent, RepairType } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
-  addLeadTask, errorMessage, fetchLeadEvents, fetchRepairTypes, loseLead, setLeadTask, updateLead,
+  addLeadTask, anonymizeLead, errorMessage, fetchLeadEvents, fetchRepairTypes, loseLead, setLeadTask, updateLead,
 } from "./api.js";
 import { EventFeed } from "./Dashboard.js";
 import { ConvertLeadSheet } from "./ConvertLeadSheet.js";
@@ -49,6 +49,10 @@ export function LeadSheet({
   const [reason, setReason] = useState("");
   const [losing, setLosing] = useState(false);
   const [converting, setConverting] = useState(false);
+  /* Обезличивание не отменяется: прежних значений не остаётся нигде, кроме
+     журнала. Поэтому оно идёт через подтверждение, называющее последствия
+     (норматив 15.6; решение заказчика от 01.10.2026, П-40). */
+  const [обезличиваю, setОбезличиваю] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,7 +112,7 @@ export function LeadSheet({
           № {lead.number} · {lead.name}
         </p>
         <p className="t-sm t-secondary">
-          {lead.phone} · обращение {formatDate(lead.createdAt.slice(0, 10))}
+          {lead.phone === "" ? "" : `${lead.phone} · `}обращение {formatDate(lead.createdAt.slice(0, 10))}
           {lead.address === null ? "" : ` · ${lead.address}`}
         </p>
         {lead.note !== null && <p className="t-sm t-muted">{lead.note}</p>}
@@ -129,7 +133,42 @@ export function LeadSheet({
           <p className="toast" role="status">
             <span className="pill">Отказ</span>
             <span className="t-sm">{lead.lostReason}</span>
+            {lead.anonymizedAt !== null && (
+              <span className="pill">обезличена {formatDate(lead.anonymizedAt)}</span>
+            )}
           </p>
+        )}
+        {lead.outcome === "LOST" && lead.anonymizedAt === null && !обезличиваю && (
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={busy}
+            onClick={() => { setОбезличиваю(true); setError(null); }}
+          >
+            Обезличить
+          </button>
+        )}
+        {обезличиваю && lead.anonymizedAt === null && (
+          <div className="panel panel--pad stack stack--tight" role="group" aria-label="Обезличивание заявки">
+            <p className="t-body">
+              Имя, телефон, адрес и заметка заявки № {lead.number} будут заменены и больше не
+              восстановятся. Причина отказа, ориентир и задачи останутся. Записи журнала заявки не
+              меняются.
+            </p>
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={busy}
+                onClick={() => { setОбезличиваю(false); запрос(anonymizeLead(lead.id)); }}
+              >
+                Обезличить
+              </button>
+              <button type="button" className="btn btn--text" onClick={() => { setОбезличиваю(false); }}>
+                Не обезличивать
+              </button>
+            </div>
+          </div>
         )}
 
         {открыта && (

@@ -1,5 +1,12 @@
 # Стенд «Приёмки». Один `docker compose up` поднимает базу, объектное
 # хранилище, API с применёнными миграциями и веб-клиент.
+#
+# Умолчания — промышленные (решение заказчика от 01.10.2026, полный аудит
+# П-28): `NODE_ENV=production`, код входа и ссылка в ответ не попадают, порты
+# базы, хранилища и API слушают только локальный адрес машины. Наружу смотрит
+# один веб-клиент. Стенд для показа и проверок включает эхо кода явно —
+# `AUTH_ECHO=1` в `.env` при `NODE_ENV=development`; сервер с флагом в
+# промышленном режиме не запускается.
 services:
   postgres:
     image: postgres:16-alpine
@@ -7,7 +14,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-priyomka}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте пароль в .env}
       POSTGRES_DB: ${POSTGRES_DB:-priyomka}
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-priyomka} -d ${POSTGRES_DB:-priyomka}"]
@@ -21,7 +28,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-priyomka}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?задайте ключ в .env}
-    ports: ["9000:9000", "9001:9001"]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: ["minio-data:/data"]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -35,7 +42,8 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?задайте строку подключения в .env}
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
+      AUTH_ECHO: ${AUTH_ECHO:-}
       PORT: 3000
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
@@ -48,7 +56,7 @@ services:
       # объявлены под второй адаптер и кодом пока не читаются.
       STORAGE_DIR: /var/lib/priyomka/files
     volumes: ["api-files:/var/lib/priyomka/files"]
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       postgres: { condition: service_healthy }
       minio: { condition: service_healthy }

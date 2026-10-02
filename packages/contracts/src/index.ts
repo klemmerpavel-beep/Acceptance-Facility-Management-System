@@ -889,6 +889,28 @@ export const updateSupervisionSchema = z.object({
 });
 export type UpdateSupervision = z.infer<typeof updateSupervisionSchema>;
 
+/**
+ * Закрытые транши объекта и позиции, принятые в них.
+ *
+ * Акт следует за сметой: правка цены принятой позиции или надбавки меняет
+ * суммы уже закрытых траншей и строки выпущенных актов (полный аудит
+ * 30.09.2026, П-27). Решение заказчика от 01.10.2026 — оставить так и
+ * предупреждать: листы правки позиции и надбавки называют, что изменится.
+ * Транш без принятых позиций (предоплата) правкой не задевается и сюда не
+ * входит.
+ */
+export const closedTranchesSchema = z.object({
+  tranches: z.array(z.object({
+    number: z.number().int().nonnegative(),
+    paid: z.boolean(),
+    /** День подписания акта заказчиком. `null` — акт не подписан. */
+    signedAt: z.string().nullable(),
+    /** Позиции сметы, принятые в этом транше, включая сторно. */
+    items: z.array(z.string().uuid()),
+  })),
+});
+export type ClosedTranches = z.infer<typeof closedTranchesSchema>;
+
 export const importRecordSchema = z.object({
   id: z.string().uuid(),
   estimateId: z.string().uuid(),
@@ -1615,6 +1637,8 @@ export const leadCardSchema = z.object({
   tasks: z.array(leadTaskSchema),
   /** Код заведённого объекта. `null` — заявка ещё не превращена. */
   projectCode: z.string().nullable(),
+  /** День обезличивания отказной заявки. `null` — персональные данные на месте. */
+  anonymizedAt: z.string().nullable(),
 });
 export type LeadCard = z.infer<typeof leadCardSchema>;
 

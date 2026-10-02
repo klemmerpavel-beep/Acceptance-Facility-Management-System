@@ -3,7 +3,7 @@ import type {
   ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
-  clientRowSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
+  clientRowSchema, closedTranchesSchema, currentUserSchema, dashboardSchema, estimateViewSchema, eventSchema,
   importPreviewResponseSchema, importRecordSchema, importResultSchema, leadBoardSchema,
   photoReportSchema, foremenSchema, nextProjectCodeSchema, expenseViewSchema,
   actListSchema, actViewSchema,
@@ -18,7 +18,7 @@ import {
   type AccountingView, type UpdateClient,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
-  type EstimateView, type ImportRecord,
+  type ClosedTranches, type EstimateView, type ImportRecord,
   type ActRow, type ActView, type CreateExpense, type ExpenseView,
   type ImportReport, type ImportResult, type MeasureSetKind, type MeasureView, type Organization,
   type ProjectEvent,
@@ -163,6 +163,10 @@ export const fetchCanonicalUnits = (code: string): Promise<string[]> =>
 
 export const fetchEstimate = (code: string): Promise<EstimateView> =>
   request(`/projects/${code}/estimate`, estimateViewSchema);
+
+/** Закрытые транши и принятые в них позиции: что изменит правка сметы (П-27). */
+export const fetchClosedTranches = (code: string): Promise<ClosedTranches> =>
+  request(`/projects/${code}/estimate/closed-tranches`, closedTranchesSchema);
 
 /* --- обмерный план ------------------------------------------------------ */
 
@@ -605,6 +609,10 @@ export const convertLead = (id: string, input: ConvertLead): Promise<LeadCard> =
 
 export const loseLead = (id: string, input: LoseLead): Promise<LeadCard> =>
   request(`/leads/${id}/loss`, leadCardSchema, json(input));
+
+/** Обезличивание отказной заявки (П-40): имя, телефон, адрес и заметка. */
+export const anonymizeLead = (id: string): Promise<LeadCard> =>
+  request(`/leads/${id}/anonymization`, leadCardSchema, json({}));
 
 export const addLeadTask = (id: string, input: CreateLeadTask): Promise<LeadCard> =>
   request(`/leads/${id}/tasks`, leadCardSchema, json(input));

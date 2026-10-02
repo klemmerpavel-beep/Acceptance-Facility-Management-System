@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { завести } from "./verbs.js";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
 import { ownerLevel } from "@priyomka/domain";
@@ -20,22 +20,76 @@ import { Documents } from "./Documents.js";
 import { Settings } from "./Settings.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
+import { адрес, простойЩелчок, разобрать, type Вкладка } from "./route.js";
 
 type State =
   | { kind: "loading" }
   | { kind: "anonymous" }
   | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
 
+/**
+ * Раздел, открытый роли. Повторяет шапку: заказчику — только его объекты,
+ * бухгалтеру — всё, кроме настроек. Адрес, назвавший закрытый раздел,
+ * экрана не меняет: показанный раздел с отказом читался бы поломкой.
+ */
+const разделДоступен = (role: CurrentUser["role"], section: Section): boolean =>
+  role === "CLIENT" ? section === "projects" : !(role === "ACCOUNTANT" && section === "settings");
+
+/**
+ * Перенос адреса в состояние оболочки (П-50). Объект ищется в списке,
+ * который сервер отдал этой роли: адрес доступа не даёт. Адрес, который
+ * пришлось поправить, — неизвестная вкладка, чужой объект, закрытый раздел —
+ * заменяет запись истории, а не добавляет новую: иначе «Назад» возвращал бы
+ * на него снова.
+ */
+function применитьАдрес(hash: string, среда: {
+  user: CurrentUser;
+  projects: readonly ProjectSummary[];
+  /** Адрес экрана, который сейчас на месте; `null` — экрана ещё нет. */
+  текущий: string | null;
+  заменить: { current: boolean };
+  setSection: (section: Section) => void;
+  setOpened: (project: ProjectSummary | null) => void;
+  setВкладка: (tab: Вкладка) => void;
+}): void {
+  const маршрут = разобрать(hash);
+  const остаться = (): void => {
+    if (среда.текущий !== null) window.history.replaceState(null, "", среда.текущий);
+  };
+  if (маршрут === null) { остаться(); return; }
+  if (маршрут.kind === "section") {
+    if (!разделДоступен(среда.user.role, маршрут.section)) { остаться(); return; }
+    среда.setOpened(null);
+    среда.setSection(маршрут.section);
+    return;
+  }
+  const найден = среда.projects.find((project) => project.code === маршрут.code);
+  среда.заменить.current = найден === undefined || адрес(маршрут) !== hash;
+  if (найден === undefined) {
+    среда.setOpened(null);
+    среда.setSection("projects");
+    return;
+  }
+  среда.setSection("projects");
+  среда.setOpened(найден);
+  среда.setВкладка(маршрут.tab);
+}
+
 export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: "loading" });
-  /** Раздел и открытый объект хранятся состоянием: роутер не вводится,
-   *  адресная строка в первой версии не участвует. */
+  /** Раздел, открытый объект и его вкладка хранятся состоянием, а адрес
+   *  `#R-99/estimate` выводится из них (`route.ts`, П-50): роутер не
+   *  вводится, хватает истории браузера. */
   /* Раздел по умолчанию — «Главная», но не для всякой роли: она есть в
      навигации не у всех, и вошедший не должен стоять на разделе, которого
      в его шапке нет. Начальное значение здесь, поправка по роли — ниже,
      когда роль уже известна: до загрузки пользователя её знать неоткуда. */
   const [section, setSection] = useState<Section>("home");
   const [opened, setOpened] = useState<ProjectSummary | null>(null);
+  const [вкладка, setВкладка] = useState<Вкладка>("overview");
+  /** Следующая запись адреса заменяет текущую, а не добавляется: первый
+   *  адрес сеанса и адрес, поправленный после разбора. */
+  const заменитьАдрес = useRef(true);
   const [filter, setFilter] = useState<ProjectStatus | null>(null);
   /** Лента событий за колоколом. Грузится по первому открытию, не раньше. */
   const [feedOpen, setFeedOpen] = useState(false);
@@ -84,11 +138,50 @@ export function App(): React.JSX.Element {
          поправкой следом. Поправка следом означала бы, что заказчик успевает
          увидеть «Главную» — и запросить закрытую ему сводку портфеля. */
       if (user.role === "CLIENT") setSection("projects");
+      /* Адрес читается при входе: перезагрузка и переданная ссылка
+         открывают тот экран, который назван, а не «Главную». */
+      применитьАдрес(window.location.hash, {
+        user, projects, текущий: null, заменить: заменитьАдрес, setSection, setOpened, setВкладка,
+      });
       setState({ kind: "signed", user, projects, units });
     })();
   };
 
   useEffect(load, []);
+
+  /* Адрес — следствие состояния. Переход внутри продукта кладёт запись в
+     историю браузера, и «Назад» ведёт на прежний экран продукта, а не прочь
+     из него (П-50, решение заказчика от 01.10.2026). */
+  const нужныйАдрес = state.kind === "signed"
+    ? адрес(opened === null
+      ? { kind: "section", section }
+      : { kind: "project", code: opened.code, tab: вкладка })
+    : null;
+  useEffect(() => {
+    if (нужныйАдрес === null) return;
+    if (window.location.hash !== нужныйАдрес) {
+      if (заменитьАдрес.current) window.history.replaceState(null, "", нужныйАдрес);
+      else window.history.pushState(null, "", нужныйАдрес);
+    }
+    заменитьАдрес.current = false;
+  }, [нужныйАдрес]);
+
+  /* «Назад», «Вперёд» и адрес, набранный руками, возвращают экран из адреса. */
+  useEffect(() => {
+    if (state.kind !== "signed") return undefined;
+    const слушать = (): void => {
+      применитьАдрес(window.location.hash, {
+        user: state.user, projects: state.projects, текущий: нужныйАдрес,
+        заменить: заменитьАдрес, setSection, setOpened, setВкладка,
+      });
+    };
+    window.addEventListener("popstate", слушать);
+    window.addEventListener("hashchange", слушать);
+    return () => {
+      window.removeEventListener("popstate", слушать);
+      window.removeEventListener("hashchange", слушать);
+    };
+  }, [state, нужныйАдрес]);
 
 
 
@@ -125,6 +218,13 @@ export function App(): React.JSX.Element {
     go("projects");
   };
 
+  /** Объект открывается с «Обзора»: вкладка прежнего объекта к новому не
+   *  относится. */
+  const открыть = (project: ProjectSummary): void => {
+    setOpened(project);
+    setВкладка("overview");
+  };
+
   /** Обновлённый объект заменяет свою строку в списке: после смены статуса
    *  список не должен показывать прежнее значение. */
   const replaceProject = (updated: ProjectSummary): void => {
@@ -153,7 +253,7 @@ export function App(): React.JSX.Element {
         if (найден === null) return;
         setState((current) => (current.kind === "signed" ? { ...current, projects } : current));
         setSection("projects");
-        setOpened(найден);
+        открыть(найден);
       })
       .catch(() => {
         /* Объект заведён, но список не обновился: раздел всё равно
@@ -233,7 +333,11 @@ export function App(): React.JSX.Element {
               className="appbar__link"
               aria-current={opened === null && section === item.key ? "page" : undefined}
               href={`#${item.key}`}
-              onClick={(event) => { event.preventDefault(); go(item.key); }}
+              onClick={(event) => {
+                if (!простойЩелчок(event)) return;
+                event.preventDefault();
+                go(item.key);
+              }}
             >
               {item.label}
             </a>
@@ -297,7 +401,11 @@ export function App(): React.JSX.Element {
           className="tabbar__item"
           aria-current={opened === null && section === item.key ? "page" : undefined}
           href={`#${item.key}`}
-          onClick={(event) => { event.preventDefault(); go(item.key); }}
+          onClick={(event) => {
+                if (!простойЩелчок(event)) return;
+                event.preventDefault();
+                go(item.key);
+              }}
         >
           <svg className="icon" aria-hidden="true"><use href={item.icon} /></svg>
           {item.label}
@@ -325,11 +433,14 @@ export function App(): React.JSX.Element {
       <>
         {header}
         <ProjectCard
+          key={opened.code}
           project={opened}
           user={state.user}
           units={state.units}
           today={today}
           откуда={разделы.find((item) => item.key === section)?.label ?? "Проекты"}
+          tab={вкладка}
+          onTab={setВкладка}
           onBack={() => setOpened(null)}
           onChanged={replaceProject}
         />
@@ -411,7 +522,7 @@ export function App(): React.JSX.Element {
             today={today}
             onOpenProjects={openProjects}
             onOpenLeads={() => { setSection("requests"); }}
-            onOpen={setOpened}
+            onOpen={открыть}
             onAdd={() => { setAdding(true); }}
           />
         </>
@@ -430,7 +541,7 @@ export function App(): React.JSX.Element {
               today={today}
               filter={filter}
               onFilter={setFilter}
-              onOpen={setOpened}
+              onOpen={открыть}
               onAdd={() => { setAdding(true); }}
               /* Статус меняется из реестра, а не только из карточки: путь
                  через карточку стоил четырёх нажатий при правиле «три

@@ -27,10 +27,10 @@ export class PeopleService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Перечень людей организации. Ведёт руководитель. */
+  /** Перечень людей с действующим доступом. Ведёт руководитель. */
   async list(user: RequestUser): Promise<PersonRow[]> {
     const люди = await this.prisma.user.findMany({
-      where: { orgId: user.orgId },
+      where: { orgId: user.orgId, revokedAt: null },
       orderBy: [{ role: "asc" }, { name: "asc" }],
       select: {
         id: true, name: true, role: true, email: true, phone: true, createdAt: true,
@@ -79,21 +79,30 @@ export class PeopleService {
     /* Почта и телефон опознают человека при входе, и два человека с одним
        адресом сделали бы вход неоднозначным. Проверка идёт по всем
        организациям: адрес опознаёт человека до того, как известна его
-       организация. */
-    const занят = await this.prisma.user.findFirst({
+       организация.
+
+       Единственное исключение — снятый человек своей организации: выдача
+       входа по его почте или телефону возвращает ту же запись, и журнал,
+       приёмка и чеки остаются за одним автором (решение заказчика от
+       01.10.2026, П-51). Совпадение с двумя записями или с действующей —
+       прежний отказ. */
+    const совпали = await this.prisma.user.findMany({
       where: {
         OR: [
           ...(input.email === null ? [] : [{ email: input.email }]),
           ...(input.phone === null ? [] : [{ phone: input.phone }]),
         ],
       },
-      select: { id: true },
+      select: { id: true, orgId: true, revokedAt: true },
+      take: 2,
     });
-    if (занят) {
-      throw new BadRequestException({
-        message: "Эта почта или телефон уже заведены. Вход по ним был бы неоднозначным.",
-      });
-    }
+    const [первый] = совпали;
+    const снятый = совпали.length === 1 && первый?.orgId === user.orgId
+      && первый.revokedAt !== null ? первый : null;
+    const занят = new BadRequestException({
+      message: "Эта почта или телефон уже заведены. Вход по ним был бы неоднозначным.",
+    });
+    if (совпали.length > 0 && снятый === null) throw занят;
 
     if (input.clientId !== null) {
       const заказчик = await this.prisma.client.findFirst({
@@ -103,6 +112,35 @@ export class PeopleService {
       if (!заказчик) {
         throw new BadRequestException({ message: "Такого заказчика нет в справочнике." });
       }
+    }
+
+    if (снятый !== null) {
+      return this.prisma.$transaction(async (tx) => {
+        /* Условием от прежнего состояния: два одновременных возврата не
+           выдают двух ссылок с двумя записями журнала (П-38). */
+        const возвращён = await tx.user.updateMany({
+          where: { id: снятый.id, revokedAt: { not: null } },
+          data: {
+            revokedAt: null,
+            role: input.role,
+            name: input.name,
+            email: input.email,
+            phone: input.phone,
+            clientId: input.clientId,
+          },
+        });
+        if (возвращён.count === 0) throw занят;
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "User",
+          entityId: снятый.id,
+          field: `доступ «${input.name}» возвращён`,
+          oldValue: null,
+          newValue: input.role,
+        }, tx);
+        return this.auth.issueForemanLink(снятый.id, user.orgId, tx);
+      });
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -142,7 +180,7 @@ export class PeopleService {
    */
   async relink(user: RequestUser, id: string): Promise<{ token: string }> {
     const человек = await this.prisma.user.findFirst({
-      where: { id, orgId: user.orgId },
+      where: { id, orgId: user.orgId, revokedAt: null },
       select: { id: true, name: true },
     });
     if (!человек) throw new NotFoundException({ message: "Человек не найден или недоступен." });
@@ -164,11 +202,14 @@ export class PeopleService {
   }
 
   /**
-   * Снятие доступа. Сессии удаляются вместе с записью: доступ, переживший
+   * Снятие доступа. Сессии и ссылки удаляются: доступ, переживший
    * увольнение, — это доступ.
    *
-   * Записи журнала остаются: история не переписывается (БП-04), и «кто принял
-   * эту позицию» спрашивают через год, когда человек уже не работает.
+   * Сама запись человека остаётся с датой снятия. Прежде она удалялась, и
+   * связи `SetNull` стирали авторство: у прораба R-99 после снятия пять
+   * записей журнала остались без автора (полный аудит 30.09.2026, П-51).
+   * История не переписывается (БП-04), и «кто принял эту позицию»
+   * спрашивают через год, когда человек уже не работает.
    */
   async revoke(user: RequestUser, id: string): Promise<PersonRow[]> {
     if (id === user.id) {
@@ -177,14 +218,14 @@ export class PeopleService {
       });
     }
     const человек = await this.prisma.user.findFirst({
-      where: { id, orgId: user.orgId },
+      where: { id, orgId: user.orgId, revokedAt: null },
       select: { id: true, name: true, role: true },
     });
     if (!человек) throw new NotFoundException({ message: "Человек не найден или недоступен." });
 
     if (человек.role === "OWNER") {
       const руководителей = await this.prisma.user.count({
-        where: { orgId: user.orgId, role: "OWNER" },
+        where: { orgId: user.orgId, role: "OWNER", revokedAt: null },
       });
       if (руководителей <= 1) {
         throw new BadRequestException({
@@ -194,9 +235,32 @@ export class PeopleService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const снят = await tx.user.updateMany({
+        where: { id: человек.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (снят.count === 0) {
+        throw new NotFoundException({ message: "Человек не найден или недоступен." });
+      }
       await tx.session.deleteMany({ where: { userId: человек.id } });
       await tx.authToken.deleteMany({ where: { userId: человек.id } });
-      await tx.user.delete({ where: { id: человек.id } });
+      /* Назначение прорабом снимается, как снимало его прежнее удаление:
+         объект, который ведёт человек без входа, не ведёт никто. Прежде это
+         случалось молча; теперь лента объекта называет, кто и когда снят с
+         него. Авторство прошлых записей при этом остаётся. */
+      const объекты = await tx.project.findMany({ where: { foremanId: человек.id }, select: { id: true } });
+      await tx.project.updateMany({ where: { foremanId: человек.id }, data: { foremanId: null } });
+      for (const объект of объекты) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "Project",
+          entityId: объект.id,
+          field: "прораб",
+          oldValue: человек.name,
+          newValue: null,
+        }, tx);
+      }
       await this.audit.record({
         orgId: user.orgId,
         actorId: user.id,

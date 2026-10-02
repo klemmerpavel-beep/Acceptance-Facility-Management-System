@@ -267,7 +267,7 @@ export class DirectoryService {
    */
   async foremen(user: RequestUser): Promise<Foreman[]> {
     return this.prisma.user.findMany({
-      where: { orgId: user.orgId, role: "FOREMAN" },
+      where: { orgId: user.orgId, role: "FOREMAN", revokedAt: null },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     });
