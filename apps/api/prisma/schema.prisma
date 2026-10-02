@@ -1073,6 +1073,9 @@ model Lead {
   outcome    LeadOutcome @default(OPEN)
   /// Причина отказа. Заполняется вместе с outcome = LOST и только с ним.
   lostReason String?
+  /// Дата отказа. От неё отсчитывается срок хранения персональных данных
+  /// (`LEAD_RETENTION_DAYS`, ч. 7 ст. 21 152-ФЗ; П-40, 02.10.2026).
+  lostAt     DateTime?
   /// Дата обезличивания отказной заявки; пусто — не обезличена.
   ///
   /// Имя, телефон, адрес и заметка заменяются, причина отказа, стадия,
@@ -1106,6 +1109,7 @@ model Lead {
 
   @@unique([orgId, number])
   @@index([orgId, stage])
+  @@index([outcome, anonymizedAt, lostAt])
   @@map("leads")
 }
 

@@ -32,6 +32,7 @@ import { BlueprintsController } from "./blueprints/blueprints.controller";
 import { PeopleController } from "./people/people.controller";
 import { TranchesController } from "./tranches/tranches.controller";
 import { LeadsService } from "./leads/leads.service";
+import { LeadRetentionService } from "./leads/lead-retention.service";
 import { LeadsController } from "./leads/leads.controller";
 import { AccountingService } from "./accounting/accounting.service";
 import { AccountingController } from "./accounting/accounting.controller";
@@ -59,6 +60,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     PeopleService,
     TranchesService,
     LeadsService,
+    LeadRetentionService,
     AccountingService,
     // Хранилище файлов подключается портом: смена реализации на S3 при
     // переезде в облако (план 6.1) — правка этой одной строки.

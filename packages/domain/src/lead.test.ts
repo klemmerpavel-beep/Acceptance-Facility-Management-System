@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { basisPoints, kopecks, milliunits } from "./money.js";
-import { estimateAgainstGuideline, guidelineRange, taskState } from "./lead.js";
+import {
+  LEAD_RETENTION_DAYS, estimateAgainstGuideline, guidelineRange, retentionExpired, taskState,
+} from "./lead.js";
 
 describe("вилка ориентира", () => {
   /* Тариф 25 000 ₽ за м², площадь 62,5 м², отклонение ±15 %.
@@ -76,5 +78,26 @@ describe("состояние задачи", () => {
 
   it("на следующий день после срока задача просрочена", () => {
     expect(taskState("2026-09-10", null, "2026-09-11")).toBe("просрочена");
+  });
+});
+
+describe("срок хранения отказной заявки", () => {
+  /* Ч. 7 ст. 21 152-ФЗ: не более тридцати дней с достижения цели обработки.
+     Граница включительна: на тридцатый день данных уже нет (П-40). */
+  const отказ = new Date("2026-09-01T10:00:00.000Z");
+  const через = (дней: number, часов = 0): Date =>
+    new Date(отказ.getTime() + дней * 86_400_000 + часов * 3_600_000);
+
+  it("срок — тридцать дней", () => {
+    expect(LEAD_RETENTION_DAYS).toBe(30);
+  });
+
+  it("за час до тридцатого дня данные ещё хранятся", () => {
+    expect(retentionExpired(отказ, через(29, 23))).toBe(false);
+  });
+
+  it("на тридцатый день — пора обезличить", () => {
+    expect(retentionExpired(отказ, через(30))).toBe(true);
+    expect(retentionExpired(отказ, через(45))).toBe(true);
   });
 });
