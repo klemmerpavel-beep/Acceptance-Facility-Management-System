@@ -11,6 +11,9 @@
 # поднимает PostgreSQL, накатывает миграции на пустую базу, наполняет её и
 # гоняет браузер — это и есть требование Э0.18 «миграции применяются с нуля
 # на чистой базе».
+#
+# Третья работа, «Поставка», с 02.10.2026 поднимает `docker compose up` из
+# чистого клона: пункт 0.17 до того не запускался ни разу и оказался сломан.
 
 name: Проверки
 
@@ -270,3 +273,57 @@ jobs:
             /tmp/web.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # Поставка: `docker compose up` из чистого клона (пункт плана 0.17).
+  #
+  # Пункт стоял «написан, не запускался» с 03.09.2026: в среде разработки не
+  # было демона Docker. Первый запуск 02.10.2026 нашёл, что поставка не
+  # поднимается вовсе — образа `minio/minio` в Docker Hub больше нет
+  # (полный аудит, П-55). Работа держит поставку живой: образы собираются из
+  # Dockerfile, стенд поднимается по `.env.example`, клиент отвечает, сервер
+  # отвечает через nginx клиента и применил миграции, код входа в ответ не
+  # попадает (промышленное умолчание, П-28), `sharp` грузится в образе Alpine.
+  delivery:
+    name: Поставка
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Пароли — по `.env.example`, с заменой заглушки: стенд поднимается
+      # ровно так, как его поднимет человек по README.
+      - name: Окружение поставки
+        run: |
+          cp .env.example .env
+          sed -i 's/смените_на_стенде/proverka-postavki/g' .env
+
+      - name: Сборка образов
+        run: docker compose build
+
+      - name: Запуск
+        run: docker compose up -d --wait
+
+      - name: Поставка отвечает
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5173/api/auth/me || true)
+            [ "$code" = "401" ] && break
+            sleep 3
+          done
+          if [ "$code" != "401" ]; then
+            echo "сервер через клиент ответил «$code» вместо 401"; docker compose logs api; exit 1
+          fi
+          curl -fsS -o /dev/null http://127.0.0.1:5173/
+          docker compose logs api | grep -q "All migrations have been successfully applied"
+          body=$(curl -s -X POST -H 'content-type: application/json' \
+            -d '{"email":"owner@dolgiy.studio"}' http://127.0.0.1:5173/api/auth/magic-link)
+          if echo "$body" | grep -q '"token"'; then
+            echo "поставка по умолчанию отдаёт ссылку входа в ответе: $body"; exit 1
+          fi
+          docker compose exec -T api node -e "require('/repo/apps/api/node_modules/sharp')"
+
+      - name: Остановка
+        if: always()
+        run: docker compose down -v
