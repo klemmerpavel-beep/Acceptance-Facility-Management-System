@@ -37,6 +37,14 @@ const FIELD_LABEL: Readonly<Record<string, string>> = {
 /** Величины, правка которых пишется в журнал по отдельности. */
 const MEASURED = ["floorArea", "floorPerimeter", "ceilingPerimeter", "height"] as const;
 
+/** Единица величины обмера в записи журнала. */
+const ЕДИНИЦА: Readonly<Record<(typeof MEASURED)[number], string>> = {
+  floorArea: "м²",
+  floorPerimeter: "м.п.",
+  ceilingPerimeter: "м.п.",
+  height: "м",
+};
+
 interface RoomRow {
   id: string;
   name: string;
@@ -53,7 +61,27 @@ const asMeasure = (row: RoomRow): RoomMeasure => ({
   floorPerimeter: milliunits(row.floorPerimeter),
   ceilingPerimeter: milliunits(row.ceilingPerimeter),
   height: milliunits(row.height),
+  /* Проёмы входят в итоги объекта (план, пункт 7.4): «Общее» называет окна и
+     двери так же, как площади. Площадь стен их по-прежнему не вычитает. */
+  openings: row.openings.map((opening) => ({
+    kind: opening.kind,
+    count: opening.count,
+    area: milliunits(opening.area),
+    reveal: milliunits(opening.reveal),
+  })),
 });
+
+/** Проёмы помещения словами — для журнала: «окна 2 шт, 3,60 м², откосы 9,80 м.п.». */
+const проёмыДляЖурнала = (
+  openings: readonly { kind: "WINDOW" | "DOOR"; count: number; area: bigint | string; reveal: bigint | string }[],
+): string => {
+  if (openings.length === 0) return "нет";
+  return (["WINDOW", "DOOR"] as const)
+    .flatMap((вид) => openings.filter((проём) => проём.kind === вид))
+    .map((проём) => `${проём.kind === "WINDOW" ? "окна" : "двери"} ${String(проём.count)} шт, `
+      + `${количествоТекстом(milliunits(проём.area), "м²")}, откосы ${количествоТекстом(milliunits(проём.reveal), "м.п.")}`)
+    .join("; ");
+};
 
 const toRoomDto = (row: RoomRow): MeasureRoom => {
   const measure = asMeasure(row);
@@ -167,6 +195,16 @@ export class MeasureService {
         floorPerimeter: totals.floorPerimeter.toString(),
         ceilingPerimeter: totals.ceilingPerimeter.toString(),
         volume: totals.volume.toString(),
+        windows: {
+          count: totals.windows.count,
+          area: totals.windows.area.toString(),
+          reveal: totals.windows.reveal.toString(),
+        },
+        doors: {
+          count: totals.doors.count,
+          area: totals.doors.area.toString(),
+          reveal: totals.doors.reveal.toString(),
+        },
       },
       plan: plan === null ? null : {
         fileName: plan.fileName,
@@ -222,7 +260,7 @@ export class MeasureService {
     if (редакция === null) return;
 
     const { count } = await tx.estimateItem.updateMany({
-      where: { estimateId: редакция.id, roomId: начальное.id },
+      where: { estimateId: редакция.id, roomId: начальное.id, removedAt: null },
       data: { roomId: новоеПомещение },
     });
     if (count === 0) return;
@@ -326,7 +364,25 @@ export class MeasureService {
         },
       });
 
+      /* Проёмы пишутся в журнал одной записью «было → стало» словами, в той
+         же транзакции (БП-10): прежде они пересоздавались молча, и спор
+         «кто убрал окно» разрешить было нечем. Запись делается, только если
+         проёмы и правда поменялись: лист присылает их при каждом
+         сохранении. */
       if (input.openings !== undefined) {
+        const было = проёмыДляЖурнала(before.openings);
+        const стало = проёмыДляЖурнала(input.openings);
+        if (было !== стало) {
+          await this.audit.record({
+            orgId: user.orgId,
+            actorId: user.id,
+            entity: "MeasureRoom",
+            entityId: project.id,
+            field: `${before.name} — ${FIELD_LABEL.openings ?? "проёмы"}`,
+            oldValue: было,
+            newValue: стало,
+          }, tx);
+        }
         await tx.measureOpening.deleteMany({ where: { roomId: before.id } });
         for (const opening of input.openings) {
           await tx.measureOpening.create({
@@ -352,8 +408,10 @@ export class MeasureService {
           entity: "MeasureRoom",
           entityId: project.id,
           field: `${before.name} — ${FIELD_LABEL[field] ?? field}`,
-          oldValue: before[field].toString(),
-          newValue: next,
+          /* Словами и в единицах, а не сырыми тысячными: «18400 → 20000»
+             читалось как восемнадцать тысяч метров. */
+          oldValue: количествоТекстом(milliunits(before[field]), ЕДИНИЦА[field]),
+          newValue: количествоТекстом(milliunits(next), ЕДИНИЦА[field]),
         }, tx);
       }
       if (input.name !== undefined && input.name !== before.name) {
@@ -389,7 +447,7 @@ export class MeasureService {
        Но обнуление на прямом удалении было бы молчаливым снятием основания
        количества с десятка позиций, поэтому прямое удаление предваряется
        отказом, который называет число привязанных позиций. */
-    const привязано = await this.prisma.estimateItem.count({ where: { roomId: room.id } });
+    const привязано = await this.prisma.estimateItem.count({ where: { roomId: room.id, removedAt: null } });
     if (привязано > 0) {
       throw new BadRequestException({
         message: `К помещению «${room.name}» привязано позиций сметы: ${привязано.toString()}. `

@@ -4,6 +4,7 @@ import type { EstimateItem, EstimateSectionNode, EstimateView } from "@priyomka/
 import { formatKopecks, formatPercent, formatQty } from "@priyomka/ui";
 import { plural } from "./status.js";
 import { useNarrow } from "./media.js";
+import { завести } from "./verbs.js";
 
 type Projection = "internal" | "client";
 /**
@@ -55,9 +56,20 @@ export function EstimateTable({
   onEditItem,
   onEditSupervision,
   onMoveItem,
+  onAddItem,
+  onEditSection,
+  onAddSection,
   busy = false,
 }: {
   estimate: EstimateView;
+  /**
+   * Заведение позиции в разделе, правка и удаление раздела, заведение
+   * раздела (план, пункт 7.3). Обработчиков нет — органов нет: смету правит
+   * уровень руководителя.
+   */
+  onAddItem?: (sectionId: string) => void;
+  onEditSection?: (section: EstimateSectionNode) => void;
+  onAddSection?: () => void;
   /**
    * Перестановка позиции внутри своего раздела на `шагов` мест.
    *
@@ -152,6 +164,27 @@ export function EstimateTable({
    * где она правда: набор позиции `INITIAL` при существующей перепланировке.
    * Количество такой позиции считалось по площади, которой больше нет.
    */
+  /* Органы раздела: позиция заводится там, где ей стоять, а правка и
+     удаление раздела — в его листе. Два органа на заголовок, а не четыре:
+     переименование и удаление называют одно и то же — раздел. */
+  const органыРаздела = (node: EstimateSectionNode): React.JSX.Element | null =>
+    onAddItem === undefined || onEditSection === undefined ? null : (
+      <span className="estimate__section-acts">
+        <button type="button" className="btn btn--text" disabled={busy} onClick={() => { onAddItem(node.id); }}>
+          {завести("позиция")}
+        </button>
+        <button
+          type="button"
+          className="btn btn--text"
+          disabled={busy}
+          aria-label={`Раздел «${sectionTitle(node.name)}»: название и удаление`}
+          onClick={() => { onEditSection(node); }}
+        >
+          Раздел
+        </button>
+      </span>
+    );
+
   const строкаПозиции = (item: EstimateItem, level: number): React.JSX.Element => {
     const отстало = estimate.replanned && item.room !== null && item.room.set === "INITIAL";
     /* Принятая позиция раздела не меняет, но внутри своего переставляется:
@@ -235,19 +268,22 @@ export function EstimateTable({
       const header = (
         <tr className="estimate__section" key={node.id}>
           <td colSpan={columns}>
-            <button
-              type="button"
-              className="estimate__section-toggle"
-              aria-expanded={!isCollapsed}
-              onClick={() => toggle(node.id)}
-            >
-              <svg className="icon icon--sm disclosure" aria-hidden="true">
-                <use href="#i-chevron" />
-              </svg>
-              <span className="estimate__row-name" style={{ ["--level" as string]: node.level - 1 }}>
-                {sectionTitle(node.name)}
-              </span>
-            </button>
+            <div className="estimate__section-head">
+              <button
+                type="button"
+                className="estimate__section-toggle"
+                aria-expanded={!isCollapsed}
+                onClick={() => toggle(node.id)}
+              >
+                <svg className="icon icon--sm disclosure" aria-hidden="true">
+                  <use href="#i-chevron" />
+                </svg>
+                <span className="estimate__row-name" style={{ ["--level" as string]: node.level - 1 }}>
+                  {sectionTitle(node.name)}
+                </span>
+              </button>
+              {органыРаздела(node)}
+            </div>
           </td>
         </tr>
       );
@@ -382,6 +418,12 @@ export function EstimateTable({
             {collapsed.size === 0 ? "Свернуть все" : "Развернуть все"}
           </button>
         )}
+        {onAddSection !== undefined && (
+          <button type="button" className="btn btn--secondary" disabled={busy} onClick={onAddSection}>
+            <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+            {завести("раздел")}
+          </button>
+        )}
       </div>
       {/* Два переключателя рядом: способ показать и кому показать. Один
           орган с четырьмя состояниями смешал бы независимые решения. */}
@@ -475,6 +517,7 @@ export function EstimateTable({
     свёрнута: boolean,
     переключить: () => void,
     содержимое: () => React.JSX.Element[],
+    органы: React.JSX.Element | null = null,
   ): React.JSX.Element => (
     <li className="estgroup" key={key} style={{ ["--level" as string]: level }}>
       <button type="button" className="estgroup__head" aria-expanded={!свёрнута} onClick={переключить}>
@@ -482,6 +525,7 @@ export function EstimateTable({
         <span className="estgroup__title">{title}</span>
         <span className="estgroup__sum num">{subtotal}</span>
       </button>
+      {!свёрнута && органы}
       {!свёрнута && (
         <>
           <ul className="estcards">{содержимое()}</ul>
@@ -503,6 +547,7 @@ export function EstimateTable({
       collapsed.has(node.id),
       () => { toggle(node.id); },
       () => [...node.items.map(карточкаПозиции), ...разделыКарточками(node.children)],
+      органыРаздела(node),
     ));
 
   const узлыКарточками = (nodes: readonly GroupNode<EstimateItem>[], level = 0): React.JSX.Element[] =>

@@ -113,7 +113,7 @@ export class StagesService {
 
     const [items, acceptances, верхний] = await Promise.all([
       this.prisma.estimateItem.findMany({
-        where: { estimateId: estimate.id },
+        where: { estimateId: estimate.id, removedAt: null },
         select: { id: true, sectionId: true, qty: true, unitPrice: true },
       }),
       /* Приёмки только по позициям действующей редакции: прежние относятся
@@ -368,7 +368,7 @@ export class StagesService {
         select: { id: true, name: true },
       }),
       this.prisma.estimateItem.findMany({
-        where: { estimateId: estimate.id },
+        where: { estimateId: estimate.id, removedAt: null },
         select: { sectionId: true, qty: true, unitPrice: true },
       }),
       this.prisma.workStage.findMany({

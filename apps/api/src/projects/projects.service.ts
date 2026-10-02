@@ -405,7 +405,7 @@ export class ProjectsService {
        аудит 30.09.2026, П-17). Запись журнала есть обход поля: правило
        выше о смете действует и здесь. */
     const поОбъекту = внутренние
-      ? ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense", "EstimateItem", "Estimate"]
+      ? ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense", "EstimateItem", "EstimateSection", "Estimate"]
       : user.role === "CLIENT"
         ? ["Project"]
         : ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense"];
@@ -511,6 +511,7 @@ const РАЗДЕЛ: Readonly<Record<string, string>> = {
   MeasureRoom: "Замер",
   MeasurePlan: "Замер",
   EstimateItem: "Смета",
+  EstimateSection: "Смета",
   Estimate: "Смета",
   WorkStage: "График",
   Tranche: "Транш",

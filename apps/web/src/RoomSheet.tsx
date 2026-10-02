@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { завести } from "./verbs.js";
-import type { CreateMeasureRoom, MeasureRoom } from "@priyomka/contracts";
+import type { CreateMeasureRoom, MeasureOpening, MeasureRoom } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
 
@@ -44,6 +44,40 @@ const FIELDS = [
 
 type FieldKey = (typeof FIELDS)[number]["key"];
 
+/**
+ * Проёмы помещения (план, пункт 7.4): окна и двери, по строке на вид —
+ * количество, общая площадь и откосы. Прежде лист правил только четыре
+ * величины и пересылал проёмы нетронутыми: завести окно было негде, хотя
+ * модель и сервер их принимали.
+ */
+const ВИДЫ_ПРОЁМОВ = [
+  { kind: "WINDOW", label: "Окна" },
+  { kind: "DOOR", label: "Двери" },
+] as const;
+
+interface ПроёмВвод { count: string; area: string; reveal: string }
+
+const проёмВПоля = (opening: MeasureOpening | undefined): ПроёмВвод => ({
+  count: opening === undefined ? "" : String(opening.count),
+  area: opening === undefined ? "" : toInput(opening.area),
+  reveal: opening === undefined ? "" : toInput(opening.reveal),
+});
+
+/**
+ * Строка проёма из полей. Пустое или нулевое количество — проёмов этого вида
+ * нет, и строки нет (так их хранит модель). При ненулевом количестве площадь
+ * и откосы обязательны: окно без площади не даёт ни откосов, ни отделки.
+ */
+function проёмИзПолей(kind: MeasureOpening["kind"], ввод: ПроёмВвод): MeasureOpening | null | "ошибка" {
+  const количество = ввод.count.trim();
+  if (количество === "" || количество === "0") return null;
+  if (!/^\d{1,3}$/u.test(количество)) return "ошибка";
+  const area = toMilli(ввод.area === "" ? "0" : ввод.area);
+  const reveal = toMilli(ввод.reveal === "" ? "0" : ввод.reveal);
+  if (area === null || reveal === null) return "ошибка";
+  return { kind, count: Number(количество), area, reveal };
+}
+
 export function RoomSheet({
   room,
   busy,
@@ -68,11 +102,17 @@ export function RoomSheet({
     height: room === null ? "2,7" : toInput(room.height),
   }));
   const [confirming, setConfirming] = useState(false);
+  const [проёмы, setПроёмы] = useState<Record<MeasureOpening["kind"], ПроёмВвод>>(() => ({
+    WINDOW: проёмВПоля(room?.openings.find((opening) => opening.kind === "WINDOW")),
+    DOOR: проёмВПоля(room?.openings.find((opening) => opening.kind === "DOOR")),
+  }));
+  const строкиПроёмов = ВИДЫ_ПРОЁМОВ.map(({ kind }) => проёмИзПолей(kind, проёмы[kind]));
+  const проёмыВерны = строкиПроёмов.every((строка) => строка !== "ошибка");
 
   const milli = Object.fromEntries(
     FIELDS.map((field) => [field.key, toMilli(values[field.key])]),
   ) as Record<FieldKey, string | null>;
-  const ready = name.trim().length > 0 && FIELDS.every((field) => milli[field.key] !== null);
+  const ready = name.trim().length > 0 && FIELDS.every((field) => milli[field.key] !== null) && проёмыВерны;
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -83,7 +123,7 @@ export function RoomSheet({
       floorPerimeter: milli.floorPerimeter ?? "",
       ceilingPerimeter: milli.ceilingPerimeter ?? "",
       height: milli.height ?? "",
-      ...(room === null ? {} : { openings: room.openings }),
+      openings: строкиПроёмов.filter((строка): строка is MeasureOpening => typeof строка === "object" && строка !== null),
     });
   };
 
@@ -147,6 +187,45 @@ export function RoomSheet({
             <p className="field__hint">
               Площадь стен и объём считаются из этих величин и здесь не вводятся.
             </p>
+
+            {ВИДЫ_ПРОЁМОВ.map(({ kind, label }, номер) => {
+              const ввод = проёмы[kind];
+              const строка = строкиПроёмов[номер];
+              const задать = (поле: keyof ПроёмВвод) => (event: React.ChangeEvent<HTMLInputElement>): void => {
+                const next = event.target.value;
+                setПроёмы((current) => ({ ...current, [kind]: { ...current[kind], [поле]: next } }));
+              };
+              return (
+                <fieldset className="openings" key={kind}>
+                  <legend className="field__label">{label}</legend>
+                  <div className="row">
+                    <label className="field">
+                      <span className="field__label">Количество, шт</span>
+                      <input
+                        className="input input--num"
+                        inputMode="numeric"
+                        value={ввод.count}
+                        aria-invalid={строка === "ошибка"}
+                        onChange={задать("count")}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Площадь, м²</span>
+                      <input className="input input--num" inputMode="decimal" value={ввод.area} onChange={задать("area")} />
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Откосы, м.п.</span>
+                      <input className="input input--num" inputMode="decimal" value={ввод.reveal} onChange={задать("reveal")} />
+                    </label>
+                  </div>
+                </fieldset>
+              );
+            })}
+            {!проёмыВерны && (
+              <p className="field__error" role="alert">
+                Количество проёмов — целое число; площадь и откосы — в метрах с запятой: «3,6».
+              </p>
+            )}
 
             {error !== null && <p className="field__error" role="alert">{error}</p>}
 

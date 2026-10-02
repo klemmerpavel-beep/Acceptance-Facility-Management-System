@@ -26,6 +26,7 @@ import type {
   PhotoReport, ReportBatch,
   CloseTranche, CreatePayment, CreateTranche, TrancheView, UpdateClient,
   EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
+  CreateEstimateItem, CreateEstimateSection, RenameEstimateSection,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
@@ -33,7 +34,8 @@ import {
   awaitingDays, clientDebts, graceDays, moneyState, moneyTotals, outstanding,
   paymentFault, paymentOverdue, paymentReversalFault, subtract, sum, PAYMENT_GRACE_DAYS,
   clientAmount, basisPoints,
-  estimateItemFault, estimateItemMoveFault, expenseTotals, kopecks, measureTotals,
+  estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateSectionNestingFault,
+  estimateSectionRemovalFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, roomVolume, stageDateFault, taskState, wallArea,
@@ -155,6 +157,10 @@ const measureView = (set: MeasureSetKind): MeasureView => {
     floorPerimeter: milliunits(room.floorPerimeter),
     ceilingPerimeter: milliunits(room.ceilingPerimeter),
     height: milliunits(room.height),
+    openings: room.openings.map((opening) => ({
+      kind: opening.kind, count: opening.count,
+      area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+    })),
   })));
   return {
     set,
@@ -169,6 +175,16 @@ const measureView = (set: MeasureSetKind): MeasureView => {
       floorPerimeter: totals.floorPerimeter.toString(),
       ceilingPerimeter: totals.ceilingPerimeter.toString(),
       volume: totals.volume.toString(),
+      windows: {
+        count: totals.windows.count,
+        area: totals.windows.area.toString(),
+        reveal: totals.windows.reveal.toString(),
+      },
+      doors: {
+        count: totals.doors.count,
+        area: totals.doors.area.toString(),
+        reveal: totals.doors.reveal.toString(),
+      },
     },
     plan: measurePlan[set],
   };
@@ -1738,7 +1754,42 @@ function пересчитатьСмету(вид: EstimateView): void {
   вид.totals.works = works.toString();
   вид.totals.supervision = supervision.toString();
   вид.totals.estimate = (works + supervision).toString();
+
+  /* ЗП и прибыль — только у руководительской проекции: у неё эти поля
+     есть. Прежде двойник их не пересчитывал, и после правки ставки подвал
+     показывал вчерашний фонд оплаты (пункт 7.3 заводит и удаляет позиции,
+     и расхождение стало бы видно на первом же действии). */
+  if (вид.totals.wage !== undefined) {
+    const подытогЗП = (раздел: EstimateView["sections"][number]): bigint => {
+      const свои = раздел.items.reduce((всего, позиция) => всего + kopecks(позиция.wageTotal ?? "0"), 0n);
+      const детей = раздел.children.reduce((всего, ребёнок) => всего + подытогЗП(ребёнок), 0n);
+      раздел.subtotalWage = (свои + детей).toString();
+      return свои + детей;
+    };
+    const wage = вид.sections.reduce((всего, раздел) => всего + подытогЗП(раздел), 0n);
+    вид.totals.wage = wage.toString();
+    вид.totals.profit = (works - wage).toString();
+  }
+
+  /* Счётчики и сквозной номер строки — тем же обходом, что у сборки вида на
+     сервере: позиции раздела раньше его вложенных разделов. */
+  let номер = 0;
+  const пронумеровать = (раздел: EstimateView["sections"][number]): void => {
+    for (const позиция of раздел.items) позиция.order = (номер += 1);
+    for (const ребёнок of раздел.children) пронумеровать(ребёнок);
+  };
+  for (const раздел of вид.sections) пронумеровать(раздел);
+  вид.positions = номер;
+  вид.sectionsTopLevel = вид.sections.length;
+  вид.sectionsNested = вид.sections.reduce((всего, раздел) => всего + раздел.children.length, 0);
 }
+
+/** Все разделы дерева одним списком с родителем: два уровня, как на сервере. */
+const разделыСметы = (вид: EstimateView): { узел: EstimateSectionNode; родитель: EstimateSectionNode | null }[] =>
+  вид.sections.flatMap((узел) => [
+    { узел, родитель: null },
+    ...узел.children.map((ребёнок) => ({ узел: ребёнок, родитель: узел })),
+  ]);
 
 export async function updateEstimateItem(
   _code: string, id: string, input: UpdateEstimateItem,
@@ -1818,6 +1869,116 @@ export async function moveEstimateItem(
       ? null
       : вид.rooms.find((комната) => комната.id === input.roomId) ?? позиция.room;
   }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+/* --- заведение и удаление позиций и разделов в двойнике (пункт 7.3) --------
+   Те же отказы, что на сервере, — функциями домена. Снятие позиции после
+   сторно двойник выражает удалением из вида: приёмка двойника живёт своим
+   слепком, и история её записей от сметы не зависит. */
+
+export async function createEstimateItem(_code: string, input: CreateEstimateItem): Promise<EstimateView> {
+  await pause(240);
+  const вид = сметаR99();
+  const раздел = разделыСметы(вид).find(({ узел }) => узел.id === input.sectionId)?.узел;
+  if (раздел === undefined) throw new Error("Такого раздела нет в действующей редакции сметы этого объекта.");
+  const qty = milliunits(input.qty);
+  const unitPrice = kopecks(input.unitPrice);
+  const unitWage = kopecks(input.unitWage);
+  const отказ = estimateItemFault({ qty, accepted: milliunits(0n), unit: input.unit, unitPrice, unitWage });
+  if (отказ !== null) throw new Error(отказ);
+  const total = accrualAmount(unitPrice, qty);
+  const wageTotal = accrualAmount(unitWage, qty);
+  раздел.items.push({
+    id: новыйId(),
+    order: 0,
+    name: input.name,
+    unit: input.unit,
+    room: input.roomId === undefined || input.roomId === null
+      ? null
+      : вид.rooms.find((комната) => комната.id === input.roomId) ?? null,
+    qty: qty.toString(),
+    qtyAccepted: "0",
+    unitPrice: unitPrice.toString(),
+    total: total.toString(),
+    ...(вид.totals.wage === undefined ? {} : {
+      unitWage: unitWage.toString(),
+      wageTotal: wageTotal.toString(),
+      profit: (total - wageTotal).toString(),
+      profitShare: total === 0n ? 0 : Number(((total - wageTotal) * 10_000n) / total),
+    }),
+  });
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+export async function removeEstimateItem(_code: string, id: string): Promise<EstimateView> {
+  await pause(220);
+  const вид = сметаR99();
+  const раздел = разделыСметы(вид).find(({ узел }) => узел.items.some((строка) => строка.id === id))?.узел;
+  const позиция = раздел?.items.find((строка) => строка.id === id);
+  if (раздел === undefined || позиция === undefined) {
+    throw new Error("Позиция не найдена в действующей редакции сметы этого объекта.");
+  }
+  const отказ = estimateItemRemovalFault({
+    accepted: milliunits(позиция.qtyAccepted), name: позиция.name, unit: позиция.unit,
+  });
+  if (отказ !== null) throw new Error(отказ);
+  раздел.items = раздел.items.filter((строка) => строка.id !== id);
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+export async function createEstimateSection(_code: string, input: CreateEstimateSection): Promise<EstimateView> {
+  await pause(220);
+  const вид = сметаR99();
+  const новый: EstimateSectionNode = {
+    id: новыйId(), name: input.name, level: 1, sourceRow: null, stage: null,
+    items: [], children: [], subtotal: "0",
+    ...(вид.totals.wage === undefined ? {} : { subtotalWage: "0" }),
+  };
+  if (input.parentId === null) {
+    вид.sections.push(новый);
+  } else {
+    const найден = разделыСметы(вид).find(({ узел }) => узел.id === input.parentId);
+    if (найден === undefined) throw new Error("Такого раздела нет в действующей редакции сметы этого объекта.");
+    const отказ = estimateSectionNestingFault(найден.родитель !== null);
+    if (отказ !== null) throw new Error(отказ);
+    найден.узел.children.push({ ...новый, level: 2 });
+  }
+  пересчитатьСмету(вид);
+  return вид;
+}
+
+export async function renameEstimateSection(
+  _code: string, id: string, input: RenameEstimateSection,
+): Promise<EstimateView> {
+  await pause(200);
+  const вид = сметаR99();
+  const раздел = разделыСметы(вид).find(({ узел }) => узел.id === id)?.узел;
+  if (раздел === undefined) throw new Error("Раздел не найден в действующей редакции сметы этого объекта.");
+  раздел.name = input.name;
+  return вид;
+}
+
+export async function removeEstimateSection(_code: string, id: string): Promise<EstimateView> {
+  await pause(220);
+  const вид = сметаR99();
+  const найден = разделыСметы(вид).find(({ узел }) => узел.id === id);
+  if (найден === undefined) throw new Error("Раздел не найден в действующей редакции сметы этого объекта.");
+  const отказ = estimateSectionRemovalFault({
+    name: найден.узел.name,
+    items: найден.узел.items.length,
+    removed: 0,
+    children: найден.узел.children.length,
+    batches: 0,
+    stage: найден.узел.stage,
+    expenses: 0,
+  });
+  if (отказ !== null) throw new Error(отказ);
+  if (найден.родитель === null) вид.sections = вид.sections.filter((узел) => узел.id !== id);
+  else найден.родитель.children = найден.родитель.children.filter((узел) => узел.id !== id);
   пересчитатьСмету(вид);
   return вид;
 }

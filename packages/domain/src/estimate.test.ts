@@ -6,6 +6,9 @@ import {
   measureSourcesFor, sectionWeights, БЕЗ_ПОМЕЩЕНИЯ, ВНЕ_ГРАФИКА,
   MEASURE_LABEL, MEASURE_SOURCES,
   type BuildEstimateInput, type GroupNode, type SectionNode,
+  estimateItemRemovalFault,
+  estimateSectionRemovalFault,
+  estimateSectionNestingFault,
 } from "./estimate.js";
 import { findInternalFields, INTERNAL_FIELDS } from "./projection.js";
 
@@ -401,5 +404,32 @@ describe("перенос позиции", () => {
     expect(estimateItemMoveFault({
       ...основа, accepted: parseQuantity("37,6"), changesSection: false,
     })).toBeNull();
+  });
+});
+
+describe("удаление позиции и раздела (план, пункт 7.3)", () => {
+  it("принятая позиция не удаляется: отказ называет принятое и путь через сторно", () => {
+    const отказ = estimateItemRemovalFault({ accepted: parseQuantity("12,5"), name: "Грунтовка стен", unit: "м²" });
+    expect(отказ).toMatch(/принято 12,50\s?м²/u);
+    expect(отказ).toContain("Сторнируйте приёмку");
+  });
+
+  it("позиция без принятого — в том числе после полного сторно — удаляется", () => {
+    expect(estimateItemRemovalFault({ accepted: parseQuantity("0"), name: "Грунтовка стен", unit: "м²" })).toBeNull();
+  });
+
+  it("раздел удаляется только пустым, и отказ называет всё, что его держит", () => {
+    const пустой = { name: "Отделка", items: 0, removed: 0, children: 0, batches: 0, stage: null, expenses: 0 };
+    expect(estimateSectionRemovalFault(пустой)).toBeNull();
+    const отказ = estimateSectionRemovalFault({ ...пустой, items: 3, batches: 1, stage: "Чистовая отделка" });
+    expect(отказ).toContain("позиций — 3");
+    expect(отказ).toContain("пакетов приёмки — 1");
+    expect(отказ).toContain("этап графика «Чистовая отделка»");
+    expect(estimateSectionRemovalFault({ ...пустой, removed: 1 })).toContain("снятых со сметы позиций");
+  });
+
+  it("раздел вкладывается только в раздел верхнего уровня", () => {
+    expect(estimateSectionNestingFault(false)).toBeNull();
+    expect(estimateSectionNestingFault(true)).toContain("верхнего уровня");
   });
 });

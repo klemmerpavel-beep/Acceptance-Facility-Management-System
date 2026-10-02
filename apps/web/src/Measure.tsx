@@ -243,6 +243,26 @@ export function Measure({
             </span>
           ))}
         </p>
+        {/* Итоги проёмов (план, пункт 7.4): окна и двери по объекту — тем же
+            строем, что у помещения. Подпись «Площадь» здесь не голая, а с
+            видом проёма: «Площадь окон» не спутать с площадью пола. */}
+        <p className="spec measure__openings">
+          {/* Три пары на вид, а не одна строка: строкой итог окон не
+              помещался в 390 px и уводил страницу вбок. */}
+          {([["windows", "Окна", "окон"], ["doors", "Двери", "дверей"]] as const).flatMap(([ключ, имя, чего]) => [
+            <span className="spec__item" key={`${ключ}-count`}>
+              {имя}<span className="spec__value">{view.totals[ключ].count} шт</span>
+            </span>,
+            <span className="spec__item" key={`${ключ}-area`}>
+              Площадь {чего}
+              <span className="spec__value">{formatMeasure(BigInt(view.totals[ключ].area), "м²")}</span>
+            </span>,
+            <span className="spec__item" key={`${ключ}-reveal`}>
+              Откосы {чего}
+              <span className="spec__value">{formatMeasure(BigInt(view.totals[ключ].reveal), "м.п.")}</span>
+            </span>,
+          ])}
+        </p>
       </div>
 
       {rooms.length === 0 || selected === null ? (

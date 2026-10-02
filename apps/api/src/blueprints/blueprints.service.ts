@@ -92,7 +92,8 @@ export class BlueprintsService {
       orderBy: { version: "desc" },
       include: {
         sections: { orderBy: { order: "asc" } },
-        items: { orderBy: { order: "asc" } },
+        /* Заготовка берёт смету, какой её видят: без снятых позиций. */
+        items: { where: { removedAt: null }, orderBy: { order: "asc" } },
       },
     });
     if (!смета || смета.items.length === 0) {

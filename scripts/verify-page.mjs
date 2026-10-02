@@ -2313,6 +2313,77 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
   }
 }
 
+/*
+ * Заведение и удаление позиции и раздела с экрана (план, пункт 7.3).
+ * Позиция заводится органом своего раздела, удаляется из листа через
+ * подтверждение; раздел — так же, из своего листа. Стенд возвращается к
+ * прежнему счёту позиций и разделов.
+ */
+{
+  const счёт = async () => ((await page.locator("#panel-estimate .panel__head .t-h3").first().textContent()) ?? "")
+    .replace(/\s+/gu, " ");
+  const былоСчёт = await счёт();
+  const кнопкаПозиции = page.locator('.estimate__section-acts button:has-text("Добавить позицию")');
+  if ((await кнопкаПозиции.count()) === 0) {
+    note("7.3 смета", "у руководителя нет органа «Добавить позицию» у разделов сметы");
+  } else {
+    await кнопкаПозиции.first().click();
+    await page.waitForSelector('.sheet[aria-label="Новая позиция сметы"]');
+    await page.locator(".sheet input").first().fill("Проверка 7.3: экран");
+    const числа = page.locator('.sheet input[inputmode="decimal"]');
+    await числа.nth(0).fill("2");
+    await числа.nth(1).fill("100");
+    await числа.nth(2).fill("40");
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(900);
+    if ((await счёт()) === былоСчёт) note("7.3 смета", `после заведения позиции счёт сметы не изменился: «${былоСчёт}»`);
+    await page.click('.panel__head .btn--text:has-text("Развернуть все")').catch(() => { /* уже развёрнуто */ });
+    await page.waitForTimeout(400);
+    const строка = page.locator("table.estimate tbody tr", { hasText: "Проверка 7.3: экран" });
+    if ((await строка.count()) === 0) {
+      note("7.3 смета", "заведённая позиция не появилась в таблице сметы");
+    } else {
+      await строка.first().locator('.btn--text:has-text("Править")').click();
+      await page.waitForSelector(".sheet");
+      const удалить = page.locator('.sheet .btn--text:has-text("Удалить позицию")');
+      if ((await удалить.count()) === 0) {
+        note("7.3 смета", "в листе позиции нет удаления");
+      } else if (await гейт(page, "удаление позиции сметы", удалить.first(), /^DELETE .*\/estimate\/items\//u)) {
+        await page.click('[role="group"] .btn--danger');
+        await page.waitForTimeout(900);
+        if ((await строка.count()) > 0) note("7.3 смета", "подтверждённое удаление позиции не убрало её из сметы");
+      }
+    }
+    await page.click('.panel__head .btn--text:has-text("Свернуть все")').catch(() => { /* уже свёрнуто */ });
+    await page.waitForTimeout(300);
+  }
+
+  const кнопкаРаздела = page.locator('#panel-estimate .panel__head button:has-text("Добавить раздел")');
+  if ((await кнопкаРаздела.count()) === 0) {
+    note("7.3 смета", "у руководителя нет органа «Добавить раздел»");
+  } else {
+    await кнопкаРаздела.click();
+    await page.waitForSelector('.sheet[aria-label="Новый раздел сметы"]');
+    await page.locator(".sheet input").first().fill("Проверка 7.3: раздел экрана");
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(900);
+    const органы = page.locator('.estimate__section-acts button[aria-label^="Раздел «Проверка 7.3: раздел экрана»"]');
+    if ((await органы.count()) === 0) {
+      note("7.3 смета", "заведённый раздел не появился в смете");
+    } else {
+      await органы.first().click();
+      await page.waitForSelector(".sheet");
+      const удалить = page.locator('.sheet .btn--text:has-text("Удалить раздел")');
+      if (await гейт(page, "удаление раздела сметы", удалить.first(), /^DELETE .*\/estimate\/sections\//u)) {
+        await page.click('[role="group"] .btn--danger');
+        await page.waitForTimeout(900);
+        if ((await органы.count()) > 0) note("7.3 смета", "подтверждённое удаление раздела не убрало его из сметы");
+      }
+    }
+  }
+  if ((await счёт()) !== былоСчёт) note("7.3 смета", `стенд не вернулся: «${await счёт()}» вместо «${былоСчёт}»`);
+}
+
 // Импорт сметы.
 await page.click('.tabs__item:has-text("Импорт")');
 await page.setInputFiles('input[type="file"]', FIXTURE);
@@ -3842,7 +3913,16 @@ await step("замер, обмерный план", "21-zamer.png");
 await цели(page, "замер");
 await безымянные(page, "замер");
 
-/* Внесение помещения и его удаление: итог обязан вернуться к исходному. */
+/* Внесение помещения и его удаление: итог обязан вернуться к исходному.
+   С пунктом 7.4 помещение вносится с окнами: лист спрашивает их количество,
+   площадь и откосы, а «Общее» называет итог проёмов по объекту. */
+const окнаВОбщем = async () => {
+  const текст = (await page.locator(".measure__openings").first().innerText().catch(() => "")) ?? "";
+  const match = /Окна\s*(\d+)\s*шт/u.exec(текст);
+  return match === null ? null : Number(match[1]);
+};
+const оконДо = await окнаВОбщем();
+if (оконДо === null) note("7.4 окна и двери", "в «Общем» нет итога окон");
 await page.click('button:has-text("Добавить помещение")');
 await page.waitForSelector('.sheet input');
 const sheetInputs = page.locator(".sheet input");
@@ -3851,11 +3931,23 @@ await sheetInputs.nth(1).fill("10");
 await sheetInputs.nth(2).fill("13");
 await sheetInputs.nth(3).fill("14");
 await sheetInputs.nth(4).fill("2,7");
+const полейПроёмов = await page.locator(".sheet fieldset.openings input").count();
+if (полейПроёмов !== 6) {
+  note("7.4 окна и двери", `в листе помещения ${полейПроёмов} полей проёмов вместо шести (окна и двери: количество, площадь, откосы)`);
+} else {
+  const окна = page.locator('.sheet fieldset.openings:has(legend:text-is("Окна")) input');
+  await окна.nth(0).fill("2");
+  await окна.nth(1).fill("3,6");
+  await окна.nth(2).fill("9,8");
+}
 await step("замер, форма помещения", "22-zamer-forma.png");
 await page.click('.sheet button:has-text("Добавить помещение")');
 await page.waitForTimeout(700);
 const grown = await page.locator(".spec").first().innerText();
 if (!grown.includes("90,53\u00A0м²")) note("замер", `после внесения площадь «${grown.replace(/\n/g, " ")}»`);
+if (оконДо !== null && (await окнаВОбщем()) !== оконДо + 2) {
+  note("7.4 окна и двери", `после внесения помещения с двумя окнами в «Общем» окон ${String(await окнаВОбщем())} вместо ${String(оконДо + 2)}`);
+}
 
 await page.click('.measure__item:has-text("Проверка страницы")');
 await page.click('button:has-text("Править помещение")');
@@ -3872,6 +3964,9 @@ await page.waitForTimeout(700);
 const restoredTotals = await page.locator(".spec").first().innerText();
 if (!restoredTotals.includes("80,53\u00A0м²")) {
   note("замер", `после удаления площадь «${restoredTotals.replace(/\n/g, " ")}» вместо 80,53 м²`);
+}
+if (оконДо !== null && (await окнаВОбщем()) !== оконДо) {
+  note("7.4 окна и двери", `после удаления помещения окон в «Общем» ${String(await окнаВОбщем())} вместо ${String(оконДо)}`);
 }
 
 /* Печатный вид: ведомость всех помещений, без навигации и плашек. */

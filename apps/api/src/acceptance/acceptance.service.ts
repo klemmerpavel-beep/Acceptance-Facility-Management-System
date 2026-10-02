@@ -106,7 +106,8 @@ export class AcceptanceService {
         select: { id: true, name: true, order: true },
       }),
       this.prisma.estimateItem.findMany({
-        where: { estimateId: estimate.id },
+        /* Снятые со сметы позиции (пункт 7.3) к приёмке не предлагаются. */
+        where: { estimateId: estimate.id, removedAt: null },
         orderBy: { order: "asc" },
         select: {
           id: true, sectionId: true, name: true, order: true,
@@ -448,7 +449,11 @@ export class AcceptanceService {
     /* Позиции берутся вместе с принятым: проверить остаток можно только
        зная, сколько уже принято, а это сумма записей, а не поле. */
     const items = await this.prisma.estimateItem.findMany({
-      where: { id: { in: input.positions.map((position) => position.itemId) }, estimateId: estimate.id },
+      where: {
+        id: { in: input.positions.map((position) => position.itemId) },
+        estimateId: estimate.id,
+        removedAt: null,
+      },
       select: {
         id: true, name: true, qty: true, unitWage: true,
         unit: { select: { code: true } },

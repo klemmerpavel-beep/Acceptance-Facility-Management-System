@@ -12,7 +12,10 @@ import {
   fetchEstimate, fetchEvents, fetchImports, fetchMeasure, moveEstimateItem,
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen, fetchStages, planStages,
+  createEstimateItem, removeEstimateItem, createEstimateSection, renameEstimateSection,
+  removeEstimateSection,
 } from "./api.js";
+import { SectionSheet } from "./SectionSheet.js";
 import { PlanSheet } from "./PlanSheet.js";
 import { StageList } from "./StageList.js";
 import { useNarrow } from "./media.js";
@@ -233,6 +236,10 @@ export function ProjectCard({
      лист правки подставляет площади обмера в количество позиции, а единицу
      выбирают из канонического набора, а не пишут свободно. */
   const [editing, setEditing] = useState<EstimateItem | null>(null);
+  /* Заведение позиции — раздел, куда она встанет; лист раздела — правимый
+     раздел или заведение нового (план, пункт 7.3). */
+  const [новаяВ, setНоваяВ] = useState<string | null>(null);
+  const [раздел, setРаздел] = useState<{ section: EstimateSectionNode | null } | null>(null);
   const [supervisionOpen, setSupervisionOpen] = useState(false);
   /* Закрытые транши читаются при открытии листа правки, а не со сметой:
      транш закрывают на другой вкладке, и снятый заранее перечень молчал бы
@@ -323,6 +330,8 @@ export function ProjectCard({
       .then((view) => {
         setEstimate(view);
         setEditing(null);
+        setНоваяВ(null);
+        setРаздел(null);
         setSupervisionOpen(false);
         setEditError(null);
         void fetchEvents(project.code).then(setEvents).catch(() => setEvents([]));
@@ -911,6 +920,12 @@ export function ProjectCard({
                           onMoveItem: (item: EstimateItem, шагов: number) => {
                             переставить(estimate, project.code, item, шагов, сохранить, setEditError);
                           },
+                          onAddItem: (sectionId: string) => { setНоваяВ(sectionId); setEditError(null); },
+                          onEditSection: (section: EstimateSectionNode) => {
+                            setРаздел({ section });
+                            setEditError(null);
+                          },
+                          onAddSection: () => { setРаздел({ section: null }); setEditError(null); },
                           busy: editBusy,
                         }
                       : {})}
@@ -997,7 +1012,46 @@ export function ProjectCard({
                 .then(() => updateEstimateItem(project.code, editing.id, input));
             сохранить(работа);
           }}
+          onDelete={() => { сохранить(removeEstimateItem(project.code, editing.id)); }}
           onClose={() => { setEditing(null); setEditError(null); }}
+        />
+      )}
+
+      {новаяВ !== null && estimate !== null && (
+        <EstimateItemSheet
+          item={null}
+          units={units}
+          rooms={estimate.rooms}
+          replanned={estimate.replanned}
+          sections={разделыСписком(estimate.sections)}
+          sectionId={новаяВ}
+          measure={measure}
+          closed={[]}
+          busy={editBusy}
+          error={editError}
+          onSave={() => { /* правки у новой позиции нет */ }}
+          onCreate={(input) => { сохранить(createEstimateItem(project.code, input)); }}
+          onClose={() => { setНоваяВ(null); setEditError(null); }}
+        />
+      )}
+
+      {раздел !== null && estimate !== null && (
+        <SectionSheet
+          section={раздел.section}
+          parents={estimate.sections}
+          parentId={null}
+          busy={editBusy}
+          error={editError}
+          onCreate={(name, parentId) => { сохранить(createEstimateSection(project.code, { name, parentId })); }}
+          onRename={(name) => {
+            if (раздел.section === null) return;
+            сохранить(renameEstimateSection(project.code, раздел.section.id, { name }));
+          }}
+          onDelete={() => {
+            if (раздел.section === null) return;
+            сохранить(removeEstimateSection(project.code, раздел.section.id));
+          }}
+          onClose={() => { setРаздел(null); setEditError(null); }}
         />
       )}
 

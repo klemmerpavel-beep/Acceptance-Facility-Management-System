@@ -2737,3 +2737,18 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .otherexp__price { white-space: normal; }
   .otherexp__unit { display: block; }
 }
+
+/* Органы раздела сметы (пункт 7.3): «Добавить позицию» и «Раздел» стоят в
+   строке заголовка раздела, а не отдельной строкой: лишняя строка тела
+   таблицы на каждый из двадцати двух разделов удлинила бы свёрнутую смету
+   вдвое. На телефоне органы встают под заголовком раскрытой группы. */
+.estimate__section-head { display: flex; align-items: center; gap: var(--space-2); }
+.estimate__section-head .estimate__section-toggle { flex: 1 1 auto; min-inline-size: 0; }
+.estimate__section-acts { display: inline-flex; flex: none; align-items: center; gap: var(--space-1); }
+.estgroup > .estimate__section-acts { display: flex; justify-content: flex-end; padding: var(--space-1) var(--space-4); }
+
+/* Проёмы помещения в листе обмера (пункт 7.4): окна и двери — группами по
+   три поля. Рамка группы снята: лист и так отделяет поля подписями. */
+.openings { margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+.openings .row { flex-wrap: wrap; align-items: flex-end; }
+.openings .field { flex: 1 1 6rem; min-inline-size: 0; }

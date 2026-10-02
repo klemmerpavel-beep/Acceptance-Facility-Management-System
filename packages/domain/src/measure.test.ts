@@ -103,3 +103,29 @@ describe("итоги по объекту", () => {
     expect(пусто.volume).toBe(0n);
   });
 });
+
+describe("итоги проёмов по объекту (план, пункт 7.4)", () => {
+  const комната = (openings: RoomMeasure["openings"]): RoomMeasure => ({
+    floorArea: milliunits(20_000n), floorPerimeter: milliunits(18_000n),
+    ceilingPerimeter: milliunits(18_000n), height: milliunits(2_700n),
+    ...(openings === undefined ? {} : { openings }),
+  });
+
+  it("складывает окна и двери по видам: количество, площадь, откосы", () => {
+    const итоги = measureTotals([
+      комната([
+        { kind: "WINDOW", count: 2, area: milliunits(3_600n), reveal: milliunits(9_800n) },
+        { kind: "DOOR", count: 1, area: milliunits(1_870n), reveal: milliunits(5_070n) },
+      ]),
+      комната([{ kind: "WINDOW", count: 1, area: milliunits(1_500n), reveal: milliunits(4_400n) }]),
+    ]);
+    expect(итоги.windows).toEqual({ count: 3, area: 5_100n, reveal: 14_200n });
+    expect(итоги.doors).toEqual({ count: 1, area: 1_870n, reveal: 5_070n });
+  });
+
+  it("помещение без проёмов даёт нули, а не пропуск", () => {
+    const итоги = measureTotals([комната(undefined), комната([])]);
+    expect(итоги.windows).toEqual({ count: 0, area: 0n, reveal: 0n });
+    expect(итоги.doors).toEqual({ count: 0, area: 0n, reveal: 0n });
+  });
+});

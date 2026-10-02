@@ -514,6 +514,12 @@ model EstimateItem {
   /// позиций не заводится: строка обмера без замера попала бы в итоги
   /// площадей и развела бы их с обмерным планом.
   roomId     String? @db.Uuid
+  /// Позиция снята со сметы (план, пункт 7.3). Ставится только позиции, вся
+  /// приёмка которой сторнирована: записи приёмки держат её внешним ключом,
+  /// а история не переписывается. Снятая позиция не входит ни в вид сметы,
+  /// ни в итоги, ни в приёмку; её записи приёмки и сторно остаются.
+  /// Позицию без приёмки удаляют строкой — отметка ей не нужна.
+  removedAt  DateTime?
 
   estimate    Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   section     EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
