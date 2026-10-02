@@ -18,6 +18,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { artboardPage } from "./canvas-page.mjs";
+import { своиГарнитуры } from "./fonts.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const demo = join(root, "apps/web/dist-demo");
@@ -72,8 +73,19 @@ const index = readFileSync(join(demo, "index.demo.html"), "utf8")
   .replace("</head>", `  <meta name="build" content="${short}">\n  </head>`);
 writeFileSync(join(site, "index.html"), index);
 
+/* Гарнитуры — из сборки, а не с серверов Google (решение заказчика от
+   01.10.2026, П-52). Файлы и таблица объявлений кладутся в корень сайта;
+   страницы, собранные со ссылкой на Google Fonts для версии артефакта,
+   получают вместо неё свою таблицу. Демонстрация берёт гарнитуры из своей
+   сборки Vite и в подмене не нуждается. */
+cpSync(join(root, "packages/ui/src/fonts"), join(site, "fonts"), { recursive: true });
+writeFileSync(
+  join(site, "fonts.css"),
+  readFileSync(join(root, "packages/ui/src/styles/fonts.css"), "utf8").replaceAll('url("../fonts/', 'url("fonts/'),
+);
+
 for (const [source, target] of Object.entries(PAGES)) {
-  cpSync(join(design, source), join(site, target));
+  writeFileSync(join(site, target), своиГарнитуры(readFileSync(join(design, source), "utf8"), "fonts.css"));
 }
 
 buildCanvas();
@@ -114,7 +126,7 @@ function buildCanvas() {
       const file = board.file.replace(".dc.html", ".html");
       writeFileSync(
         join(site, "canvas", file),
-        artboardPage(readFileSync(join(canvasDir, board.file), "utf8")),
+        своиГарнитуры(artboardPage(readFileSync(join(canvasDir, board.file), "utf8")), "../fonts.css"),
       );
       /* Масштаб считается здесь, а не на странице: обзор обходится без
          скриптов, и место под артборд известно до его загрузки. */
@@ -136,15 +148,13 @@ function buildCanvas() {
     }
   }
 
-  /* Цвета и гарнитуры берутся из слоя стилей, а не пишутся здесь: вторая
-     палитра, набранная от руки, разошлась бы с продуктом на первой же
-     правке токенов — тем же путём, каким артборды пережили отмену шкалы
-     скруглений. Подключение гарнитур идёт первым: правило @import
-     действует только в начале таблицы стилей. */
+  /* Цвета берутся из слоя стилей, а не пишутся здесь: вторая палитра,
+     набранная от руки, разошлась бы с продуктом на первой же правке
+     токенов — тем же путём, каким артборды пережили отмену шкалы
+     скруглений. Гарнитуры — таблицей публикации `fonts.css`: встроенные
+     сюда объявления ссылались бы на файлы мимо их места (П-52). */
   const styles = join(root, "packages/ui/src/styles");
-  const layer = ["fonts.css", "tokens.css"]
-    .map((name) => readFileSync(join(styles, name), "utf8").trim())
-    .join("\n\n");
+  const layer = readFileSync(join(styles, "tokens.css"), "utf8").trim();
 
   writeFileSync(join(site, "canvas.html"), `<!doctype html>
 <html lang="ru">
@@ -153,6 +163,7 @@ function buildCanvas() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Приёмка — экраны платформы</title>
 <meta name="build" content="${short}">
+<link rel="stylesheet" href="fonts.css">
 <style>
 ${layer}
 

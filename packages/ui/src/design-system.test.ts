@@ -153,9 +153,12 @@ describe("начертания: запрошено только загружен
    * всякий числовой вес в слое стилей и в токенах загружен.
    */
   const FONTS = read("fonts.css");
+  /* Веса читаются из объявлений @font-face основной гарнитуры: с 02.10.2026
+     гарнитуры раздаются из сборки, а не адресом Google с перечнем весов
+     (П-52). */
   const загружено = new Set(
-    [...FONTS.matchAll(/family=Golos\+Text:wght@([0-9;]+)/gu)]
-      .flatMap((м) => pair1(м).split(";")),
+    [...FONTS.matchAll(/@font-face\s*\{[^}]*font-family:\s*"Golos Text";[^}]*font-weight:\s*(\d{3});/gu)]
+      .map(pair1),
   );
 
   it("загруженные веса гарнитуры прочитаны", () => {
@@ -167,6 +170,37 @@ describe("начертания: запрошено только загружен
       .flatMap((css) => [...css.matchAll(/(?:font-weight:|--fw-[a-z]+:)\s*(\d{3})/gu)].map(pair1))
       .filter((вес) => !загружено.has(вес));
     expect([...new Set(чужие)]).toEqual([]);
+  });
+});
+
+describe("гарнитуры раздаются из сборки", () => {
+  /**
+   * Правило @import с fonts.googleapis.com отдавало адрес каждого
+   * пользователя третьей стороне за рубеж при каждом входе (ст. 12 152-ФЗ;
+   * полный аудит 30.09.2026, П-52). Решение заказчика от 01.10.2026 —
+   * раздавать файлы из сборки. Проверяется свойство слоя стилей: ни одного
+   * внешнего адреса, каждый объявленный файл лежит в пакете, лицензия OFL —
+   * рядом с файлами, как она того требует.
+   */
+  const FONTS = read("fonts.css");
+  const файлы = [...FONTS.matchAll(/url\("\.\.\/fonts\/([^"]+)"\)/gu)].map(pair1);
+  const fontsDir = join(import.meta.dirname, "fonts");
+
+  it("слой стилей не обращается к внешним узлам", () => {
+    const внешние = [FONTS, TOKENS, ...OTHER_SHEETS.map((лист) => лист.css)].join("\n")
+      .match(/https?:\/\/[^\s"')]+/gu) ?? [];
+    expect(внешние.filter((адрес) => !адрес.startsWith("http://www.w3.org/"))).toEqual([]);
+  });
+
+  it("каждый объявленный файл гарнитуры лежит в пакете", () => {
+    expect(файлы.length).toBeGreaterThan(0);
+    expect(файлы.filter((файл) => !existsSync(join(fontsDir, файл)))).toEqual([]);
+  });
+
+  it("лицензия OFL лежит рядом с файлами каждой гарнитуры", () => {
+    const лицензии = readdirSync(fontsDir).filter((имя) => имя.startsWith("OFL-"));
+    const гарнитуры = new Set(файлы.map((файл) => файл.replace(/-(?:cyrillic|latin)(?:-ext)?-\d{3}-normal\.woff2$/u, "")));
+    expect([...гарнитуры].filter((гарнитура) => !лицензии.includes(`OFL-${гарнитура}.txt`))).toEqual([]);
   });
 });
 
