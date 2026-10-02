@@ -10,6 +10,7 @@ import { expenseFault, expenseTotals, formatKopecks, kopecks, ownerLevel } from 
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
+import { безМетаданных } from "../common/clean-image";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
@@ -165,7 +166,10 @@ export class ExpensesService {
     const сразуПодтверждён = ownerLevel(user.role);
     const key = `projects/${project.id}/expenses/${randomUUID()}`
       + `.${IMAGE_EXTENSION[photo.contentType]}`;
-    await this.storage.put(key, photo.buffer, photo.contentType);
+    /* Без метаданных и повёрнутым по ориентации (П-39); размер в записи —
+       того файла, что лежит в хранилище. */
+    const чистый = await безМетаданных(photo.buffer, photo.contentType);
+    await this.storage.put(key, чистый, photo.contentType);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.materialExpense.create({
@@ -182,7 +186,7 @@ export class ExpensesService {
           storageKey: key,
           fileName: photo.fileName,
           contentType: photo.contentType,
-          byteSize: photo.buffer.byteLength,
+          byteSize: чистый.byteLength,
           createdById: user.id,
           confirmedById: сразуПодтверждён ? user.id : null,
           confirmedAt: сразуПодтверждён ? new Date() : null,

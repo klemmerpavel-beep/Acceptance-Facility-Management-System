@@ -9,6 +9,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const BASE = process.env.API ?? "http://127.0.0.1:3000";
 const INTERNAL = ["unitWage", "wageTotal", "profit", "profitShare", "subtotalWage", "wage"];
@@ -1231,7 +1232,22 @@ const свой = new FormData();
   kind: "OTHER", amount: "200000", reimbursable: false,
   seller: "Проверка API", spentAt: "2026-09-05", sectionId: null, note: null,
 }));
-свой.append("file", new Blob([readFileSync(new URL("./fixtures/snimok.png", import.meta.url))]), "chek.png");
+/* Снимок чека — с метаданными, как с телефона: модель устройства, координаты
+   места съёмки и ориентация «повернуть на 90°». Хранилище обязано получить
+   кадр без них и повёрнутым (полный аудит 30.09.2026, П-39; решение от
+   01.10.2026). Снимок собирается той же `sharp`, что стоит на сервере. */
+const sharp = createRequire(new URL("../apps/api/package.json", import.meta.url))("sharp");
+const снимокСМетаданными = await sharp({
+  create: { width: 48, height: 24, channels: 3, background: { r: 200, g: 120, b: 40 } },
+})
+  .jpeg()
+  .withMetadata({ orientation: 6 })
+  .withExif({
+    IFD0: { Make: "ProverkaPhone", Model: "Proverka-1" },
+    IFD3: { GPSLatitudeRef: "N", GPSLatitude: "55/1 45/1 0/1", GPSLongitudeRef: "E", GPSLongitude: "37/1 37/1 0/1" },
+  })
+  .toBuffer();
+свой.append("file", new Blob([снимокСМетаданными]), "chek.jpg");
 const свойЗаведён = await foreman("/projects/R-99/expenses", { method: "POST", body: свой })
   .then((r) => r.json());
 check(свойЗаведён.totals.drafts === 2,
@@ -1240,6 +1256,15 @@ check(свойЗаведён.totals.spent === "5220000",
   `черновик прораба попал в потраченное: ${свойЗаведён.totals.spent} вместо 5220000`);
 const черновик = свойЗаведён.rows.find((строка) => строка.seller === "Проверка API");
 check(черновик?.status === "DRAFT", `чек прораба заведён как «${черновик?.status}» вместо черновика`);
+{
+  const хранится = Buffer.from(await owner(`/projects/R-99/expenses/${черновик?.id}/file`)
+    .then((r) => r.arrayBuffer()));
+  const кадр = await sharp(хранится).metadata().catch(() => null);
+  check(!хранится.includes(Buffer.from("Exif\0\0")) && !хранится.includes("ProverkaPhone"),
+    "снимок чека хранится с метаданными: координаты и устройство уходят вместе с ним");
+  check(кадр?.width === 24 && кадр?.height === 48 && кадр?.orientation === undefined,
+    `снимок чека не повёрнут по ориентации: ${String(кадр?.width)}×${String(кадр?.height)}, ориентация ${String(кадр?.orientation)}`);
+}
 
 /* Прораб не подтверждает свой же черновик: право признать расход деньгами
    студии шире права его заявить. */

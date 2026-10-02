@@ -14,6 +14,7 @@ import { AuditService } from "../common/audit.service";
 import { currentEstimate } from "../common/current-estimate";
 import { topLevelSections } from "../common/section-rollup";
 import { FileStorage } from "../common/file-storage";
+import { безМетаданных } from "../common/clean-image";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
@@ -473,7 +474,9 @@ export class AcceptanceService {
        допускает. Файл кладётся до транзакции — запись в базе без файла
        хуже, чем файл без записи: второе видно уборкой, первое ничем. */
     const key = `projects/${project.id}/acceptance/${randomUUID()}.${IMAGE_EXTENSION[photo.contentType]}`;
-    await this.storage.put(key, photo.buffer, photo.contentType);
+    /* Снимок кладётся без метаданных и повёрнутым по ориентации: координаты
+       квартиры заказчика уходили вместе со снимком отчёта (П-39). */
+    await this.storage.put(key, await безМетаданных(photo.buffer, photo.contentType), photo.contentType);
 
     /* Транш проставляется снимком, как и бригада: открытие транша задним
        числом не должно переписывать уже принятое (БП-04). Открытого транша
