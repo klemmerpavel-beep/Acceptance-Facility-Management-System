@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import type { NextProjectCode, ProjectEvent, ProjectSummary } from "@priyomka/contracts";
+import type { NextProjectCode, ProjectEvent, ProjectFacts, ProjectSummary } from "@priyomka/contracts";
 import { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } from "@priyomka/contracts";
 import { ProjectsService } from "./projects.service";
 import { SessionGuard } from "../auth/session.guard";
@@ -33,6 +33,19 @@ export class ProjectsController {
   @Roles("OWNER", "FOREMAN", "CLIENT")
   byCode(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ProjectSummary> {
     return this.projects.byCode(user, code);
+  }
+
+  /**
+   * Факты объекта для блока «Выполнено N из M» (план, пункт 7.8).
+   *
+   * Уровень руководителя: бухгалтер наследует, прорабу и заказчику — отказ.
+   * Среди фактов — вход заказчика и оплата предоплаты; разграничение стоит
+   * на маршруте, а не на экране, который блок не рисует.
+   */
+  @Get(":code/facts")
+  @Roles("OWNER")
+  facts(@CurrentUser() user: RequestUser, @Param("code") code: string): Promise<ProjectFacts> {
+    return this.projects.facts(user, code);
   }
 
   @Post()

@@ -4,6 +4,52 @@ import type { PhotoReport } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { acceptancePhotoUrl, errorMessage, fetchReport } from "./api.js";
 import { formatDate, plural } from "./status.js";
+import { PhotoViewer, type СнимокПросмотра } from "./PhotoViewer.js";
+
+/** Класс коллажа по числу показанных снимков — готовыми именами, а не сборкой строки. */
+const КОЛЛАЖ: Readonly<Record<number, string>> = {
+  1: "collage collage--1",
+  2: "collage collage--2",
+  3: "collage collage--3",
+};
+
+/**
+ * Коллаж дня (план, пункт 7.7): «1 крупный + 2 мелких», на последнем — «+N».
+ *
+ * Прежде карточка пакета показывала только первый снимок пакета, а день из
+ * пяти приёмок — пятью одинаковыми по весу карточками без связи. Коллаж
+ * собирает снимки всех пакетов дня; каждый открывает просмотр во весь экран
+ * с того места, где на него нажали.
+ */
+function Коллаж({
+  снимки,
+  onOpen,
+}: {
+  снимки: readonly СнимокПросмотра[];
+  onOpen: (номер: number) => void;
+}): React.JSX.Element {
+  const видно = снимки.slice(0, 3);
+  const ещё = снимки.length - видно.length;
+  return (
+    <div className={КОЛЛАЖ[видно.length] ?? "collage"}>
+      {видно.map((снимок, номер) => (
+        <button
+          key={снимок.id}
+          type="button"
+          className={номер === 0 ? "collage__tile collage__tile--main" : "collage__tile"}
+          aria-label={`Открыть снимок ${String(номер + 1)} из ${String(снимки.length)}: ${снимок.подпись}`
+            + (номер === видно.length - 1 && ещё > 0 ? `, ещё ${String(ещё)}` : "")}
+          onClick={() => { onOpen(номер); }}
+        >
+          <img className="report__photo" src={снимок.src} alt="" loading="lazy" draggable={false} />
+          {номер === видно.length - 1 && ещё > 0 && (
+            <span className="collage__more" aria-hidden="true">+{ещё}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Фотоотчёт объекта (стадия C.4).
@@ -19,6 +65,7 @@ export function Report({ code }: { code: string }): React.JSX.Element {
   const [report, setReport] = useState<PhotoReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<string | null>(null);
+  const [просмотр, setПросмотр] = useState<{ снимки: readonly СнимокПросмотра[]; начало: number } | null>(null);
 
   const load = useCallback(() => {
     fetchReport(code)
@@ -101,30 +148,34 @@ export function Report({ code }: { code: string }): React.JSX.Element {
         ))}
       </div>
 
-      {дни.map((день) => (
-        <section className="stack stack--tight" key={день.day}>
+      {дни.map((день) => {
+        /* Снимки дня — всех его пакетов подряд. Подпись называет раздел и
+           дату: по ним снимок и ищут; сторно названо, а не спрятано. */
+        const снимкиДня: СнимокПросмотра[] = день.batches.flatMap((пакет) => пакет.photos.map((id) => ({
+          id,
+          src: acceptancePhotoUrl(code, id),
+          подпись: `${sectionTitle(пакет.sectionName)} · ${formatDate(день.day)}`
+            + (пакет.reversed ? " · сторнировано" : ""),
+        })));
+        return (
+        <section className="stack stack--tight daycard" key={день.day}>
           <div className="section-head">
             <h2 className="t-h3">{formatDate(день.day)}</h2>
             <p className="t-sm t-muted">
               {день.batches.length} {plural(день.batches.length, "приёмка", "приёмки", "приёмок")}
+              {" · "}
+              {снимкиДня.length} {plural(снимкиДня.length, "снимок", "снимка", "снимков")}
             </p>
           </div>
+          {снимкиДня.length > 0 && (
+            <Коллаж снимки={снимкиДня} onOpen={(начало) => { setПросмотр({ снимки: снимкиДня, начало }); }} />
+          )}
           <div className="report__grid">
             {день.batches.map((пакет) => (
               <figure
                 className={пакет.reversed ? "report__card report__card--reversed" : "report__card"}
                 key={пакет.id}
               >
-                {пакет.photos[0] === undefined ? (
-                  <span className="report__photo" />
-                ) : (
-                  <img
-                    className="report__photo"
-                    src={acceptancePhotoUrl(code, пакет.photos[0])}
-                    alt={`Приёмка: ${пакет.sectionName}, ${formatDate(пакет.at.slice(0, 10))}`}
-                    loading="lazy"
-                  />
-                )}
                 <figcaption className="stack stack--tight">
                   <p className="t-sm">
                     {sectionTitle(пакет.sectionName)} · {пакет.brigade}
@@ -154,7 +205,16 @@ export function Report({ code }: { code: string }): React.JSX.Element {
             ))}
           </div>
         </section>
-      ))}
+        );
+      })}
+
+      {просмотр !== null && (
+        <PhotoViewer
+          снимки={просмотр.снимки}
+          начало={просмотр.начало}
+          onClose={() => { setПросмотр(null); }}
+        />
+      )}
     </section>
   );
 }

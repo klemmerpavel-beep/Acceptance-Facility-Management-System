@@ -11,7 +11,7 @@ import {
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
   inviteIssuedSchema, personRowSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
-  organizationSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
+  organizationSchema, projectFactsSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
   type AcceptanceView, type CreateAcceptance, type Reversal,
   type CloseTranche, type CreatePayment, type CreateTranche, type TrancheView,
@@ -25,7 +25,7 @@ import {
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
   type BlueprintRow, type BlueprintView, type CreateBlueprint,
   type MoveEstimateItem, type UpdateEstimateItem, type UpdateSupervision,
-  type CreateEstimateItem, type CreateEstimateSection, type RenameEstimateSection,
+  type CreateEstimateItem, type CreateEstimateSection, type RenameEstimateSection, type ProjectFacts,
   type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
@@ -94,6 +94,10 @@ export const fetchCurrentUser = (): Promise<CurrentUser> =>
  */
 export const fetchProject = (code: string): Promise<ProjectSummary> =>
   request(`/projects/${code}`, projectSummarySchema);
+
+/** Факты объекта для «Выполнено N из M» (пункт 7.8). Уровень руководителя. */
+export const fetchProjectFacts = (code: string): Promise<ProjectFacts> =>
+  request(`/projects/${code}/facts`, projectFactsSchema);
 
 export const fetchProjects = (): Promise<ProjectSummary[]> =>
   request("/projects", z.array(projectSummarySchema));

@@ -855,6 +855,26 @@ export const updateEstimateItemSchema = z.object({
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
 /**
+ * Факты объекта для блока «Выполнено N из M» (план, пункт 7.8): выполнен ли
+ * каждый из девяти шагов. Шаги и их порядок — в домене (`ШАГИ_ОБЪЕКТА`);
+ * сервер отдаёт только факты, следующий шаг выводит та же чистая функция,
+ * что и на экране. Маршрут открыт уровню руководителя: среди фактов — вход
+ * заказчика и оплата предоплаты, которых прорабу и заказчику не видно.
+ */
+export const projectFactsSchema = z.object({
+  rooms: z.boolean(),
+  estimate: z.boolean(),
+  schedule: z.boolean(),
+  foreman: z.boolean(),
+  clientAccess: z.boolean(),
+  prepayment: z.boolean(),
+  acceptance: z.boolean(),
+  act: z.boolean(),
+  signed: z.boolean(),
+});
+export type ProjectFacts = z.infer<typeof projectFactsSchema>;
+
+/**
  * Заведение позиции в действующей редакции (план, пункт 7.3).
  *
  * Прежде смета менялась только импортом и правкой существующих позиций:

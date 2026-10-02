@@ -5544,6 +5544,70 @@ if (карточекОтчёта === 0) {
   if (текстОтчёта.includes("\u20BD")) {
     note("отчёт", "в отчёте есть денежные величины");
   }
+  /* Коллаж дня и просмотр во весь экран (план, пункт 7.7). На стенде день
+     съёмки держит больше трёх снимков: коллаж показывает три — крупный и два
+     мелких, — а на последнем стоит «+N». Просмотр листается клавишами и
+     свайпом, Esc закрывает, фокус возвращается к снимку коллажа. */
+  {
+    const коллаж = page.locator(".collage").first();
+    if ((await коллаж.count()) === 0) {
+      note("7.7 коллаж дня", "в отчёте нет коллажа дня — снимки показаны по одному на пакет");
+    } else {
+      const плитки = коллаж.locator(".collage__tile");
+      const подписьПервой = (await плитки.first().getAttribute("aria-label")) ?? "";
+      const всего = Number(/из (\d+)/u.exec(подписьПервой)?.[1] ?? "0");
+      const видно = await плитки.count();
+      if (видно !== Math.min(3, всего) || всего < 4) {
+        note("7.7 коллаж дня", `в коллаже ${видно} снимков при ${всего} за день: ждали три, а на стенде — больше трёх`);
+      }
+      const ещё = ((await коллаж.locator(".collage__more").textContent().catch(() => "")) ?? "").trim();
+      if (всего > 3 && ещё !== `+${String(всего - 3)}`) {
+        note("7.7 коллаж дня", `на последнем снимке «${ещё || "ничего"}» вместо «+${String(всего - 3)}»`);
+      }
+      const крупный = await плитки.first().boundingBox();
+      const мелкий = await плитки.nth(1).boundingBox();
+      if (крупный === null || мелкий === null || крупный.height < мелкий.height * 1.5) {
+        note("7.7 коллаж дня", "первый снимок коллажа не крупный: раскладка «1 + 2» не держится");
+      }
+      await плитки.first().click();
+      const окно = page.locator('[role="dialog"][aria-label="Просмотр снимков"]');
+      await окно.waitFor({ timeout: 3000 }).catch(() => null);
+      if ((await окно.count()) === 0) {
+        note("7.7 коллаж дня", "нажатие на снимок не открыло просмотр во весь экран");
+      } else {
+        const счёт = async () => ((await окно.locator(".viewer__caption").innerText()) ?? "").replace(/\s+/gu, " ");
+        const первая = await счёт();
+        if (!/· \d{2}\.\d{2}\.\d{4}/u.test(первая) || !первая.includes(`1 из ${String(всего)}`)) {
+          note("7.7 коллаж дня", `подпись снимка не называет раздел и дату или счёт: «${первая}»`);
+        }
+        await page.keyboard.press("ArrowRight");
+        await page.waitForTimeout(150);
+        if (!(await счёт()).includes(`2 из ${String(всего)}`)) note("7.7 коллаж дня", "клавиша → не листает просмотр");
+        await page.keyboard.press("ArrowLeft");
+        await page.waitForTimeout(150);
+        if (!(await счёт()).includes(`1 из ${String(всего)}`)) note("7.7 коллаж дня", "клавиша ← не листает просмотр");
+        const сцена = await окно.locator(".viewer__stage").boundingBox();
+        if (сцена !== null) {
+          const y = сцена.y + сцена.height / 2;
+          await page.mouse.move(сцена.x + сцена.width * 0.8, y);
+          await page.mouse.down();
+          await page.mouse.move(сцена.x + сцена.width * 0.2, y, { steps: 6 });
+          await page.mouse.up();
+          await page.waitForTimeout(150);
+          if (!(await счёт()).includes(`2 из ${String(всего)}`)) note("7.7 коллаж дня", "свайп влево не листает просмотр");
+        }
+        /* Фокус удерживается внутри окна: Tab с последнего органа не уходит наружу. */
+        for (let шаг = 0; шаг < 6; шаг += 1) await page.keyboard.press("Tab");
+        const внутри = await page.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null);
+        if (!внутри) note("7.7 коллаж дня", "фокус ушёл из окна просмотра по Tab");
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(250);
+        if ((await окно.count()) > 0) note("7.7 коллаж дня", "Esc не закрыл просмотр");
+        const вернулся = await page.evaluate(() => document.activeElement?.classList.contains("collage__tile") === true);
+        if (!вернулся) note("7.7 коллаж дня", "после закрытия фокус не вернулся к снимку коллажа");
+      }
+    }
+  }
 }
 await step("отчёт по объекту, 1440", "36-otchyot.png");
 
@@ -6044,6 +6108,39 @@ for (const роль of РОЛИ_ВХОДА) {
     const отмечено = await лист.locator('#panel-overview .stagelist__row[aria-current="step"]').count();
     if (этаповОбзора !== 7 || отмечено !== 1) {
       note("7.5 перечень этапов", `${роль.имя}: «График работ» на «Обзоре» — этапов ${этаповОбзора} из семи, отмечено текущих ${отмечено} вместо одного`);
+    }
+
+
+    /* 7.8. «Выполнено N из M» — руководителю и бухгалтеру; прорабу и
+       заказчику блока нет. Руководитель переходит к шагу кнопкой. */
+    {
+      const блоков = await лист.locator("#panel-overview .nextstep").count();
+      if (роль.руководит && блоков !== 1) note("7.8 следующее действие", `${роль.имя}: на «Обзоре» нет блока «Выполнено N из M»`);
+      if (!роль.руководит && блоков !== 0) note("7.8 следующее действие", `${роль.имя}: видит блок «Выполнено N из M»`);
+      if (роль.руководит && блоков === 1) {
+        const заголовок = ((await лист.locator(".nextstep h2").innerText()) ?? "").trim();
+        const счёт = /^Выполнено (\d+) из (\d+)$/u.exec(заголовок);
+        if (счёт === null || счёт[2] !== "9") note("7.8 следующее действие", `${роль.имя}: заголовок блока «${заголовок}»`);
+        const следующих = await лист.locator(".nextstep__label").count();
+        if (счёт !== null && счёт[1] !== "9" && следующих !== 1) {
+          note("7.8 следующее действие", `${роль.имя}: следующих шагов ${следующих} вместо одного`);
+        }
+        const переход = лист.locator('.nextstep button:has-text("Перейти к шагу")');
+        if (роль.имя === "руководитель" && счёт !== null && счёт[1] !== "9") {
+          if ((await переход.count()) !== 1) {
+            note("7.8 следующее действие", "у руководителя нет перехода к следующему шагу");
+          } else {
+            await переход.click();
+            await лист.waitForTimeout(500);
+            const ушёл = await лист.evaluate(() =>
+              document.querySelector('.tabs__item[aria-selected="true"]')?.textContent?.trim() !== "Обзор"
+              || window.location.hash === "#settings"
+              || document.activeElement?.closest("#card-foreman") !== null);
+            if (!ушёл) note("7.8 следующее действие", "кнопка «Перейти к шагу» никуда не перевела");
+            await открыть("#R-99");
+          }
+        }
+      }
     }
 
     const вкладки = (await лист.locator(".tabs__item").allTextContents()).map((текст) => текст.trim());

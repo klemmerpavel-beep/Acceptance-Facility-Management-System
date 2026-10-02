@@ -519,6 +519,82 @@ await page.waitForTimeout(800);
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/* --- Коллаж дня и следующее действие (план, этап Э7: пункты 7.7 и 7.8) -------
+   Снимки отчёта двойник отдаёт из каталога демонстрации, и его дефект —
+   одна картинка на любой опознаватель — виден только здесь: на стенде
+   снимки лежат на сервере. Блок «Выполнено N из M» строится из фактов
+   слепка: слепок, снятый без них, оставил бы «Обзор» без блока, а стенд
+   этого не заметил бы. */
+{
+  const войти = async (роль) => {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(600);
+  };
+
+  await войти("Руководитель");
+  await page.goto(`${BASE}/#R-99/report`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  const коллажи = await page.$$eval(".collage", (узлы) => узлы.map((узел) => {
+    const снимки = [...узел.querySelectorAll(".collage__tile img")];
+    return {
+      адреса: снимки.map((снимок) => снимок.getAttribute("src") ?? ""),
+      загружено: снимки.every((снимок) => снимок.complete && снимок.naturalWidth > 0),
+      ещё: (узел.querySelector(".collage__more")?.textContent ?? "").trim(),
+    };
+  }));
+  const полный = коллажи.find((коллаж) => коллаж.ещё !== "");
+  if (коллажи.length === 0) {
+    note("7.7 коллаж дня", "в отчёте демонстрации коллажа нет");
+  } else if (полный === undefined) {
+    note("7.7 коллаж дня", "в демонстрации нет дня, где снимков больше трёх: «+N» не показан");
+  } else {
+    const разных = new Set(полный.адреса).size;
+    if (полный.адреса.length !== 3 || разных !== 3) {
+      note("7.7 коллаж дня", `в коллаже ${полный.адреса.length} плиток, разных снимков ${разных}: двойник отдаёт одну картинку`);
+    }
+    if (!полный.загружено) note("7.7 коллаж дня", "снимок коллажа не загрузился");
+    await page.locator(".collage", { has: page.locator(".collage__more") }).first()
+      .locator(".collage__tile").first().click();
+    await page.waitForTimeout(400);
+    const окно = page.locator('[role="dialog"][aria-label="Просмотр снимков"]');
+    if ((await окно.count()) === 0) {
+      note("7.7 коллаж дня", "нажатие на снимок не открыло просмотр");
+    } else {
+      const снимок = async () => окно.locator("img").first().getAttribute("src");
+      const был = await снимок();
+      await page.keyboard.press("ArrowRight");
+      await page.waitForTimeout(200);
+      if ((await снимок()) === был) note("7.7 коллаж дня", "клавиша → не сменила снимок просмотра");
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(200);
+      if ((await окно.count()) > 0) note("7.7 коллаж дня", "Esc не закрыл просмотр");
+    }
+  }
+
+  /* 7.8. Блок стоит у руководителя на «Обзоре» каждой карточки — факты
+     сняты по всем объектам; прорабу маршрут фактов закрыт, блока у него нет. */
+  await page.goto(`${BASE}/#projects`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const коды = await page.$$eval(".objecttile__link", (ссылки) => ссылки
+    .map((ссылка) => /#(R-\d+)$/u.exec(ссылка.getAttribute("href") ?? "")?.[1] ?? "")
+    .filter((код) => код !== ""));
+  if (коды.length === 0) note("7.8 следующее действие", "демонстрация: в портфеле нет ссылок на карточки");
+  for (const код of коды) {
+    await page.goto(`${BASE}/#${код}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(500);
+    const заголовок = (await page.locator("#overview-next-head").first().innerText().catch(() => "")).trim();
+    if (!/^Выполнено \d+ из 9$/u.test(заголовок)) {
+      note("7.8 следующее действие", `демонстрация, руководитель, ${код}: заголовок блока «${заголовок || "нет блока"}»`);
+    }
+  }
+  await войти("Прораб");
+  await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  if ((await число(".nextstep")) > 0) note("7.8 следующее действие", "демонстрация: прораб видит блок «Выполнено N из M»");
+}
+
 await browser.close();
 server.close();
 

@@ -26,7 +26,7 @@ import type {
   PhotoReport, ReportBatch,
   CloseTranche, CreatePayment, CreateTranche, TrancheView, UpdateClient,
   EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
-  CreateEstimateItem, CreateEstimateSection, RenameEstimateSection,
+  CreateEstimateItem, CreateEstimateSection, RenameEstimateSection, ProjectFacts,
 } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
@@ -48,6 +48,8 @@ import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
 
 interface Snapshot {
+  /** Факты объектов для «Выполнено N из M» (пункт 7.8), по коду; снимает руководитель. */
+  "facts-owner"?: Record<string, ProjectFacts>;
   "me-owner": CurrentUser;
   "me-foreman": CurrentUser;
   "projects-owner": ProjectSummary[];
@@ -270,6 +272,18 @@ export async function fetchProject(code: string): Promise<ProjectSummary> {
   const найден = все.find((project) => project.code === code);
   if (найден === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
   return найден;
+}
+
+/**
+ * Факты объекта в двойнике (пункт 7.8). Берутся из слепка, снятого от
+ * руководителя; прорабу и заказчику маршрут закрыт так же, как на сервере.
+ */
+export async function fetchProjectFacts(code: string): Promise<ProjectFacts> {
+  await pause(120);
+  if (!ownerLevel(демоРоль)) throw new Error("Факты объекта открыты руководителю и бухгалтеру.");
+  const факты = data["facts-owner"]?.[code];
+  if (факты === undefined) throw new Error(`Факты объекта ${code} в демонстрации не сняты.`);
+  return факты;
 }
 
 export async function fetchProjects(): Promise<ProjectSummary[]> {
@@ -919,12 +933,38 @@ function пересчитатьПриёмку(вид: AcceptanceView): void {
   }));
 }
 
-/** Снимок пакета: в демонстрации это вшитая заготовка, а не файл на сервере. */
-/* Снимок объекта, если он есть в каталоге демонстрации; иначе общая
-   заготовка — она годится для ленты фотоотчёта, где видно, что это образец,
-   и не годится для обложки портфеля, которая обязана различать объекты. */
-export const acceptancePhotoUrl = (code: string): string =>
-  снимокОбъекта(code) ?? ЗАГОТОВКА_СНИМКА;
+/**
+ * Снимки фотоотчёта демонстрации (план, пункт 7.7). Рисует их
+ * `scripts/report-photos.mjs` — тем же генератором, что наполняет стенд;
+ * сторонних фотографий здесь нет.
+ */
+const СНИМКИ_ОТЧЁТА = Object.entries(import.meta.glob<string>("./demo/report/*.webp", {
+  eager: true, query: "?url", import: "default",
+})).sort(([а], [б]) => а.localeCompare(б)).map(([, адрес]) => адрес);
+
+/** Обложки объектов — снимки, которые показываются снимком объекта. */
+const ОБЛОЖКИ = new Set(data["projects-owner"].flatMap((объект) =>
+  объект.cover === null ? [] : [объект.cover.photoId]));
+
+/** Какому снимку демонстрации отвечает опознаватель: по порядку первого обращения. */
+const номерСнимка = new Map<string, number>();
+
+/* Снимок пакета. Прежде двойник отдавал на любой опознаватель одну картинку —
+   обложку объекта или вшитую заготовку, — и коллаж дня показал бы три
+   одинаковых кадра. Теперь разные опознаватели получают разные снимки
+   демонстрации, а обложка объекта остаётся его собственным снимком: портфель
+   обязан различать объекты. */
+export const acceptancePhotoUrl = (code: string, id?: string): string => {
+  if (id === undefined || ОБЛОЖКИ.has(id) || СНИМКИ_ОТЧЁТА.length === 0) {
+    return снимокОбъекта(code) ?? ЗАГОТОВКА_СНИМКА;
+  }
+  let номер = номерСнимка.get(id);
+  if (номер === undefined) {
+    номер = номерСнимка.size;
+    номерСнимка.set(id, номер);
+  }
+  return СНИМКИ_ОТЧЁТА[номер % СНИМКИ_ОТЧЁТА.length] ?? ЗАГОТОВКА_СНИМКА;
+};
 
 /* --- фотоотчёт -----------------------------------------------------------
    Отчёт собирается из того же состояния приёмки, что и вкладка «Приёмка»,
