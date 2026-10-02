@@ -12,17 +12,7 @@ import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { FileStorage } from "../common/file-storage";
 import { безМетаданных } from "../common/clean-image";
-import { IMAGE_EXTENSION, detectImageType } from "../measure/image-type";
-
-/**
- * Тип скана по содержимому: снимок (JPEG, PNG, WebP) или PDF. Расширение и
- * заявленный браузером тип не проверяются — их подделать проще, чем подпись.
- */
-const типСкана = (body: Buffer): { type: string; extension: string } | null => {
-  if (body.length >= 5 && body.toString("latin1", 0, 5) === "%PDF-") return { type: "application/pdf", extension: "pdf" };
-  const снимок = detectImageType(body);
-  return снимок === null ? null : { type: снимок, extension: IMAGE_EXTENSION[снимок] };
-};
+import { типСкана } from "./scan-type";
 
 /**
  * Акт выполненных работ.
@@ -375,7 +365,7 @@ export class ActsService {
     }
     const файл = тип.type === "application/pdf"
       ? body
-      : await безМетаданных(body, тип.type as Parameters<typeof безМетаданных>[1]);
+      : await безМетаданных(body, тип.type);
     const key = `projects/${project.id}/acts/${randomUUID()}.${тип.extension}`;
     await this.storage.put(key, файл, тип.type);
     await this.prisma.$transaction(async (tx) => {
