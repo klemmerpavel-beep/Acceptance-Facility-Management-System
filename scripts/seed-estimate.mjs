@@ -203,6 +203,45 @@ if (позиция !== undefined) {
     : `  приёмка стенда не прошла: код ${ответ.status}`);
 }
 
+/* --- снятая со сметы позиция (план, пункт 7.3) ---------------------------------
+   Состояние, которого нет в данных, не проверяется ничем (`03_DESIGN_SYSTEM.md`,
+   41.7). Позиция заведена в смету, принята, сторнирована и снята со сметы:
+   её приёмка и сторно остаются в истории, а в смете, итогах и приёмке её
+   нет. Название вымышленное, как и всё наполнение стенда. */
+if (разделСЭтапом !== undefined) {
+  const ИМЯ = "Грунтовка ниш, дополнительно (снята со сметы)";
+  const заведена = await fetch(`${BASE}/projects/${CODE}/estimate/items`, {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      sectionId: разделСЭтапом.id, name: ИМЯ, unit: "м²",
+      qty: "3000", unitPrice: "12000", unitWage: "5000", roomId: null,
+    }),
+  });
+  const обход = (узлы) => узлы.flatMap((узел) => [...узел.items, ...обход(узел.children)]);
+  const новая = заведена.ok ? обход((await заведена.json()).sections ?? []).find((строка) => строка.name === ИМЯ) : undefined;
+  const форма = new FormData();
+  форма.append("batch", JSON.stringify({
+    sectionId: разделСЭтапом.id, comment: "Работа исключена из договора",
+    positions: [{ itemId: новая?.id, qty: "3000" }],
+  }));
+  форма.append("file", new Blob([readFileSync(new URL("./fixtures/snimok.png", import.meta.url))]), "snimok.png");
+  const принята = await fetch(`${BASE}/projects/${CODE}/acceptance`, { method: "POST", headers: { cookie }, body: форма });
+  const строка = принята.ok
+    ? ((await принята.json()).batches ?? []).flatMap((пакет) => пакет.lines ?? []).find((линия) => линия.positionName === ИМЯ)
+    : undefined;
+  const сторно = await fetch(`${BASE}/projects/${CODE}/acceptance/${строка?.id}/reversal`, {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ reason: "Работа исключена из договора дополнительным соглашением" }),
+  });
+  const снята = await fetch(`${BASE}/projects/${CODE}/estimate/items/${новая?.id}`, { method: "DELETE", headers: { cookie } });
+  console.log(заведена.ok && принята.ok && сторно.ok && снята.ok
+    ? `  снятая позиция стенда: «${ИМЯ}» — принята, сторнирована, снята со сметы`
+    : `  снятая позиция стенда не получилась: заведение ${заведена.status}, приёмка ${принята.status},`
+      + ` сторно ${сторно.status}, снятие ${снята.status}`);
+}
+
 /* --- чеки на материалы ------------------------------------------------------
    Три чека на R-99, и каждый заведён тем, кто его в жизни заводит: два
    руководителем (значит сразу подтверждены), один прорабом (значит остаётся

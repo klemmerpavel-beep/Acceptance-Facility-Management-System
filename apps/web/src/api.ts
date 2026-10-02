@@ -25,6 +25,7 @@ import {
   type SmsCodeIssued, type Unit, type UpdateMeasureRoom, type UpdateOrganization,
   type BlueprintRow, type BlueprintView, type CreateBlueprint,
   type MoveEstimateItem, type UpdateEstimateItem, type UpdateSupervision,
+  type CreateEstimateItem, type CreateEstimateSection, type RenameEstimateSection,
   type UpdateProject, type Foreman,
   type UpdateWorkStage, type WorkerRow, type WorkStage,
   type ConvertLead, type CreateLead, type CreateLeadTask, type CreateRepairType,
@@ -543,6 +544,39 @@ export const moveEstimateItem = (
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
+
+/* --- заведение и удаление позиций и разделов (план, пункт 7.3) ----------- */
+
+export const createEstimateItem = (code: string, input: CreateEstimateItem): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items`, estimateViewSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const removeEstimateItem = (code: string, id: string): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/items/${id}`, estimateViewSchema, { method: "DELETE" });
+
+export const createEstimateSection = (code: string, input: CreateEstimateSection): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/sections`, estimateViewSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const renameEstimateSection = (
+  code: string,
+  id: string,
+  input: RenameEstimateSection,
+): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/sections/${id}`, estimateViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const removeEstimateSection = (code: string, id: string): Promise<EstimateView> =>
+  request(`/projects/${code}/estimate/sections/${id}`, estimateViewSchema, { method: "DELETE" });
 
 export const updateSupervision = (
   code: string,

@@ -280,6 +280,76 @@ export function estimateItemMoveFault(move: EstimateItemMove): string | null {
     + `Сторнируйте приёмку или оставьте позицию в разделе «${move.section}».`;
 }
 
+/** Что удаляют: позицию и её принятое с учётом сторно. */
+export interface EstimateItemRemoval {
+  readonly accepted: Milliunits;
+  readonly name: string;
+  readonly unit: string;
+}
+
+/**
+ * Причина отказа при удалении позиции или null (план, пункт 7.3).
+ *
+ * Принятая позиция не удаляется: принятое начислено бригаде, вошло в транш и
+ * в акт, и удаление объявило бы несделанным то, за что уже заплачено. Путь
+ * назван словами — сторно приёмки. После сторно принятое равно нулю, и
+ * позиция снимается со сметы; записи приёмки и сторно остаются в истории.
+ */
+export function estimateItemRemovalFault(removal: EstimateItemRemoval): string | null {
+  if (removal.accepted <= 0n) return null;
+  return `По позиции «${removal.name}» принято ${количествоТекстом(removal.accepted, removal.unit)}. `
+    + "Принятую позицию удалить нельзя: принятое начислено бригаде и вошло в транш. "
+    + "Сторнируйте приёмку на вкладке «Приёмка» — после сторно позиция снимается со сметы, "
+    + "а записи приёмки остаются в истории.";
+}
+
+/** Что держит раздел: всё, что удаление раздела унесло бы или оборвало. */
+export interface EstimateSectionRemoval {
+  readonly name: string;
+  /** Позиции в смете. */
+  readonly items: number;
+  /** Позиции, снятые со сметы: их история приёмки держится за раздел. */
+  readonly removed: number;
+  readonly children: number;
+  readonly batches: number;
+  /** Этап графика, который ведёт раздел, или null. */
+  readonly stage: string | null;
+  readonly expenses: number;
+}
+
+/**
+ * Причина отказа при удалении раздела или null.
+ *
+ * Удаляется только пустой раздел. Каскад базы унёс бы позиции и вложенные
+ * разделы молча, пакет приёмки держит раздел внешним ключом, а связь с
+ * этапом графика и чеками оборвалась бы без следа. Отказ называет всё, что
+ * держит раздел, разом: по одному пункту за попытку человек разбирал бы
+ * раздел вслепую.
+ */
+export function estimateSectionRemovalFault(removal: EstimateSectionRemoval): string | null {
+  const держит: string[] = [];
+  if (removal.items > 0) держит.push(`позиций — ${String(removal.items)}`);
+  if (removal.children > 0) держит.push(`вложенных разделов — ${String(removal.children)}`);
+  if (removal.batches > 0) держит.push(`пакетов приёмки — ${String(removal.batches)}`);
+  if (removal.removed > 0) {
+    держит.push(`снятых со сметы позиций с историей приёмки — ${String(removal.removed)}`);
+  }
+  if (removal.stage !== null) держит.push(`этап графика «${removal.stage}»`);
+  if (removal.expenses > 0) держит.push(`чеков — ${String(removal.expenses)}`);
+  if (держит.length === 0) return null;
+  return `Раздел «${removal.name}» не пуст: ${держит.join(", ")}. Удаляется только пустой раздел.`;
+}
+
+/**
+ * Причина отказа при вложении раздела или null: разделы бывают двух уровней,
+ * как в файле заказчика, и вкладывать можно только в раздел верхнего уровня.
+ */
+export function estimateSectionNestingFault(parentHasParent: boolean): string | null {
+  return parentHasParent
+    ? "Раздел вкладывается только в раздел верхнего уровня: разделов в смете два уровня, как в файле заказчика."
+    : null;
+}
+
 /**
  * Мягкое предупреждение: ставка выше цены, то есть работа в убыток.
  *

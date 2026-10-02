@@ -1,12 +1,13 @@
 import {
-  BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, Res, UseGuards,
+  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type {
   ClosedTranches, DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
 } from "@priyomka/contracts";
 import {
-  applyBlueprintSchema, moveEstimateItemSchema, unitOverridesSchema,
+  applyBlueprintSchema, createEstimateItemSchema, createEstimateSectionSchema,
+  moveEstimateItemSchema, renameEstimateSectionSchema, unitOverridesSchema,
   updateEstimateItemSchema, updateSupervisionSchema,
 } from "@priyomka/contracts";
 import type { CanonicalUnit, UnitOverrides } from "@priyomka/importer";
@@ -161,6 +162,65 @@ export class EstimatesController {
     @Body() body: unknown,
   ): Promise<EstimateView> {
     return this.estimates.updateItem(user, code, id, updateEstimateItemSchema.parse(body));
+  }
+
+  /**
+   * Заведение и удаление позиций и разделов (план, пункт 7.3).
+   *
+   * Правит руководитель — то же правило, что у правки и переноса позиции:
+   * бухгалтер наследует его, прорабу и заказчику — отказ. Ставка приходит
+   * только в теле руководителя, а ответ — вид сметы, спроецированный по
+   * роли, как у любого маршрута сметы.
+   */
+  @Post("items")
+  @Roles("OWNER")
+  createItem(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.createItem(user, code, createEstimateItemSchema.parse(body));
+  }
+
+  @Delete("items/:id")
+  @Roles("OWNER")
+  removeItem(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+  ): Promise<EstimateView> {
+    return this.estimates.removeItem(user, code, id);
+  }
+
+  @Post("sections")
+  @Roles("OWNER")
+  createSection(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.createSection(user, code, createEstimateSectionSchema.parse(body));
+  }
+
+  @Patch("sections/:id")
+  @Roles("OWNER")
+  renameSection(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<EstimateView> {
+    return this.estimates.renameSection(user, code, id, renameEstimateSectionSchema.parse(body));
+  }
+
+  @Delete("sections/:id")
+  @Roles("OWNER")
+  removeSection(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+  ): Promise<EstimateView> {
+    return this.estimates.removeSection(user, code, id);
   }
 
   /** Закрытые транши и принятые в них позиции: что изменит правка (П-27). */

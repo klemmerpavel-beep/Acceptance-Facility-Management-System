@@ -53,6 +53,31 @@ export interface RoomMeasure {
   readonly ceilingPerimeter: Milliunits;
   /** Высота помещения, тысячных м. */
   readonly height: Milliunits;
+  /**
+   * Проёмы помещения: не больше строки на вид. Необязательны — помещение
+   * без окон и дверей законно, и отсутствие строки значит «нет», а не ноль.
+   */
+  readonly openings?: readonly RoomOpening[];
+}
+
+/** Вид проёма: окна или двери. */
+export type OpeningKind = "WINDOW" | "DOOR";
+
+/** Проёмы одного вида в помещении: сколько, общая площадь и длина откосов. */
+export interface RoomOpening {
+  readonly kind: OpeningKind;
+  readonly count: number;
+  /** Площадь всех проёмов вида, тысячных м². */
+  readonly area: Milliunits;
+  /** Откосы по всем проёмам вида, тысячных м.п. */
+  readonly reveal: Milliunits;
+}
+
+/** Итог проёмов одного вида по объекту. */
+export interface OpeningTotals {
+  readonly count: number;
+  readonly area: Milliunits;
+  readonly reveal: Milliunits;
 }
 
 /**
@@ -81,6 +106,29 @@ export interface MeasureTotals {
   readonly floorPerimeter: Milliunits;
   readonly ceilingPerimeter: Milliunits;
   readonly volume: Milliunits;
+  /** Окна по объекту (план, пункт 7.4). */
+  readonly windows: OpeningTotals;
+  /** Двери по объекту (план, пункт 7.4). */
+  readonly doors: OpeningTotals;
+}
+
+/**
+ * Итоги проёмов одного вида: суммы по помещениям. Помещение без строки
+ * этого вида даёт ноль — отсутствие проёмов, а не пропуск.
+ */
+function openingTotals(rooms: readonly RoomMeasure[], kind: OpeningKind): OpeningTotals {
+  let count = 0;
+  let area = 0n;
+  let reveal = 0n;
+  for (const room of rooms) {
+    for (const opening of room.openings ?? []) {
+      if (opening.kind !== kind) continue;
+      count += opening.count;
+      area += opening.area;
+      reveal += opening.reveal;
+    }
+  }
+  return { count, area: area as Milliunits, reveal: reveal as Milliunits };
 }
 
 /**
@@ -118,5 +166,7 @@ export function measureTotals(rooms: readonly RoomMeasure[]): MeasureTotals {
     floorPerimeter: floorPerimeter as Milliunits,
     ceilingPerimeter: ceilingPerimeter as Milliunits,
     volume: volume as Milliunits,
+    windows: openingTotals(rooms, "WINDOW"),
+    doors: openingTotals(rooms, "DOOR"),
   };
 }

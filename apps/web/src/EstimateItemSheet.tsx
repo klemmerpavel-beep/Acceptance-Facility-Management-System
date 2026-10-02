@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type {
-  ClosedTranches, EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
+  ClosedTranches, CreateEstimateItem, EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
 } from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
-  estimateItemFault, estimateItemMoveFault, estimateItemWarning, measureSourcesFor,
+  estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateItemWarning, measureSourcesFor,
   MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { предупреждениеОЗакрытых } from "./closed-tranches.js";
+import { завести } from "./verbs.js";
 
 /**
  * Правка позиции сметы — действие руководителя.
@@ -62,9 +63,16 @@ export function EstimateItemSheet({
   busy,
   error,
   onSave,
+  onCreate,
+  onDelete,
   onClose,
 }: {
-  item: EstimateItem;
+  /**
+   * Правимая позиция или `null` — заведение новой (план, пункт 7.3). Лист
+   * один на оба действия: поля, правила и подстановка из обмера у них общие,
+   * и два листа разошлись бы на первой правке подписи.
+   */
+  item: EstimateItem | null;
   units: readonly string[];
   /** Помещения действующего набора обмера. Пусто — обмера ещё не делали. */
   rooms: readonly EstimateItemRoom[];
@@ -88,18 +96,24 @@ export function EstimateItemSheet({
   error: string | null;
   /** `раздел` пуст, когда его не меняли: «не трогал» — не «перенеси сюда». */
   onSave: (input: UpdateEstimateItem, раздел: string | null) => void;
+  /** Заведение позиции; задаётся, когда `item` пуст. */
+  onCreate?: (input: CreateEstimateItem) => void;
+  /** Удаление позиции; задаётся у правимой. Идёт через подтверждение. */
+  onDelete?: () => void;
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
-  const [name, setName] = useState(item.name);
-  const [unit, setUnit] = useState(item.unit);
-  const [qty, setQty] = useState(вПоле(BigInt(item.qty), 3));
-  const [price, setPrice] = useState(вПоле(BigInt(item.unitPrice), 2));
-  const [wage, setWage] = useState(вПоле(BigInt(item.unitWage ?? "0"), 2));
-  const [roomId, setRoomId] = useState(item.room?.id ?? "");
+  const [name, setName] = useState(item?.name ?? "");
+  const [unit, setUnit] = useState(item?.unit ?? units[0] ?? "");
+  const [qty, setQty] = useState(item === null ? "" : вПоле(BigInt(item.qty), 3));
+  const [price, setPrice] = useState(item === null ? "" : вПоле(BigInt(item.unitPrice), 2));
+  const [wage, setWage] = useState(item === null ? "0" : вПоле(BigInt(item.unitWage ?? "0"), 2));
+  const [roomId, setRoomId] = useState(item?.room?.id ?? "");
   const [разделПозиции, setРазделПозиции] = useState(sectionId);
+  const [удаляю, setУдаляю] = useState(false);
+  const принято = item === null ? "0" : item.qtyAccepted;
 
-  const предупреждение = предупреждениеОЗакрытых(closed, { позиция: item.id });
+  const предупреждение = item === null ? null : предупреждениеОЗакрытых(closed, { позиция: item.id });
   const тысячные = количествоВТысячные(qty);
   const цена = рублиВКопейки(price);
   const ставка = рублиВКопейки(wage);
@@ -108,7 +122,7 @@ export function EstimateItemSheet({
   const правка = разобрано
     ? {
         qty: milliunits(тысячные),
-        accepted: milliunits(item.qtyAccepted),
+        accepted: milliunits(принято),
         unit,
         unitPrice: kopecks(цена),
         unitWage: kopecks(ставка),
@@ -117,7 +131,7 @@ export function EstimateItemSheet({
   const fault = правка === null ? null : estimateItemFault(правка);
   /* Отказ показывается до обращения к сети тем же правилом, что применит
      сервер: два независимых свода разошлись бы на третьей правке. */
-  const отказПереноса = estimateItemMoveFault({
+  const отказПереноса = item === null ? null : estimateItemMoveFault({
     accepted: milliunits(item.qtyAccepted),
     name: item.name,
     unit: item.unit,
@@ -152,16 +166,33 @@ export function EstimateItemSheet({
      одноимённого помещения в новом наборе не завели — кухня и гостиная стали
      кухней-гостиной. Молчать об этом нельзя: количество позиции считалось по
      площади, которой больше нет. */
-  const отсталоОтПерепланировки = replanned && item.room !== null && item.room.set === "INITIAL";
+  const отсталоОтПерепланировки = replanned && item !== null && item.room !== null && item.room.set === "INITIAL";
   /* Помещение позиции вне действующего набора показывается отдельной строкой
      списка — тем же приёмом, что единица измерения вне справочника: иначе
      выбор молча съехал бы на первое попавшееся. */
-  const своё = item.room;
+  const своё = item?.room ?? null;
+  /* Принятую позицию удалить нельзя — отказ тем же правилом, что у сервера,
+     до обращения к сети; путь назван словами: сторно приёмки. */
+  const отказУдаления = item === null ? null : estimateItemRemovalFault({
+    accepted: milliunits(item.qtyAccepted), name: item.name, unit: item.unit,
+  });
   const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     if (!ready) return;
+    if (item === null) {
+      onCreate?.({
+        sectionId: разделПозиции,
+        name: name.trim(),
+        unit,
+        qty: тысячные.toString(),
+        unitPrice: цена.toString(),
+        unitWage: ставка.toString(),
+        roomId: roomId === "" ? null : roomId,
+      });
+      return;
+    }
     onSave({
       name: name.trim(),
       unit,
@@ -175,8 +206,14 @@ export function EstimateItemSheet({
   return (
     <>
       <button type="button" className="scrim" aria-label="Закрыть" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Правка позиции" ref={dialog}>
-        <p className="t-h3">Позиция сметы</p>
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={item === null ? "Новая позиция сметы" : "Правка позиции"}
+        ref={dialog}
+      >
+        <p className="t-h3">{item === null ? "Новая позиция сметы" : "Позиция сметы"}</p>
         {предупреждение !== null && <p className="panel panel--pad t-sm" role="note">{предупреждение}</p>}
         <form className="stack stack--tight" onSubmit={submit}>
           <label className="field">
@@ -344,11 +381,40 @@ export function EstimateItemSheet({
             disabled={busy || !ready}
             data-loading={busy}
           >
-            Сохранить
+            {item === null ? завести("позиция") : "Сохранить"}
           </button>
           <button type="button" className="btn btn--text btn--block" onClick={onClose}>
             Отмена
           </button>
+          {/* Удаление — через подтверждение, которое называет последствие:
+              позиция уходит из сметы, итог по работам уменьшается (норматив
+              15.6). Принятую позицию лист не удаляет вовсе — отказ стоит
+              словами на месте кнопки подтверждения. */}
+          {item !== null && onDelete !== undefined && !удаляю && (
+            <button type="button" className="btn btn--text btn--block" onClick={() => { setУдаляю(true); }}>
+              Удалить позицию
+            </button>
+          )}
+          {item !== null && onDelete !== undefined && удаляю && (
+            <div className="panel panel--pad stack stack--tight" role="group" aria-label="Удаление позиции">
+              {отказУдаления !== null ? (
+                <p className="field__error" role="alert">{отказУдаления}</p>
+              ) : (
+                <>
+                  <p className="t-sm">
+                    Позиция «{item.name}» уйдёт из сметы: итог по работам уменьшится на{" "}
+                    {formatKopecks(kopecks(item.total))}, подытог раздела — на ту же сумму.
+                  </p>
+                  <button type="button" className="btn btn--danger btn--block" disabled={busy} onClick={onDelete}>
+                    Удалить позицию
+                  </button>
+                </>
+              )}
+              <button type="button" className="btn btn--text btn--block" onClick={() => { setУдаляю(false); }}>
+                Не удалять
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </>

@@ -197,7 +197,7 @@ export class TemplatesService {
     let итогСметы: string | null = null;
     if (смета !== null) {
       const позиции = await this.prisma.estimateItem.findMany({
-        where: { section: { estimateId: смета.id } },
+        where: { section: { estimateId: смета.id }, removedAt: null },
         select: { qty: true, unitPrice: true },
       });
       const работы = acceptedTotal(позиции.map((позиция) => ({

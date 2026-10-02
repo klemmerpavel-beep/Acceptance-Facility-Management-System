@@ -855,6 +855,48 @@ export const updateEstimateItemSchema = z.object({
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
 /**
+ * Заведение позиции в действующей редакции (план, пункт 7.3).
+ *
+ * Прежде смета менялась только импортом и правкой существующих позиций:
+ * работы, которых нет в файле заказчика, заводить было негде, кроме как
+ * правкой книги и повторным импортом. Новая позиция встаёт последней в
+ * своём разделе; место меняют перестановкой, как у любой другой.
+ *
+ * Ставка обязательна: тело принимает только руководитель, и позиция без
+ * ставки начисляла бы ноль за принятую работу молча. Ноль ставится явно.
+ */
+export const createEstimateItemSchema = z.object({
+  sectionId: z.string().uuid(),
+  name: z.string().trim().min(1, "Наименование не может быть пустым.").max(300),
+  /** Код канонической единицы: м², м.п., шт, точка, ед, рейс, ч/ч, этаж, %. */
+  unit: z.string().trim().min(1, "Единица измерения не может быть пустой."),
+  qty: milliunitsString,
+  unitPrice: kopecksString,
+  unitWage: kopecksString,
+  /** Помещение обмера; отсутствие поля и `null` — помещение не выбрано. */
+  roomId: z.string().uuid().nullable().optional(),
+});
+export type CreateEstimateItem = z.infer<typeof createEstimateItemSchema>;
+
+/**
+ * Заведение раздела: верхнего (`parentId: null`) или вложенного в раздел
+ * верхнего уровня. Глубже второго уровня разделов не бывает и в файле
+ * заказчика: импорт знает раздел и подраздел, и третий уровень завёл бы
+ * дерево, которого не умеет ни приёмка, ни график.
+ */
+export const createEstimateSectionSchema = z.object({
+  name: z.string().trim().min(1, "Название раздела не может быть пустым.").max(300),
+  parentId: z.string().uuid().nullable(),
+});
+export type CreateEstimateSection = z.infer<typeof createEstimateSectionSchema>;
+
+/** Переименование раздела. */
+export const renameEstimateSectionSchema = z.object({
+  name: z.string().trim().min(1, "Название раздела не может быть пустым.").max(300),
+});
+export type RenameEstimateSection = z.infer<typeof renameEstimateSectionSchema>;
+
+/**
  * Перенос позиции: куда и за кем встать.
  *
  * Один вид выражает и перенос между разделами, и перестановку внутри своего:
@@ -960,6 +1002,14 @@ export const measureRoomSchema = z.object({
 });
 export type MeasureRoom = z.infer<typeof measureRoomSchema>;
 
+/** Итог проёмов одного вида по объекту (план, пункт 7.4). */
+export const openingTotalsSchema = z.object({
+  count: z.number().int().nonnegative(),
+  area: measureAmountSchema,
+  reveal: measureAmountSchema,
+});
+export type OpeningTotals = z.infer<typeof openingTotalsSchema>;
+
 export const measureTotalsSchema = z.object({
   rooms: z.number().int().nonnegative(),
   floorArea: measureAmountSchema,
@@ -967,6 +1017,8 @@ export const measureTotalsSchema = z.object({
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   volume: measureAmountSchema,
+  windows: openingTotalsSchema,
+  doors: openingTotalsSchema,
 });
 export type MeasureTotals = z.infer<typeof measureTotalsSchema>;
 
@@ -1027,8 +1079,16 @@ export const createMeasureRoomSchema = z.object({
   floorPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр пола"),
   ceilingPerimeter: inRange(measureAmountSchema, 1, LENGTH_MAX, "Периметр потолка"),
   height: inRange(measureAmountSchema, HEIGHT_MIN, HEIGHT_MAX, "Высота"),
-  /** Не больше одной строки на вид проёма: окна и двери. */
-  openings: z.array(measureOpeningSchema).max(2).optional(),
+  /**
+   * Не больше одной строки на вид проёма: окна и двери. Две строки одного
+   * вида упирались в уникальность в базе и давали ответ 500 вместо отказа.
+   */
+  openings: z.array(measureOpeningSchema).max(2)
+    .refine(
+      (проёмы) => new Set(проёмы.map((проём) => проём.kind)).size === проёмы.length,
+      "Окна и двери вводятся одной строкой на вид: количество, площадь и откосы — общими.",
+    )
+    .optional(),
 });
 export type CreateMeasureRoom = z.infer<typeof createMeasureRoomSchema>;
 

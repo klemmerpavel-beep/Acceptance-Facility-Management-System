@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type {
-  ClosedTranches, DisplacedByImport, EstimateView, ImportRecord, ImportReport, ImportResult,
-  MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
+  ClosedTranches, CreateEstimateItem, CreateEstimateSection, DisplacedByImport, EstimateView,
+  ImportRecord, ImportReport, ImportResult, MoveEstimateItem, RenameEstimateSection,
+  UpdateEstimateItem, UpdateSupervision,
 } from "@priyomka/contracts";
 import {
   buildDiscrepancyReport, buildTemplate, parseWorkbook,
@@ -10,7 +11,9 @@ import {
 } from "@priyomka/importer";
 import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
-  estimateItemMoveFault, formatKopecks, formatPercent, kopecks, количествоТекстом,
+  estimateItemMoveFault, estimateItemRemovalFault, estimateSectionNestingFault,
+  estimateSectionRemovalFault, formatKopecks, formatPercent, kopecks, multiplyByQuantity,
+  количествоТекстом,
   milliunits, ownerLevel,
   сколько,
 } from "@priyomka/domain";
@@ -178,7 +181,7 @@ export class EstimatesService {
     const прежниеПомещения = new Map<string, string>();
     if (previous !== null) {
       const было = await this.prisma.estimateItem.findMany({
-        where: { estimateId: previous.id, NOT: { roomId: null } },
+        where: { estimateId: previous.id, removedAt: null, NOT: { roomId: null } },
         select: {
           name: true, roomId: true,
           section: { select: { name: true, parent: { select: { name: true } } } },
@@ -406,7 +409,10 @@ export class EstimatesService {
         /* Приёмки приходят вместе с позицией: принятое есть их сумма, и
            отдельный запрос на каждую из ста тридцати двух позиций дал бы
            сто тридцать два обращения на один экран сметы. */
+        /* Снятые со сметы позиции (пункт 7.3) в вид не входят: их история
+           приёмки живёт в приёмке и отчёте, а не в смете. */
         items: {
+          where: { removedAt: null },
           orderBy: { order: "asc" },
           include: {
             unit: true,
@@ -547,7 +553,7 @@ export class EstimatesService {
        несуществующая и принадлежащая прежней редакции дают один и тот же 404.
        Разные ответы на эти случаи рассказали бы о чужом объекте. */
     const before = await this.prisma.estimateItem.findFirst({
-      where: { id: itemId, estimateId: estimate.id },
+      where: { id: itemId, estimateId: estimate.id, removedAt: null },
       select: {
         id: true, name: true, qty: true, unitPrice: true, unitWage: true, roomId: true,
         unit: { select: { id: true, code: true } },
@@ -688,7 +694,7 @@ export class EstimatesService {
     const estimate = await this.currentEstimate(project.id);
 
     const before = await this.prisma.estimateItem.findFirst({
-      where: { id: itemId, estimateId: estimate.id },
+      where: { id: itemId, estimateId: estimate.id, removedAt: null },
       select: {
         id: true, name: true, sectionId: true, roomId: true,
         unit: { select: { code: true } },
@@ -743,7 +749,7 @@ export class EstimatesService {
       /* Порядок собирается списком и переписывается плотно: так он остаётся
          1..n без дыр и повторов при любом исходе жеста. */
       const целевые = await tx.estimateItem.findMany({
-        where: { sectionId: целевой.id, estimateId: estimate.id },
+        where: { sectionId: целевой.id, estimateId: estimate.id, removedAt: null },
         orderBy: { order: "asc" },
         select: { id: true },
       });
@@ -771,7 +777,7 @@ export class EstimatesService {
          остаётся дыра, и следующая вставка встала бы не туда. */
       if (прежнийРаздел !== целевой.id) {
         const оставшиеся = await tx.estimateItem.findMany({
-          where: { sectionId: прежнийРаздел, estimateId: estimate.id },
+          where: { sectionId: прежнийРаздел, estimateId: estimate.id, removedAt: null },
           orderBy: { order: "asc" },
           select: { id: true },
         });
@@ -869,6 +875,310 @@ export class EstimatesService {
         field: "надбавка «сопровождение объекта»",
         oldValue: formatPercent(basisPoints(estimate.supervisionShare)),
         newValue: formatPercent(basisPoints(input.supervisionShare)),
+      }, tx);
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Заведение позиции в действующей редакции (план, пункт 7.3).
+   *
+   * Позиция встаёт последней в своём разделе. Изменение и запись журнала —
+   * одной транзакцией (БП-10): позиция, заведённая без следа в журнале, была
+   * бы суммой в смете, о происхождении которой не спросить.
+   */
+  async createItem(user: RequestUser, code: string, input: CreateEstimateItem): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+
+    const раздел = await this.prisma.estimateSection.findFirst({
+      where: { id: input.sectionId, estimateId: estimate.id },
+      select: { id: true, name: true },
+    });
+    if (!раздел) {
+      throw new BadRequestException({
+        message: "Такого раздела нет в действующей редакции сметы этого объекта.",
+      });
+    }
+
+    const отказ = estimateItemFault({
+      qty: milliunits(input.qty),
+      accepted: milliunits(0n),
+      unit: input.unit,
+      unitPrice: kopecks(input.unitPrice),
+      unitWage: kopecks(input.unitWage),
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+    if (!CANONICAL_UNITS.includes(input.unit as CanonicalUnit)) {
+      throw new BadRequestException({
+        message: `Единица «${input.unit}» не каноническая. Допустимы: ${CANONICAL_UNITS.join(", ")}.`,
+      });
+    }
+
+    let помещение: { id: string; name: string } | null = null;
+    if (input.roomId !== undefined && input.roomId !== null) {
+      помещение = await this.prisma.measureRoom.findFirst({
+        where: { id: input.roomId, projectId: project.id },
+        select: { id: true, name: true },
+      });
+      if (помещение === null) {
+        throw new BadRequestException({ message: "Такого помещения нет в обмере этого объекта." });
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const единица = await tx.unit.upsert({
+        where: { orgId_code: { orgId: project.orgId, code: input.unit } },
+        update: {},
+        create: { orgId: project.orgId, code: input.unit },
+        select: { id: true },
+      });
+      const последняя = await tx.estimateItem.findFirst({
+        where: { sectionId: раздел.id, estimateId: estimate.id, removedAt: null },
+        orderBy: { order: "desc" },
+        select: { order: true },
+      });
+      await tx.estimateItem.create({
+        data: {
+          estimateId: estimate.id,
+          sectionId: раздел.id,
+          unitId: единица.id,
+          name: input.name,
+          order: (последняя?.order ?? 0) + 1,
+          qty: milliunits(input.qty),
+          unitPrice: kopecks(input.unitPrice),
+          unitWage: kopecks(input.unitWage),
+          roomId: помещение?.id ?? null,
+        },
+      });
+      /* Запись называет позицию целиком: что, сколько, почём и где. Ставка —
+         отдельной записью того же рода, что при правке: журнал сметы
+         читает только уровень руководителя, но поле ставки и там отдельно. */
+      const количество = количествоТекстом(milliunits(input.qty), input.unit);
+      const сумма = formatKopecks(multiplyByQuantity(kopecks(input.unitPrice), milliunits(input.qty)));
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateItem",
+        entityId: project.id,
+        field: `${input.name} — позиция заведена в разделе «${раздел.name}»`,
+        oldValue: null,
+        newValue: `${количество} по ${formatKopecks(kopecks(input.unitPrice))} — ${сумма}`
+          + (помещение === null ? "" : `, ${помещение.name}`),
+      }, tx);
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateItem",
+        entityId: project.id,
+        field: `${input.name} — ${FIELD_LABEL.unitWage ?? "ставка"}`,
+        oldValue: null,
+        newValue: formatKopecks(kopecks(input.unitWage)),
+      }, tx);
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Удаление позиции (план, пункт 7.3).
+   *
+   * Принятая позиция не удаляется: отказ называет принятое и путь через
+   * сторно. Позиция без единой записи приёмки удаляется строкой. Позиция,
+   * приёмка которой целиком сторнирована, снимается со сметы отметкой
+   * `removedAt`: записи приёмки и сторно держат её внешним ключом, а история
+   * не переписывается. Порядок оставшихся позиций раздела — плотный.
+   */
+  async removeItem(user: RequestUser, code: string, itemId: string): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+
+    const позиция = await this.prisma.estimateItem.findFirst({
+      where: { id: itemId, estimateId: estimate.id, removedAt: null },
+      select: {
+        id: true, name: true, sectionId: true, qty: true, unitPrice: true,
+        unit: { select: { code: true } },
+        section: { select: { name: true } },
+        acceptances: { select: { qty: true } },
+      },
+    });
+    if (!позиция) {
+      throw new NotFoundException({
+        message: "Позиция не найдена в действующей редакции сметы этого объекта.",
+      });
+    }
+
+    const принято = acceptedQty(позиция.acceptances.map((row) => ({ qty: milliunits(row.qty) })));
+    const отказ = estimateItemRemovalFault({ accepted: принято, name: позиция.name, unit: позиция.unit.code });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    const сИсторией = позиция.acceptances.length > 0;
+    await this.prisma.$transaction(async (tx) => {
+      if (сИсторией) {
+        await tx.estimateItem.update({ where: { id: позиция.id }, data: { removedAt: new Date() } });
+      } else {
+        await tx.estimateItem.delete({ where: { id: позиция.id } });
+      }
+      const оставшиеся = await tx.estimateItem.findMany({
+        where: { sectionId: позиция.sectionId, estimateId: estimate.id, removedAt: null },
+        orderBy: { order: "asc" },
+        select: { id: true },
+      });
+      for (const [индекс, строка] of оставшиеся.entries()) {
+        await tx.estimateItem.update({ where: { id: строка.id }, data: { order: индекс + 1 } });
+      }
+      const количество = количествоТекстом(milliunits(позиция.qty), позиция.unit.code);
+      const сумма = formatKopecks(multiplyByQuantity(kopecks(позиция.unitPrice), milliunits(позиция.qty)));
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateItem",
+        entityId: project.id,
+        field: `${позиция.name} — позиция раздела «${позиция.section.name}»`,
+        oldValue: `${количество} — ${сумма}`,
+        newValue: сИсторией
+          ? "снята со сметы; приёмка и сторно остаются в истории"
+          : "удалена из сметы",
+      }, tx);
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Заведение раздела: верхнего или вложенного в раздел верхнего уровня
+   * (план, пункт 7.3). Раздел встаёт последним среди своих соседей.
+   */
+  async createSection(user: RequestUser, code: string, input: CreateEstimateSection): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+
+    let родитель: { id: string; name: string } | null = null;
+    if (input.parentId !== null) {
+      const найден = await this.prisma.estimateSection.findFirst({
+        where: { id: input.parentId, estimateId: estimate.id },
+        select: { id: true, name: true, parentId: true },
+      });
+      if (!найден) {
+        throw new BadRequestException({
+          message: "Такого раздела нет в действующей редакции сметы этого объекта.",
+        });
+      }
+      const отказ = estimateSectionNestingFault(найден.parentId !== null);
+      if (отказ !== null) throw new BadRequestException({ message: отказ });
+      родитель = { id: найден.id, name: найден.name };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      /* Порядок разделов в редакции сквозной (так его ставит импорт), и
+         новый раздел получает следующий номер: среди соседей он встаёт
+         последним, сборка вида сортирует детей одного родителя по нему. */
+      const последний = await tx.estimateSection.findFirst({
+        where: { estimateId: estimate.id },
+        orderBy: { order: "desc" },
+        select: { order: true },
+      });
+      await tx.estimateSection.create({
+        data: {
+          estimateId: estimate.id,
+          parentId: родитель?.id ?? null,
+          name: input.name,
+          order: (последний?.order ?? 0) + 1,
+        },
+      });
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateSection",
+        entityId: project.id,
+        field: родитель === null ? "раздел заведён" : `раздел заведён в разделе «${родитель.name}»`,
+        oldValue: null,
+        newValue: input.name,
+      }, tx);
+    });
+
+    return this.view(user, code);
+  }
+
+  /** Переименование раздела (план, пункт 7.3). */
+  async renameSection(
+    user: RequestUser,
+    code: string,
+    sectionId: string,
+    input: RenameEstimateSection,
+  ): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+    const раздел = await this.prisma.estimateSection.findFirst({
+      where: { id: sectionId, estimateId: estimate.id },
+      select: { id: true, name: true },
+    });
+    if (!раздел) {
+      throw new NotFoundException({ message: "Раздел не найден в действующей редакции сметы этого объекта." });
+    }
+    if (раздел.name === input.name) return this.view(user, code);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.estimateSection.update({ where: { id: раздел.id }, data: { name: input.name } });
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateSection",
+        entityId: project.id,
+        field: "название раздела",
+        oldValue: раздел.name,
+        newValue: input.name,
+      }, tx);
+    });
+
+    return this.view(user, code);
+  }
+
+  /**
+   * Удаление раздела — только пустого (план, пункт 7.3). Отказ называет всё,
+   * что держит раздел: позиции, вложенные разделы, пакеты приёмки, снятые
+   * позиции с историей, этап графика и чеки.
+   */
+  async removeSection(user: RequestUser, code: string, sectionId: string): Promise<EstimateView> {
+    const project = await this.projectOf(user, code);
+    const estimate = await this.currentEstimate(project.id);
+    const раздел = await this.prisma.estimateSection.findFirst({
+      where: { id: sectionId, estimateId: estimate.id },
+      select: {
+        id: true, name: true,
+        stage: { select: { name: true } },
+        _count: { select: { children: true, batches: true, expenses: true } },
+      },
+    });
+    if (!раздел) {
+      throw new NotFoundException({ message: "Раздел не найден в действующей редакции сметы этого объекта." });
+    }
+    const [позиций, снятых] = await Promise.all([
+      this.prisma.estimateItem.count({ where: { sectionId: раздел.id, removedAt: null } }),
+      this.prisma.estimateItem.count({ where: { sectionId: раздел.id, NOT: { removedAt: null } } }),
+    ]);
+    const отказ = estimateSectionRemovalFault({
+      name: раздел.name,
+      items: позиций,
+      removed: снятых,
+      children: раздел._count.children,
+      batches: раздел._count.batches,
+      stage: раздел.stage?.name ?? null,
+      expenses: раздел._count.expenses,
+    });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.estimateSection.delete({ where: { id: раздел.id } });
+      await this.audit.record({
+        orgId: project.orgId,
+        actorId: user.id,
+        entity: "EstimateSection",
+        entityId: project.id,
+        field: "раздел удалён",
+        oldValue: раздел.name,
+        newValue: null,
       }, tx);
     });
 

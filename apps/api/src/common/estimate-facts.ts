@@ -50,7 +50,8 @@ export async function estimateFacts(
   if (currentIds.length === 0) return new Map();
 
   const items = await prisma.estimateItem.findMany({
-    where: { estimateId: { in: currentIds } },
+    /* Снятые со сметы позиции (пункт 7.3) в итог не входят. */
+    where: { estimateId: { in: currentIds }, removedAt: null },
     select: { estimateId: true, qty: true, unitPrice: true, unitWage: true },
   });
 
