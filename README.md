@@ -62,7 +62,7 @@
 
 ```bash
 cp .env.example .env      # задайте пароли; для стенда показа — NODE_ENV=development и AUTH_ECHO=1
-docker compose up --build # база, объектное хранилище, API с миграциями, веб-клиент
+docker compose up --build # база, API с миграциями, веб-клиент
 ```
 
 Веб-клиент — http://localhost:5173, API — http://localhost:3000; база, хранилище и API

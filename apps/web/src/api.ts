@@ -290,6 +290,17 @@ export const fetchAct = (
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
 
+/** Скан подписанного экземпляра (план, пункт 4.10): снимок или PDF, тип — по содержимому. */
+export function attachActScan(code: string, trancheId: string, file: File): Promise<ActRow[]> {
+  const form = new FormData();
+  form.append("file", file);
+  return request(`/projects/${code}/acts/${trancheId}/scan`, actListSchema, { method: "POST", body: form });
+}
+
+/** Адрес скана. Выводится из опознавателя, как адрес снимка чека. */
+export const actScanUrl = (code: string, trancheId: string): string =>
+  `${BASE}/projects/${code}/acts/${trancheId}/scan`;
+
 /* --- люди организации -------------------------------------------------------- */
 
 const peopleListSchema = z.array(personRowSchema);

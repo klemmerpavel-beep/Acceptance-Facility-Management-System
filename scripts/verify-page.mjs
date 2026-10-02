@@ -3545,6 +3545,28 @@ await page.waitForSelector(".acts-screen .record");
 const строкАктов = await page.locator(".acts-screen .record").count();
 if (строкАктов === 0) note("документы", "перечень актов пуст: закрытых траншей на стенде нет");
 const суммаСтроки = ((await page.locator(".acts-screen .record__amount").first().textContent()) ?? "").trim();
+
+/* Скан подписанного акта (план, пункт 4.10). Проверка API идёт раньше и
+   оставляет первый акт подписанным со сканом: экран обязан дать ссылку на
+   файл и орган замены, а ссылка — вести на сам скан, а не на пустоту. */
+{
+  const ссылкаСкана = page.locator('.acts-screen a:has-text("Скан подписанного акта")');
+  if ((await ссылкаСкана.count()) === 0) {
+    note("документы", "у подписанного акта со сканом нет ссылки «Скан подписанного акта»");
+  } else {
+    const адрес = (await ссылкаСкана.first().getAttribute("href")) ?? "";
+    const тип = await page.evaluate(async (куда) => {
+      const ответ = await fetch(куда, { credentials: "same-origin" });
+      return `${String(ответ.status)} ${ответ.headers.get("content-type") ?? ""}`;
+    }, адрес).catch((cause) => `сбой ${String(cause)}`);
+    if (тип !== "200 application/pdf") {
+      note("документы", `ссылка на скан «${адрес}» отвечает «${тип}» вместо «200 application/pdf»`);
+    }
+  }
+  if ((await page.locator('.acts-screen label.filefield:has-text("Заменить скан")').count()) === 0) {
+    note("документы", "у акта со сканом нет органа «Заменить скан»");
+  }
+}
 await page.click('.acts-screen .record button:has-text("Открыть акт")');
 await page.waitForSelector(".act__table");
 

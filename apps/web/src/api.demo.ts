@@ -2135,9 +2135,20 @@ const сПодписью = (акт: ActRow): ActRow => {
   return дата === undefined ? акт : { ...акт, signedAt: дата };
 };
 
+/* Скан подписанного акта живёт в памяти вкладки адресом объекта браузера:
+   сервера, который проверил бы содержимое, у демонстрации нет, и тип берётся
+   из того, что назвал браузер. Перезагрузка страницы скан забывает. */
+const сканы = new Map<string, { адрес: string; тип: string; день: string }>();
+
+const сДокументами = (акт: ActRow): ActRow => {
+  const скан = сканы.get(акт.trancheId);
+  const подписан = сПодписью(акт);
+  return скан === undefined ? подписан : { ...подписан, scan: { type: скан.тип, uploadedAt: скан.день } };
+};
+
 export async function fetchActs(code: string): Promise<ActRow[]> {
   await pause(180);
-  return code === "R-99" ? data.acts.map(сПодписью) : [];
+  return code === "R-99" ? data.acts.map(сДокументами) : [];
 }
 
 export async function fetchAct(
@@ -2159,8 +2170,30 @@ export async function signAct(
 ): Promise<ActRow[]> {
   await pause(240);
   подписи.set(trancheId, signedAt);
-  return data.acts.map(сПодписью);
+  return data.acts.map(сДокументами);
 }
+
+export async function attachActScan(_code: string, trancheId: string, file: File): Promise<ActRow[]> {
+  await pause(260);
+  const акт = data.acts.map(сПодписью).find((строка) => строка.trancheId === trancheId);
+  if (акт?.signedAt == null) {
+    throw new Error("Акт не отмечен подписанным: сначала поставьте дату подписания, затем приложите скан.");
+  }
+  if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
+    throw new Error("Скан принимается снимком (JPEG, PNG, WebP) или файлом PDF.");
+  }
+  const прежний = сканы.get(trancheId);
+  if (прежний !== undefined) URL.revokeObjectURL(прежний.адрес);
+  сканы.set(trancheId, {
+    адрес: URL.createObjectURL(file),
+    тип: file.type,
+    день: new Date().toISOString().slice(0, 10),
+  });
+  return data.acts.map(сДокументами);
+}
+
+export const actScanUrl = (_code: string, trancheId: string): string =>
+  сканы.get(trancheId)?.адрес ?? "";
 
 /* --- шаблоны документов организации ------------------------------------------
    Демонстрация правится в памяти вкладки и снимком не переживает перезагрузку:

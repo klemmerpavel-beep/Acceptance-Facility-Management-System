@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatPhone, isPhoneNumber, ownerLevel } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
-import { errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
+import { actScanUrl, attachActScan, errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
 import { Announce } from "./Announce.js";
 import { имяЛиста, печать } from "./print.js";
 
@@ -31,6 +31,11 @@ import { имяЛиста, печать } from "./print.js";
  * Кнопка стоит у обоих видов и у всех трёх ролей: акт — бумага заказчика, и
  * печатать её вправе тот, кому она открыта. Переключатель видов рядом остаётся
  * органом руководителя.
+ *
+ * Скан подписанного экземпляра (план, пункт 4.10) прикладывает руководитель и
+ * только к акту с датой подписания: скан без отметки ничего не подтверждает.
+ * Открывают скан руководитель, бухгалтер и заказчик; прорабу ссылки нет —
+ * сервер ему откажет, а кнопка, которая всегда отказывает, — не кнопка.
  */
 
 const дата = (iso: string): string => {
@@ -74,6 +79,18 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
       .finally(() => { setBusy(false); });
   };
 
+  const приложить = (row: ActRow, file: File): void => {
+    setBusy(true);
+    void attachActScan(code, row.trancheId, file)
+      .then((next) => {
+        setRows(next);
+        setError(null);
+        setОбъявление(`${row.scan === null ? "Скан приложен" : "Скан заменён"} к акту № ${String(row.number)}`);
+      })
+      .catch((cause: unknown) => { setError(errorMessage(cause)); })
+      .finally(() => { setBusy(false); });
+  };
+
   if (error !== null && rows === null) return <p className="field__error" role="alert">{error}</p>;
   if (rows === null) return <p className="t-sm t-muted">Загружаем документы…</p>;
 
@@ -107,6 +124,7 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                 </p>
                 <p className="t-sm t-muted">
                   закрыт {дата(row.closedAt)} · позиций {row.positions}
+                  {row.scan !== null && ` · скан приложен ${дата(row.scan.uploadedAt)}`}
                 </p>
               </div>
               <div className="record__side">
@@ -119,6 +137,37 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   >
                     {открыт === row.trancheId ? "Свернуть" : "Открыть акт"}
                   </button>
+                  {role !== "FOREMAN" && row.scan !== null && (
+                    <a
+                      className="btn btn--secondary"
+                      href={actScanUrl(code, row.trancheId)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Скан подписанного акта
+                      <span className="visually-hidden"> № {row.number}</span>
+                    </a>
+                  )}
+                  {ownerLevel(role) && row.signedAt !== null && (
+                    /* Тот же образец выбора файла, что у обмерного плана:
+                       браузерная кнопка стоит на английском. */
+                    <label className="filefield">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        disabled={busy}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file !== undefined) приложить(row, file);
+                        }}
+                      />
+                      <span className="filefield__button">
+                        {row.scan === null ? "Приложить скан" : "Заменить скан"}
+                        <span className="visually-hidden"> акта № {row.number}</span>
+                      </span>
+                    </label>
+                  )}
                   {ownerLevel(role) && row.signedAt === null && (
                     <label className="field field--inline">
                       <span className="visually-hidden">Дата подписания акта № {row.number}</span>

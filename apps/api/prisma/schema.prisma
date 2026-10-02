@@ -979,6 +979,11 @@ model Tranche {
   /// оплатой, и склеивать его с ними значило бы потерять именно тот
   /// промежуток, за которым следит руководитель.
   signedAt    DateTime?     @db.Date
+  /// Скан подписанного экземпляра акта: ключ файла, тип и день загрузки
+  /// (план, пункт 4.10). Прикладывается только к подписанному акту.
+  signedScanKey  String?
+  signedScanType String?
+  signedScanAt   DateTime?
   comment     String?
   createdById String?       @db.Uuid
 
