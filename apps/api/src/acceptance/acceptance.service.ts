@@ -277,6 +277,7 @@ export class AcceptanceService {
         brigade: { select: { id: true, name: true } },
         createdBy: { select: { name: true } },
         photos: { select: { id: true } },
+        tranche: { select: { number: true } },
       },
     });
 
@@ -300,6 +301,7 @@ export class AcceptanceService {
       author: batch.createdBy?.name ?? null,
       comment: batch.comment,
       photos: batch.photos.map((photo) => photo.id),
+      trancheNumber: batch.tranche?.number ?? null,
       lines: acceptances
         .filter((row) => row.batchId === batch.id && row.reversesId === null)
         .map((row) => {
