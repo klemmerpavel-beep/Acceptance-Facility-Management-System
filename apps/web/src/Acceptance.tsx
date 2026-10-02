@@ -139,7 +139,9 @@ export function Acceptance({
 
   return (
     <div className="accept">
-      <div className="row">
+      {/* Три показателя переносятся: на 390 px с суммами в десятки тысяч
+          ряд без переноса выходил за экран (пункт 7.1). */}
+      <div className="row row--wrap">
         <span className="metric">
           <span className="metric__value">{view.totals.acceptedPositions} / {view.totals.positions}</span>
           <span className="metric__label">принято позиций</span>

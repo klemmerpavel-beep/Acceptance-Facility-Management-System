@@ -2752,3 +2752,48 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 .openings { margin: 0; padding: 0; border: 0; min-inline-size: 0; }
 .openings .row { flex-wrap: wrap; align-items: flex-end; }
 .openings .field { flex: 1 1 6rem; min-inline-size: 0; }
+
+/* «Следующее действие» на «Обзоре» (пункт 7.8): счёт выполненных шагов
+   полосой и один следующий шаг с переходом. Полоса — второй канал к числу
+   в заголовке, а не замена ему. */
+.nextstep { display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius-md); }
+.nextstep__head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.nextstep__bar { flex: 1 1 8rem; block-size: var(--space-2); background: var(--surface-2);
+  border-radius: var(--radius-pill); overflow: hidden; }
+.nextstep__fill { --nextstep-share: 0; display: block; block-size: 100%;
+  inline-size: calc(var(--nextstep-share) * 100%); background: var(--accent); }
+.nextstep__step { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); flex-wrap: wrap; }
+.nextstep__label { font-weight: 500; }
+
+/* Коллаж дня в фотоотчёте (пункт 7.7): «1 крупный + 2 мелких», на последнем
+   — «+N». Пропорция задана заранее: сетка не прыгает по мере загрузки. */
+.collage { display: grid; gap: var(--space-1); aspect-ratio: 16 / 9; max-inline-size: 720px;
+  grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.collage--1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.collage--2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.collage__tile { position: relative; min-inline-size: 0; min-block-size: 0; padding: 0; border: 0;
+  overflow: hidden; border-radius: var(--radius-sm); background: var(--surface-2); cursor: zoom-in; }
+.collage__tile--main { grid-row: 1 / span 2; }
+.collage--1 .collage__tile--main, .collage--2 .collage__tile--main { grid-row: auto; }
+.collage__tile .report__photo { block-size: 100%; aspect-ratio: auto; border-radius: 0; }
+.collage__more { position: absolute; inset-inline-end: var(--space-2); inset-block-end: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: var(--fs-body); }
+
+/* Просмотр снимков во весь экран: снимок, подпись «раздел · дата» и счёт,
+   листание кнопками, стрелками и свайпом. */
+.viewer { position: fixed; inset: 0; z-index: 11; display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); touch-action: pan-y; }
+.viewer__bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.viewer__caption { margin: 0; min-inline-size: 0; overflow-wrap: anywhere; font-weight: 500; }
+.viewer__close { flex: none; }
+.viewer__stage { display: grid; place-items: center; min-block-size: 0; }
+.viewer__photo { max-inline-size: 100%; max-block-size: 100%; object-fit: contain;
+  border-radius: var(--radius-sm); background: var(--surface-2); user-select: none; }
+.viewer__nav { display: flex; justify-content: center; gap: var(--space-4); }
+.viewer__prev, .viewer__next { min-inline-size: var(--tap-min); }

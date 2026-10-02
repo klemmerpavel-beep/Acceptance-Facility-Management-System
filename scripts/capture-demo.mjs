@@ -133,6 +133,12 @@ snapshot.templates = await Promise.all(
    организации, а не отдельную заготовку деревом. */
 snapshot.blueprints = await owner("/blueprints");
 
+/* Факты объектов для блока «Выполнено N из M» (план, пункт 7.8) — по каждому
+   объекту руководителя: блок стоит на «Обзоре» любой карточки, и факты
+   одного R-99 оставили бы прочие карточки без него. */
+snapshot["facts-owner"] = Object.fromEntries(await Promise.all(
+  snapshot["projects-owner"].map(async (объект) => [объект.code, await owner(`/projects/${объект.code}/facts`)])));
+
 const первыйАкт = snapshot.acts[0];
 snapshot["act-client"] = первыйАкт === undefined
   ? null

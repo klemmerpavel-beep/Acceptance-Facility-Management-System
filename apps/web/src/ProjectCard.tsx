@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
   ClosedTranches, CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
-  ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman, WorkStage,
+  ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, UpdateProject, Foreman, WorkStage,
 } from "@priyomka/contracts";
-import { sectionTitle, daysBetween, ownerLevel, projectRange, sectionWeights,
+import { sectionTitle, daysBetween, nextAction, ownerLevel, projectRange, sectionWeights,
+  type ШагОбъекта,
   workingDaysBetween, безСметы } from "@priyomka/domain";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
 import {
@@ -13,7 +14,7 @@ import {
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen, fetchStages, planStages,
   createEstimateItem, removeEstimateItem, createEstimateSection, renameEstimateSection,
-  removeEstimateSection,
+  removeEstimateSection, fetchProjectFacts,
 } from "./api.js";
 import { SectionSheet } from "./SectionSheet.js";
 import { PlanSheet } from "./PlanSheet.js";
@@ -450,7 +451,7 @@ export function ProjectCard({
           );
         })()}
       </div>
-      <div className="stamp__cell">
+      <div className="stamp__cell" id="card-foreman">
         <span className="t-cap">Прораб</span>
         {(() => {
           const имя = project.foreman?.name ?? пусто("прораб", "краткое");
@@ -790,6 +791,25 @@ export function ProjectCard({
                 заводитСмету={ownerLevel(user.role)}
                 onReport={() => { setTab("report"); }}
                 onWork={() => { setTab("work"); }}
+                выдаётВход={user.role === "OWNER"}
+                onStep={(шаг) => {
+                  /* Переход к шагу — туда, где его делают. Прораб назначается
+                     в штампе: на телефоне штамп свёрнут в сводку, и она
+                     раскрывается, прежде чем принять фокус. */
+                  const ВКЛАДКА: Partial<Record<ШагОбъекта, Вкладка>> = {
+                    rooms: "measure", estimate: "import", schedule: "work", prepayment: "tranches",
+                    acceptance: "acceptance", act: "tranches", signed: "documents",
+                  };
+                  const вкладка = ВКЛАДКА[шаг];
+                  if (вкладка !== undefined) { setTab(вкладка); return; }
+                  if (шаг === "clientAccess") { window.location.hash = "#settings"; return; }
+                  setСводкаОткрыта(true);
+                  window.requestAnimationFrame(() => {
+                    const ячейка = document.getElementById("card-foreman");
+                    ячейка?.scrollIntoView({ block: "center" });
+                    ячейка?.querySelector<HTMLElement>("button, select")?.focus();
+                  });
+                }}
                 onPlanned={() => {
                   load();
                   void fetchProject(project.code).then(onChanged).catch(() => { /* сводка не обязательна */ });
@@ -1108,6 +1128,8 @@ function Overview({
   onReport,
   onWork,
   onPlanned,
+  выдаётВход,
+  onStep,
 }: {
   project: ProjectSummary;
   estimate: EstimateView | null;
@@ -1121,7 +1143,21 @@ function Overview({
   onWork: () => void;
   /** График разложен из сметы: сводка и журнал перечитываются. */
   onPlanned: () => void;
+  /** Может ли вошедший выдать вход заказчику: бухгалтеру настройки закрыты. */
+  выдаётВход: boolean;
+  /** Переход к шагу «Следующего действия». */
+  onStep: (шаг: ШагОбъекта) => void;
 }): React.JSX.Element {
+  /* Факты для «Выполнено N из M» (пункт 7.8) — только уровню руководителя:
+     маршрут прорабу и заказчику закрыт, и блок им не рисуется. Отказ
+     чтения блок прячет — «Обзор» остаётся рабочим. */
+  const [факты, setФакты] = useState<ProjectFacts | null>(null);
+  useEffect(() => {
+    setФакты(null);
+    if (!заводитСмету) return;
+    fetchProjectFacts(project.code).then(setФакты).catch(() => { setФакты(null); });
+  }, [project.code, заводитСмету]);
+  const действие = факты === null ? null : nextAction(факты);
   /* Этапы графика читаются здесь, а не приходят со сводкой: в сводке нет
      принятой доли этапа (она стоит двух выборок на объект и на портфеле не
      нужна), а перечень без неё называл бы заявленное принятым. */
@@ -1152,6 +1188,47 @@ function Overview({
 
   return (
     <div className="stack stack--loose">
+      {/* «Следующее действие» (план, пункт 7.8): сколько шагов объекта
+          выполнено и один следующий — с переходом туда, где его делают.
+          Один шаг, а не перечень: блок отвечает на «что делать», а не на
+          «чего не хватает». Видят руководитель и бухгалтер. */}
+      {действие !== null && (
+        <section className="nextstep" aria-labelledby="overview-next-head">
+          <div className="nextstep__head">
+            <h2 className="t-h3" id="overview-next-head">
+              Выполнено {действие.done} из {действие.total}
+            </h2>
+            <span className="nextstep__bar" aria-hidden="true">
+              <span
+                className="nextstep__fill"
+                style={{ "--nextstep-share": действие.done / действие.total } as React.CSSProperties}
+              />
+            </span>
+          </div>
+          {действие.next === null ? (
+            <p className="t-sm">Все шаги объекта выполнены.</p>
+          ) : (
+            <div className="nextstep__step">
+              <p className="t-sm">
+                <span className="t-muted">Следующий шаг: </span>
+                <span className="nextstep__label">{действие.next.label}</span>
+              </p>
+              {действие.next.key === "clientAccess" && !выдаётВход ? (
+                <span className="t-sm t-muted">Вход выдаёт руководитель в настройках</span>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => { if (действие.next !== null) onStep(действие.next.key); }}
+                >
+                  Перейти к шагу
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Обложка объекта первым блоком: карточку открывают, чтобы вспомнить,
           что это за объект, и снимок отвечает на это быстрее шести чисел.
           Видео не вводится — его нет ни в схеме, ни в объёме работ, а кнопка

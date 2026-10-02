@@ -5,12 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
-  CreateProject, NextProjectCode, ProjectEvent, ProjectSummary, UpdateProject,
+  CreateProject, NextProjectCode, ProjectEvent, ProjectFacts, ProjectSummary, UpdateProject,
 } from "@priyomka/contracts";
 import {
   acceptedShare, basisPoints, clientTotals, estimateAgainstGuideline, kopecks,
   nextProjectCode, projectReadiness, trancheRemainder,
-  ownerLevel, formatDay,
+  ownerLevel, formatDay, PREPAYMENT_NUMBER,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -65,6 +65,48 @@ export class ProjectsService {
       project, facts.get(project.id), tranches.get(project.id),
       принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id),
       расходы.get(project.id)));
+  }
+
+  /**
+   * Факты объекта для блока «Выполнено N из M» (план, пункт 7.8).
+   *
+   * Каждый факт — существование записи, а не отметка: замер есть, если есть
+   * помещение; смета — если есть редакция; вход заказчику выдан, если у
+   * заказчика объекта есть действующий, не отозванный вход; предоплата
+   * оплачена, если транш № 0 отмечен оплаченным; акт — закрытый транш;
+   * подписан — у транша есть дата подписания.
+   */
+  async facts(user: RequestUser, code: string): Promise<ProjectFacts> {
+    const project = await this.prisma.project.findFirst({
+      where: { ...projectScope(user), code },
+      select: { id: true, clientId: true, foremanId: true },
+    });
+    if (!project) {
+      throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
+    }
+    const [помещений, смет, этапов, входов, предоплата, пакетов, актов, подписанных] = await Promise.all([
+      this.prisma.measureRoom.count({ where: { projectId: project.id } }),
+      this.prisma.estimate.count({ where: { projectId: project.id } }),
+      this.prisma.workStage.count({ where: { projectId: project.id } }),
+      this.prisma.user.count({ where: { role: "CLIENT", clientId: project.clientId, revokedAt: null } }),
+      this.prisma.tranche.count({ where: { projectId: project.id, number: PREPAYMENT_NUMBER, status: "PAID" } }),
+      this.prisma.acceptanceBatch.count({ where: { projectId: project.id } }),
+      this.prisma.tranche.count({
+        where: { projectId: project.id, status: { in: ["CLOSED", "PAID"] }, NOT: { closedAt: null } },
+      }),
+      this.prisma.tranche.count({ where: { projectId: project.id, NOT: { signedAt: null } } }),
+    ]);
+    return {
+      rooms: помещений > 0,
+      estimate: смет > 0,
+      schedule: этапов > 0,
+      foreman: project.foremanId !== null,
+      clientAccess: входов > 0,
+      prepayment: предоплата > 0,
+      acceptance: пакетов > 0,
+      act: актов > 0,
+      signed: подписанных > 0,
+    };
   }
 
   async byCode(user: RequestUser, code: string): Promise<ProjectSummary> {

@@ -6,6 +6,7 @@
  * иначе стенд наполнялся бы данными, которые продукт получить не может.
  */
 import { readFileSync } from "node:fs";
+import { снимокОтчёта } from "./report-photos.mjs";
 
 const BASE = process.env.API ?? "http://127.0.0.1:3000";
 const CODE = process.env.CODE ?? "R-99";
@@ -357,4 +358,34 @@ if (типовая.ok) {
   );
 } else {
   console.error(`  типовая смета не заведена: код ${типовая.status}`);
+}
+
+/* --- день съёмки: несколько пакетов со снимками (план, пункт 7.7) -------------
+   Коллаж дня в фотоотчёте — «1 крупный + 2 мелких» и «+N» на последнем —
+   проверяется только на дне, где снимков больше трёх. Прежде стенд держал
+   один пакет с одним снимком, и коллажу не на чем было показать ни раскладку,
+   ни счёт. Три пакета заводятся после акта — в открытый транш, чтобы состав
+   закрытого не менялся. Снимки рисует `report-photos.mjs`: сторонних
+   фотографий в наполнении нет. */
+{
+  const вид = await fetch(`${BASE}/projects/${CODE}/acceptance`, { headers: { cookie } })
+    .then((response) => response.json());
+  const разделы = (вид.sections ?? []).filter((раздел) => раздел.stage?.brigade != null);
+  let заведено = 0;
+  for (let номер = 0; номер < 3; номер += 1) {
+    const раздел = разделы[номер % Math.max(разделы.length, 1)];
+    const позиция = раздел?.positions.find((строка) => BigInt(строка.remaining) >= 8n);
+    if (раздел === undefined || позиция === undefined) continue;
+    const форма = new FormData();
+    форма.append("batch", JSON.stringify({
+      sectionId: раздел.id,
+      comment: ["Грунтовка стен перед штукатуркой", "Проверка черновой электрики", "Маяки под стяжку"][номер],
+      positions: [{ itemId: позиция.id, qty: (BigInt(позиция.remaining) / 8n).toString() }],
+    }));
+    форма.append("file", new Blob([await снимокОтчёта(номер + 1)]), `snimok-${String(номер + 1)}.png`);
+    const ответ = await fetch(`${BASE}/projects/${CODE}/acceptance`, { method: "POST", headers: { cookie }, body: форма });
+    if (ответ.ok) заведено += 1;
+    else console.error(`  пакет дня съёмки не заведён: код ${ответ.status}`);
+  }
+  console.log(`  день съёмки: пакетов со снимками заведено ${String(заведено)}`);
 }
