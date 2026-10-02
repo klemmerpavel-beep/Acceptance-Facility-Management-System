@@ -17,6 +17,8 @@
 | Витрина дизайн-системы | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/showcase.html |
 | Три экрана эталона | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/screens.html |
 | Дизайн-канва, 15 артбордов | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/canvas.html |
+| Аудит и квиз | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/audit.html |
+| Памятка прорабу, лист A4 | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/prorab.html |
 | Коммит и дата сборки | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/version.txt |
 
 Сайт собирается на каждый push в `main` и в ветки `claude/**` работой
@@ -41,6 +43,9 @@
 | `docs/10_QUIZ.md` | Двенадцать решений заказчика и записанные ответы |
 | `docs/11_UI_AUDIT.md` | Реестр находок по интерфейсу и ход их закрытия |
 | `docs/12_FEEDBACK.md` | Приёмник замечаний по демонстрации |
+| `docs/13_FULL_AUDIT.md` | Реестр полного аудита П-N и исполнение решений заказчика; книга — `13_FULL_AUDIT.xlsx` |
+| `docs/14_MARKET.md` | Рынок и выход на рынок |
+| `docs/16_PD_POLICY.md` | Проект политики обработки персональных данных и её сверка с продуктом |
 
 `docs/01_PROJECT.md` — единственный источник правды по объёму. Расширение объёма без
 явного решения запрещено; список исключённого — раздел 6.2 того же файла.

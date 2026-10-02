@@ -1111,6 +1111,12 @@ export const acceptanceBatchSchema = z.object({
   comment: z.string().nullable(),
   /** Опознаватели фотографий пакета. Адрес файла выводится клиентом. */
   photos: z.array(z.string().uuid()),
+  /**
+   * Номер транша, в который принят пакет; `null` — вне транша. Обратная
+   * запись ложится в тот же пакет и потому в тот же транш: лист сторно
+   * называет закрытый транш и акт, которые изменятся (П-27).
+   */
+  trancheNumber: z.number().int().nonnegative().nullable(),
   lines: z.array(acceptanceLineSchema),
 });
 export type AcceptanceBatch = z.infer<typeof acceptanceBatchSchema>;

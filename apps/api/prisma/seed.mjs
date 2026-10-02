@@ -548,6 +548,14 @@ const заявки = [
     address: "Бульвар Победы 23б, кв. 204" },
   { number: 1011, name: "Роман", phone: "+7 900 000-00-22", stage: "CONTRACT", days: 91, area: 57_800n, тип: 1 },
   { number: 959, name: "Марина", phone: "+7 900 000-00-23", stage: "CONTRACT", days: 144, area: 70_100n, тип: 1 },
+  /* Две отказные — ради срока хранения персональных данных (ч. 7 ст. 21
+     152-ФЗ; П-40, 02.10.2026). Отказу первой 45 дней: сервер обязан
+     обезличить её сам при запуске. Отказу второй 10 дней: её данные ещё
+     хранятся. На доске открытых заявок их нет — воронка прежняя. */
+  { number: 948, name: "Пётр", phone: "+7 900 000-00-24", stage: "MEETING", days: 160,
+    отказ: { дней: 45, причина: "Выбрали другого подрядчика" } },
+  { number: 1040, name: "Ольга", phone: "+7 900 000-00-25", stage: "FIRST_CONTACT", days: 55,
+    отказ: { дней: 10, причина: "Отложили ремонт до весны" } },
 ];
 
 const день = 86_400_000;
@@ -563,7 +571,10 @@ for (const заявка of заявки) {
     phone: заявка.phone,
     address: заявка.address ?? null,
     stage: заявка.stage,
-    outcome: "OPEN",
+    outcome: заявка.отказ === undefined ? "OPEN" : "LOST",
+    lostReason: заявка.отказ?.причина ?? null,
+    lostAt: заявка.отказ === undefined ? null : new Date(сегодня - заявка.отказ.дней * день),
+    anonymizedAt: null,
     repairTypeId: тип?.id ?? null,
     area: заявка.area ?? null,
     rateSnapshot: тип === null ? null : тип.ratePerSqm,
@@ -572,7 +583,7 @@ for (const заявка of заявки) {
   };
   const строка = await prisma.lead.upsert({
     where: { orgId_number: { orgId: org.id, number: заявка.number } },
-    update: { ...поля, clientId: null, projectId: null, lostReason: null },
+    update: { ...поля, note: null, clientId: null, projectId: null },
     create: { orgId: org.id, number: заявка.number, ...поля },
   });
   for (const задача of заявка.задачи ?? []) {

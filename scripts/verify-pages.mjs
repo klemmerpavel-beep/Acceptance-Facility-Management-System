@@ -23,11 +23,11 @@ if (!existsSync(site)) {
   process.exit(1);
 }
 
-/* 1. Состав. Страниц ровно шесть, и каждая — ответ на отдельный вопрос
+/* 1. Состав. Страниц ровно семь, и каждая — ответ на отдельный вопрос
       заказчика. Недостача означает, что источник переименовали, а сборку
       не поправили: на сайте вместо страницы будет 404. */
 const REQUIRED = [
-  "index.html", "showcase.html", "screens.html", "canvas.html", "audit.html", "version.txt",
+  "index.html", "showcase.html", "screens.html", "canvas.html", "audit.html", "prorab.html", "version.txt",
 ];
 for (const name of REQUIRED) {
   const path = join(site, name);
@@ -146,6 +146,13 @@ if (файлыГарнитур.length === 0) note("в site/fonts.css нет ни
 for (const файл of файлыГарнитур) {
   if (!existsSync(join(site, файл))) note(`файла гарнитуры site/${файл} нет`);
 }
+
+/* 8. Памятка прорабу получила токены продукта: отметка подстановки не
+      осталась, переменные цвета объявлены. Без токенов лист печатается
+      запасными цветами, и расхождение с продуктом никто не заметит. */
+const памятка = existsSync(join(site, "prorab.html")) ? readFileSync(join(site, "prorab.html"), "utf8") : "";
+if (памятка.includes("/*@tokens")) note("site/prorab.html: токены продукта не подставлены");
+if (!/--accent:\s*#/u.test(памятка)) note("site/prorab.html: переменные цвета продукта не объявлены");
 
 if (problems.length > 0) {
   console.error(`Дефектов публикации: ${problems.length}\n`

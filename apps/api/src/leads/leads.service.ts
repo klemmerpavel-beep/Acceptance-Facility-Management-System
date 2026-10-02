@@ -9,6 +9,7 @@ import {
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
+import { обезличенныеПоля } from "./anonymize";
 
 /**
  * Заявки: воронка и ориентир цены (стадия F).
@@ -325,7 +326,7 @@ export class LeadsService {
     const обновлённая = await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.lead.updateMany({
         where: { id, outcome: "OPEN" },
-        data: { outcome: "LOST", lostReason: input.reason },
+        data: { outcome: "LOST", lostReason: input.reason, lostAt: new Date() },
       });
       if (count === 0) {
         throw new BadRequestException({
@@ -371,7 +372,7 @@ export class LeadsService {
     const обновлённая = await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.lead.updateMany({
         where: { id, orgId: user.orgId, outcome: "LOST", anonymizedAt: null },
-        data: { name: LeadsService.ОБЕЗЛИЧЕНО, phone: "", address: null, note: null, anonymizedAt: new Date() },
+        data: обезличенныеПоля(new Date()),
       });
       if (count === 0) {
         throw new BadRequestException({ message: `Заявка № ${lead.number} уже обезличена.` });
@@ -389,9 +390,6 @@ export class LeadsService {
     });
     return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
   }
-
-  /** Имя обезличенной заявки: слово, а не пустота, — доска печатает имя первым. */
-  private static readonly ОБЕЗЛИЧЕНО = "Обезличено";
 
   async addTask(user: RequestUser, id: string, input: CreateLeadTask): Promise<LeadCard> {
     const lead = await this.own(user, id);

@@ -1,11 +1,11 @@
 import { ownerLevel, sectionTitle } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type {
-  AcceptanceLine, AcceptanceView, Role,
+  AcceptanceLine, AcceptanceView, ClosedTranches, Role,
 } from "@priyomka/contracts";
 import { formatKopecks, formatMeasure } from "@priyomka/ui";
 import {
-  acceptancePhotoUrl, createAcceptance, errorMessage, fetchAcceptance, reverseAcceptance,
+  acceptancePhotoUrl, createAcceptance, errorMessage, fetchAcceptance, fetchClosedTranches, reverseAcceptance,
 } from "./api.js";
 import { AcceptSheet } from "./AcceptSheet.js";
 import { tabArrowHandler } from "./tabs.js";
@@ -59,7 +59,12 @@ export function Acceptance({
   const [запрос, setЗапрос] = useState("");
   const [толькоОстаток, setТолькоОстаток] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [reversing, setReversing] = useState<{ line: AcceptanceLine; brigade: string } | null>(null);
+  const [reversing, setReversing] = useState<{
+    line: AcceptanceLine; brigade: string; tranche: number | null;
+  } | null>(null);
+  /* Закрытые транши читаются при открытии листа сторно, как у листов правки
+     сметы: транш закрывают на другой вкладке (П-27, сторно — 02.10.2026). */
+  const [закрытые, setЗакрытые] = useState<ClosedTranches["tranches"]>([]);
   /* Что объявить тому, кто экран не видит. Результат приёмки виден
      перерисовкой чисел — а перерисовка чтением с экрана не объявляется. */
   const [объявление, setОбъявление] = useState<string | null>(null);
@@ -330,7 +335,13 @@ export function Acceptance({
                         type="button"
                         className="btn btn--text"
                         disabled={busy}
-                        onClick={() => { setReversing({ line, brigade: batch.brigade.name }); }}
+                        onClick={() => {
+                          setReversing({ line, brigade: batch.brigade.name, tranche: batch.trancheNumber });
+                          setЗакрытые([]);
+                          fetchClosedTranches(code)
+                            .then((ответ) => { setЗакрытые(ответ.tranches); })
+                            .catch(() => { setЗакрытые([]); });
+                        }}
                       >
                         Сторнировать
                       </button>
@@ -390,6 +401,8 @@ export function Acceptance({
         <ReversalSheet
           line={reversing.line}
           brigade={reversing.brigade}
+          tranche={reversing.tranche}
+          closed={закрытые}
           busy={busy}
           error={sheetError}
           onSubmit={(reason) => {

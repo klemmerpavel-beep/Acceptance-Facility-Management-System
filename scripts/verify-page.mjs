@@ -4540,13 +4540,38 @@ const сторнируемая = page.locator(".accept__batch").first()
 if ((await сторнируемая.count()) === 0) {
   note("приёмка", "у первой строки пакета нет сторно");
 } else {
+  /* Сторно в закрытом транше меняет акт по нему (П-27; сторно добавлено
+     заказчиком 02.10.2026). Номер транша пакета — настоящий, из ответа
+     сервера; перечень закрытых траншей подставлен на пути запроса: пакета
+     закрытого транша с несторнированной строкой в действующей редакции на
+     стенде нет. Правильность перечня стережёт `verify-api`. */
+  const траншПакета = await page.evaluate(async () => {
+    const вид = await fetch("/api/projects/R-99/acceptance", { credentials: "include" }).then((ответ) => ответ.json());
+    return вид.batches?.[0]?.trancheNumber ?? null;
+  });
+  const ПУТЬ_ЗАКРЫТЫХ = "**/api/projects/R-99/estimate/closed-tranches";
+  if (траншПакета === null) {
+    note("приёмка", "пакет обхода лёг вне транша — предупреждение сторно о закрытом транше не проверить");
+  } else {
+    await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", items: [] }] }),
+    }));
+  }
   await сторнируемая.click();
   await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
   const текстСторно = (await page.locator(".sheet").count()) === 0
     ? ""
     : await page.locator(".sheet").innerText();
   if (!текстСторно.includes("останутся в истории")) {
     note("приёмка", "лист сторно не называет, что записи остаются в истории");
+  }
+  if (траншПакета !== null) {
+    for (const нужно of [`Пакет принят в закрытом транше № ${String(траншПакета)}`, `Подписан акт № ${String(траншПакета)} (12.09.2026)`]) {
+      if (!текстСторно.includes(нужно)) note("приёмка", `лист сторно не называет «${нужно}»`);
+    }
+    await page.unroute(ПУТЬ_ЗАКРЫТЫХ);
   }
   if (await page.locator(".sheet .btn--danger").isEnabled()) {
     note("приёмка", "сторно доступно без указания причины");

@@ -802,6 +802,8 @@ export async function createAcceptance(
     author: data["me-owner"].name,
     comment: batch.comment ?? null,
     photos: [новыйId()],
+    /* Пакет ложится в открытый транш, как на сервере; открытого нет — вне транша. */
+    trancheNumber: траншиR99().current?.number ?? null,
     lines,
   }, ...вид.batches];
   выработатьВТранш(вид, section.id, lines, 1n);

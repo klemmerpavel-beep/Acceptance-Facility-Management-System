@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { AcceptanceLine } from "@priyomka/contracts";
+import type { AcceptanceLine, ClosedTranches } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
+import { предупреждениеОЗакрытых } from "./closed-tranches.js";
 
 /**
  * Сторно приёмки — право руководителя и только с причиной.
@@ -13,6 +14,8 @@ import { useModalDialog } from "./modal.js";
 export function ReversalSheet({
   line,
   brigade,
+  tranche,
+  closed,
   busy,
   error,
   onSubmit,
@@ -20,6 +23,10 @@ export function ReversalSheet({
 }: {
   line: AcceptanceLine;
   brigade: string;
+  /** Транш пакета: обратная запись ложится в него же. `null` — вне транша. */
+  tranche: number | null;
+  /** Закрытые транши объекта: лист называет закрытый транш пакета (П-27). */
+  closed: ClosedTranches["tranches"];
   busy: boolean;
   error: string | null;
   onSubmit: (reason: string) => void;
@@ -28,6 +35,7 @@ export function ReversalSheet({
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const [reason, setReason] = useState("");
   const ready = reason.trim().length > 0;
+  const предупреждение = предупреждениеОЗакрытых(closed, { транш: tranche });
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -45,6 +53,7 @@ export function ReversalSheet({
             будет отменена обратной записью. Начисление бригаде «{brigade}» отменится,
             остаток по смете вернётся. Обе записи останутся в истории объекта.
           </p>
+          {предупреждение !== null && <p className="panel panel--pad t-sm" role="note">{предупреждение}</p>}
 
           <label className="field">
             <span className="field__label">Причина</span>
