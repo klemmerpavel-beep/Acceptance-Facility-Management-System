@@ -1508,6 +1508,12 @@ export const actRowSchema = z.object({
   paidAt: z.string().nullable(),
   positions: z.number().int().nonnegative(),
   total: kopecksString,
+  /**
+   * Скан подписанного экземпляра (план, пункт 4.10): тип файла и день
+   * загрузки. `null` — скан не приложен. Сам файл отдаётся руководителю и
+   * заказчику отдельным адресом.
+   */
+  scan: z.object({ type: z.string(), uploadedAt: z.string().date() }).nullable(),
 });
 export const actListSchema = z.array(actRowSchema);
 export type ActRow = z.infer<typeof actRowSchema>;

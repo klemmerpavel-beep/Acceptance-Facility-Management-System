@@ -1426,6 +1426,20 @@ if (!Array.isArray(акты) || акты.length !== 1) {
       `акт открытого транша отдан с кодом ${актОткрытого.status}`);
   }
 
+  /* Скан подписанного экземпляра (план, пункт 4.10). До отметки подписания
+     скан не принимается: скан без даты подписания ничего не подтверждает. */
+  const сканКакФорма = (байты, имя) => {
+    const form = new FormData();
+    form.append("file", new Blob([байты]), имя);
+    return form;
+  };
+  const СКАН_PDF = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n", "latin1");
+  const сканДоПодписи = await owner(`/projects/R-99/acts/${акт.trancheId}/scan`, {
+    method: "POST", body: сканКакФорма(СКАН_PDF, "akt.pdf"),
+  });
+  check(сканДоПодписи.status === 400,
+    `скан принят к неподписанному акту с кодом ${сканДоПодписи.status}`);
+
   /* Отметка подписания: ставит руководитель, датой не из будущего.
      Подписание идёт последним: оно меняет состояние стенда, и проверки выше
      читают акт ещё неподписанным — тем, каким его заводит наполнение. */
@@ -1447,6 +1461,45 @@ if (!Array.isArray(акты) || акты.length !== 1) {
   }).then((r) => r.json());
   check(подписан[0]?.signedAt === "2026-09-12",
     `после отметки дата подписания «${подписан[0]?.signedAt}» вместо 2026-09-12`);
+  check(подписан[0]?.scan === null, `у акта без скана поле scan ${JSON.stringify(подписан[0]?.scan)}`);
+
+  /* Скан прикладывает руководитель; прорабу — отказ, текст — отказ по
+     содержимому, а не по имени файла. */
+  const прорабСкан = await foreman(`/projects/R-99/acts/${акт.trancheId}/scan`, {
+    method: "POST", body: сканКакФорма(СКАН_PDF, "akt.pdf"),
+  });
+  check(прорабСкан.status === 403, `прораб приложил скан с кодом ${прорабСкан.status}`);
+  const текстВместоСкана = await owner(`/projects/R-99/acts/${акт.trancheId}/scan`, {
+    method: "POST", body: сканКакФорма(Buffer.from("это не скан"), "akt.pdf"),
+  });
+  check(текстВместоСкана.status === 400,
+    `текстовый файл под именем .pdf принят сканом с кодом ${текстВместоСкана.status}`);
+
+  const сПриложенным = await owner(`/projects/R-99/acts/${акт.trancheId}/scan`, {
+    method: "POST", body: сканКакФорма(СКАН_PDF, "akt.pdf"),
+  });
+  check(сПриложенным.status === 201 || сПриложенным.status === 200,
+    `скан подписанного акта не принят: код ${сПриложенным.status}`);
+  const строкаСоСканом = сПриложенным.ok ? (await сПриложенным.json())[0] : undefined;
+  check(строкаСоСканом?.scan?.type === "application/pdf",
+    `после загрузки скан в перечне ${JSON.stringify(строкаСоСканом?.scan)}`);
+
+  /* Скачанное совпадает с загруженным побайтно: PDF кладётся как есть. */
+  const сканРуководителю = await owner(`/projects/R-99/acts/${акт.trancheId}/scan`);
+  const байтыСкана = Buffer.from(await сканРуководителю.arrayBuffer());
+  check(сканРуководителю.status === 200 && байтыСкана.equals(СКАН_PDF),
+    `скан отдан руководителю с кодом ${сканРуководителю.status}, ${байтыСкана.length} байт вместо ${СКАН_PDF.length}`);
+  check(сканРуководителю.headers.get("content-type") === "application/pdf"
+    && сканРуководителю.headers.get("x-content-type-options") === "nosniff",
+    `скан отдан с типом «${сканРуководителю.headers.get("content-type")}» без запрета подбора типа`);
+  for (const [кто, запрос, код] of [["заказчику", client, 200], ["бухгалтеру", accountant, 200], ["прорабу", foreman, 403]]) {
+    const ответ = await запрос(`/projects/R-99/acts/${акт.trancheId}/scan`);
+    check(ответ.status === код, `скан ${кто} отдан с кодом ${ответ.status} вместо ${код}`);
+  }
+  const лентаСкана = await owner("/projects/R-99/events?limit=200").then((r) => r.text());
+  check(лентаСкана.includes("скан подписанного экземпляра"),
+    "загрузка скана не записана в журнал объекта");
+  console.log(`Скан акта № ${String(акт.number)}: ${байтыСкана.length} байт, тип ${строкаСоСканом?.scan?.type}`);
 }
 
 /* --- шаблоны документов организации ------------------------------------------

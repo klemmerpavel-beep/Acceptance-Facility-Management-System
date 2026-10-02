@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { ActRow, ActView, SignAct } from "@priyomka/contracts";
 import {
@@ -9,6 +10,19 @@ import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
+import { FileStorage } from "../common/file-storage";
+import { безМетаданных } from "../common/clean-image";
+import { IMAGE_EXTENSION, detectImageType } from "../measure/image-type";
+
+/**
+ * Тип скана по содержимому: снимок (JPEG, PNG, WebP) или PDF. Расширение и
+ * заявленный браузером тип не проверяются — их подделать проще, чем подпись.
+ */
+const типСкана = (body: Buffer): { type: string; extension: string } | null => {
+  if (body.length >= 5 && body.toString("latin1", 0, 5) === "%PDF-") return { type: "application/pdf", extension: "pdf" };
+  const снимок = detectImageType(body);
+  return снимок === null ? null : { type: снимок, extension: IMAGE_EXTENSION[снимок] };
+};
 
 /**
  * Акт выполненных работ.
@@ -45,6 +59,7 @@ export class ActsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: FileStorage,
   ) {}
 
   private async projectOf(user: RequestUser, code: string) {
@@ -82,6 +97,7 @@ export class ActsService {
       orderBy: { number: "desc" },
       select: {
         id: true, number: true, closedAt: true, signedAt: true, paidAt: true,
+        signedScanType: true, signedScanAt: true,
         batches: {
           select: {
             acceptances: {
@@ -115,6 +131,9 @@ export class ActsService {
             qty: milliunits(строка.qty),
             unitPrice: kopecks(строка.item.unitPrice),
           }))), share).total.toString(),
+          scan: транш.signedScanType === null || транш.signedScanAt === null
+            ? null
+            : { type: транш.signedScanType, uploadedAt: день(транш.signedScanAt) },
         };
       });
   }
@@ -322,5 +341,87 @@ export class ActsService {
     });
 
     return this.list(user, code);
+  }
+
+  /**
+   * Скан подписанного экземпляра акта (план, пункт 4.10).
+   *
+   * Отметка подписания хранила одну дату, а бумага с подписью заказчика
+   * жила в папке. Скан прикладывается к подписанному акту — без даты
+   * подписания он ничего не подтверждает. Снимок перекодируется без
+   * метаданных (П-39), PDF кладётся как есть. Новый скан заменяет прежний:
+   * подписанный экземпляр один, а замена пишется в журнал.
+   */
+  async attachScan(user: RequestUser, code: string, id: string, body: Buffer): Promise<ActRow[]> {
+    if (!ownerLevel(user.role)) {
+      throw new ForbiddenException({ message: "Скан подписанного акта прикладывает руководитель." });
+    }
+    const project = await this.projectOf(user, code);
+    const транш = await this.prisma.tranche.findFirst({
+      where: { id, projectId: project.id },
+      select: { id: true, number: true, signedAt: true, signedScanKey: true },
+    });
+    if (!транш) throw new NotFoundException({ message: "Акт не найден или недоступен." });
+    if (транш.signedAt === null) {
+      throw new BadRequestException({
+        message: `Акт № ${String(транш.number)} не отмечен подписанным: сначала поставьте дату подписания, затем приложите скан.`,
+      });
+    }
+    const тип = типСкана(body);
+    if (тип === null) {
+      throw new BadRequestException({
+        message: "Скан принимается снимком (JPEG, PNG, WebP) или файлом PDF. Тип определяется по содержимому файла, а не по расширению.",
+      });
+    }
+    const файл = тип.type === "application/pdf"
+      ? body
+      : await безМетаданных(body, тип.type as Parameters<typeof безМетаданных>[1]);
+    const key = `projects/${project.id}/acts/${randomUUID()}.${тип.extension}`;
+    await this.storage.put(key, файл, тип.type);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tranche.update({
+        where: { id: транш.id },
+        data: { signedScanKey: key, signedScanType: тип.type, signedScanAt: new Date() },
+      });
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "Tranche",
+        entityId: транш.id,
+        field: `акт № ${String(транш.number)} — скан подписанного экземпляра`,
+        oldValue: транш.signedScanKey === null ? null : "прежний скан",
+        newValue: "приложен",
+      }, tx);
+    });
+    if (транш.signedScanKey !== null) await this.storage.remove(транш.signedScanKey);
+    return this.list(user, code);
+  }
+
+  /**
+   * Файл скана. Видят руководитель, бухгалтер и заказчик своего объекта:
+   * на бумаге подпись заказчика, прорабу она ни к чему.
+   */
+  async readScan(user: RequestUser, code: string, id: string): Promise<{
+    body: Buffer; contentType: string; fileName: string;
+  }> {
+    if (user.role === "FOREMAN") {
+      throw new ForbiddenException({ message: "Скан подписанного акта видят руководитель, бухгалтер и заказчик." });
+    }
+    const project = await this.projectOf(user, code);
+    const транш = await this.prisma.tranche.findFirst({
+      where: { id, projectId: project.id },
+      select: { number: true, signedScanKey: true, signedScanType: true },
+    });
+    const ключ = транш?.signedScanKey ?? null;
+    const тип = транш?.signedScanType ?? null;
+    if (!транш || ключ === null || тип === null) {
+      throw new NotFoundException({ message: "Скан к этому акту не приложен." });
+    }
+    const расширение = ключ.slice(ключ.lastIndexOf(".") + 1);
+    return {
+      body: await this.storage.get(ключ),
+      contentType: тип,
+      fileName: `akt-${String(транш.number)}-podpisan.${расширение}`,
+    };
   }
 }
