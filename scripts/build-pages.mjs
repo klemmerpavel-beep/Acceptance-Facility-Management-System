@@ -33,6 +33,9 @@ const PAGES = {
      что и демонстрацию, а не в переписке. Страница самодостаточна —
      стилей приложения не подгружает и сервера не требует. */
   "audit.html": "audit.html",
+  /* Памятка прорабу (план, пункт 6.4): печатный лист A4 и страница по той
+     же постоянной ссылке. Токены подставляются из слоя стилей. */
+  "prorab.html": "prorab.html",
 };
 
 /** Ширина колонки, под которую артборд ужимается на обзорной странице. */
@@ -84,8 +87,13 @@ writeFileSync(
   readFileSync(join(root, "packages/ui/src/styles/fonts.css"), "utf8").replaceAll('url("../fonts/', 'url("fonts/'),
 );
 
+/* Страница с отметкой /*@tokens получает токены продукта из слоя стилей:
+   вторая палитра, набранная в странице от руки, разошлась бы с продуктом. */
+const токены = readFileSync(join(root, "packages/ui/src/styles/tokens.css"), "utf8");
 for (const [source, target] of Object.entries(PAGES)) {
-  writeFileSync(join(site, target), своиГарнитуры(readFileSync(join(design, source), "utf8"), "fonts.css"));
+  const страница = своиГарнитуры(readFileSync(join(design, source), "utf8"), "fonts.css")
+    .replace(/\/\*@tokens[\s\S]*?\*\//u, () => токены);
+  writeFileSync(join(site, target), страница);
 }
 
 buildCanvas();

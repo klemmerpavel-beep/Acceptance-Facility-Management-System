@@ -17,6 +17,8 @@
 | Витрина дизайн-системы | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/showcase.html |
 | Три экрана эталона | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/screens.html |
 | Дизайн-канва, 15 артбордов | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/canvas.html |
+| Аудит и квиз | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/audit.html |
+| Памятка прорабу, лист A4 | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/prorab.html |
 | Коммит и дата сборки | https://klemmerpavel-beep.github.io/Acceptance-Facility-Management-System/version.txt |
 
 Сайт собирается на каждый push в `main` и в ветки `claude/**` работой
