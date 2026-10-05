@@ -18,6 +18,7 @@ import { безМетаданных } from "../common/clean-image";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
+import { orgDay } from "../common/org-day";
 
 /**
  * Приёмка выполненных работ — ядро продукта.
@@ -86,13 +87,17 @@ export class AcceptanceService {
    */
   private async build(user: RequestUser, projectId: string): Promise<AcceptanceView> {
     const внутренние = ownerLevel(user.role);
-    const estimate = await this.prisma.estimate.findFirst({
-      where: { projectId },
-      orderBy: { version: "desc" },
-      select: { id: true },
-    });
+    const [estimate, { today }] = await Promise.all([
+      this.prisma.estimate.findFirst({
+        where: { projectId },
+        orderBy: { version: "desc" },
+        select: { id: true },
+      }),
+      orgDay(this.prisma, user.orgId),
+    ]);
     if (estimate === null) {
       return {
+        today,
         sections: [], batches: [],
         totals: { positions: 0, acceptedPositions: 0, accepted: "0", ...(внутренние ? { accrued: "0" } : {}) },
         ...(внутренние ? { accruals: [] } : {}),
@@ -118,7 +123,7 @@ export class AcceptanceService {
       this.prisma.workStage.findMany({
         where: { projectId, NOT: { sectionId: null } },
         select: {
-          id: true, name: true, sectionId: true,
+          id: true, name: true, sectionId: true, startsOn: true, endsOn: true,
           brigade: { select: { id: true, name: true } },
         },
       }),
@@ -181,6 +186,9 @@ export class AcceptanceService {
           id: stage.id,
           name: stage.name,
           brigade: stage.brigade,
+          /* Даты этапа хранятся днём без времени: полночь UTC и есть день. */
+          startsOn: stage.startsOn.toISOString().slice(0, 10),
+          endsOn: stage.endsOn.toISOString().slice(0, 10),
         },
         positions: (поРазделу.get(section.id) ?? []).map((item) => {
           const accepted = acceptedQty(поПозиции.get(item.id) ?? []);
@@ -216,7 +224,7 @@ export class AcceptanceService {
       ...(внутренние ? { accrued: начислено.toString() } : {}),
     };
 
-    if (!внутренние) return { sections: виды, batches, totals };
+    if (!внутренние) return { today, sections: виды, batches, totals };
 
     const бригады = new Map(stages.flatMap((stage) =>
       stage.brigade === null ? [] : [[stage.brigade.id, stage.brigade.name] as const]));
@@ -254,7 +262,7 @@ export class AcceptanceService {
       tranche: заТранш === null ? null : (заТранш.get(row.brigadeId) ?? kopecks(0)).toString(),
     }));
 
-    return { sections: виды, batches, totals, accruals };
+    return { today, sections: виды, batches, totals, accruals };
   }
 
   /** Пакеты объекта с их строками. Новые сверху: смотрят на последнее. */

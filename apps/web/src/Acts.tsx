@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { formatPhone, isPhoneNumber, ownerLevel } from "@priyomka/domain";
+import { formatPhone, isPhoneNumber, ownerLevel, актБезПодписи, новоеПосле } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { actScanUrl, attachActScan, errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
+import { actTurn } from "./turn.js";
 import { Announce } from "./Announce.js";
 import { имяЛиста, печать } from "./print.js";
+import { EvidenceMark } from "./Evidence.js";
+import { отобрать, type СОтбором } from "./FilterBar.js";
 
 /**
  * Вкладка «Документы» карточки объекта.
@@ -43,7 +46,11 @@ const дата = (iso: string): string => {
   return `${день ?? "??"}.${месяц ?? "??"}.${год ?? "????"}`;
 };
 
-export function Acts({ code, role }: { code: string; role: Role }): React.JSX.Element {
+export function Acts({
+  code,
+  role,
+  ...сОтбором
+}: { code: string; role: Role } & СОтбором): React.JSX.Element {
   const [rows, setRows] = useState<ActRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [открыт, setОткрыт] = useState<string | null>(null);
@@ -106,20 +113,33 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
     );
   }
 
+  /* Отбор пункта очереди (ДР-1): акты без подписи у руководителя и новые
+     с прошлого захода у заказчика — правилами домена, которыми посчитано
+     число пункта. */
+  const { записи: строки, полоса } = отобрать(rows, сОтбором, {
+    unsigned: актБезПодписи,
+    since: (row, значение) => значение !== null && новоеПосле(row.closedTime, значение),
+  });
+
   return (
     <div className="stack stack--loose">
       <div className="acts-screen stack stack--loose">
         <Announce text={объявление} />
+        {полоса}
         <ul className="records records--label">
-          {rows.map((row) => (
+          {строки.map((row) => (
             <li className="record" key={row.trancheId} data-status={row.signedAt === null ? "DRAFT" : "CONFIRMED"}>
               <span className="code-badge">№ {row.number}</span>
               <div className="record__body">
                 <p className="record__head">
                   <span className="t-strong">Акт № {row.number} по объекту {code}</span>
+                  {/* Чем подтверждено (ДР-7): приложен скан подписанного экземпляра. */}
+                  {row.scan !== null && <EvidenceMark kind="scan" />}
                   {row.signedAt === null
                     ? <span className="pill pill--warn">Не подписан</span>
                     : <span className="pill pill--ok">Подписан {дата(row.signedAt)}</span>}
+                  {/* Чей ход (ДР-4): неподписанный акт ждёт заказчика. */}
+                  {row.signedAt === null && <span className="turn">{actTurn(row.signedAt)}</span>}
                   {row.paidAt !== null && <span className="pill pill--ok">Оплачен</span>}
                 </p>
                 <p className="t-sm t-muted">

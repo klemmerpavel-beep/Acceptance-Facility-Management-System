@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
+import { expenseTurn } from "./turn.js";
 import { завести } from "./verbs.js";
-import { ownerLevel } from "@priyomka/domain";
+import { ownerLevel, свойЧекОтклонён, чекЧерновик } from "@priyomka/domain";
 import { formatKopecks } from "@priyomka/ui";
 import type { ExpenseView, MaterialExpense, Role } from "@priyomka/contracts";
 import {
   decideExpense, deleteExpense, errorMessage, expensePhotoUrl, fetchExpenses,
 } from "./api.js";
 import { ExpenseSheet } from "./ExpenseSheet.js";
+import { EvidenceMark } from "./Evidence.js";
+import { отобрать, type СОтбором } from "./FilterBar.js";
 
 /**
  * Вкладка «Чеки» карточки объекта.
@@ -47,11 +50,12 @@ export function Expenses({
   code,
   role,
   onEvents,
+  ...сОтбором
 }: {
   code: string;
   role: Role;
   onEvents: () => void;
-}): React.JSX.Element {
+} & СОтбором): React.JSX.Element {
   const [view, setView] = useState<ExpenseView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -81,6 +85,12 @@ export function Expenses({
   if (view === null) return <p className="t-sm t-muted">Загружаем чеки…</p>;
 
   const добавляет = canAdd(role);
+  /* Отбор пункта очереди (ДР-1) — теми же правилами домена, которыми
+     сервер посчитал число пункта. */
+  const { записи: строки, полоса } = отобрать(view.rows, сОтбором, {
+    draft: чекЧерновик,
+    rejected: свойЧекОтклонён,
+  });
 
   return (
     <div className="stack stack--loose">
@@ -118,6 +128,8 @@ export function Expenses({
 
       {error !== null && <p className="field__error" role="alert">{error}</p>}
 
+      {полоса}
+
       {view.rows.length === 0 ? (
         <div className="empty">
           <p className="empty__title">Чеки не поступали</p>
@@ -134,7 +146,7 @@ export function Expenses({
         </div>
       ) : (
         <ul className="records">
-          {view.rows.map((row) => (
+          {строки.map((row) => (
             <Чек
               key={row.id}
               code={code}
@@ -194,7 +206,12 @@ function Чек({
       <div className="record__body">
         <p className="record__head">
           <span className="t-strong">{row.seller}</span>
+          {/* Чем подтверждено (ДР-7): снимок чека обязателен при заведении,
+              и значок стоит у каждой строки, где файл приложен. */}
+          {row.fileName !== "" && <EvidenceMark kind="photo" />}
           {черновик && <span className="pill pill--warn">Черновик</span>}
+          {/* Чей ход (ДР-4): черновик ждёт руководителя. */}
+          {expenseTurn(row.status) !== null && <span className="turn">{expenseTurn(row.status)}</span>}
           {отклонён && <span className="pill pill--danger">Отклонён</span>}
           {!row.reimbursable && <span className="pill">Не возмещается</span>}
         </p>

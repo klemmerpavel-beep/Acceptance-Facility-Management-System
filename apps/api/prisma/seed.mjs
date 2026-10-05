@@ -135,6 +135,9 @@ const объекты = [
     code: "R-27", address: "Ленинский проспект 174п", client: "204", foreman: false,
     status: ProjectStatus.WAITING_CLIENT, started: "2026-04-20", deadline: "2026-10-15",
     keys: 2, share: 1200,
+    /* Статус «Ждёт ответа» с этапа Э8 выбирается только с полем «Ждём»
+       (ДР-4); текст вымышленный. */
+    ждём: "От заказчика: выбор плитки для санузла",
   },
   {
     code: "R-19", address: "Революции 9а, офис 3", client: "412", foreman: false,
@@ -153,6 +156,7 @@ for (const объект of объекты) {
     startedAt: объект.started === null ? null : new Date(объект.started),
     deadline: объект.deadline === null ? null : new Date(объект.deadline),
     foremanId: объект.foreman ? foreman.id : null,
+    waitingFor: объект.ждём ?? null,
   };
   await prisma.project.upsert({
     where: { orgId_code: { orgId: org.id, code: объект.code } },
@@ -457,6 +461,7 @@ if (Number.isFinite(нагрузка) && нагрузка > объекты.lengt
       startedAt: начало,
       deadline: new Date(начало.getTime() + 185 * день),
       foremanId: null,
+      waitingFor: статусы[i % статусы.length] === ProjectStatus.WAITING_CLIENT ? "От заказчика: решение по смете" : null,
     };
     const объект = await prisma.project.upsert({
       where: { orgId_code: { orgId: org.id, code } },
@@ -561,8 +566,12 @@ const заявки = [
 const день = 86_400_000;
 const сегодня = Date.now();
 await prisma.leadTask.deleteMany({ where: { orgId: org.id } });
+/* Выигранная заявка R-99 заводится ниже, отдельной записью: её номер
+   исключён из удаления «лишних» номеров, иначе каждое наполнение сносило бы
+   её вместе со связью с объектом. */
+const ЗАЯВКА_R99 = 1001;
 await prisma.lead.deleteMany({
-  where: { orgId: org.id, number: { notIn: заявки.map((заявка) => заявка.number) } },
+  where: { orgId: org.id, number: { notIn: [...заявки.map((заявка) => заявка.number), ЗАЯВКА_R99] } },
 });
 for (const заявка of заявки) {
   const тип = заявка.тип === undefined ? null : типы.get(заявка.тип);
@@ -596,6 +605,37 @@ for (const заявка of заявки) {
       },
     });
   }
+}
+
+/*
+ * Выигранная заявка R-99 (этап Э8, ДР-0). Прежде ни один объект стенда не
+ * был заведён из заявки, и ориентир по заявке в карточке не показывался
+ * никому — утечку ориентира прорабу и заказчику было не на чем увидеть
+ * (полный аудит, П-56). Заявка вымышленная: имя, телефон из невыдаваемого
+ * диапазона, площадь 92,5 м² по дизайнерскому образцовому тарифу — вилка
+ * 3 108 000 — 4 662 000 ₽, итог сметы R-99 внутри неё.
+ */
+if (объектR99 !== null) {
+  const тип = типы.get(2);
+  const поля = {
+    name: "Евгения",
+    phone: "+7 900 000-00-26",
+    address: объектR99.address,
+    stage: "CONTRACT",
+    outcome: "WON",
+    repairTypeId: тип?.id ?? null,
+    area: 92_500n,
+    rateSnapshot: тип?.ratePerSqm ?? null,
+    spreadSnapshot: тип?.spread ?? null,
+    clientId: объектR99.clientId,
+    projectId: объектR99.id,
+    createdAt: new Date(сегодня - 150 * день),
+  };
+  await prisma.lead.upsert({
+    where: { orgId_number: { orgId: org.id, number: ЗАЯВКА_R99 } },
+    update: поля,
+    create: { orgId: org.id, number: ЗАЯВКА_R99, ...поля },
+  });
 }
 
 /**
@@ -829,10 +869,15 @@ const объектЗаказчика = await prisma.project.findFirst({
   where: { orgId: org.id, code: "R-99" },
   select: { clientId: true },
 });
+/* Прошлый заход — три дня назад (этап Э8, ДР-1): снимки и акт, которые
+   наполнение сметы заводит позже, — «новое с прошлого входа» в очереди
+   заказчика. Без отметки нового не было бы вовсе: первый заход встречает
+   экран первого входа, а не очередь (решение допроса Э8-2). */
+const прошлыйЗаход = new Date(Date.now() - 3 * 86_400_000);
 if (объектЗаказчика !== null) {
   await prisma.user.upsert({
     where: { id: "00000000-0000-4000-8000-000000000003" },
-    update: { clientId: объектЗаказчика.clientId, role: "CLIENT" },
+    update: { clientId: объектЗаказчика.clientId, role: "CLIENT", lastSeenAt: прошлыйЗаход },
     create: {
       id: "00000000-0000-4000-8000-000000000003",
       orgId: org.id,
@@ -840,7 +885,25 @@ if (объектЗаказчика !== null) {
       name: "Заказчик объекта R-99",
       email: "client@dolgiy.studio",
       clientId: объектЗаказчика.clientId,
+      lastSeenAt: прошлыйЗаход,
     },
+  });
+}
+
+/* --- «Ждёт ответа» дольше недели (этап Э8, ДР-1) ------------------------------
+   R-27 переведён в «Ждёт ответа» девять дней назад — запись журнала той же
+   формы, что пишет смена статуса. Без неё объект ждал бы со дня заведения,
+   и пункт очереди «ждёт ответа дольше 7 дней» на стенде было бы нечем
+   отличить от правила «со дня заведения». Повторное наполнение запись не
+   удваивает. */
+const ждущий = await prisma.project.findFirst({
+  where: { orgId: org.id, code: "R-27" }, select: { id: true },
+});
+if (ждущий !== null) {
+  const запись = { orgId: org.id, entity: "Project", entityId: ждущий.id, field: "status", newValue: "WAITING_CLIENT" };
+  await prisma.auditLog.deleteMany({ where: запись });
+  await prisma.auditLog.create({
+    data: { ...запись, actorId: owner.id, oldValue: "IN_PROGRESS", at: new Date(Date.now() - 9 * 86_400_000) },
   });
 }
 

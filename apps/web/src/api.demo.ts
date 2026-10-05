@@ -17,7 +17,7 @@ import type {
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
-  InviteIssued, InviteUser, PersonRow,
+  InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -28,6 +28,7 @@ import type {
   EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
   CreateEstimateItem, CreateEstimateSection, RenameEstimateSection, ProjectFacts,
 } from "@priyomka/contracts";
+import { updateProjectStatusSchema } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
@@ -43,6 +44,8 @@ import {
   type ProjectRange,
   сколько,
   PREPAYMENT_NUMBER,
+  inboxItems, адресПункта, актБезПодписи, разделБезЭтапа, разделСегодня, свойЧекОтклонён, чекЧерновик,
+  ВИДЫ_ОЧЕРЕДИ,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
@@ -98,6 +101,11 @@ interface Snapshot {
   "act-internal": ActView | null;
   expenses: ExpenseView;
   "measure-replanned": MeasureView;
+  /** Очередь «Ждёт вашего действия» по ролям (этап Э8, ДР-1), снятая со стенда. */
+  "inbox-owner": Inbox;
+  "inbox-accountant": Inbox;
+  "inbox-foreman": Inbox;
+  "inbox-client": Inbox;
 }
 
 const data = snapshot as unknown as Snapshot;
@@ -113,7 +121,9 @@ let signedIn = true;
  * нет, но и притворяться, будто смена статуса не сработала, неправильно —
  * иначе кнопка выглядела бы сломанной.
  */
-const changedStatus = new Map<string, ProjectStatus>();
+/* Статус и поле «Ждём» меняются одним запросом и хранятся парой (ДР-4):
+   поле очищается со сменой статуса, и порознь их не развести. */
+const changedStatus = new Map<string, { status: ProjectStatus; waitingFor: string | null }>();
 
 /**
  * Правки полей объекта. Живут до перезагрузки, как и смена статуса, и по
@@ -299,9 +309,9 @@ export async function fetchProjects(): Promise<ProjectSummary[]> {
 }
 
 const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
-  const status = changedStatus.get(project.code);
+  const смена = changedStatus.get(project.code);
   const правка = changedFields.get(project.code);
-  const свежий = status === undefined ? project : { ...project, status };
+  const свежий = смена === undefined ? project : { ...project, ...смена };
   return правка === undefined ? свежий : сПравкой(свежий, правка);
 };
 
@@ -465,6 +475,7 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     code: input.code,
     address: input.address,
     status: "NEW",
+    waitingFor: null,
     startedAt: input.startedAt ?? null,
     deadline: input.deadline,
     // Объект заводится «сегодня» демонстрации, а не в день открытия страницы:
@@ -518,13 +529,22 @@ export async function fetchEvents(code: string): Promise<ProjectEvent[]> {
 export async function setProjectStatus(
   code: string,
   status: ProjectStatus,
+  waitingFor?: string,
 ): Promise<ProjectSummary> {
   await pause(240);
   const rows = [...data["projects-owner"], ...заведённые.projects];
   const project = rows.find((row) => row.code === code);
   if (project === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
-  changedStatus.set(code, status);
-  return { ...project, status };
+  /* Тот же контракт, что на сервере: «Ждёт ответа» без поля «Ждём» —
+     отказ, называющий поле (ДР-4). */
+  const тело = updateProjectStatusSchema.safeParse(waitingFor === undefined ? { status } : { status, waitingFor });
+  if (!тело.success) throw new Error(тело.error.issues[0]?.message ?? "Статус не принят.");
+  const смена = {
+    status: тело.data.status,
+    waitingFor: тело.data.status === "WAITING_CLIENT" ? (тело.data.waitingFor ?? null) : null,
+  };
+  changedStatus.set(code, смена);
+  return withChangedStatus(project);
 }
 
 export async function updateProject(
@@ -731,6 +751,7 @@ const приёмкаR99 = (role: "OWNER" | "FOREMAN"): AcceptanceView => {
      пропускало всякое новое поле, и начисления бригадам по неделям
      (`accruals`) доходили до прораба (полный аудит 30.09.2026, П-1). */
   return {
+    today: приёмка.today,
     sections: приёмка.sections.map((section) => ({
       ...section,
       positions: section.positions.map((position) => ({
@@ -766,7 +787,10 @@ const приёмкаR99 = (role: "OWNER" | "FOREMAN"): AcceptanceView => {
 export async function fetchAcceptance(code: string): Promise<AcceptanceView> {
   await pause(220);
   if (code !== "R-99") {
-    return { sections: [], batches: [], totals: { positions: 0, acceptedPositions: 0, accepted: "0" } };
+    return {
+      today: data["acceptance-owner"].today,
+      sections: [], batches: [], totals: { positions: 0, acceptedPositions: 0, accepted: "0" },
+    };
   }
   return приёмкаПоРоли();
 }
@@ -1148,7 +1172,10 @@ function перенестиСвязиВПриёмку(): void {
         ...section,
         stage: stage === undefined
           ? null
-          : { id: stage.id, name: stage.name, brigade: stage.brigade },
+          : {
+            id: stage.id, name: stage.name, brigade: stage.brigade,
+            startsOn: stage.startsOn, endsOn: stage.endsOn,
+          },
       };
     }),
   };
@@ -1618,6 +1645,9 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     paidAt: prepayment ? now : null,
     // Только что открытый транш не закрыт, значит и акта у него нет.
     signedAt: null,
+    // Открытый транш оплаты не ждёт (ДР-4) и не просрочен (ДР-1).
+    awaitingDays: null,
+    overdue: false,
     comment: input.comment ?? null,
     produced: "0",
     client: "0",
@@ -1660,6 +1690,9 @@ export async function closeTranche(
   }
   транш.status = "CLOSED";
   транш.closedAt = new Date().toISOString();
+  // Закрыт только что: ждёт оплаты меньше дня (ДР-4), порог не пройден (ДР-1).
+  транш.awaitingDays = 0;
+  транш.overdue = false;
   if (input.comment !== undefined) транш.comment = input.comment;
   вид.current = вид.tranches.find((строка) => строка.status === "OPEN") ?? null;
   return вид;
@@ -1680,6 +1713,8 @@ export async function payTranche(_code: string, id: string): Promise<TrancheView
   }
   транш.status = "PAID";
   транш.paidAt = new Date().toISOString();
+  транш.awaitingDays = null;
+  транш.overdue = false;
   return вид;
 }
 
@@ -2286,6 +2321,8 @@ export async function createExpense(
     createdBy: data["me-owner"].name,
     createdAt: new Date().toISOString(),
     confirmedBy: data["me-owner"].name,
+    decidedAt: new Date().toISOString(),
+    own: true,
   }, ...чеки];
   return видЧеков();
 }
@@ -2302,6 +2339,7 @@ export async function decideExpense(
       ...строка,
       status: решение === "confirm" ? "CONFIRMED" as const : "REJECTED" as const,
       confirmedBy: data["me-owner"].name,
+      decidedAt: new Date().toISOString(),
     }
     : строка);
   return видЧеков();
@@ -2639,6 +2677,7 @@ export async function invitePerson(input: InviteUser): Promise<InviteIssued> {
     email: input.email,
     phone: input.phone,
     client: input.clientId === null ? null : "заказчик справочника",
+    clientId: input.clientId,
     entered: false,
   });
   return { token: `demo-${String(Date.now())}` };
@@ -2657,4 +2696,79 @@ export async function revokePerson(id: string): Promise<PersonRow[]> {
   const где = людиДемо.findIndex((человек) => человек.id === id);
   if (где >= 0) людиДемо.splice(где, 1);
   return [...людиДемо];
+}
+
+/* --- очередь «Ждёт вашего действия» (этап Э8, ДР-1) ------------------------
+   Пункты считаются по живому состоянию двойника, а не берутся из слепка
+   как есть: подтверждённый в демонстрации черновик обязан исчезнуть из
+   очереди, иначе число пункта разошлось бы с экраном назначения. Считаются
+   они только у R-99 — данные экранов у двойника есть только у него, и
+   пункт другого объекта вёл бы на пустой список. День, с которого пункт
+   ждёт, берётся у снятого пункта; пункт, которого в слепке не было, ждёт
+   со дня съёмки. Заказчику — снятые пункты как есть: отметку захода
+   демонстрация не хранит. */
+
+const снятаяОчередь = (): Inbox => {
+  if (демоРоль === "ACCOUNTANT") return data["inbox-accountant"];
+  return поРоли(data["inbox-owner"], data["inbox-foreman"], data["inbox-client"]);
+};
+
+function числаДемо(): Partial<Record<InboxKind, number>> {
+  const числа: Partial<Record<InboxKind, number>> = {};
+  const строкиЧеков = чеки ?? data.expenses.rows;
+  if (ownerLevel(демоРоль)) {
+    const вид = траншиR99();
+    числа.expenseDrafts = строкиЧеков.filter(чекЧерновик).length;
+    числа.trancheToClose = вид.current !== null && BigInt(вид.current.remainder) <= 0n ? 1 : 0;
+    числа.paymentOverdue = вид.tranches.filter((транш) => транш.overdue).length;
+    числа.actUnsigned = data.acts.map(сДокументами).filter(актБезПодписи).length;
+    числа.sectionsNoStage = приёмкаR99("OWNER").sections.filter(разделБезЭтапа).length;
+  }
+  if (демоРоль === "FOREMAN") {
+    const вид = приёмкаR99("FOREMAN");
+    числа.stageToday = вид.sections.filter((раздел) => разделСегодня(раздел, вид.today)).length;
+    числа.expenseRejected = строкиЧеков.filter(свойЧекОтклонён).length;
+  }
+  return числа;
+}
+
+export async function fetchInbox(): Promise<Inbox> {
+  await pause(160);
+  const снятая = снятаяОчередь();
+  const снятыеR99 = снятая.items.filter((пункт) => пункт.projectCode === "R-99");
+  if (демоРоль === "CLIENT") return { today: снятая.today, items: снятыеR99, seenAt: снятая.seenAt };
+  const числа = числаДемо();
+  const день = data["acceptance-owner"].today;
+  const объект = data["projects-owner"].find((project) => project.code === "R-99");
+  const пункты = inboxItems(
+    демоРоль,
+    [{
+      code: "R-99",
+      status: объект?.status ?? "IN_PROGRESS",
+      пункты: Object.fromEntries(ВИДЫ_ОЧЕРЕДИ[демоРоль].flatMap((вид) => {
+        const число = числа[вид];
+        const снятый = снятыеR99.find((пункт) => пункт.kind === вид);
+        if (число === undefined) return снятый === undefined ? [] : [[вид, { count: снятый.count, since: снятый.since }]];
+        return [[вид, { count: число, since: снятый?.since ?? день }]];
+      })),
+    }],
+    день,
+  );
+  return {
+    today: день,
+    items: пункты.map((пункт): InboxItem => ({
+      kind: пункт.kind,
+      projectCode: пункт.code,
+      count: пункт.count,
+      since: пункт.since,
+      href: снятыеR99.find((снятый) => снятый.kind === пункт.kind)?.href ?? адресПункта(пункт.kind, пункт.code),
+    })),
+    seenAt: снятая.seenAt,
+  };
+}
+
+/** Отметка захода: в демонстрации хранить её негде, и «новое» остаётся снятым. */
+export async function markInboxSeen(): Promise<InboxSeen> {
+  await pause(60);
+  return { seenAt: new Date().toISOString() };
 }

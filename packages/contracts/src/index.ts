@@ -256,6 +256,12 @@ export const projectSummarySchema = z.object({
   code: projectCodeSchema,
   address: z.string(),
   status: projectStatusSchema,
+  /**
+   * Чего ждём при статусе «Ждёт ответа» (этап Э8, ДР-4). `null` — статус
+   * другой или объект переведён в «Ждёт ответа» до появления поля. Видно
+   * всем ролям объекта, включая заказчика: чаще всего это вопрос к нему.
+   */
+  waitingFor: z.string().nullable(),
   /** Дата начала работ. Отличается от даты заведения объекта в системе. */
   startedAt: z.string().date().nullable(),
   deadline: z.string().date().nullable(),
@@ -275,8 +281,14 @@ export const projectSummarySchema = z.object({
    * на сумму, потрачено, остаток текущего транша») и до появления чеков не
    * существовала нигде. Ноль здесь — настоящий ноль: чеков нет, потрачено
    * ноль. Пустоты у этой величины не бывает.
+   *
+   * Поле зависит от роли (этап Э8, ДР-0, П-56): заказчику его нет в ответе
+   * вовсе — не `null` и не ноль. Деньги в вид заказчика не добавляются до
+   * решения о них (ответ на вопрос 3 квиза; допущение В1 этапа Э8), а
+   * отсутствующее поле отличается от пустого так же, как прочерк от слова
+   * (`01_PROJECT.md`, раздел 19).
    */
-  spentMaterials: kopecksString,
+  spentMaterials: kopecksString.optional(),
   client: z.object({
     code: z.string(),
     name: z.string(),
@@ -312,8 +324,15 @@ export const projectSummarySchema = z.object({
    * тем же правилом, что у фактической готовности этапа.
    */
   acceptedShare: z.number().int().min(0).nullable(),
-  /** Выполнено на сумму по действующей редакции. `null` — сметы нет. */
-  accepted: kopecksString.nullable(),
+  /**
+   * Выполнено на сумму по действующей редакции. `null` — сметы нет.
+   *
+   * Заказчику поля нет (этап Э8, ДР-0; решение допроса Э8, вопрос 9): экран
+   * заказчика его не показывал, а ответ отдавал — денежная величина без
+   * потребителя. Прораб поле сохраняет: «выполнено на сумму» он видит на
+   * «Приёмке».
+   */
+  accepted: kopecksString.nullable().optional(),
   /** Позиций с ненулевым принятым количеством. */
   acceptedPositions: z.number().int().nonnegative(),
   /**
@@ -338,6 +357,11 @@ export const projectSummarySchema = z.object({
    * `null` — объект заведён руками, а не из заявки, либо ориентир не был
    * посчитан. Величины читаются с заявки и не дублируются здесь в базе:
    * два места для одного числа расходятся на первой же правке.
+   *
+   * Поле только уровню руководителя (этап Э8, ДР-0, П-56): ориентир —
+   * сведения отдела продаж (ставка за м², вилка, отклонение сметы от
+   * обещанного), а прорабу и заказчику раздел «Заявки» закрыт целиком.
+   * Им поля нет в ответе вовсе.
    */
   guideline: z.object({
     low: kopecksString,
@@ -352,15 +376,18 @@ export const projectSummarySchema = z.object({
       verdict: z.enum(["внутри", "выше", "ниже"]),
       delta: kopecksString,
     }).nullable(),
-  }).nullable(),
+  }).nullable().optional(),
   /**
    * Остаток текущего транша. `null` — открытого транша нет.
    *
    * Ноль здесь означал бы «транш выработан ровно до копейки», а это иное
    * утверждение, чем «транша нет»; по тому же правилу, что и `readiness`.
    * Отрицательная величина — перевыработка, законное состояние.
+   *
+   * Заказчику поля нет (этап Э8, ДР-0, П-56): транши ему закрыты. Прораб
+   * его сохраняет — «сколько ещё можно принять до следующего акта».
    */
-  trancheRemainder: kopecksString.nullable(),
+  trancheRemainder: kopecksString.nullable().optional(),
   /** Этапы графика в порядке ведения. Пусто — график не заведён. */
   stages: z.array(planStageSchema),
 });
@@ -454,7 +481,33 @@ export const createWorkerSchema = z.object({
 });
 export type CreateWorker = z.infer<typeof createWorkerSchema>;
 
-export const updateProjectStatusSchema = z.object({ status: projectStatusSchema });
+/** Предел поля «Ждём»: строка, а не письмо — она стоит на плитке объекта. */
+export const WAITING_FOR_MAX = 140;
+
+/**
+ * Смена статуса объекта.
+ *
+ * Статус «Ждёт ответа» выбирается только вместе с полем «Ждём» — что и от
+ * кого (этап Э8, ДР-4). Статус называл ожидание, но не его предмет, и
+ * ответить на него было нечем: через неделю никто не помнил, чего ждали.
+ * Отказ называет поле, а не правило: человек ищет на экране то, что
+ * названо в отказе. При прочих статусах поле не принимается во внимание —
+ * сервер его очищает.
+ */
+export const updateProjectStatusSchema = z.object({
+  status: projectStatusSchema,
+  waitingFor: z.string().trim()
+    .max(WAITING_FOR_MAX, `Поле «Ждём» длиннее ${String(WAITING_FOR_MAX)} знаков: напишите короче — оно стоит на плитке объекта.`)
+    .optional(),
+}).superRefine((тело, ctx) => {
+  if (тело.status === "WAITING_CLIENT" && (тело.waitingFor ?? "") === "") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["waitingFor"],
+      message: "Заполните поле «Ждём»: что и от кого ждём. Без него статус «Ждёт ответа» не выбирается.",
+    });
+  }
+});
 export type UpdateProjectStatus = z.infer<typeof updateProjectStatusSchema>;
 
 /**
@@ -491,10 +544,25 @@ export const foremanSchema = z.object({
 export const foremenSchema = z.array(foremanSchema);
 export type Foreman = z.infer<typeof foremanSchema>;
 
-/** Событие журнала: смена статуса, импорт сметы, правка величины. */
+/**
+ * Отбор ленты по видам (этап Э8, ДР-5): «Все · Приёмка · Деньги · Смета ·
+ * График · Документы». Чеки — в «Приёмке» (решение допроса Э8-6), в «Деньгах»
+ * — транши и платежи. `null` у события — его видно только в «Все»: статус
+ * объекта, замер, поля объекта.
+ */
+export const eventGroupSchema = z.enum(["acceptance", "money", "estimate", "schedule", "documents"]);
+export type EventGroup = z.infer<typeof eventGroupSchema>;
+
+/**
+ * Событие журнала. До этапа Э8 — смена статуса, импорт сметы, правка
+ * величины; с ДР-5 — ещё пакет приёмки, сторно приёмки, платёж и его сторно,
+ * решение по чеку, состояние транша и подпись акта. Заголовок начинается с
+ * раздела продукта, деньги — рублями; автор — в `actor`.
+ */
 export const eventSchema = z.object({
   at: z.string(),
-  kind: z.enum(["status", "import", "field"]),
+  kind: z.enum(["status", "import", "field", "acceptance", "reversal", "payment", "expense", "tranche", "act"]),
+  group: eventGroupSchema.nullable(),
   title: z.string(),
   detail: z.string().nullable(),
   projectCode: z.string().nullable(),
@@ -1160,8 +1228,14 @@ export const acceptanceSectionSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   order: z.number().int(),
-  stage: z.object({ id: z.string().uuid(), name: z.string(), brigade: brigadeSchema.nullable() })
-    .nullable(),
+  stage: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    brigade: brigadeSchema.nullable(),
+    /** Дни этапа (этап Э8, ДР-1): отбор «этап идёт сегодня» у прораба. */
+    startsOn: z.string().date(),
+    endsOn: z.string().date(),
+  }).nullable(),
   positions: z.array(acceptancePositionSchema),
 });
 export type AcceptanceSection = z.infer<typeof acceptanceSectionSchema>;
@@ -1278,6 +1352,13 @@ export const accrualRowSchema = z.object({
 export type AccrualRow = z.infer<typeof accrualRowSchema>;
 
 export const acceptanceViewSchema = z.object({
+  /**
+   * Сегодняшний день организации (этап Э8, ДР-1). Отбор «этап идёт сегодня»
+   * считается по нему, а не по часам устройства: на границе суток часы
+   * телефона и сервера расходятся, и число пункта очереди не совпало бы с
+   * числом разделов на экране.
+   */
+  today: z.string().date(),
   sections: z.array(acceptanceSectionSchema),
   batches: z.array(acceptanceBatchSchema),
   totals: z.object({
@@ -1337,6 +1418,17 @@ export const materialExpenseSchema = z.object({
   createdBy: z.string().nullable(),
   createdAt: z.string(),
   confirmedBy: z.string().nullable(),
+  /**
+   * Мгновение решения руководителя — подтверждения или отклонения (этап Э8,
+   * ДР-1): с него пункт «свой чек отклонён» ждёт прораба. У черновика пусто.
+   */
+  decidedAt: z.string().nullable(),
+  /**
+   * Чек заведён тем, кто смотрит (этап Э8, ДР-1): отбор «свои отклонённые»
+   * у прораба. Признак, а не опознаватель автора: чужие опознаватели экрану
+   * не нужны.
+   */
+  own: z.boolean(),
 });
 export type MaterialExpense = z.infer<typeof materialExpenseSchema>;
 
@@ -1451,6 +1543,19 @@ export const trancheSchema = z.object({
   remainder: kopecksString,
   /** Дата подписания акта заказчиком; пусто — не подписан. */
   signedAt: z.string().date().nullable(),
+  /**
+   * Сколько дней транш закрыт и не оплачен, по дню организации (этап Э8,
+   * ДР-4: строка «чей ход»). `null` — транш открыт или оплачен. Считается
+   * тем же правилом, что «ждёт N дней» в бухгалтерии: одно число в двух
+   * местах обязано совпадать.
+   */
+  awaitingDays: z.number().int().nonnegative().nullable(),
+  /**
+   * Оплата просрочена по порогу договора заказчика (этап Э8, ДР-1): тем же
+   * правилом, что «просрочено» в бухгалтерии. Отбор вкладки «Транши» по
+   * просрочке показывает ровно те транши, что названы числом в очереди.
+   */
+  overdue: z.boolean(),
   /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
   fill: z.number().int(),
   /** Копейки. Сумма платежей заказчика по траншу с учётом сторно. */
@@ -1584,6 +1689,11 @@ export const actRowSchema = z.object({
   trancheId: z.string().uuid(),
   number: z.number().int().nonnegative(),
   closedAt: z.string().date(),
+  /**
+   * Мгновение закрытия транша (этап Э8, ДР-1): «новые акты» заказчика
+   * отбираются по отметке его прошлого захода, а она — мгновение, не день.
+   */
+  closedTime: z.string(),
   signedAt: z.string().date().nullable(),
   paidAt: z.string().nullable(),
   positions: z.number().int().nonnegative(),
@@ -1991,6 +2101,12 @@ export const personRowSchema = z.object({
   phone: z.string().nullable(),
   /** Наименование записи справочника у заказчика; у прочих ролей пусто. */
   client: z.string().nullable(),
+  /**
+   * Опознаватель той же записи справочника (этап Э8, ДР-1): пункт очереди
+   * «заказчик ещё не входил» ведёт в «Люди» с отбором по заказчику, а
+   * наименования двух заказчиков могут совпасть.
+   */
+  clientId: z.string().uuid().nullable(),
   /** Входил ли человек хоть раз. Не время входа: учёта времени в продукте нет. */
   entered: z.boolean(),
 });
@@ -2010,3 +2126,52 @@ export type InviteUser = z.infer<typeof inviteUserSchema>;
 
 export const inviteIssuedSchema = z.object({ token: z.string() });
 export type InviteIssued = z.infer<typeof inviteIssuedSchema>;
+
+/* --- Очередь «Ждёт вашего действия» (этап Э8, ДР-1) ------------------------ */
+
+/**
+ * Вид пункта очереди. Каждый — факт, уже хранимый продуктом: очередь новых
+ * сущностей не заводит и вычисляется на сервере при каждом запросе.
+ */
+export const inboxKindSchema = z.enum([
+  "expenseDrafts", "trancheToClose", "actUnsigned", "paymentOverdue", "sectionsNoStage",
+  "clientNoAccess", "clientNotEntered", "waitingLong", "stageToday", "expenseRejected",
+  "newPhotos", "newActs",
+]);
+export type InboxKind = z.infer<typeof inboxKindSchema>;
+
+/**
+ * Пункт очереди: вид, объект, число и день, с которого ждёт. Число совпадает
+ * с числом записей в списке, куда ведёт `href`: адрес несёт отбор ровно этих
+ * записей (решение допроса Э8-4).
+ */
+export const inboxItemSchema = z.object({
+  kind: inboxKindSchema,
+  projectCode: projectCodeSchema,
+  count: z.number().int().positive(),
+  /** День, с которого пункт ждёт, по дню организации. */
+  since: z.string().date(),
+  /** Адрес экрана с отбором: `#R-99/expenses?draft`. */
+  href: z.string(),
+});
+export type InboxItem = z.infer<typeof inboxItemSchema>;
+
+export const inboxSchema = z.object({
+  /**
+   * Сегодняшний день организации: «с 01.10 · 4 дня» считается от него, а не
+   * от часов устройства — иначе на границе суток строка разошлась бы с
+   * сервером, посчитавшим «дольше 7 дней».
+   */
+  today: z.string().date(),
+  items: z.array(inboxItemSchema),
+  /**
+   * Отметка прошлого захода заказчика, по которой отобрано «новое»; `null` —
+   * заказчик заходит впервые или роль не заказчик.
+   */
+  seenAt: z.string().nullable(),
+});
+export type Inbox = z.infer<typeof inboxSchema>;
+
+/** Ответ на отметку захода заказчика: новое мгновение отметки. */
+export const inboxSeenSchema = z.object({ seenAt: z.string() });
+export type InboxSeen = z.infer<typeof inboxSeenSchema>;

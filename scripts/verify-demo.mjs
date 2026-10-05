@@ -595,6 +595,170 @@ await page.waitForTimeout(800);
   if ((await число(".nextstep")) > 0) note("7.8 следующее действие", "демонстрация: прораб видит блок «Выполнено N из M»");
 }
 
+/* --- Чей ход и поле «Ждём» (этап Э8, ДР-4) -----------------------------------
+   Двойник отдаёт транши, акты и чеки R-99 из слепка, снятого до проверок:
+   транш № 1 закрыт и не оплачен, его акт не подписан, черновик чека есть.
+   Смена статуса в двойнике держит тот же контракт, что сервер. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  const ОЖИДАНИЕ = [
+    ["tranches", ".tranche__row .turn", /^Закрыт \d{2}\.\d{2} · ждёт оплаты заказчиком · /u, "транша"],
+    ["documents", ".record .turn", /^Сформирован · ждёт подписи заказчика$/u, "акта"],
+    ["expenses", ".record .turn", /^Черновик · ждёт руководителя$/u, "черновика чека"],
+  ];
+  for (const [вкладка, где, образец, чего] of ОЖИДАНИЕ) {
+    await page.goto(`${BASE}/#R-99/${вкладка}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const строки = (await page.locator(где).allTextContents()).map((текст) => текст.trim());
+    if (!строки.some((строка) => образец.test(строка))) {
+      note("ДР-4 чей ход", `демонстрация, R-99: у ${чего} нет строки «чей ход» — «${строки.join(" | ") || "строк нет"}»`);
+    }
+  }
+  await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const открыть = page.locator('.summary__status button:has-text("Изменить статус")');
+  if ((await открыть.count()) === 0) {
+    note("ДР-4 ждём", "демонстрация: у руководителя нет «Изменить статус»");
+  } else {
+    await открыть.first().click();
+    await page.waitForTimeout(300);
+    const лист = page.locator('[role="dialog"][aria-label="Статус объекта"]');
+    await лист.locator("button", { hasText: "Ждёт ответа" }).click();
+    await page.waitForTimeout(200);
+    await лист.locator('button[type="submit"]').click().catch(() => { /* поля нет — замечание ниже */ });
+    await page.waitForTimeout(500);
+    const отказ = ((await лист.locator(".field__error").first().textContent().catch(() => "")) ?? "").trim();
+    if (!/«Ждём»/u.test(отказ)) note("ДР-4 ждём", `демонстрация: «Ждёт ответа» без поля — отказ «${отказ || "нет"}»`);
+    await лист.locator("textarea").fill("Демонстрация: выбор плитки").catch(() => { /* поля нет */ });
+    await лист.locator('button[type="submit"]').click().catch(() => { /* поля нет */ });
+    await page.waitForTimeout(700);
+    const вШтампе = ((await page.locator(".stamp .turn--waiting").first().textContent().catch(() => "")) ?? "").trim();
+    if (вШтампе !== "Ждём: Демонстрация: выбор плитки") note("ДР-4 ждём", `демонстрация: в штампе «${вШтампе || "нет строки"}»`);
+  }
+}
+
+/* --- Значки доказательности (этап Э8, ДР-7) ---------------------------------
+   Пакеты приёмки и чеки R-99 в слепке — со снимками: значок у каждой строки. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  for (const [вкладка, строки, подтверждено, что] of [
+    ["acceptance", ".accept__batch", ".accept__batch:has(img.accept__photo)", "пакеты приёмки"],
+    ["expenses", ".record", ".record:has(img.record__photo)", "чеки"],
+  ]) {
+    await page.goto(`${BASE}/#R-99/${вкладка}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const всего = await page.locator(подтверждено).count();
+    const значков = await page.locator(`${строки} .evidence[role="img"][aria-label="Есть снимок"]`).count();
+    if (всего === 0 || значков !== всего) {
+      note("ДР-7 значки", `демонстрация, R-99, ${что}: строк со снимком ${всего}, значков «Есть снимок» ${значков}`);
+    }
+  }
+}
+
+/* --- Лента событий (этап Э8, ДР-5) ------------------------------------------
+   Лента двойника снята с сервера от каждой роли: у записей есть группа
+   отбора, у руководителя — приёмки. Отбор оставляет только записи вида. */
+{
+  for (const [роль, ждём] of [["Руководитель", "Все|Приёмка|Деньги|Смета|График|Документы"], ["Прораб", "Все|Приёмка|Деньги|Смета|График"], ["Заказчик", "Все|Смета|График"]]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(600);
+    await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const пункты = (await page.locator("#panel-overview .feedfilter .segmented__option").allTextContents())
+      .map((т) => т.trim()).join("|");
+    if (пункты !== ждём) note("ДР-5 лента", `демонстрация, ${роль.toLowerCase()}: пункты отбора «${пункты || "нет отбора"}» вместо «${ждём}»`);
+    if (роль === "Руководитель" && пункты === ждём) {
+      await page.locator("#panel-overview .feedfilter .segmented__option", { hasText: "Приёмка" }).click();
+      await page.waitForTimeout(250);
+      const заголовки = (await page.locator("#panel-overview .feed__title").allTextContents()).map((т) => т.trim());
+      if (заголовки.length === 0 || заголовки.some((з) => !/^(?:Приёмка|Чеки):/u.test(з))) {
+        note("ДР-5 лента", `демонстрация, руководитель, отбор «Приёмка»: «${заголовки.slice(0, 3).join("», «") || "пусто"}»`);
+      }
+    }
+  }
+}
+
+/* --- Сводка объекта в проекции роли (этап Э8, ДР-0; полный аудит, П-56) -----
+   Двойник отдаёт сводку из слепка, снятого от каждой роли. Слепок, снятый
+   прежним сервером, нёс заказчику ориентир по заявке, потраченное и остаток
+   транша, — и демонстрация показала бы утечку, которой на сервере уже нет. */
+{
+  const ВЕЛИЧИНЫ = ["Ориентир по заявке", "Потрачено на материалы", "Остаток текущего транша"];
+  for (const [роль, видно] of [["Руководитель", ВЕЛИЧИНЫ], ["Прораб", ВЕЛИЧИНЫ.slice(1)], ["Заказчик", []]]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(600);
+    await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const подписи = (await page.locator(".figure__label").allTextContents()).map((текст) => текст.trim());
+    for (const величина of ВЕЛИЧИНЫ) {
+      const есть = подписи.some((подпись) => подпись.startsWith(величина));
+      if (есть && !видно.includes(величина)) note("ДР-0 сводка по ролям", `демонстрация, ${роль.toLowerCase()}: в сводке R-99 стоит «${величина}»`);
+      if (!есть && видно.includes(величина)) note("ДР-0 сводка по ролям", `демонстрация, ${роль.toLowerCase()}: в сводке R-99 нет «${величина}»`);
+    }
+  }
+}
+
+/* --- Очередь «Ждёт вашего действия» (этап Э8, ДР-1) -------------------------
+   Двойник считает пункты R-99 по живому состоянию теми же правилами домена,
+   что сервер: число пункта обязано совпасть с полосой отбора и с записями
+   экрана, куда ведёт кнопка. У заказчика очередь — первый блок «Обзора». */
+{
+  const ЗАПИСИ = {
+    expenses: "#panel-expenses .records > li",
+    documents: "#panel-documents .records > li",
+    tranches: "#panel-tranches .tranche__row",
+    acceptance: "#panel-acceptance .accept__sections [role='tab']",
+  };
+  const сверено = [];
+  for (const роль of ["Руководитель", "Бухгалтер", "Прораб", "Заказчик"]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(700);
+    /* Адрес — после смены роли: «Главная» заказчику закрыта, и адрес,
+       набранный до смены, у него откатывается на объект. */
+    await page.goto(`${BASE}/${роль === "Заказчик" ? "#R-99" : "#home"}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(500);
+    await page.waitForSelector(".queue .queue__row, .queue .queue__empty", { timeout: 6000 })
+      .catch(() => { note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}: очереди нет`); });
+    const первый = await page.evaluate((заказчик) => (заказчик
+      ? document.querySelector("#panel-overview > .stack")
+      : document.querySelector("main.container"))?.firstElementChild?.className ?? "", роль === "Заказчик");
+    if (!первый.split(" ").includes("queue")) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}: первый блок «${первый}», а не очередь`);
+    const пункты = await page.locator(".queue__row").evaluateAll((строки) => строки.map((строка) => ({
+      текст: (строка.querySelector(".queue__what")?.textContent ?? "").trim(),
+      адрес: строка.querySelector(".queue__go")?.getAttribute("href") ?? "",
+      число: Number(строка.querySelector(".queue__go")?.getAttribute("data-count") ?? "0"),
+    })));
+    if (роль === "Руководитель" && пункты.length === 0) note("ДР-1 очередь", "демонстрация, руководитель: очередь пуста — проверять нечего");
+    if (роль === "Заказчик" && пункты.length === 0) note("ДР-1 очередь", "демонстрация, заказчик: нового с прошлого входа нет — проверять нечего");
+    сверено.push(`${роль.toLowerCase()} ${String(пункты.length)}`);
+    for (const пункт of пункты) {
+      if (!пункт.адрес.includes("?")) continue;
+      await page.goto(`${BASE}/${пункт.адрес}`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(900);
+      const вПолосе = Number((await page.locator(".filterbar").first().getAttribute("data-count").catch(() => null)) ?? "-1");
+      if (вПолосе !== пункт.число) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}, «${пункт.текст}»: пункт ${пункт.число}, полоса ${вПолосе}`);
+      const экран = /^#[A-Z]-\d+\/([a-z]+)/u.exec(пункт.адрес)?.[1] ?? "";
+      if (ЗАПИСИ[экран] !== undefined) {
+        const записей = await page.locator(ЗАПИСИ[экран]).count();
+        if (записей !== пункт.число) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}, «${пункт.текст}»: пункт ${пункт.число}, на экране ${записей}`);
+      }
+    }
+  }
+  console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
+}
+
 await browser.close();
 server.close();
 

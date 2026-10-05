@@ -4,6 +4,7 @@ import { errorMessage, fetchPeople, invitePerson, relinkPerson, revokePerson } f
 import { Announce } from "./Announce.js";
 import { useModalDialog } from "./modal.js";
 import { завести } from "./verbs.js";
+import { отобрать, type СОтбором } from "./FilterBar.js";
 
 /**
  * Люди организации: кто имеет вход и с какой ролью.
@@ -40,7 +41,7 @@ const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
   CLIENT: "свой объект: ход работ, смета и бумаги",
 };
 
-export function People({ clients }: { clients: readonly ClientRow[] }): React.JSX.Element {
+export function People({ clients, ...сОтбором }: { clients: readonly ClientRow[] } & СОтбором): React.JSX.Element {
   const [rows, setRows] = useState<PersonRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,6 +105,13 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
 
   if (rows === null) return <p className="t-sm t-muted">Загружаем людей…</p>;
 
+  /* Отбор пункта очереди «заказчик ещё не входил» (ДР-1): люди заказчика
+     объекта без единого входа — тем же признаком, которым сервер посчитал
+     число пункта и которым стоит пилюля «Ещё не входил». */
+  const { записи: строки, полоса } = отобрать(rows, сОтбором, {
+    notentered: (row, clientId) => row.role === "CLIENT" && row.clientId === clientId && !row.entered,
+  });
+
   return (
     <div className="stack stack--loose">
       <Announce text={объявление} />
@@ -147,8 +155,10 @@ export function People({ clients }: { clients: readonly ClientRow[] }): React.JS
         </div>
       )}
 
+      {полоса}
+
       <ul className="records records--label">
-        {rows.map((row) => (
+        {строки.map((row) => (
           <li className="record" key={row.id}>
             <span className="pill">{РОЛИ[row.role]}</span>
             <div className="record__body">

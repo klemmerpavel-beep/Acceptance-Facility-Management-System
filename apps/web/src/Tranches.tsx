@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { plural } from "./status.js";
+import { trancheTurn } from "./turn.js";
 import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TranchePayment, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
@@ -11,6 +12,7 @@ import { Announce } from "./Announce.js";
 import { TrancheSheet } from "./TrancheSheet.js";
 import { PaymentReversalSheet, PaymentSheet } from "./PaymentSheet.js";
 import { TrancheStrip } from "./TrancheStrip.js";
+import { отобрать, type СОтбором } from "./FilterBar.js";
 
 /**
  * Вкладка «Транши».
@@ -78,11 +80,12 @@ export function Tranches({
   code,
   role,
   onEvents,
+  ...сОтбором
 }: {
   code: string;
   role: Role;
   onEvents: () => void;
-}): React.JSX.Element {
+} & СОтбором): React.JSX.Element {
   const [view, setView] = useState<TrancheView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
@@ -131,6 +134,12 @@ export function Tranches({
   const ведёт = canLead(role);
   const открытый = view.current;
   const платёжный = view.tranches.find((транш) => транш.id === платёжПо) ?? null;
+  /* Отбор пункта очереди (ДР-1): открытый транш, который пора закрыть, и
+     просроченные — признаком сервера, которым посчитано число пункта. */
+  const { записи: строки, полоса } = отобрать(view.tranches, сОтбором, {
+    open: (транш) => транш.status === "OPEN",
+    overdue: (транш) => транш.overdue,
+  });
 
   return (
     <div className="stack stack--loose">
@@ -208,6 +217,7 @@ export function Tranches({
           <h2 className="t-h3">Транши объекта</h2>
           <span className="t-cap">надбавка {formatPercent(BigInt(view.supervisionShare))}</span>
         </div>
+        {полоса}
 
         {view.tranches.length === 0
           ? (
@@ -218,7 +228,7 @@ export function Tranches({
               </p>
             </div>
           )
-          : view.tranches.map((транш) => (
+          : строки.map((транш) => (
             <div className="tranche__row" key={транш.id}>
               <span className="t-body">
                 <span className="tranche__no">№&nbsp;{транш.number}</span>
@@ -227,6 +237,9 @@ export function Tranches({
               </span>
               <span className="tranche__state">
                 <span className={STATUS_PILL[транш.status]}>{STATUS_LABEL[транш.status]}</span>
+                {/* Чей ход (ДР-4): закрытый транш ждёт оплаты заказчиком —
+                    с какого дня и сколько. */}
+                {trancheTurn(транш) !== null && <span className="turn">{trancheTurn(транш)}</span>}
                 {расхождение(транш) !== null && (
                   <span className="pill pill--warn">{расхождение(транш)}</span>
                 )}

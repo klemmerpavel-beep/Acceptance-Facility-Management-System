@@ -115,6 +115,8 @@ export class ExpensesService {
         createdBy: row.createdBy?.name ?? null,
         createdAt: row.createdAt.toISOString(),
         confirmedBy: row.confirmedBy?.name ?? null,
+        decidedAt: row.status === "DRAFT" || row.confirmedAt === null ? null : row.confirmedAt.toISOString(),
+        own: row.createdById === user.id,
       })),
       totals: {
         spent: totals.spent.toString(),
@@ -172,7 +174,7 @@ export class ExpensesService {
     await this.storage.put(key, чистый, photo.contentType);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.materialExpense.create({
+      const заведён = await tx.materialExpense.create({
         data: {
           projectId: project.id,
           status: сразуПодтверждён ? "CONFIRMED" : "DRAFT",
@@ -196,7 +198,10 @@ export class ExpensesService {
         orgId: user.orgId,
         actorId: user.id,
         entity: "MaterialExpense",
-        entityId: project.id,
+        /* Запись называет чек, а не объект (этап Э8, ДР-5): лента прораба
+           показывает только его чеки, и отобрать их можно лишь по чеку.
+           Объект лента находит через чек. */
+        entityId: заведён.id,
         field: `чек ${input.seller} — ${ВИД[input.kind] ?? input.kind}`,
         oldValue: null,
         newValue: `${formatKopecks(kopecks(input.amount))}${сразуПодтверждён ? "" : ", черновик"}`,
@@ -253,7 +258,7 @@ export class ExpensesService {
         orgId: user.orgId,
         actorId: user.id,
         entity: "MaterialExpense",
-        entityId: project.id,
+        entityId: expense.id,
         field: `чек ${expense.seller} — состояние`,
         oldValue: СОСТОЯНИЕ[expense.status],
         newValue: СОСТОЯНИЕ[решение],
@@ -286,6 +291,9 @@ export class ExpensesService {
         orgId: user.orgId,
         actorId: user.id,
         entity: "MaterialExpense",
+        /* Удалённого чека больше нет, и найти объект через него нельзя:
+           запись удаления называет объект, а прорабу отбирается по автору —
+           свой черновик удаляет он сам (ДР-5). */
         entityId: project.id,
         field: `чек ${expense.seller} — черновик удалён`,
         oldValue: formatKopecks(kopecks(expense.amount)),

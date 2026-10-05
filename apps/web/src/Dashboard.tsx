@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { завести } from "./verbs.js";
 import type {
   Dashboard as DashboardData,
+  Inbox,
   ProjectEvent,
   ProjectStatus,
   ProjectSummary,
 } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { fetchDashboard, errorMessage } from "./api.js";
+import { fetchDashboard, fetchInbox, errorMessage } from "./api.js";
+import { Queue } from "./Queue.js";
 import { ProjectTable } from "./ProjectTable.js";
 import { formatDay, formatTime, plural } from "./status.js";
 import { dueByDays } from "./due.js";
@@ -168,6 +170,9 @@ export function EventFeed({
                   {event.title}
                 </span>
                 {event.detail !== null && <span className="feed__detail"> {event.detail}</span>}
+                {/* Автор (этап Э8, ДР-5): сервер отдавал его всегда, а лента
+                    молчала — спор «кто поменял» лента не решала. */}
+                {event.actor !== null && <span className="feed__actor"> · {event.actor}</span>}
               </span>
             </div>
           ))}
@@ -215,6 +220,13 @@ const FEED_MARK: Record<ProjectEvent["kind"], { icon: string; className: string 
   status: { icon: "#i-badge", className: "icon icon--sm feed__mark feed__mark--status" },
   import: { icon: "#i-estimate", className: "icon icon--sm feed__mark feed__mark--import" },
   field: { icon: "#i-document", className: "icon icon--sm feed__mark" },
+  /* Виды этапа Э8 (ДР-5): знак раздела, к которому относится запись. */
+  acceptance: { icon: "#i-acceptance", className: "icon icon--sm feed__mark" },
+  reversal: { icon: "#i-acceptance", className: "icon icon--sm feed__mark" },
+  expense: { icon: "#i-expense", className: "icon icon--sm feed__mark" },
+  payment: { icon: "#i-money", className: "icon icon--sm feed__mark" },
+  tranche: { icon: "#i-money", className: "icon icon--sm feed__mark" },
+  act: { icon: "#i-document", className: "icon icon--sm feed__mark" },
 };
 
 const SCORE_CLASS = {
@@ -294,16 +306,26 @@ export function Dashboard({
 }): React.JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Очередь «Ждёт вашего действия» (этап Э8, ДР-1) — первый блок главной.
+     Грузится своим запросом: отказ сводки не прячет очередь, и наоборот. */
+  const [очередь, setОчередь] = useState<Inbox | null>(null);
+  const [ошибкаОчереди, setОшибкаОчереди] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchDashboard()
       .then(setData)
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
+    void fetchInbox()
+      .then(setОчередь)
+      .catch((cause: unknown) => { setОшибкаОчереди(errorMessage(cause)); });
   }, []);
+
+  const блокОчереди = <Queue inbox={очередь} error={ошибкаОчереди} />;
 
   if (error !== null) {
     return (
-      <main className="container">
+      <main className="container stack stack--groups">
+        {блокОчереди}
         <div className="empty">
           <p className="empty__title">Сводка недоступна</p>
           <p className="empty__text">{error}</p>
@@ -320,6 +342,7 @@ export function Dashboard({
   if (data === null) {
     return (
       <main className="container stack stack--loose" aria-busy="true">
+        {блокОчереди}
         <div className="statrow">
           {[0, 1, 2, 3].map((index) => (
             <span className="skeleton skeleton--card" key={index} />
@@ -369,6 +392,7 @@ export function Dashboard({
      требует действия, где всё лежит. */
   return (
     <main className="container stack stack--groups">
+      {блокОчереди}
       <div className="stack stack--loose">
       <section className="statrow">
         <StatCard

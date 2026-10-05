@@ -27,6 +27,8 @@
     <symbol id="i-badge" viewBox="0 0 20 20"><path d="M4 5h12v11H4z"/><path d="M8 8h4v3H8z"/><path d="M7 14h6"/></symbol>
     <symbol id="i-money" viewBox="0 0 20 20"><path d="M3 6h14v8H3z"/><path d="M8 10h4"/></symbol>
     <symbol id="i-document" viewBox="0 0 20 20"><path d="M5 3h7l3 3v11H5z"/><path d="M12 3v3h3"/><path d="M8 11h5M8 14h5"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 20 20"><path d="M3 6h3l1.5-2h5L14 6h3v10H3z"/><path d="M7 11a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 20 20"><path d="M5 3h7l3 3v11H5z"/><path d="M12 3v3h3"/><path d="M7.5 12l2 2l3.5-4"/></symbol>
     <symbol id="i-settings" viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/><path d="M8 4v4M13 8v4M6 12v4"/></symbol>
     <symbol id="i-more" viewBox="0 0 20 20"><path d="M4 10h.01M10 10h.01M16 10h.01"/></symbol>
 

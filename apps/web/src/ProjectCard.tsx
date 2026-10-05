@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
-  ClosedTranches, CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
-  ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, UpdateProject, Foreman, WorkStage,
+  ClosedTranches, CurrentUser, Inbox, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
+  ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, Role, UpdateProject, Foreman, WorkStage,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, nextAction, ownerLevel, projectRange, sectionWeights,
   type ШагОбъекта,
@@ -22,7 +22,7 @@ import { StageList } from "./StageList.js";
 import { useNarrow } from "./media.js";
 import { FieldEdit } from "./FieldEdit.js";
 import { EstimateTable } from "./EstimateTable.js";
-import { EventFeed } from "./Dashboard.js";
+import { FilteredEventFeed } from "./FeedFilter.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
@@ -35,8 +35,10 @@ import { BlueprintSheet } from "./BlueprintSheet.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
+import { waitingTurn } from "./turn.js";
 import { tabArrowHandler } from "./tabs.js";
-import type { Вкладка } from "./route.js";
+import type { Вкладка, ОтборАдреса } from "./route.js";
+import { Queue } from "./Queue.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
 import { КРУПНАЯ_ОБЛОЖКА } from "./coverTone.js";
 import { due, type DueLevel } from "./due.js";
@@ -210,6 +212,9 @@ export function ProjectCard({
   откуда,
   tab,
   onTab,
+  отбор,
+  onСброситьОтбор,
+  очередь,
   onBack,
   onChanged,
 }: {
@@ -222,6 +227,11 @@ export function ProjectCard({
   /** Вкладка живёт в адресе (`#R-99/estimate`) и потому у оболочки (П-50). */
   tab: Вкладка;
   onTab: (tab: Вкладка) => void;
+  /** Отбор вкладки из адреса: пункт очереди ведёт на список ровно своих записей (ДР-1). */
+  отбор: ОтборАдреса | null;
+  onСброситьОтбор: () => void;
+  /** Очередь заказчика за этот заход — первый блок «Обзора» (ДР-1); у прочих ролей `null`. */
+  очередь: { inbox: Inbox | null; error: string | null } | null;
   onBack: () => void;
   onChanged: (project: ProjectSummary) => void;
 }): React.JSX.Element {
@@ -341,15 +351,19 @@ export function ProjectCard({
       .finally(() => { setEditBusy(false); });
   };
 
-  const chooseStatus = (status: ProjectStatus): void => {
+  /* Отказ смены статуса показывается в листе, а не на карточке под ним:
+     он называет поле «Ждём», и искать его надо там, где поле стоит (ДР-4). */
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const chooseStatus = (status: ProjectStatus, waitingFor?: string): void => {
     setStatusBusy(true);
-    void setProjectStatus(project.code, status)
+    setStatusError(null);
+    void setProjectStatus(project.code, status, waitingFor)
       .then((updated) => {
         onChanged(updated);
         setStatusOpen(false);
         load();
       })
-      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .catch((cause: unknown) => { setStatusError(errorMessage(cause)); })
       .finally(() => setStatusBusy(false));
   };
 
@@ -430,6 +444,10 @@ export function ProjectCard({
             разные вещи заставляет читателя гадать, о чём речь. */}
         <span className="t-cap">Статус</span>
         <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
+        {/* Чего ждём (этап Э8, ДР-4) — под статусом, всем ролям объекта. */}
+        {waitingTurn(project.waitingFor) !== null && (
+          <span className="turn turn--waiting">{waitingTurn(project.waitingFor)}</span>
+        )}
       </div>
       <div className="stamp__cell">
         <span className="t-cap">Срок</span>
@@ -511,8 +529,11 @@ export function ProjectCard({
       {/* Ориентир, названный на заявке до выезда, — рядом с итогом
           сметы: в этом соседстве весь его смысл. Видно, на сколько
           промахнулись, когда смета готова. Объект заведён руками —
-          строки нет: ориентира никто не называл. */}
-      {project.guideline !== null && (
+          строки нет: ориентира никто не называл. Прорабу и заказчику
+          поля нет в ответе сервера (ДР-0, П-56): блок следует за
+          ответом, а не за ролью, — второе правило рядом с серверным
+          разошлось бы с ним на первой правке. */}
+      {project.guideline !== undefined && project.guideline !== null && (
         <div className="figure">
           <span className="figure__label">
             Ориентир по заявке № {project.guideline.leadNumber}
@@ -542,19 +563,24 @@ export function ProjectCard({
           Считается только по подтверждённым: черновик — заявка, а не
           расход, и вечерний вопрос «сколько ушло» не должен зависеть
           от того, разобрал ли руководитель черновики. */}
-      <div className="figure">
-        <span className="figure__label">Потрачено на материалы</span>
-        <span className="figure__value">{money(project.spentMaterials)}</span>
-        <span className="figure__note">по подтверждённым чекам</span>
-      </div>
+      {/* Заказчику величины нет в ответе (ДР-0): деньги в его вид не
+          добавляются до решения о них. */}
+      {project.spentMaterials !== undefined && (
+        <div className="figure">
+          <span className="figure__label">Потрачено на материалы</span>
+          <span className="figure__value">{money(project.spentMaterials)}</span>
+          <span className="figure__note">по подтверждённым чекам</span>
+        </div>
+      )}
 
       {/* Остаток текущего транша — та величина, ради которой руководитель
           открывает систему вечером (объём полевого испытания, решение
           № 3). Полоса с тремя величинами живёт на своей вкладке: в
           сводке нужен ответ на один вопрос — сколько ещё можно
           выработать. Транша нет — строки нет: ноль означал бы
-          «выработан ровно до копейки». */}
-      {project.trancheRemainder !== null && (
+          «выработан ровно до копейки». Заказчику поля нет в ответе
+          (ДР-0): транши ему закрыты. */}
+      {project.trancheRemainder !== undefined && project.trancheRemainder !== null && (
         <div className="figure">
           <span className="figure__label">Остаток текущего транша</span>
           <span
@@ -785,6 +811,7 @@ export function ProjectCard({
               {tab === "overview" && (
               <Overview
                 project={project}
+                role={user.role}
                 estimate={estimate}
                 events={events}
                 today={today}
@@ -792,6 +819,7 @@ export function ProjectCard({
                 onReport={() => { setTab("report"); }}
                 onWork={() => { setTab("work"); }}
                 выдаётВход={user.role === "OWNER"}
+                очередь={очередь}
                 onStep={(шаг) => {
                   /* Переход к шагу — туда, где его делают. Прораб назначается
                      в штампе: на телефоне штамп свёрнут в сводку, и она
@@ -837,7 +865,10 @@ export function ProjectCard({
 
             <div role="tabpanel" id="panel-acceptance" aria-labelledby="tab-acceptance" hidden={tab !== "acceptance"}>
               {tab === "acceptance" && (
-                <Acceptance code={project.code} role={user.role} onEvents={load} />
+                <Acceptance
+                  code={project.code} role={user.role} onEvents={load}
+                  отбор={отбор} onСброситьОтбор={onСброситьОтбор}
+                />
               )}
             </div>
 
@@ -852,6 +883,8 @@ export function ProjectCard({
                 <Expenses
                   code={project.code}
                   role={user.role}
+                  отбор={отбор}
+                  onСброситьОтбор={onСброситьОтбор}
                   onEvents={() => {
                     load();
                     void fetchProject(project.code).then(onChanged).catch(() => { /* сводка не обязательна */ });
@@ -861,16 +894,21 @@ export function ProjectCard({
             </div>
 
             <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" hidden={tab !== "documents"}>
-              {tab === "documents" && <Acts code={project.code} role={user.role} />}
+              {tab === "documents" && (
+                <Acts code={project.code} role={user.role} отбор={отбор} onСброситьОтбор={onСброситьОтбор} />
+              )}
             </div>
 
             <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>
-              {tab === "report" && <Report code={project.code} />}
+              {tab === "report" && <Report code={project.code} отбор={отбор} onСброситьОтбор={onСброситьОтбор} />}
             </div>
 
             <div role="tabpanel" id="panel-tranches" aria-labelledby="tab-tranches" hidden={tab !== "tranches"}>
               {tab === "tranches" && (
-                <Tranches code={project.code} role={user.role} onEvents={load} />
+                <Tranches
+                  code={project.code} role={user.role} onEvents={load}
+                  отбор={отбор} onСброситьОтбор={onСброситьОтбор}
+                />
               )}
             </div>
 
@@ -1000,9 +1038,11 @@ export function ProjectCard({
       {statusOpen && (
         <StatusSheet
           current={project.status}
+          waitingFor={project.waitingFor}
           busy={statusBusy}
+          error={statusError}
           onChoose={chooseStatus}
-          onClose={() => setStatusOpen(false)}
+          onClose={() => { setStatusOpen(false); setStatusError(null); }}
         />
       )}
 
@@ -1121,6 +1161,7 @@ export function ProjectCard({
 /** Вкладка «Обзор»: сроки, состав сметы и события объекта. */
 function Overview({
   project,
+  role,
   estimate,
   events,
   today,
@@ -1130,8 +1171,11 @@ function Overview({
   onPlanned,
   выдаётВход,
   onStep,
+  очередь,
 }: {
   project: ProjectSummary;
+  /** Роль вошедшего: отбор ленты показывает только её пункты (ДР-5). */
+  role: Role;
   estimate: EstimateView | null;
   events: ProjectEvent[];
   today: string;
@@ -1147,6 +1191,8 @@ function Overview({
   выдаётВход: boolean;
   /** Переход к шагу «Следующего действия». */
   onStep: (шаг: ШагОбъекта) => void;
+  /** Очередь заказчика (ДР-1): «Новое с прошлого входа» — первым блоком. */
+  очередь: { inbox: Inbox | null; error: string | null } | null;
 }): React.JSX.Element {
   /* Факты для «Выполнено N из M» (пункт 7.8) — только уровню руководителя:
      маршрут прорабу и заказчику закрыт, и блок им не рисуется. Отказ
@@ -1188,6 +1234,10 @@ function Overview({
 
   return (
     <div className="stack stack--loose">
+      {/* Очередь заказчика — первый блок «Обзора» (этап Э8, ДР-1): новые
+          снимки отчёта и акты с его прошлого захода. Прочим ролям очередь
+          стоит на главной. */}
+      {очередь !== null && <Queue inbox={очередь.inbox} error={очередь.error} объект={project.code} />}
       {/* «Следующее действие» (план, пункт 7.8): сколько шагов объекта
           выполнено и один следующий — с переходом туда, где его делают.
           Один шаг, а не перечень: блок отвечает на «что делать», а не на
@@ -1423,7 +1473,7 @@ function Overview({
             <p className="empty__text">Импорт сметы и смена статуса попадают сюда.</p>
           </div>
         ) : (
-          <EventFeed events={events} showCode={false} />
+          <FilteredEventFeed events={events} role={role} showCode={false} />
         )}
       </section>
     </div>

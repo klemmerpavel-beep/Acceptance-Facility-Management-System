@@ -85,3 +85,15 @@ export function dueByDays(days: number | null): Due {
 export function due(deadline: string | null, today: string): Due {
   return dueByDays(deadline === null ? null : daysUntil(deadline, today));
 }
+
+/**
+ * С какого дня ждёт пункт очереди (этап Э8, ДР-1): «с 01.10 · 4 дня»,
+ * а пункт сегодняшний — «с сегодня». Год не пишется: очередь о текущих
+ * делах. Дни считаются от дня организации, который пришёл с сервера.
+ */
+export function ждётС(since: string, today: string): string {
+  const дней = daysUntil(today, since);
+  if (дней <= 0) return "с сегодня";
+  const [, месяц = "", число = ""] = since.split("-");
+  return `с ${число}.${месяц} · ${String(дней)} ${plural(дней, "день", "дня", "дней")}`;
+}

@@ -70,6 +70,12 @@ const snapshot = {
   "events-client": await client("/projects/R-99/events"),
   "estimate-client": await client("/projects/R-99/estimate"),
   "acts-client": await client("/projects/R-99/acts"),
+  /* Очередь «Ждёт вашего действия» по ролям (этап Э8, ДР-1). Чтение
+     отметку захода заказчика не трогает: её ставит только приложение. */
+  "inbox-owner": await owner("/inbox"),
+  "inbox-accountant": await accountant("/inbox"),
+  "inbox-foreman": await foreman("/inbox"),
+  "inbox-client": await client("/inbox"),
   units: await owner("/projects/R-99/estimate/units"),
   organization: await owner("/organization"),
   unitDirectory: await owner("/units"),

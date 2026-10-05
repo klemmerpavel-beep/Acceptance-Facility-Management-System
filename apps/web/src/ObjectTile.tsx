@@ -1,5 +1,6 @@
 import type { ProjectSummary } from "@priyomka/contracts";
 import { due } from "./due.js";
+import { waitingTurn } from "./turn.js";
 import { STATUS_LABEL, STATUS_PILL } from "./status.js";
 import { ОБЛОЖКА_СТАТУСА } from "./coverTone.js";
 import { простойЩелчок } from "./route.js";
@@ -42,6 +43,7 @@ export function ObjectTile({
   onStatus?: (project: ProjectSummary) => void;
 }): React.JSX.Element {
   const срок = due(project.deadline, today);
+  const ждём = waitingTurn(project.waitingFor);
   const пилюля = (
     <span className={STATUS_PILL[project.status]}>{STATUS_LABEL[project.status]}</span>
   );
@@ -98,6 +100,11 @@ export function ObjectTile({
           {project.client.name}
           {project.foreman !== null && ` · ${project.foreman.name}`}
         </span>
+
+        {/* Чего ждём (этап Э8, ДР-4): статус «Ждёт ответа» на плитке
+            называл ожидание, но не предмет. Строка видна всем ролям объекта
+            — это вопрос, чаще всего к заказчику. */}
+        {ждём !== null && <span className="turn turn--waiting">{ждём}</span>}
 
         {/* Подвал в две строки, а не в одну. Одной строкой пилюля срока и
             полоса готовности не умещались в колонку: «просрочен на 103 дня»
