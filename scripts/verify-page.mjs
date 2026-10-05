@@ -5966,6 +5966,93 @@ const РОЛИ_ВХОДА = [
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/* Этап Э8, ДР-11: вход заказчику с «Обзора» и первый вход заказчика.
+   Руководитель на «Обзоре» R-64 (входа у заказчика нет) нажимает «Выдать
+   вход заказчику»: лист «Новый человек» открывается с ролью «Заказчик» и
+   заказчиком объекта. Выданная ссылка открывается в чистом окне — заказчик
+   видит экран первого входа из трёх блоков; «Перейти к …» уводит к его
+   объектам; повторный заход экрана не показывает, а «Ещё → Как
+   пользоваться» открывает его снова. Выданный вход затем снимается. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-64`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const сводка = await page.request.get(`${BASE}/api/projects/R-64`).then((r) => r.json()).catch(() => ({}));
+  const выдать = page.locator('#panel-overview button:has-text("Выдать вход заказчику")');
+  if ((await выдать.count()) === 0) {
+    note("ДР-11 вход заказчику", "R-64: на «Обзоре» нет кнопки «Выдать вход заказчику», хотя входа у заказчика нет");
+  } else {
+    await выдать.first().click();
+    const лист = page.locator('[role="dialog"][aria-label="Новый человек"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+    if ((await лист.count()) === 0) {
+      note("ДР-11 вход заказчику", "кнопка не открыла лист «Новый человек»");
+    } else {
+      const [роль, заказчик] = await лист.locator("select").evaluateAll((списки) => списки.map((список) =>
+        список.selectedOptions[0]?.textContent?.trim() ?? ""));
+      if (роль !== "Заказчик") note("ДР-11 вход заказчику", `лист открылся с ролью «${роль ?? ""}», а не «Заказчик»`);
+      if (заказчик !== сводка.client?.name) {
+        note("ДР-11 вход заказчику", `лист открылся с заказчиком «${заказчик ?? ""}», а у объекта — «${String(сводка.client?.name)}»`);
+      }
+      await лист.locator("label.field", { hasText: "Имя" }).locator("input").fill("Обход ДР-11: заказчик");
+      await лист.locator('input[type="email"]').fill(`obhod-dr11-${String(Date.now())}@dolgiy.studio`);
+      await лист.locator(".btn--primary").click();
+      await page.waitForSelector("#panel-overview .invite__link", { timeout: 6000 })
+        .catch(() => { note("ДР-11 вход заказчику", "после выдачи ссылка на «Обзоре» не показана"); });
+      const ссылка = ((await page.locator("#panel-overview .invite__link").textContent().catch(() => "")) ?? "").trim();
+      await page.waitForTimeout(600);
+      if ((await выдать.count()) > 0) note("ДР-11 вход заказчику", "вход выдан, а строка «Вход заказчику: не выдан» осталась");
+
+      if (ссылка !== "") {
+        const окно = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
+        const лист2 = await окно.newPage();
+        /* Обмен ссылки переадресует в приложение. Если переадресация
+           пришла на тот же узел, приложение уже открылось с кукой — и это
+           и есть первый заход; если на другой имя того же места, куки там
+           нет, и первый заход — открытие своего узла. Второй переход в
+           первом случае был бы уже вторым заходом. */
+        await лист2.goto(ссылка.replace(/^https?:\/\/[^/]+/u, BASE), { waitUntil: "networkidle" }).catch(() => { /* переадресация */ });
+        const наСвоём = лист2.url().startsWith(BASE);
+        if (!наСвоём) await лист2.goto(BASE, { waitUntil: "networkidle" });
+        await лист2.waitForSelector(".guide", { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+        const заголовок = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (заголовок !== "Добро пожаловать в «Приёмку»") note("ДР-11 первый вход", `первый вход заказчика: «${заголовок || "экрана нет"}»`);
+        const блоки = (await лист2.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+        if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `блоки экрана: «${блоки}»`);
+        const связь = ((await лист2.locator('.guide section[aria-labelledby="guide-contact"]').textContent().catch(() => "")) ?? "");
+        const организация = await page.request.get(`${BASE}/api/organization`).then((r) => r.json()).catch(() => ({}));
+        if (!связь.includes(String(организация.name))) note("ДР-11 первый вход", `«Как связаться» не называет организацию «${String(организация.name)}»`);
+        if (!/Прораб объекта R-64: /u.test(связь)) note("ДР-11 первый вход", "«Как связаться» не называет прораба объекта R-64");
+        await лист2.screenshot({ path: `${SHOTS}/53-pervyy-vhod.png`, fullPage: true });
+        console.log("  снято: ДР-11: первый вход заказчика → 53-pervyy-vhod.png");
+        await лист2.locator(".guide .btn--primary").click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "на экране первого входа нет кнопки «Перейти к …»"); });
+        await лист2.waitForTimeout(900);
+        const после = ((await лист2.locator("h1").first().textContent().catch(() => "")) ?? "").trim();
+        if (после.includes("Добро пожаловать") || после === "") note("ДР-11 первый вход", `«Перейти к …» не увёл с экрана первого входа: «${после}»`);
+        await лист2.reload({ waitUntil: "networkidle" });
+        await лист2.waitForSelector(".appbar", { timeout: 8000 }).catch(() => { /* ниже */ });
+        await лист2.waitForTimeout(900);
+        if ((await лист2.locator(".guide").count()) > 0) note("ДР-11 первый вход", "экран первого входа показан и при втором заходе");
+        await лист2.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+        await лист2.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+        await лист2.waitForTimeout(500);
+        const повтор = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (повтор !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `«Ещё → Как пользоваться»: «${повтор || "экрана нет"}»`);
+        await лист2.setViewportSize({ width: 390, height: 844 });
+        await лист2.waitForTimeout(400);
+        const ширина = await лист2.evaluate(() => ({ полотно: document.documentElement.scrollWidth, окно: window.innerWidth }));
+        if (ширина.полотно > ширина.окно + 1) note("ДР-11 первый вход", `390 px: полотно ${ширина.полотно} при окне ${ширина.окно}`);
+        await окно.close();
+      }
+      const люди = await page.request.get(`${BASE}/api/people`).then((r) => r.json()).catch(() => []);
+      const заведён = (Array.isArray(люди) ? люди : []).find((человек) => человек.name === "Обход ДР-11: заказчик");
+      if (заведён !== undefined) await page.request.delete(`${BASE}/api/people/${заведён.id}`);
+    }
+  }
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
