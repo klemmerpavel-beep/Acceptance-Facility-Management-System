@@ -452,8 +452,11 @@ export const fetchClients = (): Promise<ClientRow[]> =>
 export const fetchWorkers = (): Promise<WorkerRow[]> =>
   request("/workers", z.array(workerRowSchema));
 
+/* Окно ленты объекта — сто записей, а не двадцать по умолчанию (этап Э8,
+   ДР-5): с приёмками и платежами двадцать последних вытесняли смету и
+   график, и отбор по виду показывал пустоту там, где записи есть. */
 export const fetchEvents = (code: string): Promise<ProjectEvent[]> =>
-  request(`/projects/${code}/events`, z.array(eventSchema));
+  request(`/projects/${code}/events?limit=100`, z.array(eventSchema));
 
 /** Тело запроса на заведение записи. Одна форма на три маршрута. */
 const заведение = (body: unknown): RequestInit => ({

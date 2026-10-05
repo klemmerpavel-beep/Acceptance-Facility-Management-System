@@ -5107,8 +5107,20 @@ if (лента.length === 0) {
      стенда, к концу обхода из окна вытесняются. Проверка, зависящая от
      окна, краснела бы через раз и не стерегла бы ничего. Транши стережёт
      `verify-api`, где блок журнала стоит сразу после работы с ними. */
+  /* С этапа Э8 (ДР-5) лента полна приёмками и платежами, и смета с
+     графиком ищутся отбором по виду — так их ищет и человек. */
   const разделы = ["Смета", "График"];
-  const пропущены = разделы.filter((раздел) => !лента.some((строка) => строка.includes(`${раздел}:`)));
+  const пропущены = [];
+  for (const раздел of разделы) {
+    const пункт = page.locator("#panel-overview .feedfilter .segmented__option", { hasText: раздел });
+    if ((await пункт.count()) > 0) {
+      await пункт.click();
+      await page.waitForTimeout(250);
+    }
+    const строки = await page.locator("#panel-overview .feed__item").allInnerTexts();
+    if (!строки.some((строка) => строка.includes(`${раздел}:`))) пропущены.push(раздел);
+  }
+  await page.locator("#panel-overview .feedfilter .segmented__option", { hasText: "Все" }).click().catch(() => { /* отбора нет */ });
   if (пропущены.length > 0) {
     note("журнал", `в ленте нет записей: ${пропущены.join(", ")}`);
   }
@@ -5805,6 +5817,54 @@ const РОЛИ_ВХОДА = [
   await сверить("documents", ".record", ".record:has-text('скан приложен')", "Приложен скан", "акты");
 }
 
+/* Этап Э8, ДР-5: лента событий. «События объекта» R-99 и колокол несут
+   отбор «Все · Приёмка · Деньги · Смета · График · Документы»; отбор
+   оставляет только записи своего вида, строка называет автора. */
+{
+  const ЗАГОЛОВКИ = {
+    "Приёмка": /^(?:Приёмка|Чеки):/u,
+    "Деньги": /^Транши:/u,
+    "Смета": /^(?:Смета|Импорт сметы):/u,
+    "График": /^График:/u,
+    "Документы": /^Документы:/u,
+  };
+  const отобрать = async (где, корень) => {
+    const пункты = (await корень.locator(".feedfilter .segmented__option").allTextContents()).map((т) => т.trim());
+    if (пункты.join("|") !== ["Все", ...Object.keys(ЗАГОЛОВКИ)].join("|")) {
+      note("ДР-5 лента", `${где}: пункты отбора «${пункты.join(", ") || "нет отбора"}»`);
+      return;
+    }
+    for (const [пункт, образец] of Object.entries(ЗАГОЛОВКИ)) {
+      await корень.locator(".feedfilter .segmented__option", { hasText: пункт }).click();
+      await page.waitForTimeout(250);
+      const заголовки = (await корень.locator(".feed__title").allTextContents())
+        .map((т) => т.trim().replace(/^[A-Z]-\d+ · /u, ""));
+      const чужие = заголовки.filter((заголовок) => !образец.test(заголовок));
+      if (чужие.length > 0) note("ДР-5 лента", `${где}, отбор «${пункт}»: чужие записи — «${чужие.slice(0, 2).join("», «")}»`);
+      if (пункт === "Приёмка" && заголовки.length === 0) note("ДР-5 лента", `${где}: в отборе «Приёмка» пусто — приёмок в ленте нет`);
+    }
+    await корень.locator(".feedfilter .segmented__option", { hasText: "Все" }).click();
+    await page.waitForTimeout(250);
+    if ((await корень.locator(".feed__actor").count()) === 0) note("ДР-5 лента", `${где}: строки ленты не называют автора`);
+  };
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  await отобрать("События объекта R-99", page.locator("#panel-overview"));
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  const колокол = page.locator(".appbar__bell, button[aria-label^='События']").first();
+  if ((await колокол.count()) === 0) {
+    note("ДР-5 лента", "колокола в шапке нет — отбор в нём не проверен");
+  } else {
+    await колокол.click();
+    await page.waitForTimeout(500);
+    await отобрать("колокол", page.locator('[role="dialog"][aria-label="События портфеля"]'));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  }
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
@@ -6007,6 +6067,19 @@ for (const роль of РОЛИ_ВХОДА) {
   } else {
     await соСметой.first().click();
     await лист.waitForTimeout(1400);
+    /* Отбор ленты — только пункты, где у роли бывают записи (ДР-5). */
+    {
+      const ОТБОР = {
+        прораб: "Все|Приёмка|Деньги|Смета|График",
+        заказчик: "Все|Смета|График",
+        бухгалтер: "Все|Приёмка|Деньги|Смета|График|Документы",
+      };
+      const пункты = (await лист.locator("#panel-overview .feedfilter .segmented__option").allTextContents())
+        .map((текст) => текст.trim()).join("|");
+      if (ОТБОР[роль.имя] !== undefined && пункты !== ОТБОР[роль.имя]) {
+        note("ДР-5 лента", `${роль.имя}: пункты отбора «${пункты || "нет отбора"}» вместо «${ОТБОР[роль.имя]}»`);
+      }
+    }
     /* Сводка карточки в проекции роли (этап Э8, ДР-0; полный аудит, П-56).
        R-99 заведён из заявки, у него открыт транш и есть чеки: все три
        величины существуют, и роль, которой их видно, обязана их видеть, —

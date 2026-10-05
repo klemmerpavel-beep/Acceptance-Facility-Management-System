@@ -2811,3 +2811,8 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
 /* Значок доказательности (этап Э8, ДР-7): снимок или скан у строки. Тон —
    цвет текста строки: смысл несёт рисунок и имя, а не цвет. */
 .evidence { display: inline-flex; align-items: center; color: var(--ink-2); vertical-align: middle; }
+
+/* Лента событий (этап Э8, ДР-5): автор записи и отбор по видам. Отбор
+   переносится строкой на узком экране — шесть пунктов в 390 px не встают. */
+.feed__actor { font-size: var(--fs-sm); color: var(--ink-3); }
+.feedfilter { flex-wrap: wrap; align-self: flex-start; max-inline-size: 100%; }

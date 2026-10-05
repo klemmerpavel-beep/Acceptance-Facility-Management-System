@@ -661,6 +661,31 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Лента событий (этап Э8, ДР-5) ------------------------------------------
+   Лента двойника снята с сервера от каждой роли: у записей есть группа
+   отбора, у руководителя — приёмки. Отбор оставляет только записи вида. */
+{
+  for (const [роль, ждём] of [["Руководитель", "Все|Приёмка|Деньги|Смета|График|Документы"], ["Прораб", "Все|Приёмка|Деньги|Смета|График"], ["Заказчик", "Все|Смета|График"]]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(600);
+    await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const пункты = (await page.locator("#panel-overview .feedfilter .segmented__option").allTextContents())
+      .map((т) => т.trim()).join("|");
+    if (пункты !== ждём) note("ДР-5 лента", `демонстрация, ${роль.toLowerCase()}: пункты отбора «${пункты || "нет отбора"}» вместо «${ждём}»`);
+    if (роль === "Руководитель" && пункты === ждём) {
+      await page.locator("#panel-overview .feedfilter .segmented__option", { hasText: "Приёмка" }).click();
+      await page.waitForTimeout(250);
+      const заголовки = (await page.locator("#panel-overview .feed__title").allTextContents()).map((т) => т.trim());
+      if (заголовки.length === 0 || заголовки.some((з) => !/^(?:Приёмка|Чеки):/u.test(з))) {
+        note("ДР-5 лента", `демонстрация, руководитель, отбор «Приёмка»: «${заголовки.slice(0, 3).join("», «") || "пусто"}»`);
+      }
+    }
+  }
+}
+
 /* --- Сводка объекта в проекции роли (этап Э8, ДР-0; полный аудит, П-56) -----
    Двойник отдаёт сводку из слепка, снятого от каждой роли. Слепок, снятый
    прежним сервером, нёс заказчику ориентир по заявке, потраченное и остаток

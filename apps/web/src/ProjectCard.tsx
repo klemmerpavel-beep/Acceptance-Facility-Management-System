@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
   ClosedTranches, CurrentUser, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
-  ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, UpdateProject, Foreman, WorkStage,
+  ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, Role, UpdateProject, Foreman, WorkStage,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, nextAction, ownerLevel, projectRange, sectionWeights,
   type ШагОбъекта,
@@ -22,7 +22,7 @@ import { StageList } from "./StageList.js";
 import { useNarrow } from "./media.js";
 import { FieldEdit } from "./FieldEdit.js";
 import { EstimateTable } from "./EstimateTable.js";
-import { EventFeed } from "./Dashboard.js";
+import { FilteredEventFeed } from "./FeedFilter.js";
 import { ImportEstimate } from "./ImportEstimate.js";
 import { Measure } from "./Measure.js";
 import { Schedule } from "./Schedule.js";
@@ -802,6 +802,7 @@ export function ProjectCard({
               {tab === "overview" && (
               <Overview
                 project={project}
+                role={user.role}
                 estimate={estimate}
                 events={events}
                 today={today}
@@ -1140,6 +1141,7 @@ export function ProjectCard({
 /** Вкладка «Обзор»: сроки, состав сметы и события объекта. */
 function Overview({
   project,
+  role,
   estimate,
   events,
   today,
@@ -1151,6 +1153,8 @@ function Overview({
   onStep,
 }: {
   project: ProjectSummary;
+  /** Роль вошедшего: отбор ленты показывает только её пункты (ДР-5). */
+  role: Role;
   estimate: EstimateView | null;
   events: ProjectEvent[];
   today: string;
@@ -1442,7 +1446,7 @@ function Overview({
             <p className="empty__text">Импорт сметы и смена статуса попадают сюда.</p>
           </div>
         ) : (
-          <EventFeed events={events} showCode={false} />
+          <FilteredEventFeed events={events} role={role} showCode={false} />
         )}
       </section>
     </div>

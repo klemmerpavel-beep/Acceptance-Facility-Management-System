@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { завести } from "./verbs.js";
-import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
+import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
 import { ownerLevel } from "@priyomka/domain";
 import {
   fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus, errorMessage,
 } from "./api.js";
 import { SignIn } from "./SignIn.js";
-import { Dashboard, EventFeed } from "./Dashboard.js";
+import { Dashboard } from "./Dashboard.js";
+import { FilteredEventFeed } from "./FeedFilter.js";
 import { Contacts } from "./Contacts.js";
 import { Leads } from "./Leads.js";
 import { Accounting } from "./Accounting.js";
@@ -668,7 +669,7 @@ export function App(): React.JSX.Element {
         />
       )}
       {feedOpen && (
-        <FeedSheet events={events} onClose={() => { setFeedOpen(false); }} />
+        <FeedSheet events={events} role={state.user.role} onClose={() => { setFeedOpen(false); }} />
       )}
       {tabbar}
     </>
@@ -684,9 +685,11 @@ export function App(): React.JSX.Element {
  */
 function FeedSheet({
   events,
+  role,
   onClose,
 }: {
   events: ProjectEvent[] | null;
+  role: Role;
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog(onClose);
@@ -703,7 +706,7 @@ function FeedSheet({
             <p className="empty__text">Здесь появятся смены статуса, импорт смет и правки обмера.</p>
           </div>
         ) : (
-          <EventFeed events={events} />
+          <FilteredEventFeed events={events} role={role} />
         )}
         <button type="button" className="btn btn--text btn--block" ref={first} onClick={onClose}>
           Закрыть

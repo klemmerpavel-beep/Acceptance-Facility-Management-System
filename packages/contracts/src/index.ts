@@ -544,10 +544,25 @@ export const foremanSchema = z.object({
 export const foremenSchema = z.array(foremanSchema);
 export type Foreman = z.infer<typeof foremanSchema>;
 
-/** Событие журнала: смена статуса, импорт сметы, правка величины. */
+/**
+ * Отбор ленты по видам (этап Э8, ДР-5): «Все · Приёмка · Деньги · Смета ·
+ * График · Документы». Чеки — в «Приёмке» (решение допроса Э8-6), в «Деньгах»
+ * — транши и платежи. `null` у события — его видно только в «Все»: статус
+ * объекта, замер, поля объекта.
+ */
+export const eventGroupSchema = z.enum(["acceptance", "money", "estimate", "schedule", "documents"]);
+export type EventGroup = z.infer<typeof eventGroupSchema>;
+
+/**
+ * Событие журнала. До этапа Э8 — смена статуса, импорт сметы, правка
+ * величины; с ДР-5 — ещё пакет приёмки, сторно приёмки, платёж и его сторно,
+ * решение по чеку, состояние транша и подпись акта. Заголовок начинается с
+ * раздела продукта, деньги — рублями; автор — в `actor`.
+ */
 export const eventSchema = z.object({
   at: z.string(),
-  kind: z.enum(["status", "import", "field"]),
+  kind: z.enum(["status", "import", "field", "acceptance", "reversal", "payment", "expense", "tranche", "act"]),
+  group: eventGroupSchema.nullable(),
   title: z.string(),
   detail: z.string().nullable(),
   projectCode: z.string().nullable(),

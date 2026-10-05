@@ -168,6 +168,9 @@ export function EventFeed({
                   {event.title}
                 </span>
                 {event.detail !== null && <span className="feed__detail"> {event.detail}</span>}
+                {/* Автор (этап Э8, ДР-5): сервер отдавал его всегда, а лента
+                    молчала — спор «кто поменял» лента не решала. */}
+                {event.actor !== null && <span className="feed__actor"> · {event.actor}</span>}
               </span>
             </div>
           ))}
@@ -215,6 +218,13 @@ const FEED_MARK: Record<ProjectEvent["kind"], { icon: string; className: string 
   status: { icon: "#i-badge", className: "icon icon--sm feed__mark feed__mark--status" },
   import: { icon: "#i-estimate", className: "icon icon--sm feed__mark feed__mark--import" },
   field: { icon: "#i-document", className: "icon icon--sm feed__mark" },
+  /* Виды этапа Э8 (ДР-5): знак раздела, к которому относится запись. */
+  acceptance: { icon: "#i-acceptance", className: "icon icon--sm feed__mark" },
+  reversal: { icon: "#i-acceptance", className: "icon icon--sm feed__mark" },
+  expense: { icon: "#i-expense", className: "icon icon--sm feed__mark" },
+  payment: { icon: "#i-money", className: "icon icon--sm feed__mark" },
+  tranche: { icon: "#i-money", className: "icon icon--sm feed__mark" },
+  act: { icon: "#i-document", className: "icon icon--sm feed__mark" },
 };
 
 const SCORE_CLASS = {

@@ -443,64 +443,86 @@ export class ProjectsService {
     if (projects.length === 0) return [];
     const projectIds = projects.map((project) => project.id);
     /* Код объекта ищется по опознавателю записи. Часть записей адресована
-       объектом, часть — этапом или траншем, поэтому карта пополняется их
-       опознавателями: иначе событие графика осталось бы без объекта и в
-       сводке портфеля было бы непонятно, о чём оно. */
+       объектом, часть — этапом, траншем, пакетом, приёмкой, платежом или
+       чеком, поэтому карта пополняется их опознавателями: иначе событие
+       осталось бы без объекта и в сводке портфеля было бы непонятно, о чём
+       оно. */
     const кодПо = new Map(projects.map((project) => [project.id, project.code]));
 
     /*
      * Что видно в ленте и кому.
      *
-     * Записи о деньгах — цены и ставки позиции, надбавка, суммы траншей —
-     * видит только руководитель. Запись журнала есть обход поля: строка
-     * «цена единицы: 1 150,50 ₽ → 1 200,00 ₽» рассказывает ровно то, что
-     * поле скрывает от прораба. Разграничение на уровне полей иначе
+     * Записи о деньгах — цены и ставки позиции, надбавка, суммы траншей и
+     * платежи — видит только уровень руководителя. Запись журнала есть обход
+     * поля: строка «цена единицы: 1 150,50 ₽ → 1 200,00 ₽» рассказывает ровно
+     * то, что поле скрывает от прораба. Разграничение на уровне полей иначе
      * держалось бы на одном экране и текло бы в ленте.
      *
      * График прорабу остаётся: сроки, готовность, раздел и бригада — то,
      * по чему он работает.
      *
-     * Приёмки в ленте нет намеренно: вкладка показывает её пакетами со
-     * строками, автором, снимком и сторно. Повторить её здесь значило бы
-     * залить ленту дубликатом того, что рядом показано подробнее.
+     * ~~Приёмки в ленте нет намеренно: вкладка показывает её пакетами со
+     * строками, автором, снимком и сторно.~~ Правка 05.10.2026 (этап Э8,
+     * ДР-5; допущение В7): пакет приёмки и его сторно, платёж и его сторно,
+     * решение по чеку, закрытие транша и подпись акта идут в ленту по
+     * проекции роли. Лента отвечает на вопрос «что произошло на объекте», и
+     * без приёмки — главного события объекта — она на него не отвечала;
+     * шум снимает отбор по видам, а не умолчание.
+     *
+     * Проекция (ДР-5):
+     *   — руководитель и бухгалтер — все виды;
+     *   — прораб — приёмки и их сторно, свои чеки, закрытие транша; без
+     *     платежей и без сумм начислений (в записи приёмки сумм нет);
+     *   — заказчик — без изменений: статус объекта и график (этап Э9).
      */
     const внутренние = ownerLevel(user.role);
-    /* Чеки видят руководитель и прораб: расход заводит и прораб, и «кто
-       провёл этот чек» спрашивают на объекте, а не в кабинете. Денежных
-       величин разграничения это не касается — сумма чека не ставка и не
-       прибыль.
-
-       Заказчику — только то, что открыто ему экраном: статус объекта и
+    const прораб = user.role === "FOREMAN";
+    const заказчик = user.role === "CLIENT";
+    /* Заказчику — только то, что открыто ему экраном: статус объекта и
        график. Чеки и обмер ему закрыты маршрутами, а лента, заведённая
-       раньше его роли, отдавала ему общий с прорабом набор — закупки
-       компании с поставщиком и суммой, черновики и отклонённые (полный
-       аудит 30.09.2026, П-17). Запись журнала есть обход поля: правило
-       выше о смете действует и здесь. */
+       раньше его роли, отдавала ему общий с прорабом набор (П-17). */
     const поОбъекту = внутренние
-      ? ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense", "EstimateItem", "EstimateSection", "Estimate"]
-      : user.role === "CLIENT"
+      ? ["Project", "MeasureRoom", "MeasurePlan", "EstimateItem", "EstimateSection", "Estimate"]
+      : заказчик
         ? ["Project"]
-        : ["Project", "MeasureRoom", "MeasurePlan", "MaterialExpense"];
+        : ["Project", "MeasureRoom", "MeasurePlan"];
 
-    const [этапы, транши] = await Promise.all([
+    const пусто = Promise.resolve([] as { id: string; projectId: string }[]);
+    const [этапы, транши, пакеты, приёмки, платежи, чеки] = await Promise.all([
       this.prisma.workStage.findMany({
         where: { projectId: { in: projectIds } },
         select: { id: true, projectId: true },
       }),
-      внутренние
-        ? this.prisma.tranche.findMany({
-          where: { projectId: { in: projectIds } },
-          select: { id: true, projectId: true },
-        })
-        : Promise.resolve([] as { id: string; projectId: string }[]),
+      заказчик ? пусто : this.prisma.tranche.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { id: true, projectId: true },
+      }),
+      заказчик ? пусто : this.prisma.acceptanceBatch.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { id: true, projectId: true },
+      }),
+      заказчик ? пусто : this.prisma.acceptance.findMany({
+        where: { batch: { projectId: { in: projectIds } } },
+        select: { id: true, batch: { select: { projectId: true } } },
+      }).then((строки) => строки.map((строка) => ({ id: строка.id, projectId: строка.batch.projectId }))),
+      внутренние ? this.prisma.tranchePayment.findMany({
+        where: { tranche: { projectId: { in: projectIds } } },
+        select: { id: true, tranche: { select: { projectId: true } } },
+      }).then((строки) => строки.map((строка) => ({ id: строка.id, projectId: строка.tranche.projectId }))) : пусто,
+      /* Чеки: уровню руководителя — все, прорабу — только свои. */
+      заказчик ? пусто : this.prisma.materialExpense.findMany({
+        where: { projectId: { in: projectIds }, ...(прораб ? { createdById: user.id } : {}) },
+        select: { id: true, projectId: true },
+      }),
     ]);
-    for (const row of [...этапы, ...транши]) {
+    for (const row of [...этапы, ...транши, ...пакеты, ...приёмки, ...платежи, ...чеки]) {
       const code = кодПо.get(row.projectId);
       if (code !== undefined) кодПо.set(row.id, code);
     }
+    const ид = (строки: readonly { id: string }[]): string[] => строки.map((строка) => строка.id);
 
     /**
-     * Записи журнала по объекту, его этапам и траншам.
+     * Записи журнала по объекту и его записям.
      *
      * Отбор уходит в запрос, а не фильтрует выбранное: недоступное роли не
      * должно физически попадать в ответ — то же правило, по которому
@@ -515,10 +537,30 @@ export class ProjectsService {
         orgId: user.orgId,
         OR: [
           { entity: { in: поОбъекту }, entityId: { in: projectIds } },
-          { entity: "WorkStage", entityId: { in: этапы.map((row) => row.id) } },
-          ...(внутренние
-            ? [{ entity: "Tranche", entityId: { in: транши.map((row) => row.id) } }]
-            : []),
+          { entity: "WorkStage", entityId: { in: ид(этапы) } },
+          ...(заказчик ? [] : [
+            { entity: "AcceptanceBatch", entityId: { in: ид(пакеты) } },
+            { entity: "Acceptance", entityId: { in: ид(приёмки) } },
+            { entity: "MaterialExpense", entityId: { in: ид(чеки) } },
+          ]),
+          ...(внутренние ? [
+            { entity: "Tranche", entityId: { in: ид(транши) } },
+            { entity: "TranchePayment", entityId: { in: ид(платежи) } },
+            /* Записи о чеках до этапа Э8 и об удалённых черновиках называют
+               объект, а не чек. */
+            { entity: "MaterialExpense", entityId: { in: projectIds } },
+          ] : []),
+          ...(прораб ? [
+            /* Транш прорабу — только закрытие: «сколько ещё можно принять»
+               меняется на нём, а суммы открытия и оплата — деньги заказчика. */
+            {
+              entity: "Tranche", entityId: { in: ид(транши) },
+              field: { startsWith: "состояние транша" }, newValue: "закрыт",
+            },
+            /* Удаление черновика называет объект; свой черновик удаляет
+               прораб сам, и отбирается запись по автору. */
+            { entity: "MaterialExpense", entityId: { in: projectIds }, actorId: user.id },
+          ] : []),
         ],
       },
       orderBy: { at: "desc" },
@@ -539,23 +581,14 @@ export class ProjectsService {
     const events: ProjectEvent[] = [
       ...entries.map((entry): ProjectEvent => ({
         at: entry.at.toISOString(),
-        /* Вид «статус» — только у объекта. Состояние транша тоже писалось
-           полем `status`, и общая ветка титуловала его «Статус: OPEN →
-           CLOSED», то есть выдавала смену состояния транша за смену статуса
-           объекта. Различает не имя поля, а сущность записи. */
-        kind: статусОбъекта(entry) ? "status" : "field",
-        title: статусОбъекта(entry)
-          ? `Статус: ${label(entry.oldValue)} → ${label(entry.newValue)}`
-          : `${РАЗДЕЛ[entry.entity] ?? "Объект"}: ${entry.field}`,
-        detail: статусОбъекта(entry)
-          ? null
-          : `${entry.oldValue ?? "—"} → ${entry.newValue ?? "—"}`,
+        ...описание(entry),
         projectCode: кодПо.get(entry.entityId) ?? null,
         actor: entry.actor?.name ?? null,
       })),
       ...imports.map((record): ProjectEvent => ({
         at: record.importedAt.toISOString(),
         kind: "import",
+        group: "estimate",
         title: `Импорт сметы: редакция ${record.estimate.version}, позиций ${record.positions}`,
         detail: record.fileName,
         projectCode: кодПо.get(record.estimate.projectId) ?? null,
@@ -564,6 +597,57 @@ export class ProjectsService {
     ];
 
     return events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+  }
+}
+
+/**
+ * Вид, группа отбора, заголовок и подробность записи журнала (этап Э8, ДР-5).
+ *
+ * Заголовок начинается с раздела продукта — «Приёмка: …», «Чеки: …»,
+ * «Транши: …», «Документы: …» (норматив ленты, §28.7): человек ищет в
+ * ленте по месту. Деньги в записях уже написаны рублями — службы пишут
+ * журнал словами (П-20); сырое количество сторно приёмки (тысячные доли)
+ * в подробность не выводится — её смысл в причине.
+ */
+function описание(entry: {
+  entity: string; field: string; oldValue: string | null; newValue: string | null;
+}): Pick<ProjectEvent, "kind" | "group" | "title" | "detail"> {
+  const стрелка = `${entry.oldValue ?? "—"} → ${entry.newValue ?? "—"}`;
+  switch (entry.entity) {
+    case "AcceptanceBatch":
+      return {
+        kind: "acceptance", group: "acceptance",
+        title: `Приёмка: ${entry.field.replace(/^приёмка: /u, "")}`,
+        detail: entry.newValue,
+      };
+    case "Acceptance":
+      return {
+        kind: "reversal", group: "acceptance",
+        title: `Приёмка: ${entry.field}`,
+        detail: entry.newValue === null ? null : `причина: ${entry.newValue}`,
+      };
+    case "MaterialExpense":
+      return { kind: "expense", group: "acceptance", title: `Чеки: ${entry.field}`, detail: стрелка };
+    case "TranchePayment":
+      return { kind: "payment", group: "money", title: `Транши: ${entry.field}`, detail: стрелка };
+    case "Tranche":
+      return entry.field.startsWith("акт № ")
+        ? { kind: "act", group: "documents", title: `Документы: ${entry.field}`, detail: стрелка }
+        : { kind: "tranche", group: "money", title: `Транши: ${entry.field}`, detail: стрелка };
+    case "WorkStage":
+      return { kind: "field", group: "schedule", title: `График: ${entry.field}`, detail: стрелка };
+    case "EstimateItem":
+    case "EstimateSection":
+    case "Estimate":
+      return { kind: "field", group: "estimate", title: `Смета: ${entry.field}`, detail: стрелка };
+    default:
+      /* Вид «статус» — только у объекта. Состояние транша тоже писалось
+         полем `status`, и общая ветка титуловала его «Статус: OPEN →
+         CLOSED», то есть выдавала смену состояния транша за смену статуса
+         объекта. Различает не имя поля, а сущность записи. */
+      return статусОбъекта(entry)
+        ? { kind: "status", group: null, title: `Статус: ${label(entry.oldValue)} → ${label(entry.newValue)}`, detail: null }
+        : { kind: "field", group: null, title: `${РАЗДЕЛ[entry.entity] ?? "Объект"}: ${entry.field}`, detail: стрелка };
   }
 }
 
