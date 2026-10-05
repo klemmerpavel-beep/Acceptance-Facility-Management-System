@@ -11,6 +11,7 @@ import { AcceptSheet } from "./AcceptSheet.js";
 import { tabArrowHandler } from "./tabs.js";
 import { Announce } from "./Announce.js";
 import { ReversalSheet } from "./ReversalSheet.js";
+import { EvidenceMark } from "./Evidence.js";
 
 /**
  * Вкладка «Приёмка» — ядро продукта.
@@ -320,6 +321,8 @@ export function Acceptance({
                 <p className="t-sm">
                   {sectionTitle(batch.sectionName)} · {batch.brigade.name} · {день(batch.createdAt)}
                   {batch.author === null ? "" : ` · ${batch.author}`}
+                  {/* Чем подтверждено (ДР-7): у пакета есть снимок. */}
+                  {batch.photos.length > 0 && <>{" "}<EvidenceMark kind="photo" /></>}
                 </p>
                 {batch.comment !== null && <p className="t-sm t-secondary">{batch.comment}</p>}
                 {batch.lines.map((line) => (

@@ -8,6 +8,7 @@ import {
   decideExpense, deleteExpense, errorMessage, expensePhotoUrl, fetchExpenses,
 } from "./api.js";
 import { ExpenseSheet } from "./ExpenseSheet.js";
+import { EvidenceMark } from "./Evidence.js";
 
 /**
  * Вкладка «Чеки» карточки объекта.
@@ -195,6 +196,9 @@ function Чек({
       <div className="record__body">
         <p className="record__head">
           <span className="t-strong">{row.seller}</span>
+          {/* Чем подтверждено (ДР-7): снимок чека обязателен при заведении,
+              и значок стоит у каждой строки, где файл приложен. */}
+          {row.fileName !== "" && <EvidenceMark kind="photo" />}
           {черновик && <span className="pill pill--warn">Черновик</span>}
           {/* Чей ход (ДР-4): черновик ждёт руководителя. */}
           {expenseTurn(row.status) !== null && <span className="turn">{expenseTurn(row.status)}</span>}

@@ -6,6 +6,7 @@ import { actScanUrl, attachActScan, errorMessage, fetchAct, fetchActs, signAct }
 import { actTurn } from "./turn.js";
 import { Announce } from "./Announce.js";
 import { имяЛиста, печать } from "./print.js";
+import { EvidenceMark } from "./Evidence.js";
 
 /**
  * Вкладка «Документы» карточки объекта.
@@ -118,6 +119,8 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
               <div className="record__body">
                 <p className="record__head">
                   <span className="t-strong">Акт № {row.number} по объекту {code}</span>
+                  {/* Чем подтверждено (ДР-7): приложен скан подписанного экземпляра. */}
+                  {row.scan !== null && <EvidenceMark kind="scan" />}
                   {row.signedAt === null
                     ? <span className="pill pill--warn">Не подписан</span>
                     : <span className="pill pill--ok">Подписан {дата(row.signedAt)}</span>}

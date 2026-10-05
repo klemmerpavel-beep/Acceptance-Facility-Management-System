@@ -640,6 +640,27 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Значки доказательности (этап Э8, ДР-7) ---------------------------------
+   Пакеты приёмки и чеки R-99 в слепке — со снимками: значок у каждой строки. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  for (const [вкладка, строки, подтверждено, что] of [
+    ["acceptance", ".accept__batch", ".accept__batch:has(img.accept__photo)", "пакеты приёмки"],
+    ["expenses", ".record", ".record:has(img.record__photo)", "чеки"],
+  ]) {
+    await page.goto(`${BASE}/#R-99/${вкладка}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const всего = await page.locator(подтверждено).count();
+    const значков = await page.locator(`${строки} .evidence[role="img"][aria-label="Есть снимок"]`).count();
+    if (всего === 0 || значков !== всего) {
+      note("ДР-7 значки", `демонстрация, R-99, ${что}: строк со снимком ${всего}, значков «Есть снимок» ${значков}`);
+    }
+  }
+}
+
 /* --- Сводка объекта в проекции роли (этап Э8, ДР-0; полный аудит, П-56) -----
    Двойник отдаёт сводку из слепка, снятого от каждой роли. Слепок, снятый
    прежним сервером, нёс заказчику ориентир по заявке, потраченное и остаток
