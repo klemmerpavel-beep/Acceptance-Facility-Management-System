@@ -17,3 +17,4 @@ export * from "./expense.js";
 export * from "./template.js";
 export * from "./plural.js";
 export * from "./progress.js";
+export * from "./day.js";

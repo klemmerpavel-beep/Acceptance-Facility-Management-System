@@ -35,6 +35,7 @@ import { BlueprintSheet } from "./BlueprintSheet.js";
 import { EstimateItemSheet } from "./EstimateItemSheet.js";
 import { SupervisionSheet } from "./SupervisionSheet.js";
 import { StatusSheet } from "./StatusSheet.js";
+import { waitingTurn } from "./turn.js";
 import { tabArrowHandler } from "./tabs.js";
 import type { Вкладка } from "./route.js";
 import { STATUS_LABEL, STATUS_PILL, formatDate, plural } from "./status.js";
@@ -341,15 +342,19 @@ export function ProjectCard({
       .finally(() => { setEditBusy(false); });
   };
 
-  const chooseStatus = (status: ProjectStatus): void => {
+  /* Отказ смены статуса показывается в листе, а не на карточке под ним:
+     он называет поле «Ждём», и искать его надо там, где поле стоит (ДР-4). */
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const chooseStatus = (status: ProjectStatus, waitingFor?: string): void => {
     setStatusBusy(true);
-    void setProjectStatus(project.code, status)
+    setStatusError(null);
+    void setProjectStatus(project.code, status, waitingFor)
       .then((updated) => {
         onChanged(updated);
         setStatusOpen(false);
         load();
       })
-      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .catch((cause: unknown) => { setStatusError(errorMessage(cause)); })
       .finally(() => setStatusBusy(false));
   };
 
@@ -430,6 +435,10 @@ export function ProjectCard({
             разные вещи заставляет читателя гадать, о чём речь. */}
         <span className="t-cap">Статус</span>
         <span className="stamp__value">{STATUS_LABEL[project.status]}</span>
+        {/* Чего ждём (этап Э8, ДР-4) — под статусом, всем ролям объекта. */}
+        {waitingTurn(project.waitingFor) !== null && (
+          <span className="turn turn--waiting">{waitingTurn(project.waitingFor)}</span>
+        )}
       </div>
       <div className="stamp__cell">
         <span className="t-cap">Срок</span>
@@ -1008,9 +1017,11 @@ export function ProjectCard({
       {statusOpen && (
         <StatusSheet
           current={project.status}
+          waitingFor={project.waitingFor}
           busy={statusBusy}
+          error={statusError}
           onChoose={chooseStatus}
-          onClose={() => setStatusOpen(false)}
+          onClose={() => { setStatusOpen(false); setStatusError(null); }}
         />
       )}
 

@@ -28,6 +28,7 @@ import type {
   EstimateSectionNode, MoveEstimateItem, UpdateEstimateItem, UpdateSupervision,
   CreateEstimateItem, CreateEstimateSection, RenameEstimateSection, ProjectFacts,
 } from "@priyomka/contracts";
+import { updateProjectStatusSchema } from "@priyomka/contracts";
 import {
   acceptanceFault, acceptedShare, acceptedTotal, accrualAmount, applyPercent, guidelineRange,
   planFromSections, sectionWeights,
@@ -113,7 +114,9 @@ let signedIn = true;
  * нет, но и притворяться, будто смена статуса не сработала, неправильно —
  * иначе кнопка выглядела бы сломанной.
  */
-const changedStatus = new Map<string, ProjectStatus>();
+/* Статус и поле «Ждём» меняются одним запросом и хранятся парой (ДР-4):
+   поле очищается со сменой статуса, и порознь их не развести. */
+const changedStatus = new Map<string, { status: ProjectStatus; waitingFor: string | null }>();
 
 /**
  * Правки полей объекта. Живут до перезагрузки, как и смена статуса, и по
@@ -299,9 +302,9 @@ export async function fetchProjects(): Promise<ProjectSummary[]> {
 }
 
 const withChangedStatus = (project: ProjectSummary): ProjectSummary => {
-  const status = changedStatus.get(project.code);
+  const смена = changedStatus.get(project.code);
   const правка = changedFields.get(project.code);
-  const свежий = status === undefined ? project : { ...project, status };
+  const свежий = смена === undefined ? project : { ...project, ...смена };
   return правка === undefined ? свежий : сПравкой(свежий, правка);
 };
 
@@ -465,6 +468,7 @@ export async function createProject(input: CreateProject): Promise<ProjectSummar
     code: input.code,
     address: input.address,
     status: "NEW",
+    waitingFor: null,
     startedAt: input.startedAt ?? null,
     deadline: input.deadline,
     // Объект заводится «сегодня» демонстрации, а не в день открытия страницы:
@@ -518,13 +522,22 @@ export async function fetchEvents(code: string): Promise<ProjectEvent[]> {
 export async function setProjectStatus(
   code: string,
   status: ProjectStatus,
+  waitingFor?: string,
 ): Promise<ProjectSummary> {
   await pause(240);
   const rows = [...data["projects-owner"], ...заведённые.projects];
   const project = rows.find((row) => row.code === code);
   if (project === undefined) throw new Error(`Объект ${code} не найден или недоступен.`);
-  changedStatus.set(code, status);
-  return { ...project, status };
+  /* Тот же контракт, что на сервере: «Ждёт ответа» без поля «Ждём» —
+     отказ, называющий поле (ДР-4). */
+  const тело = updateProjectStatusSchema.safeParse(waitingFor === undefined ? { status } : { status, waitingFor });
+  if (!тело.success) throw new Error(тело.error.issues[0]?.message ?? "Статус не принят.");
+  const смена = {
+    status: тело.data.status,
+    waitingFor: тело.data.status === "WAITING_CLIENT" ? (тело.data.waitingFor ?? null) : null,
+  };
+  changedStatus.set(code, смена);
+  return withChangedStatus(project);
 }
 
 export async function updateProject(
@@ -1618,6 +1631,8 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
     paidAt: prepayment ? now : null,
     // Только что открытый транш не закрыт, значит и акта у него нет.
     signedAt: null,
+    // Открытый транш оплаты не ждёт (ДР-4).
+    awaitingDays: null,
     comment: input.comment ?? null,
     produced: "0",
     client: "0",
@@ -1660,6 +1675,8 @@ export async function closeTranche(
   }
   транш.status = "CLOSED";
   транш.closedAt = new Date().toISOString();
+  // Закрыт только что: ждёт оплаты меньше дня (ДР-4).
+  транш.awaitingDays = 0;
   if (input.comment !== undefined) транш.comment = input.comment;
   вид.current = вид.tranches.find((строка) => строка.status === "OPEN") ?? null;
   return вид;
@@ -1680,6 +1697,7 @@ export async function payTranche(_code: string, id: string): Promise<TrancheView
   }
   транш.status = "PAID";
   транш.paidAt = new Date().toISOString();
+  транш.awaitingDays = null;
   return вид;
 }
 

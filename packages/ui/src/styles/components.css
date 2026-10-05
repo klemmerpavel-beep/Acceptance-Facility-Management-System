@@ -2797,3 +2797,13 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   border-radius: var(--radius-sm); background: var(--surface-2); user-select: none; }
 .viewer__nav { display: flex; justify-content: center; gap: var(--space-4); }
 .viewer__prev, .viewer__next { min-inline-size: var(--tap-min); }
+
+/* Строка «чей ход» (этап Э8, ДР-4): кто должен действовать и сколько ждёт
+   — одной фразой из закрытого словаря `turn.ts`. Вторичный тон, но не
+   приглушённый: это сведение, а не подпись к нему. */
+.turn { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); }
+.turn--waiting { overflow-wrap: anywhere; }
+.statussheet__waiting {
+  height: auto; padding: var(--space-2) var(--space-3);
+  resize: vertical; font: inherit; line-height: var(--lh-body);
+}

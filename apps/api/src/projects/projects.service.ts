@@ -245,10 +245,21 @@ export class ProjectsService {
    * поле карточки, которое меняют часто, и «кто перевёл объект в паузу»
    * спрашивают через неделю после того, как это сделали.
    */
+  /**
+   * Смена статуса и поля «Ждём» (этап Э8, ДР-4).
+   *
+   * «Ждёт ответа» без поля «Ждём» не выбирается — это держит контракт,
+   * отказ называет поле. Поле очищается со сменой статуса (решение допроса
+   * Э8-8): на плитке не висит устаревшая причина, прежний текст остаётся в
+   * журнале. Пока статус «Ждёт ответа», текст правится тем же запросом.
+   * Статус и поле меняются одной правкой и пишутся в журнал в той же
+   * транзакции (БП-10).
+   */
   async setStatus(
     user: RequestUser,
     code: string,
     status: ProjectSummary["status"],
+    waitingFor?: string,
   ): Promise<ProjectSummary> {
     if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Статус объекта меняет руководитель." });
@@ -257,28 +268,42 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     }
-    if (project.status !== status) {
+    const ждём = status === "WAITING_CLIENT" ? (waitingFor ?? null) : null;
+    if (project.status !== status || project.waitingFor !== ждём) {
       await this.prisma.$transaction(async (tx) => {
-        /* Прежний статус в журнале — тот, от которого перевели, а не тот,
+        /* Прежние значения в журнале — те, от которых перевели, а не те,
            что прочитали до гонки (П-38). */
         const { count } = await tx.project.updateMany({
-          where: { id: project.id, status: project.status },
-          data: { status },
+          where: { id: project.id, status: project.status, waitingFor: project.waitingFor },
+          data: { status, waitingFor: ждём },
         });
         if (count === 0) {
           throw new BadRequestException({
             message: `Статус объекта ${code} только что изменили в другом окне. Обновите экран.`,
           });
         }
-        await this.audit.record({
-          orgId: user.orgId,
-          actorId: user.id,
-          entity: "Project",
-          entityId: project.id,
-          field: "status",
-          oldValue: project.status,
-          newValue: status,
-        }, tx);
+        if (project.status !== status) {
+          await this.audit.record({
+            orgId: user.orgId,
+            actorId: user.id,
+            entity: "Project",
+            entityId: project.id,
+            field: "status",
+            oldValue: project.status,
+            newValue: status,
+          }, tx);
+        }
+        if (project.waitingFor !== ждём) {
+          await this.audit.record({
+            orgId: user.orgId,
+            actorId: user.id,
+            entity: "Project",
+            entityId: project.id,
+            field: "ждём",
+            oldValue: project.waitingFor,
+            newValue: ждём,
+          }, tx);
+        }
       });
     }
     return this.byCode(user, code);
@@ -582,6 +607,7 @@ interface ProjectRow {
   code: string;
   address: string;
   status: ProjectSummary["status"];
+  waitingFor: string | null;
   startedAt: Date | null;
   deadline: Date | null;
   createdAt: Date;
@@ -678,6 +704,8 @@ function toSummary(
     code: project.code,
     address: project.address,
     status: project.status,
+    /* Видно всем ролям объекта (ДР-4): это вопрос, чаще всего к заказчику. */
+    waitingFor: project.waitingFor,
     startedAt: asDate(project.startedAt),
     deadline: asDate(project.deadline),
     createdAt: project.createdAt.toISOString().slice(0, 10),

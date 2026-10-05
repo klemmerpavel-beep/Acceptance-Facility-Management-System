@@ -3,7 +3,7 @@ import { завести } from "./verbs.js";
 import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary } from "@priyomka/contracts";
 import { ownerLevel } from "@priyomka/domain";
 import {
-  fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus,
+  fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus, errorMessage,
 } from "./api.js";
 import { SignIn } from "./SignIn.js";
 import { Dashboard, EventFeed } from "./Dashboard.js";
@@ -98,6 +98,9 @@ export function App(): React.JSX.Element {
   /** Объект, которому меняют статус из реестра. Лист тот же, что на карточке. */
   const [статусУ, setСтатусУ] = useState<ProjectSummary | null>(null);
   const [статусИдёт, setСтатусИдёт] = useState(false);
+  /* Отказ смены статуса из реестра — в листе, рядом с полем «Ждём» (ДР-4).
+     Прежде отказ здесь не ловился вовсе: лист молча оставался открытым. */
+  const [статусОшибка, setСтатусОшибка] = useState<string | null>(null);
 
   /** Сегодняшний день считается один раз на сеанс и передаётся вниз:
    *  два экрана не должны разойтись на границе суток. */
@@ -640,11 +643,14 @@ export function App(): React.JSX.Element {
       {статусУ !== null && (
         <StatusSheet
           current={статусУ.status}
+          waitingFor={статусУ.waitingFor}
           busy={статусИдёт}
-          onClose={() => { setСтатусУ(null); }}
-          onChoose={(status) => {
+          error={статусОшибка}
+          onClose={() => { setСтатусУ(null); setСтатусОшибка(null); }}
+          onChoose={(status, waitingFor) => {
             setСтатусИдёт(true);
-            void setProjectStatus(статусУ.code, status)
+            setСтатусОшибка(null);
+            void setProjectStatus(статусУ.code, status, waitingFor)
               .then((обновлённый) => {
                 setState((current) =>
                   current.kind === "signed"
@@ -656,6 +662,7 @@ export function App(): React.JSX.Element {
                     : current);
                 setСтатусУ(null);
               })
+              .catch((cause: unknown) => { setСтатусОшибка(errorMessage(cause)); })
               .finally(() => { setСтатусИдёт(false); });
           }}
         />

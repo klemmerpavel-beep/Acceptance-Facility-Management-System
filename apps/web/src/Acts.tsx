@@ -3,6 +3,7 @@ import { formatPhone, isPhoneNumber, ownerLevel } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
 import { actScanUrl, attachActScan, errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
+import { actTurn } from "./turn.js";
 import { Announce } from "./Announce.js";
 import { имяЛиста, печать } from "./print.js";
 
@@ -120,6 +121,8 @@ export function Acts({ code, role }: { code: string; role: Role }): React.JSX.El
                   {row.signedAt === null
                     ? <span className="pill pill--warn">Не подписан</span>
                     : <span className="pill pill--ok">Подписан {дата(row.signedAt)}</span>}
+                  {/* Чей ход (ДР-4): неподписанный акт ждёт заказчика. */}
+                  {row.signedAt === null && <span className="turn">{actTurn(row.signedAt)}</span>}
                   {row.paidAt !== null && <span className="pill pill--ok">Оплачен</span>}
                 </p>
                 <p className="t-sm t-muted">

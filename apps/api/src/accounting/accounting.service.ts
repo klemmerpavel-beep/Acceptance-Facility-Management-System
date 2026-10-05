@@ -5,6 +5,7 @@ import {
   paymentOverdue, PAYMENT_GRACE_DAYS, sum, type TrancheMoney,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
+import { orgDay } from "../common/org-day";
 import { spentFacts, type SpentFacts } from "../common/expense-facts";
 import type { RequestUser } from "../common/current-user";
 
@@ -28,7 +29,10 @@ import type { RequestUser } from "../common/current-user";
 export class AccountingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async view(user: RequestUser, today: string): Promise<AccountingView> {
+  async view(user: RequestUser): Promise<AccountingView> {
+    /* День организации, а не UTC (этап Э8): «ждёт N дней» здесь и строка
+       «чей ход» на вкладке «Транши» обязаны совпадать. */
+    const { today, day } = await orgDay(this.prisma, user.orgId);
     const rows = await this.prisma.tranche.findMany({
       where: { project: { orgId: user.orgId } },
       orderBy: [{ openedAt: "desc" }, { number: "desc" }],
@@ -65,8 +69,7 @@ export class AccountingService {
         reimbursable: факт.reimbursable.toString(),
       }));
 
-    const iso = (date: Date | null): string | null =>
-      date === null ? null : date.toISOString().slice(0, 10);
+    const iso = (date: Date | null): string | null => (date === null ? null : day(date));
 
     /* Запись базы и её денежный срез идут парой, а не двумя списками с
        общим индексом: два списка расходятся при первой же фильтрации, и

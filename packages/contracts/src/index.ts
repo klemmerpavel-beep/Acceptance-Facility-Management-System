@@ -256,6 +256,12 @@ export const projectSummarySchema = z.object({
   code: projectCodeSchema,
   address: z.string(),
   status: projectStatusSchema,
+  /**
+   * Чего ждём при статусе «Ждёт ответа» (этап Э8, ДР-4). `null` — статус
+   * другой или объект переведён в «Ждёт ответа» до появления поля. Видно
+   * всем ролям объекта, включая заказчика: чаще всего это вопрос к нему.
+   */
+  waitingFor: z.string().nullable(),
   /** Дата начала работ. Отличается от даты заведения объекта в системе. */
   startedAt: z.string().date().nullable(),
   deadline: z.string().date().nullable(),
@@ -475,7 +481,33 @@ export const createWorkerSchema = z.object({
 });
 export type CreateWorker = z.infer<typeof createWorkerSchema>;
 
-export const updateProjectStatusSchema = z.object({ status: projectStatusSchema });
+/** Предел поля «Ждём»: строка, а не письмо — она стоит на плитке объекта. */
+export const WAITING_FOR_MAX = 140;
+
+/**
+ * Смена статуса объекта.
+ *
+ * Статус «Ждёт ответа» выбирается только вместе с полем «Ждём» — что и от
+ * кого (этап Э8, ДР-4). Статус называл ожидание, но не его предмет, и
+ * ответить на него было нечем: через неделю никто не помнил, чего ждали.
+ * Отказ называет поле, а не правило: человек ищет на экране то, что
+ * названо в отказе. При прочих статусах поле не принимается во внимание —
+ * сервер его очищает.
+ */
+export const updateProjectStatusSchema = z.object({
+  status: projectStatusSchema,
+  waitingFor: z.string().trim()
+    .max(WAITING_FOR_MAX, `Поле «Ждём» длиннее ${String(WAITING_FOR_MAX)} знаков: напишите короче — оно стоит на плитке объекта.`)
+    .optional(),
+}).superRefine((тело, ctx) => {
+  if (тело.status === "WAITING_CLIENT" && (тело.waitingFor ?? "") === "") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["waitingFor"],
+      message: "Заполните поле «Ждём»: что и от кого ждём. Без него статус «Ждёт ответа» не выбирается.",
+    });
+  }
+});
 export type UpdateProjectStatus = z.infer<typeof updateProjectStatusSchema>;
 
 /**
@@ -1472,6 +1504,13 @@ export const trancheSchema = z.object({
   remainder: kopecksString,
   /** Дата подписания акта заказчиком; пусто — не подписан. */
   signedAt: z.string().date().nullable(),
+  /**
+   * Сколько дней транш закрыт и не оплачен, по дню организации (этап Э8,
+   * ДР-4: строка «чей ход»). `null` — транш открыт или оплачен. Считается
+   * тем же правилом, что «ждёт N дней» в бухгалтерии: одно число в двух
+   * местах обязано совпадать.
+   */
+  awaitingDays: z.number().int().nonnegative().nullable(),
   /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
   fill: z.number().int(),
   /** Копейки. Сумма платежей заказчика по траншу с учётом сторно. */

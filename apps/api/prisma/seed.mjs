@@ -135,6 +135,9 @@ const объекты = [
     code: "R-27", address: "Ленинский проспект 174п", client: "204", foreman: false,
     status: ProjectStatus.WAITING_CLIENT, started: "2026-04-20", deadline: "2026-10-15",
     keys: 2, share: 1200,
+    /* Статус «Ждёт ответа» с этапа Э8 выбирается только с полем «Ждём»
+       (ДР-4); текст вымышленный. */
+    ждём: "От заказчика: выбор плитки для санузла",
   },
   {
     code: "R-19", address: "Революции 9а, офис 3", client: "412", foreman: false,
@@ -153,6 +156,7 @@ for (const объект of объекты) {
     startedAt: объект.started === null ? null : new Date(объект.started),
     deadline: объект.deadline === null ? null : new Date(объект.deadline),
     foremanId: объект.foreman ? foreman.id : null,
+    waitingFor: объект.ждём ?? null,
   };
   await prisma.project.upsert({
     where: { orgId_code: { orgId: org.id, code: объект.code } },
@@ -457,6 +461,7 @@ if (Number.isFinite(нагрузка) && нагрузка > объекты.lengt
       startedAt: начало,
       deadline: new Date(начало.getTime() + 185 * день),
       foremanId: null,
+      waitingFor: статусы[i % статусы.length] === ProjectStatus.WAITING_CLIENT ? "От заказчика: решение по смете" : null,
     };
     const объект = await prisma.project.upsert({
       where: { orgId_code: { orgId: org.id, code } },

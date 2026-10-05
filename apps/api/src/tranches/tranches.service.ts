@@ -4,6 +4,7 @@ import type {
 } from "@priyomka/contracts";
 import {
   acceptedTotal,
+  awaitingDays,
   basisPoints,
   clientAmount,
   formatKopecks,
@@ -23,6 +24,7 @@ import {
   type Kopecks,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
+import { orgDay, type OrgDay } from "../common/org-day";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
@@ -101,7 +103,7 @@ export class TranchesService {
 
   async view(user: RequestUser, code: string): Promise<TrancheView> {
     const project = await this.projectOf(user, code);
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -111,7 +113,7 @@ export class TranchesService {
    * есть значение по умолчанию для новой сметы. Разойдясь, они дали бы
    * остаток, посчитанный по одной надбавке, и итог сметы — по другой.
    */
-  private async build(projectId: string, fallbackShare: number): Promise<TrancheView> {
+  private async build(projectId: string, fallbackShare: number, день: OrgDay): Promise<TrancheView> {
     const [смета, строки, пакеты] = await Promise.all([
       this.prisma.estimate.findFirst({
         where: { projectId },
@@ -157,7 +159,7 @@ export class TranchesService {
     }
 
     const tranches = строки.map((строка) =>
-      this.toTranche(строка, produced(поТраншам.get(строка.id) ?? []), share));
+      this.toTranche(строка, produced(поТраншам.get(строка.id) ?? []), share, день));
     const внеВыработка = produced(вне);
 
     return {
@@ -180,6 +182,7 @@ export class TranchesService {
     },
     выработка: Kopecks,
     share: BasisPoints,
+    день: OrgDay,
   ): Tranche {
     const amount = kopecks(row.amount);
     /* Оплаченное — сумма всех платежей, а не неотменённых: сторно приходит
@@ -195,6 +198,15 @@ export class TranchesService {
       closedAt: iso(row.closedAt),
       paidAt: iso(row.paidAt),
       signedAt: row.signedAt === null ? null : row.signedAt.toISOString().slice(0, 10),
+      /* Тем же правилом и тем же днём организации, что «ждёт N дней» в
+         бухгалтерии (этап Э8, ДР-4): число стоит в двух местах. */
+      awaitingDays: awaitingDays({
+        status: row.status,
+        amount,
+        paid: оплачено,
+        closedOn: row.closedAt === null ? null : день.day(row.closedAt),
+        graceDays: null,
+      }, день.today),
       comment: row.comment,
       produced: выработка.toString(),
       client: clientAmount(выработка, share).toString(),
@@ -290,7 +302,7 @@ export class TranchesService {
       throw cause;
     });
 
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -337,7 +349,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -374,7 +386,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -421,7 +433,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -482,7 +494,7 @@ export class TranchesService {
       throw cause;
     });
 
-    return this.build(project.id, project.supervisionShare);
+    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
   }
 
   /** Транш ищется в границах объекта: чужой по опознавателю не открывается. */

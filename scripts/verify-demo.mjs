@@ -595,6 +595,51 @@ await page.waitForTimeout(800);
   if ((await число(".nextstep")) > 0) note("7.8 следующее действие", "демонстрация: прораб видит блок «Выполнено N из M»");
 }
 
+/* --- Чей ход и поле «Ждём» (этап Э8, ДР-4) -----------------------------------
+   Двойник отдаёт транши, акты и чеки R-99 из слепка, снятого до проверок:
+   транш № 1 закрыт и не оплачен, его акт не подписан, черновик чека есть.
+   Смена статуса в двойнике держит тот же контракт, что сервер. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  const ОЖИДАНИЕ = [
+    ["tranches", ".tranche__row .turn", /^Закрыт \d{2}\.\d{2} · ждёт оплаты заказчиком · /u, "транша"],
+    ["documents", ".record .turn", /^Сформирован · ждёт подписи заказчика$/u, "акта"],
+    ["expenses", ".record .turn", /^Черновик · ждёт руководителя$/u, "черновика чека"],
+  ];
+  for (const [вкладка, где, образец, чего] of ОЖИДАНИЕ) {
+    await page.goto(`${BASE}/#R-99/${вкладка}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const строки = (await page.locator(где).allTextContents()).map((текст) => текст.trim());
+    if (!строки.some((строка) => образец.test(строка))) {
+      note("ДР-4 чей ход", `демонстрация, R-99: у ${чего} нет строки «чей ход» — «${строки.join(" | ") || "строк нет"}»`);
+    }
+  }
+  await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const открыть = page.locator('.summary__status button:has-text("Изменить статус")');
+  if ((await открыть.count()) === 0) {
+    note("ДР-4 ждём", "демонстрация: у руководителя нет «Изменить статус»");
+  } else {
+    await открыть.first().click();
+    await page.waitForTimeout(300);
+    const лист = page.locator('[role="dialog"][aria-label="Статус объекта"]');
+    await лист.locator("button", { hasText: "Ждёт ответа" }).click();
+    await page.waitForTimeout(200);
+    await лист.locator('button[type="submit"]').click().catch(() => { /* поля нет — замечание ниже */ });
+    await page.waitForTimeout(500);
+    const отказ = ((await лист.locator(".field__error").first().textContent().catch(() => "")) ?? "").trim();
+    if (!/«Ждём»/u.test(отказ)) note("ДР-4 ждём", `демонстрация: «Ждёт ответа» без поля — отказ «${отказ || "нет"}»`);
+    await лист.locator("textarea").fill("Демонстрация: выбор плитки").catch(() => { /* поля нет */ });
+    await лист.locator('button[type="submit"]').click().catch(() => { /* поля нет */ });
+    await page.waitForTimeout(700);
+    const вШтампе = ((await page.locator(".stamp .turn--waiting").first().textContent().catch(() => "")) ?? "").trim();
+    if (вШтампе !== "Ждём: Демонстрация: выбор плитки") note("ДР-4 ждём", `демонстрация: в штампе «${вШтампе || "нет строки"}»`);
+  }
+}
+
 /* --- Сводка объекта в проекции роли (этап Э8, ДР-0; полный аудит, П-56) -----
    Двойник отдаёт сводку из слепка, снятого от каждой роли. Слепок, снятый
    прежним сервером, нёс заказчику ориентир по заявке, потраченное и остаток

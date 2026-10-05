@@ -92,8 +92,15 @@ const геометрия = async (page, где) => {
    запросы снимков дефектом не считаются: их сорвала сама проверка. */
 let снимкиОтключены = false;
 
+/* Отказ, который проверка вызывает сама, чтобы убедиться в его тексте
+   (этап Э8, ДР-4: «Ждёт ответа» без поля «Ждём»). Ставится на один шаг и
+   снимается сразу после: отказ того же адреса в другом месте обхода
+   остаётся дефектом. */
+let ожидаемыйОтказ = null;
+
 const expected = (url) =>
-  url.endsWith("/auth/me")
+  (ожидаемыйОтказ !== null && url.includes(ожидаемыйОтказ))
+  || url.endsWith("/auth/me")
   || (снимкиОтключены && url.includes("/acceptance/photo/"))
   // Объект без сметы отвечает 404 на запрос сметы; карточка показывает
   // честное пустое состояние. Это поведение продукта, а не сбой страницы.
@@ -5699,6 +5706,86 @@ const РОЛИ_ВХОДА = [
   },
 ];
 
+/* Этап Э8, ДР-4: строка «чей ход» и поле «Ждём».
+   R-31 — закрытый неоплаченный транш № 0 и его неподписанный акт из
+   наполнения: оба ждут заказчика. R-99 — смена статуса руководителем:
+   «Ждёт ответа» без поля отказывается названием поля, с полем — строка
+   «Ждём: …» встаёт в штамп карточки и на плитку; затем статус
+   возвращается, и строка уходит вместе с ним. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-31/tranches`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  const строкиТраншей = (await page.locator(".tranche__row .turn").allTextContents()).map((текст) => текст.trim());
+  if (!строкиТраншей.some((строка) => /^Закрыт \d{2}\.\d{2} · ждёт оплаты заказчиком · (?:меньше дня|\d+ (?:день|дня|дней))$/u.test(строка))) {
+    note("ДР-4 чей ход", `R-31: у закрытого транша нет строки «ждёт оплаты заказчиком» — «${строкиТраншей.join(" | ") || "строк нет"}»`);
+  }
+  await page.goto(`${BASE}/#R-31/documents`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  const неподписанных = await page.locator(".record:has(.pill--warn:text-is('Не подписан'))").count();
+  const строкиАктов = await page.locator(".record .turn:text-is('Сформирован · ждёт подписи заказчика')").count();
+  if (неподписанных === 0) note("ДР-4 чей ход", "R-31: неподписанного акта нет — строку акта проверить не на чем");
+  else if (строкиАктов !== неподписанных) {
+    note("ДР-4 чей ход", `R-31: неподписанных актов ${неподписанных}, строк «ждёт подписи заказчика» ${строкиАктов}`);
+  }
+
+  await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const ТЕКСТ = "Обход ДР-4: выбор плитки для санузла";
+  const открыть = page.locator('.summary__status button:has-text("Изменить статус")');
+  if ((await открыть.count()) === 0) {
+    note("ДР-4 ждём", "R-99: у руководителя нет «Изменить статус»");
+  } else {
+    await открыть.first().click();
+    await page.waitForTimeout(300);
+    const лист = page.locator('[role="dialog"][aria-label="Статус объекта"]');
+    await лист.locator("button", { hasText: "Ждёт ответа" }).click();
+    await page.waitForTimeout(200);
+    const поле = лист.locator("textarea");
+    if ((await поле.count()) === 0) {
+      note("ДР-4 ждём", "выбор «Ждёт ответа» не раскрыл поле «Ждём»");
+    } else {
+      await поле.fill("");
+      ожидаемыйОтказ = "/projects/R-99/status";
+      await лист.locator('button[type="submit"]').click();
+      await page.waitForTimeout(700);
+      ожидаемыйОтказ = null;
+      const отказ = ((await лист.locator(".field__error").first().textContent().catch(() => "")) ?? "").trim();
+      if (!/«Ждём»/u.test(отказ)) note("ДР-4 ждём", `«Ждёт ответа» без поля: отказ «${отказ || "нет"}» не называет поле «Ждём»`);
+      /* Принятое пустое поле закрывает лист: это замечание, а не падение
+         обхода, — лист открывается снова, и проверка идёт дальше. */
+      if ((await лист.count()) === 0) {
+        note("ДР-4 ждём", "«Ждёт ответа» без поля «Ждём» принят — лист закрылся без отказа");
+        await открыть.first().click();
+        await page.waitForTimeout(300);
+        await лист.locator("button", { hasText: "Ждёт ответа" }).click();
+        await page.waitForTimeout(200);
+      }
+      await поле.fill(ТЕКСТ);
+      await лист.locator('button[type="submit"]').click();
+      await page.waitForTimeout(1200);
+      if ((await лист.count()) > 0) note("ДР-4 ждём", "с заполненным полем лист статуса не закрылся");
+      const вШтампе = ((await page.locator(".stamp .turn--waiting").first().textContent().catch(() => "")) ?? "").trim();
+      if (вШтампе !== `Ждём: ${ТЕКСТ}`) note("ДР-4 ждём", `в штампе карточки «${вШтампе || "нет строки"}» вместо «Ждём: ${ТЕКСТ}»`);
+      await page.goto(`${BASE}/#projects`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(800);
+      const наПлитке = ((await page.locator(".objecttile", { hasText: "R-99" }).locator(".turn--waiting").first()
+        .textContent().catch(() => "")) ?? "").trim();
+      if (наПлитке !== `Ждём: ${ТЕКСТ}`) note("ДР-4 ждём", `на плитке R-99 «${наПлитке || "нет строки"}»`);
+      /* Статус возвращается тем же листом: строка «Ждём» уходит с ним. */
+      await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(900);
+      await page.locator('.summary__status button:has-text("Изменить статус")').first().click();
+      await page.waitForTimeout(300);
+      await page.locator('[role="dialog"][aria-label="Статус объекта"] button', { hasText: "В работе" }).click();
+      await page.waitForTimeout(1200);
+      if ((await page.locator(".stamp .turn--waiting").count()) > 0) {
+        note("ДР-4 ждём", "после возврата статуса строка «Ждём» осталась в штампе");
+      }
+    }
+  }
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
@@ -5938,6 +6025,11 @@ for (const роль of РОЛИ_ВХОДА) {
       await лист.locator('.tabs__item:has-text("Чеки")').click();
       await лист.waitForTimeout(900);
       const строка = лист.locator(".record", { hasText: "Проверка гейта" });
+      /* Чей ход (ДР-4): черновик прораба ждёт руководителя. */
+      const ход = ((await строка.locator(".turn").first().textContent().catch(() => "")) ?? "").trim();
+      if (ход !== "Черновик · ждёт руководителя") {
+        note("ДР-4 чей ход", `прораб: у черновика чека строка «${ход || "нет"}» вместо «Черновик · ждёт руководителя»`);
+      }
       const удалить = строка.locator('button:has-text("Удалить")');
       if ((await удалить.count()) === 0) {
         note("гейт", "прораб: черновика с кнопкой удаления нет — гейт не проверен");

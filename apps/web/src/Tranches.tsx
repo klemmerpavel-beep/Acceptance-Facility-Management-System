@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { plural } from "./status.js";
+import { trancheTurn } from "./turn.js";
 import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TranchePayment, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
@@ -227,6 +228,9 @@ export function Tranches({
               </span>
               <span className="tranche__state">
                 <span className={STATUS_PILL[транш.status]}>{STATUS_LABEL[транш.status]}</span>
+                {/* Чей ход (ДР-4): закрытый транш ждёт оплаты заказчиком —
+                    с какого дня и сколько. */}
+                {trancheTurn(транш) !== null && <span className="turn">{trancheTurn(транш)}</span>}
                 {расхождение(транш) !== null && (
                   <span className="pill pill--warn">{расхождение(транш)}</span>
                 )}

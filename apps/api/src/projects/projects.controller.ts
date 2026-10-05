@@ -111,7 +111,7 @@ export class ProjectsController {
     @Param("code") code: string,
     @Body() body: unknown,
   ): Promise<ProjectSummary> {
-    const { status } = updateProjectStatusSchema.parse(body);
-    return this.projects.setStatus(user, code, status);
+    const { status, waitingFor } = updateProjectStatusSchema.parse(body);
+    return this.projects.setStatus(user, code, status, waitingFor);
   }
 }

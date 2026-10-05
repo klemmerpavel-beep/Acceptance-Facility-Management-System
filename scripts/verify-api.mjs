@@ -4147,6 +4147,79 @@ console.log(`Обложки: со снимками ${сОбложкой} объ�
   console.log(`Факты R-99, пункт 7.8: выполнено ${КЛЮЧИ.filter((ключ) => факты[ключ] === true).length} из ${КЛЮЧИ.length}`);
 }
 
+/* --- Э8, ДР-4: поле «Ждём» и дни ожидания транша -----------------------------
+   «Ждёт ответа» без поля «Ждём» не выбирается, и отказ называет поле; поле
+   видят все роли объекта, правка и очистка пишутся в журнал, смена статуса
+   поле очищает (решение Э8-8). Дни ожидания закрытого транша на вкладке
+   «Транши» совпадают с «ждёт N дней» в бухгалтерии: одно число, одно
+   правило, один день организации.
+   -------------------------------------------------------------------------- */
+{
+  const R = "R-99";
+  const статус = (кем, тело) => кем(`/projects/${R}/status`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const РОЛИ = [["руководитель", owner], ["бухгалтер", accountant], ["прораб", foreman], ["заказчик", client]];
+  const исходный = await owner(`/projects/${R}`).then((r) => r.json());
+  for (const [кто, кем] of РОЛИ) {
+    const сводка = await кем(`/projects/${R}`).then((r) => r.json()).catch(() => ({}));
+    check(Object.hasOwn(сводка, "waitingFor"), `ДР-4: ${кто} не получает поле «waitingFor» у ${R}`);
+  }
+  const безПоля = await статус(owner, { status: "WAITING_CLIENT" });
+  const отказ = await безПоля.json().catch(() => ({}));
+  check(безПоля.status === 400 && /«Ждём»/u.test(String(отказ.message ?? "")),
+    `ДР-4: «Ждёт ответа» без поля «Ждём» — код ${безПоля.status}, отказ «${String(отказ.message ?? "")}» не называет поле`);
+  const длинно = await статус(owner, { status: "WAITING_CLIENT", waitingFor: "я".repeat(141) });
+  check(длинно.status === 400, `ДР-4: поле «Ждём» длиннее 140 знаков принято — код ${длинно.status}`);
+
+  const ТЕКСТ = "Проверка ДР-4: выбор плитки для санузла";
+  const принят = await статус(owner, { status: "WAITING_CLIENT", waitingFor: ТЕКСТ }).then((r) => r.json()).catch(() => ({}));
+  check(принят.status === "WAITING_CLIENT" && принят.waitingFor === ТЕКСТ,
+    `ДР-4: после выбора «Ждёт ответа» статус ${String(принят.status)}, «Ждём» — «${String(принят.waitingFor)}»`);
+  for (const [кто, кем] of РОЛИ) {
+    const сводка = await кем(`/projects/${R}`).then((r) => r.json()).catch(() => ({}));
+    check(сводка.waitingFor === ТЕКСТ, `ДР-4: ${кто} видит «Ждём» — «${String(сводка.waitingFor)}» вместо «${ТЕКСТ}»`);
+  }
+  for (const [кто, кем] of [["прораб", foreman], ["заказчик", client]]) {
+    const ответ = await статус(кем, { status: "WAITING_CLIENT", waitingFor: "Чужая правка" });
+    check(ответ.status === 403, `ДР-4: ${кто} меняет поле «Ждём» — код ${ответ.status} вместо 403`);
+  }
+
+  const ТЕКСТ2 = "Проверка ДР-4: решение по смете";
+  const правка = await статус(accountant, { status: "WAITING_CLIENT", waitingFor: ТЕКСТ2 }).then((r) => r.json()).catch(() => ({}));
+  check(правка.waitingFor === ТЕКСТ2, `ДР-4: правка «Ждём» при том же статусе не сохранилась — «${String(правка.waitingFor)}»`);
+  const вышел = await статус(owner, { status: исходный.status }).then((r) => r.json()).catch(() => ({}));
+  check(вышел.status === исходный.status && вышел.waitingFor === null,
+    `ДР-4: после выхода из «Ждёт ответа» статус ${String(вышел.status)}, «Ждём» — «${String(вышел.waitingFor)}» вместо пустого`);
+
+  for (const [кто, кем] of [["руководитель", owner], ["заказчик", client]]) {
+    const журнал = await кем(`/projects/${R}/events?limit=60`).then((r) => r.json()).catch(() => []);
+    const записи = (Array.isArray(журнал) ? журнал : []).filter((запись) => /ждём/u.test(запись.title ?? ""));
+    check(записи.some((запись) => (запись.detail ?? "").includes(`${ТЕКСТ} → ${ТЕКСТ2}`)),
+      `ДР-4: ${кто} не видит в журнале правку «Ждём» «${ТЕКСТ}» → «${ТЕКСТ2}»`);
+    check(записи.some((запись) => (запись.detail ?? "").startsWith(`${ТЕКСТ2} →`) && !(запись.detail ?? "").includes(`→ ${ТЕКСТ}`)),
+      `ДР-4: ${кто} не видит в журнале очистку «Ждём» со сменой статуса`);
+  }
+
+  const транши = await owner(`/projects/${R}/tranches`).then((r) => r.json()).catch(() => ({ tranches: [] }));
+  const деньги = await owner("/accounting").then((r) => r.json()).catch(() => ({ rows: [] }));
+  let сверено = 0;
+  for (const транш of транши.tranches ?? []) {
+    const ждёт = транш.status === "CLOSED";
+    check(ждёт ? Number.isInteger(транш.awaitingDays) && транш.awaitingDays >= 0 : транш.awaitingDays === null,
+      `ДР-4: у транша № ${транш.number} (${транш.status}) дни ожидания ${String(транш.awaitingDays)}`);
+    const строка = (деньги.rows ?? []).find((row) => row.id === транш.id);
+    if (ждёт && строка !== undefined) {
+      сверено += 1;
+      check(строка.awaitingDays === транш.awaitingDays,
+        `ДР-4: транш № ${транш.number}: на вкладке ждёт ${String(транш.awaitingDays)} дн., в бухгалтерии — ${String(строка.awaitingDays)}`);
+    }
+  }
+  const портфель = (деньги.rows ?? []).filter((row) => row.state === "ждёт оплаты" || row.state === "оплачен частично" || row.state === "просрочено");
+  check(портфель.length > 0, "ДР-4: в портфеле нет транша, ждущего оплаты, — строку «чей ход» проверить не на чем");
+  console.log(`ДР-4: поле «Ждём» проверено на четырёх ролях; дни ожидания сверены с бухгалтерией у ${String(сверено)} траншей R-99`);
+}
+
 /* --- Э8, ДР-0: сводка объекта в проекции роли (полный аудит, П-56) -----------
    Сериализатор сводки роли не знал: заказчик получал ориентир по заявке,
    потраченное на материалы, остаток транша и «выполнено на сумму», прораб —

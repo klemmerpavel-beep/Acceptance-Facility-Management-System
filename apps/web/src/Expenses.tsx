@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { expenseTurn } from "./turn.js";
 import { завести } from "./verbs.js";
 import { ownerLevel } from "@priyomka/domain";
 import { formatKopecks } from "@priyomka/ui";
@@ -195,6 +196,8 @@ function Чек({
         <p className="record__head">
           <span className="t-strong">{row.seller}</span>
           {черновик && <span className="pill pill--warn">Черновик</span>}
+          {/* Чей ход (ДР-4): черновик ждёт руководителя. */}
+          {expenseTurn(row.status) !== null && <span className="turn">{expenseTurn(row.status)}</span>}
           {отклонён && <span className="pill pill--danger">Отклонён</span>}
           {!row.reimbursable && <span className="pill">Не возмещается</span>}
         </p>

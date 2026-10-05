@@ -24,9 +24,9 @@ export class AccountingController {
   @Get()
   @Roles("OWNER")
   view(@CurrentUser() user: RequestUser): Promise<AccountingView> {
-    /* Сегодняшний день берётся здесь, а не внутри арифметики: домен
-       чистый, и просрочка, вычисленная от скрытого «сейчас», перестала бы
-       воспроизводиться в тестах. */
-    return this.accounting.view(user, new Date().toISOString().slice(0, 10));
+    /* Сегодняшний день берётся службой по часовому поясу организации
+       (этап Э8), а не здесь по UTC; в домен он по-прежнему приходит
+       готовой датой — арифметика остаётся чистой и воспроизводимой. */
+    return this.accounting.view(user);
   }
 }

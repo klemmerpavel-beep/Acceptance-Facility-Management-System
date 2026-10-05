@@ -481,11 +481,13 @@ export const createWorker = (input: CreateWorker): Promise<WorkerRow[]> =>
 export const setProjectStatus = (
   code: string,
   status: ProjectSummary["status"],
+  /** Чего ждём — только для «Ждёт ответа» (ДР-4). */
+  waitingFor?: string,
 ): Promise<ProjectSummary> =>
   request(`/projects/${code}/status`, projectSummarySchema, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(waitingFor === undefined ? { status } : { status, waitingFor }),
   });
 
 /**
