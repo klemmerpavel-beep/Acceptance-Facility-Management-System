@@ -561,8 +561,12 @@ const заявки = [
 const день = 86_400_000;
 const сегодня = Date.now();
 await prisma.leadTask.deleteMany({ where: { orgId: org.id } });
+/* Выигранная заявка R-99 заводится ниже, отдельной записью: её номер
+   исключён из удаления «лишних» номеров, иначе каждое наполнение сносило бы
+   её вместе со связью с объектом. */
+const ЗАЯВКА_R99 = 1001;
 await prisma.lead.deleteMany({
-  where: { orgId: org.id, number: { notIn: заявки.map((заявка) => заявка.number) } },
+  where: { orgId: org.id, number: { notIn: [...заявки.map((заявка) => заявка.number), ЗАЯВКА_R99] } },
 });
 for (const заявка of заявки) {
   const тип = заявка.тип === undefined ? null : типы.get(заявка.тип);
@@ -596,6 +600,37 @@ for (const заявка of заявки) {
       },
     });
   }
+}
+
+/*
+ * Выигранная заявка R-99 (этап Э8, ДР-0). Прежде ни один объект стенда не
+ * был заведён из заявки, и ориентир по заявке в карточке не показывался
+ * никому — утечку ориентира прорабу и заказчику было не на чем увидеть
+ * (полный аудит, П-56). Заявка вымышленная: имя, телефон из невыдаваемого
+ * диапазона, площадь 92,5 м² по дизайнерскому образцовому тарифу — вилка
+ * 3 108 000 — 4 662 000 ₽, итог сметы R-99 внутри неё.
+ */
+if (объектR99 !== null) {
+  const тип = типы.get(2);
+  const поля = {
+    name: "Евгения",
+    phone: "+7 900 000-00-26",
+    address: объектR99.address,
+    stage: "CONTRACT",
+    outcome: "WON",
+    repairTypeId: тип?.id ?? null,
+    area: 92_500n,
+    rateSnapshot: тип?.ratePerSqm ?? null,
+    spreadSnapshot: тип?.spread ?? null,
+    clientId: объектR99.clientId,
+    projectId: объектR99.id,
+    createdAt: new Date(сегодня - 150 * день),
+  };
+  await prisma.lead.upsert({
+    where: { orgId_number: { orgId: org.id, number: ЗАЯВКА_R99 } },
+    update: поля,
+    create: { orgId: org.id, number: ЗАЯВКА_R99, ...поля },
+  });
 }
 
 /**

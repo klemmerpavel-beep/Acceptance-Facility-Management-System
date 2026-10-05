@@ -57,12 +57,15 @@ export class ProjectsService {
     /* Принятое — одним запросом на весь портфель, а не по запросу на объект:
        реестр из восьми строк иначе стоил бы восьми обращений, и цена росла
        бы вместе с портфелем. Редакции берутся готовыми из `facts`. */
+    /* Ориентир читается только для уровня руководителя: остальным ролям его
+       нет в ответе (ДР-0), и выборка, результат которой выбрасывается, —
+       лишняя работа и лишний шанс вернуть поле по ошибке. */
     const [принятое, ориентиры] = await Promise.all([
       acceptedFacts(this.prisma, facts),
-      guidelineFacts(this.prisma, ids),
+      ownerLevel(user.role) ? guidelineFacts(this.prisma, ids) : Promise.resolve(new Map<string, GuidelineFacts>()),
     ]);
     return projects.map((project) => toSummary(
-      project, facts.get(project.id), tranches.get(project.id),
+      user.role, project, facts.get(project.id), tranches.get(project.id),
       принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id),
       расходы.get(project.id)));
   }
@@ -125,10 +128,12 @@ export class ProjectsService {
     ]);
     const [принятое, ориентиры] = await Promise.all([
       acceptedFacts(this.prisma, facts),
-      guidelineFacts(this.prisma, [project.id]),
+      ownerLevel(user.role)
+        ? guidelineFacts(this.prisma, [project.id])
+        : Promise.resolve(new Map<string, GuidelineFacts>()),
     ]);
     return toSummary(
-      project, facts.get(project.id), tranches.get(project.id),
+      user.role, project, facts.get(project.id), tranches.get(project.id),
       принятое.get(project.id), ориентиры.get(project.id), обложки.get(project.id),
       расходы.get(project.id));
   }
@@ -614,7 +619,30 @@ const STAGES = {
 const asDate = (value: Date | null): string | null =>
   value === null ? null : value.toISOString().slice(0, 10);
 
+/**
+ * Сводка объекта в проекции роли.
+ *
+ * Прежде сериализатор роли не знал и отдавал всем одно и то же: заказчику
+ * — ориентир по заявке, потраченное на материалы, остаток транша и
+ * «выполнено на сумму», прорабу — ориентир (этап Э8, ДР-0; полный аудит,
+ * П-56, класс П-1, П-16, П-17). Разграничение стоит здесь, в ответе, а не на
+ * экране: скрытый блок карточки поля из ответа не убирает.
+ *
+ * Поле, которого роли не положено, не попадает в объект вовсе — ни ключом со
+ * значением `undefined`, ни `null`, ни нулём:
+ * `null` здесь уже занят смыслом «величины нет» (транша нет, ориентира не
+ * считали), и пустое значение сказало бы заказчику неправду о деньгах
+ * объекта (`01_PROJECT.md`, раздел 19).
+ *
+ *   — уровень руководителя (руководитель, бухгалтер) — всё;
+ *   — прораб — без ориентира: раздел «Заявки» ему закрыт целиком; остаток
+ *     транша и потраченное остаются — по ним он работает;
+ *   — заказчик — без ориентира, потраченного, остатка транша и «выполнено
+ *     на сумму»: деньги в его вид не добавляются до решения о них (вопрос 3
+ *     квиза, допущение В1 этапа Э8).
+ */
 function toSummary(
+  role: RequestUser["role"],
   project: ProjectRow,
   facts: EstimateFacts | undefined,
   tranche: OpenTranche | undefined,
@@ -643,6 +671,8 @@ function toSummary(
       progress: basisPoints(stage.progress),
     })),
   );
+  const внутренние = ownerLevel(role);
+  const заказчик = role === "CLIENT";
   return {
     id: project.id,
     code: project.code,
@@ -656,7 +686,7 @@ function toSummary(
     /* Ноль здесь настоящий: чеков нет — потрачено ноль. Пустоты у этой
        величины не бывает, в отличие от остатка транша, где ноль означал бы
        «выработан ровно до копейки». */
-    spentMaterials: (расходы?.spent ?? 0n).toString(),
+    ...(заказчик ? {} : { spentMaterials: (расходы?.spent ?? 0n).toString() }),
     client: {
       code: project.client.code,
       name: project.client.name,
@@ -683,9 +713,11 @@ function toSummary(
         const доля = acceptedShare(accepted.accepted, facts.works);
         return доля === null ? null : Number(доля);
       })(),
-    accepted: accepted === undefined || facts === undefined
-      ? null
-      : kopecks(accepted.accepted).toString(),
+    ...(заказчик ? {} : {
+      accepted: accepted === undefined || facts === undefined
+        ? null
+        : kopecks(accepted.accepted).toString(),
+    }),
     acceptedPositions: accepted?.positions ?? 0,
     /* Обложка — производная от приёмки, и собирается она здесь же, из
        готовой карты: у объекта без снимков это `null`, а не пустой объект.
@@ -694,7 +726,7 @@ function toSummary(
     cover: coverPhotoId === undefined ? null : { photoId: coverPhotoId },
     /* Ориентир и его сверка со сметой. Сверка пуста, пока сметы нет:
        ноль означал бы «сошлось копейка в копейку», а это иное утверждение. */
-    guideline: guideline === undefined ? null : {
+    ...(внутренние ? { guideline: guideline === undefined ? null : {
       low: guideline.low.toString(),
       high: guideline.high.toString(),
       typeName: guideline.typeName,
@@ -709,8 +741,8 @@ function toSummary(
         });
         return { verdict: сверка.verdict, delta: сверка.delta.toString() };
       })(),
-    },
-    trancheRemainder: остатокТранша === null ? null : остатокТранша.toString(),
+    } } : {}),
+    ...(заказчик ? {} : { trancheRemainder: остатокТранша === null ? null : остатокТранша.toString() }),
     stages: project.workStages.map((stage) => ({
       id: stage.id,
       name: stage.name,

@@ -595,6 +595,28 @@ await page.waitForTimeout(800);
   if ((await число(".nextstep")) > 0) note("7.8 следующее действие", "демонстрация: прораб видит блок «Выполнено N из M»");
 }
 
+/* --- Сводка объекта в проекции роли (этап Э8, ДР-0; полный аудит, П-56) -----
+   Двойник отдаёт сводку из слепка, снятого от каждой роли. Слепок, снятый
+   прежним сервером, нёс заказчику ориентир по заявке, потраченное и остаток
+   транша, — и демонстрация показала бы утечку, которой на сервере уже нет. */
+{
+  const ВЕЛИЧИНЫ = ["Ориентир по заявке", "Потрачено на материалы", "Остаток текущего транша"];
+  for (const [роль, видно] of [["Руководитель", ВЕЛИЧИНЫ], ["Прораб", ВЕЛИЧИНЫ.slice(1)], ["Заказчик", []]]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(600);
+    await page.goto(`${BASE}/#R-99`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const подписи = (await page.locator(".figure__label").allTextContents()).map((текст) => текст.trim());
+    for (const величина of ВЕЛИЧИНЫ) {
+      const есть = подписи.some((подпись) => подпись.startsWith(величина));
+      if (есть && !видно.includes(величина)) note("ДР-0 сводка по ролям", `демонстрация, ${роль.toLowerCase()}: в сводке R-99 стоит «${величина}»`);
+      if (!есть && видно.includes(величина)) note("ДР-0 сводка по ролям", `демонстрация, ${роль.toLowerCase()}: в сводке R-99 нет «${величина}»`);
+    }
+  }
+}
+
 await browser.close();
 server.close();
 

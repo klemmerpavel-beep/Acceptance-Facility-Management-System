@@ -511,8 +511,11 @@ export function ProjectCard({
       {/* Ориентир, названный на заявке до выезда, — рядом с итогом
           сметы: в этом соседстве весь его смысл. Видно, на сколько
           промахнулись, когда смета готова. Объект заведён руками —
-          строки нет: ориентира никто не называл. */}
-      {project.guideline !== null && (
+          строки нет: ориентира никто не называл. Прорабу и заказчику
+          поля нет в ответе сервера (ДР-0, П-56): блок следует за
+          ответом, а не за ролью, — второе правило рядом с серверным
+          разошлось бы с ним на первой правке. */}
+      {project.guideline !== undefined && project.guideline !== null && (
         <div className="figure">
           <span className="figure__label">
             Ориентир по заявке № {project.guideline.leadNumber}
@@ -542,19 +545,24 @@ export function ProjectCard({
           Считается только по подтверждённым: черновик — заявка, а не
           расход, и вечерний вопрос «сколько ушло» не должен зависеть
           от того, разобрал ли руководитель черновики. */}
-      <div className="figure">
-        <span className="figure__label">Потрачено на материалы</span>
-        <span className="figure__value">{money(project.spentMaterials)}</span>
-        <span className="figure__note">по подтверждённым чекам</span>
-      </div>
+      {/* Заказчику величины нет в ответе (ДР-0): деньги в его вид не
+          добавляются до решения о них. */}
+      {project.spentMaterials !== undefined && (
+        <div className="figure">
+          <span className="figure__label">Потрачено на материалы</span>
+          <span className="figure__value">{money(project.spentMaterials)}</span>
+          <span className="figure__note">по подтверждённым чекам</span>
+        </div>
+      )}
 
       {/* Остаток текущего транша — та величина, ради которой руководитель
           открывает систему вечером (объём полевого испытания, решение
           № 3). Полоса с тремя величинами живёт на своей вкладке: в
           сводке нужен ответ на один вопрос — сколько ещё можно
           выработать. Транша нет — строки нет: ноль означал бы
-          «выработан ровно до копейки». */}
-      {project.trancheRemainder !== null && (
+          «выработан ровно до копейки». Заказчику поля нет в ответе
+          (ДР-0): транши ему закрыты. */}
+      {project.trancheRemainder !== undefined && project.trancheRemainder !== null && (
         <div className="figure">
           <span className="figure__label">Остаток текущего транша</span>
           <span
