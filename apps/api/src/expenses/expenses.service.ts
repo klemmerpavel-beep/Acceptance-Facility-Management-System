@@ -115,6 +115,8 @@ export class ExpensesService {
         createdBy: row.createdBy?.name ?? null,
         createdAt: row.createdAt.toISOString(),
         confirmedBy: row.confirmedBy?.name ?? null,
+        decidedAt: row.status === "DRAFT" || row.confirmedAt === null ? null : row.confirmedAt.toISOString(),
+        own: row.createdById === user.id,
       })),
       totals: {
         spent: totals.spent.toString(),

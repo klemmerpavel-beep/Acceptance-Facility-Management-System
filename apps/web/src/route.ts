@@ -1,3 +1,4 @@
+import { ОТБОРЫ, type Отбор } from "@priyomka/domain";
 import { SECTIONS, type Section } from "./sections.js";
 
 /**
@@ -20,13 +21,37 @@ export const ВКЛАДКИ = [
 ] as const;
 export type Вкладка = (typeof ВКЛАДКИ)[number];
 
+/**
+ * Отбор экрана в адресе: `#R-99/expenses?draft`, `#R-99/report?since=…`
+ * (этап Э8, ДР-1). Пункт очереди «Ждёт вашего действия» ведёт на список с
+ * отбором ровно тех записей, что он назвал числом (решение допроса Э8-4), —
+ * без новой зависимости: отбор пишется в адрес так же, как вкладка. Ключ —
+ * из закрытого перечня домена, тем же перечнем сервер строит адрес пункта.
+ */
+export interface ОтборАдреса {
+  readonly вид: Отбор;
+  /** Отметка прошлого захода для «нового», опознаватель заказчика для «ещё не входил». */
+  readonly значение: string | null;
+}
+
 export type Маршрут =
-  | { kind: "section"; section: Section }
-  | { kind: "project"; code: string; tab: Вкладка };
+  | { kind: "section"; section: Section; отбор?: ОтборАдреса }
+  | { kind: "project"; code: string; tab: Вкладка; отбор?: ОтборАдреса };
 
 const РАЗДЕЛЫ: readonly string[] = [...SECTIONS.map((item) => item.key), "settings", "roadmap", "documents"];
 /** Тот же вид кода, что у контракта: латинская буква, дефис, до четырёх цифр. */
 const ОБЪЕКТ = /^([A-Z]-\d{1,4})(?:\/([a-z]+))?$/u;
+
+const этоОтбор = (значение: string): значение is Отбор => (ОТБОРЫ as readonly string[]).includes(значение);
+
+/** Отбор из хвоста адреса. Неизвестный ключ не отбирает ничего: экран показывает всё. */
+function отборИз(хвост: string | undefined): { отбор?: ОтборАдреса } {
+  if (хвост === undefined || хвост === "") return {};
+  const [ключ = "", ...остаток] = хвост.split("=");
+  if (!этоОтбор(ключ)) return {};
+  const значение = остаток.join("=");
+  return { отбор: { вид: ключ, значение: значение === "" ? null : значение } };
+}
 
 const этоВкладка = (значение: string): значение is Вкладка =>
   (ВКЛАДКИ as readonly string[]).includes(значение);
@@ -44,19 +69,24 @@ export function разобрать(hash: string): Маршрут | null {
   } catch {
     return null;
   }
-  if (тело === "") return null;
-  const объект = ОБЪЕКТ.exec(тело);
+  const [путь = "", хвост] = тело.split(/\?(.*)/su);
+  if (путь === "") return null;
+  const объект = ОБЪЕКТ.exec(путь);
   if (объект !== null) {
     const [, code = "", вкладка = "overview"] = объект;
-    return { kind: "project", code, tab: этоВкладка(вкладка) ? вкладка : "overview" };
+    return { kind: "project", code, tab: этоВкладка(вкладка) ? вкладка : "overview", ...отборИз(хвост) };
   }
-  return этоРаздел(тело) ? { kind: "section", section: тело } : null;
+  return этоРаздел(путь) ? { kind: "section", section: путь, ...отборИз(хвост) } : null;
 }
+
+const хвостОтбора = (отбор: ОтборАдреса | undefined): string =>
+  отбор === undefined ? "" : `?${отбор.вид}${отбор.значение === null ? "" : `=${отбор.значение}`}`;
 
 /** Сборка адреса. «Обзор» в адрес не пишется: `#R-99` и есть объект. */
 export function адрес(маршрут: Маршрут): string {
-  if (маршрут.kind === "section") return `#${маршрут.section}`;
-  return маршрут.tab === "overview" ? `#${маршрут.code}` : `#${маршрут.code}/${маршрут.tab}`;
+  const хвост = хвостОтбора(маршрут.отбор);
+  if (маршрут.kind === "section") return `#${маршрут.section}${хвост}`;
+  return маршрут.tab === "overview" ? `#${маршрут.code}${хвост}` : `#${маршрут.code}/${маршрут.tab}${хвост}`;
 }
 
 /**

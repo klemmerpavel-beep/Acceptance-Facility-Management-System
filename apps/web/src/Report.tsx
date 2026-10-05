@@ -1,10 +1,11 @@
-import { sectionTitle } from "@priyomka/domain";
+import { sectionTitle, новоеПосле } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type { PhotoReport } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { acceptancePhotoUrl, errorMessage, fetchReport } from "./api.js";
 import { formatDate, plural } from "./status.js";
 import { PhotoViewer, type СнимокПросмотра } from "./PhotoViewer.js";
+import { FilterBar, type СОтбором } from "./FilterBar.js";
 
 /** Класс коллажа по числу показанных снимков — готовыми именами, а не сборкой строки. */
 const КОЛЛАЖ: Readonly<Record<number, string>> = {
@@ -61,7 +62,7 @@ function Коллаж({
  * вопрос «что принято по действующей смете». Поэтому отбора по редакции
  * здесь нет: повторный импорт не отменяет сделанного.
  */
-export function Report({ code }: { code: string }): React.JSX.Element {
+export function Report({ code, отбор, onСброситьОтбор }: { code: string } & СОтбором): React.JSX.Element {
   const [report, setReport] = useState<PhotoReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<string | null>(null);
@@ -100,17 +101,29 @@ export function Report({ code }: { code: string }): React.JSX.Element {
   /* Отбор «по этапу» — тот же раздел сметы, по которому идёт приёмка.
      Дни, в которых после отбора ничего не осталось, не показываются: пустая
      дата сообщала бы, что в этот день работали и не сняли. */
+  /* Отбор пункта очереди заказчика (ДР-1): снимки, появившиеся после его
+     прошлого захода, — тем же правилом домена, которым посчитано число
+     пункта. Запись здесь — снимок, а не приёмка: пункт считает снимки. */
+  const после = отбор?.вид === "since" ? отбор.значение : null;
   const дни = report.days
     .map((день) => ({
       ...день,
-      batches: section === null
-        ? день.batches
-        : день.batches.filter((пакет) => пакет.sectionName === section),
+      batches: день.batches
+        .filter((пакет) => section === null || пакет.sectionName === section)
+        .filter((пакет) => после === null || (пакет.photos.length > 0 && новоеПосле(пакет.at, после))),
     }))
     .filter((день) => день.batches.length > 0);
+  const полоса = после === null || отбор === undefined || отбор === null ? null : (
+    <FilterBar
+      отбор={отбор}
+      число={дни.reduce((всего, день) => всего + день.batches.reduce((снимков, пакет) => снимков + пакет.photos.length, 0), 0)}
+      onReset={onСброситьОтбор ?? (() => undefined)}
+    />
+  );
 
   return (
     <section className="stack">
+      {полоса}
       <div className="row row--wrap">
         <span className="metric">
           <span className="metric__value">{report.totals.photos}</span>

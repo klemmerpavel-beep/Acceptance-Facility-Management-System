@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { завести } from "./verbs.js";
 import type {
   Dashboard as DashboardData,
+  Inbox,
   ProjectEvent,
   ProjectStatus,
   ProjectSummary,
 } from "@priyomka/contracts";
 import { formatKopecks } from "@priyomka/ui";
-import { fetchDashboard, errorMessage } from "./api.js";
+import { fetchDashboard, fetchInbox, errorMessage } from "./api.js";
+import { Queue } from "./Queue.js";
 import { ProjectTable } from "./ProjectTable.js";
 import { formatDay, formatTime, plural } from "./status.js";
 import { dueByDays } from "./due.js";
@@ -304,16 +306,26 @@ export function Dashboard({
 }): React.JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Очередь «Ждёт вашего действия» (этап Э8, ДР-1) — первый блок главной.
+     Грузится своим запросом: отказ сводки не прячет очередь, и наоборот. */
+  const [очередь, setОчередь] = useState<Inbox | null>(null);
+  const [ошибкаОчереди, setОшибкаОчереди] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchDashboard()
       .then(setData)
       .catch((cause: unknown) => { setError(errorMessage(cause)); });
+    void fetchInbox()
+      .then(setОчередь)
+      .catch((cause: unknown) => { setОшибкаОчереди(errorMessage(cause)); });
   }, []);
+
+  const блокОчереди = <Queue inbox={очередь} error={ошибкаОчереди} />;
 
   if (error !== null) {
     return (
-      <main className="container">
+      <main className="container stack stack--groups">
+        {блокОчереди}
         <div className="empty">
           <p className="empty__title">Сводка недоступна</p>
           <p className="empty__text">{error}</p>
@@ -330,6 +342,7 @@ export function Dashboard({
   if (data === null) {
     return (
       <main className="container stack stack--loose" aria-busy="true">
+        {блокОчереди}
         <div className="statrow">
           {[0, 1, 2, 3].map((index) => (
             <span className="skeleton skeleton--card" key={index} />
@@ -379,6 +392,7 @@ export function Dashboard({
      требует действия, где всё лежит. */
   return (
     <main className="container stack stack--groups">
+      {блокОчереди}
       <div className="stack stack--loose">
       <section className="statrow">
         <StatCard

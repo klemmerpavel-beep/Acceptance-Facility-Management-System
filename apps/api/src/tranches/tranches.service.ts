@@ -13,6 +13,7 @@ import {
   negate,
   nextTrancheNumber,
   paymentFault,
+  paymentOverdue,
   paymentReversalFault,
   PREPAYMENT_NUMBER,
   sum,
@@ -22,6 +23,7 @@ import {
   trancheRemainder, formatDay,
   type BasisPoints,
   type Kopecks,
+  type TrancheMoney,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
 import { orgDay, type OrgDay } from "../common/org-day";
@@ -93,7 +95,10 @@ export class TranchesService {
   private async projectOf(user: RequestUser, code: string) {
     const project = await this.prisma.project.findFirst({
       where: { ...projectScope(user), code },
-      select: { id: true, code: true, orgId: true, supervisionShare: true },
+      select: {
+        id: true, code: true, orgId: true, supervisionShare: true,
+        client: { select: { paymentGraceDays: true } },
+      },
     });
     if (!project) {
       throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
@@ -103,7 +108,7 @@ export class TranchesService {
 
   async view(user: RequestUser, code: string): Promise<TrancheView> {
     const project = await this.projectOf(user, code);
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -113,7 +118,11 @@ export class TranchesService {
    * есть значение по умолчанию для новой сметы. Разойдясь, они дали бы
    * остаток, посчитанный по одной надбавке, и итог сметы — по другой.
    */
-  private async build(projectId: string, fallbackShare: number, день: OrgDay): Promise<TrancheView> {
+  async build(
+    project: { id: string; supervisionShare: number; client: { paymentGraceDays: number | null } },
+    день: OrgDay,
+  ): Promise<TrancheView> {
+    const projectId = project.id;
     const [смета, строки, пакеты] = await Promise.all([
       this.prisma.estimate.findFirst({
         where: { projectId },
@@ -146,7 +155,7 @@ export class TranchesService {
       }),
     ]);
 
-    const share = basisPoints(смета?.supervisionShare ?? fallbackShare);
+    const share = basisPoints(смета?.supervisionShare ?? project.supervisionShare);
 
     const поТраншам = new Map<string, BatchRow[]>();
     const вне: BatchRow[] = [];
@@ -159,7 +168,8 @@ export class TranchesService {
     }
 
     const tranches = строки.map((строка) =>
-      this.toTranche(строка, produced(поТраншам.get(строка.id) ?? []), share, день));
+      this.toTranche(строка, produced(поТраншам.get(строка.id) ?? []), share, день,
+        project.client.paymentGraceDays));
     const внеВыработка = produced(вне);
 
     return {
@@ -183,12 +193,20 @@ export class TranchesService {
     выработка: Kopecks,
     share: BasisPoints,
     день: OrgDay,
+    grace: number | null,
   ): Tranche {
     const amount = kopecks(row.amount);
     /* Оплаченное — сумма всех платежей, а не неотменённых: сторно приходит
        отрицательной суммой и обнуляет свою пару само. Отбор по признаку
        «не сторнирован» дал бы тот же ответ ровно до первого сторно. */
     const оплачено = sum(row.payments.map((платёж) => kopecks(платёж.amount)));
+    const деньги = {
+      status: row.status,
+      amount,
+      paid: оплачено,
+      closedOn: row.closedAt === null ? null : день.day(row.closedAt),
+      graceDays: grace,
+    } satisfies TrancheMoney;
     return {
       id: row.id,
       number: row.number,
@@ -200,13 +218,11 @@ export class TranchesService {
       signedAt: row.signedAt === null ? null : row.signedAt.toISOString().slice(0, 10),
       /* Тем же правилом и тем же днём организации, что «ждёт N дней» в
          бухгалтерии (этап Э8, ДР-4): число стоит в двух местах. */
-      awaitingDays: awaitingDays({
-        status: row.status,
-        amount,
-        paid: оплачено,
-        closedOn: row.closedAt === null ? null : день.day(row.closedAt),
-        graceDays: null,
-      }, день.today),
+      awaitingDays: awaitingDays(деньги, день.today),
+      /* Тем же правилом и порогом договора, что «просрочено» в бухгалтерии
+         (этап Э8, ДР-1): отбор вкладки по просрочке обязан дать ровно те
+         транши, что названы числом в очереди. */
+      overdue: paymentOverdue(деньги, день.today),
       comment: row.comment,
       produced: выработка.toString(),
       client: clientAmount(выработка, share).toString(),
@@ -302,7 +318,7 @@ export class TranchesService {
       throw cause;
     });
 
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -349,7 +365,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -386,7 +402,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -433,7 +449,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /**
@@ -494,7 +510,7 @@ export class TranchesService {
       throw cause;
     });
 
-    return this.build(project.id, project.supervisionShare, await orgDay(this.prisma, user.orgId));
+    return this.build(project, await orgDay(this.prisma, user.orgId));
   }
 
   /** Транш ищется в границах объекта: чужой по опознавателю не открывается. */

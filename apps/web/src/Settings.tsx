@@ -11,6 +11,7 @@ import { plural } from "./status.js";
 import { tabArrowHandler } from "./tabs.js";
 import { Blueprints } from "./Blueprints.js";
 import { People } from "./People.js";
+import type { СОтбором } from "./FilterBar.js";
 
 /**
  * Настройки организации. Состав вкладок — по артборду `Nastroyki.dc.html`
@@ -68,11 +69,18 @@ const shownPhone = (stored: string | null): string =>
 export function Settings({
   onRoadmap,
   onSignedOut,
+  отбор,
+  onСброситьОтбор,
 }: {
   onRoadmap: () => void;
   onSignedOut: () => void;
-}): React.JSX.Element {
-  const [tab, setTab] = useState<Tab>("overview");
+} & СОтбором): React.JSX.Element {
+  /* Пункт очереди «заказчик ещё не входил» (ДР-1) ведёт сюда с отбором —
+     и открывает «Людей», где этот отбор применяется. */
+  const [tab, setTab] = useState<Tab>(отбор?.вид === "notentered" ? "people" : "overview");
+  useEffect(() => {
+    if (отбор?.вид === "notentered") setTab("people");
+  }, [отбор]);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [units, setUnits] = useState<Unit[] | null>(null);
   /* Справочник заказчиков нужен листу заведения: заказчику ставится связь
@@ -247,7 +255,7 @@ export function Settings({
       </div>
 
       <div role="tabpanel" id="settings-panel-people" aria-labelledby="settings-tab-people" hidden={tab !== "people"}>
-        {tab === "people" && <People clients={клиенты} />}
+        {tab === "people" && <People clients={клиенты} отбор={отбор} onСброситьОтбор={onСброситьОтбор} />}
       </div>
 
       <div role="tabpanel" id="settings-panel-tariffs" aria-labelledby="settings-tab-tariffs" hidden={tab !== "tariffs"}>

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { завести } from "./verbs.js";
-import type { CurrentUser, ProjectEvent, ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
+import type { CurrentUser, Inbox, ProjectEvent, ProjectStatus, ProjectSummary, Role } from "@priyomka/contracts";
 import { ownerLevel } from "@priyomka/domain";
 import {
-  fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchProjects, logout, setProjectStatus, errorMessage,
+  fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchInbox, fetchProjects, logout, markInboxSeen,
+  setProjectStatus, errorMessage,
 } from "./api.js";
 import { SignIn } from "./SignIn.js";
 import { Dashboard } from "./Dashboard.js";
@@ -21,7 +22,7 @@ import { Documents } from "./Documents.js";
 import { Settings } from "./Settings.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
-import { адрес, простойЩелчок, разобрать, type Вкладка } from "./route.js";
+import { адрес, простойЩелчок, разобрать, type Вкладка, type ОтборАдреса } from "./route.js";
 
 type State =
   | { kind: "loading" }
@@ -52,6 +53,7 @@ function применитьАдрес(hash: string, среда: {
   setSection: (section: Section) => void;
   setOpened: (project: ProjectSummary | null) => void;
   setВкладка: (tab: Вкладка) => void;
+  setОтбор: (отбор: ОтборАдреса | null) => void;
 }): void {
   const маршрут = разобрать(hash);
   const остаться = (): void => {
@@ -62,6 +64,7 @@ function применитьАдрес(hash: string, среда: {
     if (!разделДоступен(среда.user.role, маршрут.section)) { остаться(); return; }
     среда.setOpened(null);
     среда.setSection(маршрут.section);
+    среда.setОтбор(маршрут.отбор ?? null);
     return;
   }
   const найден = среда.projects.find((project) => project.code === маршрут.code);
@@ -74,6 +77,7 @@ function применитьАдрес(hash: string, среда: {
   среда.setSection("projects");
   среда.setOpened(найден);
   среда.setВкладка(маршрут.tab);
+  среда.setОтбор(маршрут.отбор ?? null);
 }
 
 export function App(): React.JSX.Element {
@@ -88,6 +92,15 @@ export function App(): React.JSX.Element {
   const [section, setSection] = useState<Section>("home");
   const [opened, setOpened] = useState<ProjectSummary | null>(null);
   const [вкладка, setВкладка] = useState<Вкладка>("overview");
+  /* Отбор экрана из адреса (этап Э8, ДР-1): пункт очереди ведёт на список
+     ровно тех записей, что назвал числом. Живёт рядом с вкладкой и
+     снимается, как только человек сам сменил экран. */
+  const [отбор, setОтбор] = useState<ОтборАдреса | null>(null);
+  /* Очередь заказчика грузится один раз за заход и держится до следующего:
+     следом за ней приложение переставляет отметку захода, и повторный
+     запрос нового уже не показал бы (решение допроса Э8-2). */
+  const [очередьЗаказчика, setОчередьЗаказчика] = useState<Inbox | null>(null);
+  const [ошибкаОчереди, setОшибкаОчереди] = useState<string | null>(null);
   /** Следующая запись адреса заменяет текущую, а не добавляется: первый
    *  адрес сеанса и адрес, поправленный после разбора. */
   const заменитьАдрес = useRef(true);
@@ -145,9 +158,19 @@ export function App(): React.JSX.Element {
       /* Адрес читается при входе: перезагрузка и переданная ссылка
          открывают тот экран, который назван, а не «Главную». */
       применитьАдрес(window.location.hash, {
-        user, projects, текущий: null, заменить: заменитьАдрес, setSection, setOpened, setВкладка,
+        user, projects, текущий: null, заменить: заменитьАдрес, setSection, setOpened, setВкладка, setОтбор,
       });
       setState({ kind: "signed", user, projects, units });
+      /* Заход заказчика: сперва новое с прошлой отметки, затем отметка
+         «сейчас». Порядок обязателен — обратный стёр бы новое до показа. */
+      if (user.role === "CLIENT") {
+        void fetchInbox()
+          .then((очередь) => {
+            setОчередьЗаказчика(очередь);
+            return markInboxSeen();
+          })
+          .catch((cause: unknown) => { setОшибкаОчереди(errorMessage(cause)); });
+      }
     })();
   };
 
@@ -158,8 +181,8 @@ export function App(): React.JSX.Element {
      из него (П-50, решение заказчика от 01.10.2026). */
   const нужныйАдрес = state.kind === "signed"
     ? адрес(opened === null
-      ? { kind: "section", section }
-      : { kind: "project", code: opened.code, tab: вкладка })
+      ? { kind: "section", section, ...(отбор === null ? {} : { отбор }) }
+      : { kind: "project", code: opened.code, tab: вкладка, ...(отбор === null ? {} : { отбор }) })
     : null;
   useEffect(() => {
     if (нужныйАдрес === null) return;
@@ -176,7 +199,7 @@ export function App(): React.JSX.Element {
     const слушать = (): void => {
       применитьАдрес(window.location.hash, {
         user: state.user, projects: state.projects, текущий: нужныйАдрес,
-        заменить: заменитьАдрес, setSection, setOpened, setВкладка,
+        заменить: заменитьАдрес, setSection, setOpened, setВкладка, setОтбор,
       });
     };
     window.addEventListener("popstate", слушать);
@@ -214,6 +237,7 @@ export function App(): React.JSX.Element {
 
   const go = (next: Section): void => {
     setOpened(null);
+    setОтбор(null);
     setSection(next);
   };
 
@@ -226,6 +250,7 @@ export function App(): React.JSX.Element {
    *  относится. */
   const открыть = (project: ProjectSummary): void => {
     setOpened(project);
+    setОтбор(null);
     setВкладка("overview");
   };
 
@@ -444,8 +469,11 @@ export function App(): React.JSX.Element {
           today={today}
           откуда={разделы.find((item) => item.key === section)?.label ?? "Проекты"}
           tab={вкладка}
-          onTab={setВкладка}
-          onBack={() => setOpened(null)}
+          onTab={(next) => { setОтбор(null); setВкладка(next); }}
+          отбор={отбор}
+          onСброситьОтбор={() => { setОтбор(null); }}
+          очередь={state.user.role === "CLIENT" ? { inbox: очередьЗаказчика, error: ошибкаОчереди } : null}
+          onBack={() => { setОтбор(null); setOpened(null); }}
           onChanged={replaceProject}
         />
         {tabbar}
@@ -619,7 +647,12 @@ export function App(): React.JSX.Element {
       {section === "settings" && (
         <>
           {cover("Настройки", ["Главная", "Настройки"])}
-          <Settings onRoadmap={() => { setSection("roadmap"); }} onSignedOut={load} />
+          <Settings
+            onRoadmap={() => { setSection("roadmap"); }}
+            onSignedOut={load}
+            отбор={отбор}
+            onСброситьОтбор={() => { setОтбор(null); }}
+          />
         </>
       )}
       {section === "roadmap" && (

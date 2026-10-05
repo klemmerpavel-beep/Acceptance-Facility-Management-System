@@ -1,4 +1,4 @@
-import { ownerLevel, sectionTitle } from "@priyomka/domain";
+import { ownerLevel, sectionTitle, разделБезЭтапа, разделСегодня } from "@priyomka/domain";
 import { useCallback, useEffect, useState } from "react";
 import type {
   AcceptanceLine, AcceptanceView, ClosedTranches, Role,
@@ -12,6 +12,7 @@ import { tabArrowHandler } from "./tabs.js";
 import { Announce } from "./Announce.js";
 import { ReversalSheet } from "./ReversalSheet.js";
 import { EvidenceMark } from "./Evidence.js";
+import { отобрать, type СОтбором } from "./FilterBar.js";
 
 /**
  * Вкладка «Приёмка» — ядро продукта.
@@ -44,11 +45,12 @@ export function Acceptance({
   code,
   role,
   onEvents,
+  ...сОтбором
 }: {
   code: string;
   role: Role;
   onEvents: () => void;
-}): React.JSX.Element {
+} & СОтбором): React.JSX.Element {
   const [view, setView] = useState<AcceptanceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
@@ -99,9 +101,8 @@ export function Acceptance({
   if (view === null) return <p className="t-sm t-muted">Загружаем приёмку…</p>;
 
   const editable = canAccept(role);
-  const sections = view.sections;
 
-  if (sections.length === 0) {
+  if (view.sections.length === 0) {
     return (
       <div className="empty">
         <p className="empty__title">Принимать нечего</p>
@@ -112,6 +113,17 @@ export function Acceptance({
       </div>
     );
   }
+
+  /* Отбор пункта очереди (ДР-1): разделы без этапа с бригадой у
+     руководителя и разделы, чей этап идёт сегодня, у прораба — правилами
+     домена и днём организации из ответа сервера, которыми посчитано число
+     пункта. Полоса разделов показывает только отобранные. */
+  const { записи: sections, полоса } = отобрать(view.sections, сОтбором, {
+    nostage: разделБезЭтапа,
+    today: (section) => разделСегодня(section, view.today),
+  });
+
+  if (sections.length === 0) return <div className="accept">{полоса}</div>;
 
   const selected = sections.find((section) => section.id === current) ?? sections[0] ?? null;
   const выбранные = selected === null
@@ -140,6 +152,7 @@ export function Acceptance({
 
   return (
     <div className="accept">
+      {полоса}
       {/* Три показателя переносятся: на 390 px с суммами в десятки тысяч
           ряд без переноса выходил за экран (пункт 7.1). */}
       <div className="row row--wrap">

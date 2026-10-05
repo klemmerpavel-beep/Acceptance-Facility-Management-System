@@ -47,6 +47,103 @@ const client = await signIn("client@dolgiy.studio");
 const accountant = await signIn("buh@dolgiy.studio");
 const яРуководитель = await owner("/auth/me").then((r) => r.json());
 
+/* --- помощники очереди «Ждёт вашего действия» (этап Э8, ДР-1) -----------------
+   Объявлены здесь, а не у блока ДР-1: очередь сверяется и по ходу проверки —
+   в тех состояниях стенда, что держатся недолго (отклонённый чек прораба,
+   этап, идущий сегодня, перевыработанный транш), — и помощник обязан быть
+   готов к первому такому месту. Записи экрана назначения считаются заново:
+   по ответу того же маршрута, что читает экран, и тем же правилом отбора.
+   -------------------------------------------------------------------------- */
+const ВИДЫ_ОЧЕРЕДИ = {
+  руководитель: ["expenseDrafts", "trancheToClose", "actUnsigned", "paymentOverdue", "sectionsNoStage",
+    "clientNoAccess", "clientNotEntered", "waitingLong"],
+  бухгалтер: ["trancheToClose", "actUnsigned", "paymentOverdue"],
+  прораб: ["stageToday", "expenseRejected"],
+  заказчик: ["newPhotos", "newActs"],
+};
+const ВКЛАДКА_ПУНКТА = {
+  expenseDrafts: "expenses?draft", expenseRejected: "expenses?rejected",
+  trancheToClose: "tranches?open", paymentOverdue: "tranches?overdue",
+  actUnsigned: "documents?unsigned", newActs: "documents?since=", sectionsNoStage: "acceptance?nostage",
+  stageToday: "acceptance?today", newPhotos: "report?since=",
+};
+
+async function очередьРоли(кем) {
+  const ответ = await кем("/inbox");
+  return ответ.ok ? ответ.json() : { status: ответ.status, today: "", items: [], seenAt: null };
+}
+
+const пунктОчереди = (очередь, вид, код) =>
+  (очередь.items ?? []).find((пункт) => пункт.kind === вид && пункт.projectCode === код);
+
+/** Сколько записей покажет экран, куда ведёт пункт, — тот же маршрут и то же правило. */
+async function записейНаЭкране(кем, пункт) {
+  const R = пункт.projectCode;
+  const значение = пункт.href.split("=").slice(1).join("=");
+  const json = (путь) => кем(путь).then((r) => r.json()).catch(() => ({}));
+  switch (пункт.kind) {
+    case "expenseDrafts":
+      return ((await json(`/projects/${R}/expenses`)).rows ?? []).filter((чек) => чек.status === "DRAFT").length;
+    case "expenseRejected":
+      return ((await json(`/projects/${R}/expenses`)).rows ?? []).filter((чек) => чек.status === "REJECTED" && чек.own === true).length;
+    case "trancheToClose":
+      return ((await json(`/projects/${R}/tranches`)).tranches ?? [])
+        .filter((транш) => транш.status === "OPEN" && BigInt(транш.remainder) <= 0n).length;
+    case "paymentOverdue":
+      return ((await json(`/projects/${R}/tranches`)).tranches ?? []).filter((транш) => транш.overdue === true).length;
+    case "actUnsigned": {
+      const акты = await json(`/projects/${R}/acts`);
+      return (Array.isArray(акты) ? акты : []).filter((акт) => акт.signedAt === null).length;
+    }
+    case "newActs": {
+      const акты = await json(`/projects/${R}/acts`);
+      return (Array.isArray(акты) ? акты : []).filter((акт) => Date.parse(акт.closedTime) > Date.parse(значение)).length;
+    }
+    case "sectionsNoStage":
+      return ((await json(`/projects/${R}/acceptance`)).sections ?? [])
+        .filter((раздел) => раздел.stage === null || раздел.stage.brigade === null).length;
+    case "stageToday": {
+      const вид = await json(`/projects/${R}/acceptance`);
+      return (вид.sections ?? []).filter((раздел) => раздел.stage !== null
+        && раздел.stage.startsOn <= вид.today && вид.today <= раздел.stage.endsOn
+        && раздел.positions.some((позиция) => BigInt(позиция.remaining) > 0n)).length;
+    }
+    case "newPhotos":
+      return ((await json(`/projects/${R}/acceptance/report`)).days ?? []).flatMap((день) => день.batches)
+        .filter((пакет) => пакет.photos.length > 0 && Date.parse(пакет.at) > Date.parse(значение))
+        .reduce((всего, пакет) => всего + пакет.photos.length, 0);
+    case "clientNotEntered": {
+      const люди = await json("/people");
+      return (Array.isArray(люди) ? люди : [])
+        .filter((человек) => человек.role === "CLIENT" && человек.clientId === значение && !человек.entered).length;
+    }
+    /* Объект целиком: запись одна — сам объект, и он обязан быть в перечне роли. */
+    default: {
+      const объекты = await json("/projects");
+      return (Array.isArray(объекты) ? объекты : []).some((объект) => объект.code === R) ? 1 : 0;
+    }
+  }
+}
+
+/** Пункт сверен: свой вид роли, без денег, адрес с отбором, число = записи экрана. */
+async function сверитьПункт(кто, кем, пункт, сегодня) {
+  check(ВИДЫ_ОЧЕРЕДИ[кто].includes(пункт.kind), `ДР-1: ${кто} получил чужой пункт очереди «${пункт.kind}» (${пункт.projectCode})`);
+  check(Object.keys(пункт).sort().join() === "count,href,kind,projectCode,since",
+    `ДР-1: у пункта «${пункт.kind}» ${кто} лишние или недостающие поля: ${Object.keys(пункт).join(", ")}`);
+  check(Number.isInteger(пункт.count) && пункт.count > 0, `ДР-1: ${кто}: пункт «${пункт.kind}» с числом ${String(пункт.count)}`);
+  check(/^\d{4}-\d{2}-\d{2}$/u.test(пункт.since) && пункт.since <= сегодня,
+    `ДР-1: ${кто}: пункт «${пункт.kind}» ждёт «с ${String(пункт.since)}» при сегодня ${сегодня}`);
+  const вкладка = ВКЛАДКА_ПУНКТА[пункт.kind];
+  const ожидается = вкладка !== undefined
+    ? `#${пункт.projectCode}/${вкладка}`
+    : пункт.kind === "clientNotEntered" ? "#settings?notentered=" : `#${пункт.projectCode}`;
+  check(вкладка === undefined && пункт.kind !== "clientNotEntered" ? пункт.href === ожидается : пункт.href.startsWith(ожидается),
+    `ДР-1: ${кто}: адрес пункта «${пункт.kind}» — «${пункт.href}» вместо «${ожидается}…»`);
+  const записей = await записейНаЭкране(кем, пункт);
+  check(записей === пункт.count,
+    `ДР-1: ${кто}: пункт «${пункт.kind}» ${пункт.projectCode} называет ${String(пункт.count)}, а экран по адресу «${пункт.href}» покажет ${String(записей)}`);
+}
+
 /* --- четвёртая роль: бухгалтер ----------------------------------------------
    Заведена ответом заказчика на вопрос 7 квиза от 19.09.2026. Решение звучит
    отрицанием — «всё, кроме настроек и ролей», — и потому проверяется обеими
@@ -1292,6 +1389,29 @@ check(послеОтклонения.totals.spent === "5220000",
 check(послеОтклонения.rows.length === 4,
   `после отклонения строк ${послеОтклонения.rows.length}: отклонённый исчез вместо того, чтобы остаться историей`);
 
+/* Э8, ДР-1: отклонённый чек ждёт своего автора — пункт «Чеки: отклонено
+   ваших» у прораба, и только у него. Признак «свой» видит каждый своим:
+   у руководителя этот же чек чужой. Состояние держится до повторного
+   подтверждения ниже — сверяется здесь. */
+{
+  const очередьПрораба = await очередьРоли(foreman);
+  const пункт = пунктОчереди(очередьПрораба, "expenseRejected", "R-99");
+  check(пункт !== undefined, "ДР-1: отклонённый чек прораба не дал ему пункта очереди «Чеки: отклонено ваших»");
+  if (пункт !== undefined) await сверитьПункт("прораб", foreman, пункт, очередьПрораба.today);
+  const чекРуководителю = послеОтклонения.rows.find((строка) => строка.id === черновик?.id);
+  const чекПрорабу = (await foreman("/projects/R-99/expenses").then((r) => r.json())).rows
+    .find((строка) => строка.id === черновик?.id);
+  check(чекРуководителю?.own === false && чекПрорабу?.own === true,
+    `ДР-1: признак «свой» у чека прораба: руководителю ${String(чекРуководителю?.own)}, прорабу ${String(чекПрорабу?.own)}`);
+  check(typeof чекРуководителю?.decidedAt === "string",
+    `ДР-1: у отклонённого чека нет мгновения решения: ${String(чекРуководителю?.decidedAt)}`);
+  for (const [кто, кем] of [["руководитель", owner], ["бухгалтер", accountant], ["заказчик", client]]) {
+    const чужая = await очередьРоли(кем);
+    check(!(чужая.items ?? []).some((п) => п.kind === "expenseRejected"),
+      `ДР-1: ${кто} получил пункт прораба «свой чек отклонён»`);
+  }
+}
+
 /* Чек без снимка не принимается: расход без свидетельства нечем предъявить
    заказчику, а предъявление и есть назначение вкладки. */
 const чекБезСнимка = new FormData();
@@ -1861,6 +1981,34 @@ check(
   "раздел не записался этапу",
 );
 check(связанныйЭтап?.brigade?.id === бригада?.id, "бригада не записалась этапу");
+
+/* Э8, ДР-1: этап, идущий сегодня, с остатком к приёмке — пункт прорабу.
+   Пробный этап на минуту ставится на сегодняшний день организации и
+   возвращается на прежние даты: остальные проверки графика его дат не
+   замечают. Руководителю тот же раздел перестаёт быть «без этапа». */
+{
+  const деньОрганизации = (await очередьРоли(owner)).today;
+  const сдвиг = (дней) => new Date(Date.parse(`${деньОрганизации}T00:00:00Z`) + дней * 86_400_000).toISOString().slice(0, 10);
+  const наСегодня = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "PATCH", { startsOn: сдвиг(-1), endsOn: сдвиг(1) });
+  check(наСегодня.ok, `ДР-1: пробный этап не встал на сегодня: код ${наСегодня.status}`);
+  const очередьПрораба = await очередьРоли(foreman);
+  const пункт = пунктОчереди(очередьПрораба, "stageToday", "R-99");
+  check(пункт !== undefined, "ДР-1: этап, идущий сегодня, не дал прорабу пункта «Приёмка: этап идёт сегодня»");
+  if (пункт !== undefined) {
+    await сверитьПункт("прораб", foreman, пункт, очередьПрораба.today);
+    check(пункт.since === сдвиг(-1), `ДР-1: пункт «этап идёт сегодня» ждёт с ${пункт.since}, а этап начат ${сдвиг(-1)}`);
+  }
+  const раздел = (await foreman("/projects/R-99/acceptance").then((r) => r.json())).sections
+    .find((строка) => строка.id === свободныйРаздел?.id);
+  check(раздел?.stage?.startsOn === сдвиг(-1) && раздел?.stage?.endsOn === сдвиг(1),
+    `ДР-1: дни этапа в приёмке ${String(раздел?.stage?.startsOn)}–${String(раздел?.stage?.endsOn)} вместо ${сдвиг(-1)}–${сдвиг(1)}`);
+  const безЭтапа = пунктОчереди(await очередьРоли(owner), "sectionsNoStage", "R-99");
+  if (безЭтапа !== undefined) await сверитьПункт("руководитель", owner, безЭтапа, деньОрганизации);
+  const вернули = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "PATCH", { startsOn: "2026-04-05", endsOn: "2026-04-25" });
+  check(вернули.ok, `ДР-1: пробный этап не вернулся на прежние даты: код ${вернули.status}`);
+  check(пунктОчереди(await очередьРоли(foreman), "stageToday", "R-99") === undefined,
+    "ДР-1: этап ушёл с сегодняшнего дня, а пункт «этап идёт сегодня» остался");
+}
 
 const занятыйДругим = await этап(owner, `/projects/R-99/stages/${новый?.id}`, "PATCH", {
   sectionId: занятыйРаздел?.sectionId,
@@ -2730,6 +2878,23 @@ check(
   (перевыработка.current?.fill ?? 0) > 10000,
   `заполнение перевыработанного транша ${перевыработка.current?.fill} не больше 10000`,
 );
+
+/* Э8, ДР-1: выработанный транш — пункт «Транши: пора закрыть» руководителю
+   и бухгалтеру, с дня приёмки, исчерпавшей остаток, то есть сегодня.
+   Прорабу и заказчику деньги транша — не их ход. */
+for (const [кто, кем] of [["руководитель", owner], ["бухгалтер", accountant]]) {
+  const очередь = await очередьРоли(кем);
+  const пункт = пунктОчереди(очередь, "trancheToClose", "R-99");
+  check(пункт !== undefined, `ДР-1: перевыработанный транш не дал пункта «Транши: пора закрыть» (${кто})`);
+  if (пункт !== undefined) {
+    await сверитьПункт(кто, кем, пункт, очередь.today);
+    check(пункт.since === очередь.today, `ДР-1: транш выработан сегодня, а пункт ждёт с ${пункт.since}`);
+  }
+}
+for (const [кто, кем] of [["прораб", foreman], ["заказчик", client]]) {
+  check(!((await очередьРоли(кем)).items ?? []).some((п) => п.kind === "trancheToClose"),
+    `ДР-1: ${кто} получил денежный пункт «Транши: пора закрыть»`);
+}
 
 /* Приёмка перевыработки сторнируется: без этого каждый прогон навсегда
    съедал бы четверть остатка позиции, и на стенде, проверяемом не впервые,
@@ -4340,6 +4505,149 @@ console.log(`Обложки: со снимками ${сОбложкой} объ�
     }
     console.log(`ДР-0, ${кто}: объектов в проверке ${Array.isArray(список) ? список.length : 0}`);
   }
+}
+
+/* --- Э8, ДР-1: очередь «Ждёт вашего действия» --------------------------------
+   Каждой роли — только её виды пунктов, и ни у одной — денег: пункт несёт
+   вид, объект, число и день. Число каждого пункта совпадает с числом
+   записей там, куда ведёт адрес пункта (`сверитьПункт`). Пункты о ходе
+   работ — у действующих объектов, денежные — и у завершённого. Отметка
+   захода — только заказчику: новое после неё исчезает. Вход, выданный и не
+   использованный, превращает «вход не выдан» в «ещё не входил», вход по
+   ссылке снимает и его.
+   -------------------------------------------------------------------------- */
+{
+  const РОЛИ = [["руководитель", owner], ["бухгалтер", accountant], ["прораб", foreman], ["заказчик", client]];
+  const очереди = {};
+  for (const [кто, кем] of РОЛИ) {
+    const очередь = await очередьРоли(кем);
+    очереди[кто] = очередь;
+    check(очередь.status === undefined && /^\d{4}-\d{2}-\d{2}$/u.test(очередь.today ?? ""),
+      `ДР-1: ${кто} не получил очереди: код ${String(очередь.status)}, день «${String(очередь.today)}»`);
+    check(Object.hasOwn(очередь, "seenAt"), `ДР-1: в очереди ${кто} нет поля «seenAt»`);
+    check(findInternal(очередь).length === 0, `ДР-1: в очереди ${кто} внутренние величины: ${findInternal(очередь).join(", ")}`);
+    for (const пункт of очередь.items ?? []) await сверитьПункт(кто, кем, пункт, очередь.today);
+  }
+
+  /* Стенд держит каждый вид руководителя, кроме двух мимолётных: «пора
+     закрыть» и «ещё не входил» сверены там, где они возникают. */
+  const виды = (кто, код) => (очереди[кто].items ?? []).filter((п) => код === undefined || п.projectCode === код).map((п) => п.kind);
+  for (const вид of ["expenseDrafts", "actUnsigned", "paymentOverdue", "sectionsNoStage", "clientNoAccess", "waitingLong"]) {
+    check(виды("руководитель").includes(вид), `ДР-1: на стенде у руководителя нет пункта «${вид}» — проверять его нечем`);
+  }
+  const ждёт = пунктОчереди(очереди.руководитель, "waitingLong", "R-27");
+  check(ждёт !== undefined && ждёт.since < очереди.руководитель.today,
+    `ДР-1: R-27 в «Ждёт ответа» девять дней, а пункта «ждёт ответа дольше 7 дней» нет или он сегодняшний: ${JSON.stringify(ждёт)}`);
+  /* Завершённый объект: деньги остаются, ход работ — нет (решение Э8-5). */
+  const завершённый = виды("руководитель", "R-19");
+  check(завершённый.every((вид) => ["trancheToClose", "actUnsigned", "paymentOverdue"].includes(вид)),
+    `ДР-1: у завершённого R-19 пункты о ходе работ: ${завершённый.join(", ")}`);
+  check(завершённый.length > 0, "ДР-1: у завершённого R-19 с неподписанным актом нет денежного пункта");
+  /* Бухгалтер видит денежные пункты руководителя — те же объекты и числа. */
+  const деньгиРуководителя = (очереди.руководитель.items ?? [])
+    .filter((п) => ВИДЫ_ОЧЕРЕДИ.бухгалтер.includes(п.kind)).map((п) => `${п.kind}:${п.projectCode}:${String(п.count)}`).sort();
+  const деньгиБухгалтера = (очереди.бухгалтер.items ?? []).map((п) => `${п.kind}:${п.projectCode}:${String(п.count)}`).sort();
+  check(JSON.stringify(деньгиРуководителя) === JSON.stringify(деньгиБухгалтера),
+    `ДР-1: денежные пункты бухгалтера ${деньгиБухгалтера.join(", ")} расходятся с руководителем ${деньгиРуководителя.join(", ")}`);
+  /* Прорабу — только его объекты. */
+  const свои = new Set((await foreman("/projects").then((r) => r.json())).map((объект) => объект.code));
+  check((очереди.прораб.items ?? []).every((п) => свои.has(п.projectCode)), "ДР-1: прораб получил пункт чужого объекта");
+  check(очереди.руководитель.seenAt === null && очереди.прораб.seenAt === null,
+    "ДР-1: отметка захода отдана не заказчику");
+
+  /* Заказчик: новое с прошлого захода — снимки и акт, заведённые наполнением
+     после отметки трёхдневной давности; затем отметка «сейчас», и новое
+     исчезает. Ставить отметку может только сам заказчик. */
+  const заказчику = очереди.заказчик;
+  check(typeof заказчику.seenAt === "string", `ДР-1: у заказчика нет отметки прошлого захода: ${String(заказчику.seenAt)}`);
+  for (const вид of ["newPhotos", "newActs"]) {
+    check(пунктОчереди(заказчику, вид, "R-99") !== undefined, `ДР-1: у заказчика нет пункта «${вид}» по R-99 — новое с прошлого входа не найдено`);
+  }
+  for (const [кто, кем] of РОЛИ.filter(([кто]) => кто !== "заказчик")) {
+    const чужая = await кем("/inbox/seen", { method: "POST" });
+    check(чужая.status === 403, `ДР-1: ${кто} ставит отметку захода заказчика — код ${чужая.status} вместо 403`);
+  }
+  const до = Date.now();
+  const отметка = await client("/inbox/seen", { method: "POST" }).then((r) => r.json()).catch(() => ({}));
+  check(typeof отметка.seenAt === "string" && Date.parse(отметка.seenAt) >= до - 5_000,
+    `ДР-1: отметка захода заказчика не поставлена: ${JSON.stringify(отметка)}`);
+  const послеЗахода = await очередьРоли(client);
+  check(послеЗахода.seenAt === отметка.seenAt, `ДР-1: очередь заказчика после захода отобрана от «${String(послеЗахода.seenAt)}», а не от новой отметки`);
+  check((послеЗахода.items ?? []).length === 0,
+    `ДР-1: после захода у заказчика осталось «новое»: ${(послеЗахода.items ?? []).map((п) => п.kind).join(", ")}`);
+
+  /* Вход заказчику: не выдан → выдан, но не использован → использован. */
+  const безВхода = (очереди.руководитель.items ?? []).find((п) => п.kind === "clientNoAccess");
+  const объектБезВхода = безВхода === undefined ? undefined
+    : await owner(`/projects/${безВхода.projectCode}`).then((r) => r.json());
+  const записьЗаказчика = (await owner("/clients").then((r) => r.json()))
+    .find((строка) => строка.code === объектБезВхода?.client?.code);
+  check(записьЗаказчика !== undefined, "ДР-1: заказчик объекта без входа не найден в справочнике");
+  const выдан = записьЗаказчика === undefined ? null : await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Проверка ДР-1: заказчик", role: "CLIENT",
+      email: `dr1-${String(Date.now())}@dolgiy.studio`, phone: null, clientId: записьЗаказчика.id,
+    }),
+  });
+  if (выдан !== null && выдан.status === 201 && безВхода !== undefined) {
+    const { token } = await выдан.json();
+    const послеВыдачи = await очередьРоли(owner);
+    check(пунктОчереди(послеВыдачи, "clientNoAccess", безВхода.projectCode) === undefined,
+      `ДР-1: вход выдан, а пункт «заказчику не выдан вход» у ${безВхода.projectCode} остался`);
+    const невходивший = пунктОчереди(послеВыдачи, "clientNotEntered", безВхода.projectCode);
+    check(невходивший?.count === 1 && невходивший.href === `#settings?notentered=${записьЗаказчика.id}`,
+      `ДР-1: выданный и неиспользованный вход не дал пункта «ещё не входил»: ${JSON.stringify(невходивший)}`);
+    if (невходивший !== undefined) await сверитьПункт("руководитель", owner, невходивший, послеВыдачи.today);
+    for (const [кто, кем] of РОЛИ.filter(([кто]) => кто !== "руководитель")) {
+      check(!((await очередьРоли(кем)).items ?? []).some((п) => п.kind === "clientNotEntered" || п.kind === "clientNoAccess"),
+        `ДР-1: ${кто} получил пункт руководителя о входе заказчика`);
+    }
+    await fetch(`${BASE}/auth/consume?token=${token}`, { redirect: "manual" });
+    check(пунктОчереди(await очередьРоли(owner), "clientNotEntered", безВхода.projectCode) === undefined,
+      "ДР-1: заказчик вошёл, а пункт «ещё не входил» остался");
+    const люди = await owner("/people").then((r) => r.json());
+    const заведённый = люди.find((человек) => человек.name === "Проверка ДР-1: заказчик");
+    check(заведённый?.clientId === записьЗаказчика.id, `ДР-1: у человека-заказчика опознаватель записи ${String(заведённый?.clientId)}`);
+    if (заведённый !== undefined) await owner(`/people/${заведённый.id}`, { method: "DELETE" });
+    check(пунктОчереди(await очередьРоли(owner), "clientNoAccess", безВхода.projectCode) !== undefined,
+      "ДР-1: доступ снят, а пункт «заказчику не выдан вход» не вернулся");
+  } else {
+    check(false, `ДР-1: вход заказчику для проверки не выдан: код ${String(выдан?.status)}`);
+  }
+  /* Новые поля ДР-1 — на четырёх ролях: где маршрут роли открыт, поле есть;
+     где закрыт — отказ 403, а не ответ без поля. */
+  const ПОЛЯ = [
+    ["транш: просрочка", "/projects/R-99/tranches", (тело) => (тело.tranches ?? []).every((т) => typeof т.overdue === "boolean") && (тело.tranches ?? []).length > 0],
+    ["акт: мгновение закрытия", "/projects/R-99/acts", (тело) => Array.isArray(тело) && тело.length > 0 && тело.every((а) => !Number.isNaN(Date.parse(а.closedTime)))],
+    ["чек: свой и решение", "/projects/R-99/expenses", (тело) => (тело.rows ?? []).length > 0 && тело.rows.every((ч) => typeof ч.own === "boolean" && Object.hasOwn(ч, "decidedAt"))],
+    ["приёмка: день и дни этапа", "/projects/R-99/acceptance", (тело) => /^\d{4}-\d{2}-\d{2}$/u.test(тело.today ?? "")
+      && (тело.sections ?? []).filter((р) => р.stage !== null).every((р) => /^\d{4}-/u.test(р.stage.startsOn) && /^\d{4}-/u.test(р.stage.endsOn))],
+    ["человек: запись заказчика", "/people", (тело) => Array.isArray(тело) && тело.every((ч) => Object.hasOwn(ч, "clientId"))
+      && тело.filter((ч) => ч.role === "CLIENT").every((ч) => typeof ч.clientId === "string")],
+  ];
+  const ОТКРЫТО = {
+    "транш: просрочка": ["руководитель", "бухгалтер", "прораб"],
+    "акт: мгновение закрытия": ["руководитель", "бухгалтер", "прораб", "заказчик"],
+    "чек: свой и решение": ["руководитель", "бухгалтер", "прораб"],
+    "приёмка: день и дни этапа": ["руководитель", "бухгалтер", "прораб"],
+    "человек: запись заказчика": ["руководитель"],
+  };
+  for (const [поле, путь, есть] of ПОЛЯ) {
+    for (const [кто, кем] of РОЛИ) {
+      const ответ = await кем(путь);
+      if (ОТКРЫТО[поле].includes(кто)) {
+        const тело = ответ.ok ? await ответ.json() : null;
+        check(тело !== null && есть(тело), `ДР-1: ${кто} не получил поле «${поле}» (${путь}, код ${ответ.status})`);
+      } else {
+        check(ответ.status === 403, `ДР-1: ${кто} читает ${путь} с кодом ${ответ.status} вместо 403`);
+      }
+    }
+  }
+
+  console.log(`ДР-1: очередь проверена на четырёх ролях — пунктов у руководителя ${String((очереди.руководитель.items ?? []).length)},`
+    + ` у бухгалтера ${String((очереди.бухгалтер.items ?? []).length)}, у прораба ${String((очереди.прораб.items ?? []).length)},`
+    + ` у заказчика ${String((заказчику.items ?? []).length)}; числа сверены с экранами назначения`);
 }
 
 /* --- журнал читает человек ---------------------------------------------------

@@ -2816,3 +2816,36 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
    переносится строкой на узком экране — шесть пунктов в 390 px не встают. */
 .feed__actor { font-size: var(--fs-sm); color: var(--ink-3); }
 .feedfilter { flex-wrap: wrap; align-self: flex-start; max-inline-size: 100%; }
+
+/* Очередь «Ждёт вашего действия» (этап Э8, ДР-1): первый блок главной и
+   «Обзора» заказчика. Строка — что ждёт, код объекта, день, кнопка; на
+   телефоне день и кнопка уходят второй строкой под фразу, а кнопка
+   растягивается под палец. */
+.queue {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+.queue__list { margin: 0; padding: 0; list-style: none; }
+.queue__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center; gap: var(--space-3);
+  padding-block: var(--space-2); border-block-end: 1px solid var(--line);
+}
+.queue__row:last-child { border-block-end: 0; }
+.queue__what { min-inline-size: 0; }
+.queue__since { white-space: nowrap; }
+.queue__empty { padding-block: var(--space-2); color: var(--ink-2); }
+/* Отбор экрана назначения: что показано и как вернуть всё. */
+.filterbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--accent-soft); border-radius: var(--radius-md); color: var(--ink);
+}
+
+@media (max-width: 599px) {
+  .queue { padding: var(--space-3) var(--space-4); }
+  .queue__row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--space-2); }
+  .queue__what { grid-column: 1 / -1; }
+  .queue__go { grid-column: 1 / -1; inline-size: 100%; }
+}

@@ -114,6 +114,7 @@ export class ActsService {
           trancheId: транш.id,
           number: транш.number,
           closedAt: день(транш.closedAt),
+          closedTime: транш.closedAt.toISOString(),
           signedAt: транш.signedAt === null ? null : день(транш.signedAt),
           paidAt: транш.paidAt === null ? null : транш.paidAt.toISOString(),
           positions: строки.length,

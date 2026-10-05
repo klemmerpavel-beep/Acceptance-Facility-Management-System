@@ -36,6 +36,8 @@ import { LeadRetentionService } from "./leads/lead-retention.service";
 import { LeadsController } from "./leads/leads.controller";
 import { AccountingService } from "./accounting/accounting.service";
 import { AccountingController } from "./accounting/accounting.controller";
+import { InboxService } from "./inbox/inbox.service";
+import { InboxController } from "./inbox/inbox.controller";
 import { FileStorage, LocalFileStorage } from "./common/file-storage";
 
 @Module({
@@ -47,6 +49,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     BlueprintsController,
     PeopleController, TranchesController, LeadsController,
     AccountingController,
+    InboxController,
   ],
   providers: [
     PrismaService, AuthService, SessionGuard, RolesGuard, AuditService,
@@ -62,6 +65,7 @@ import { FileStorage, LocalFileStorage } from "./common/file-storage";
     LeadsService,
     LeadRetentionService,
     AccountingService,
+    InboxService,
     // Хранилище файлов подключается портом: смена реализации на S3 при
     // переезде в облако (план 6.1) — правка этой одной строки.
     { provide: FileStorage, useClass: LocalFileStorage },

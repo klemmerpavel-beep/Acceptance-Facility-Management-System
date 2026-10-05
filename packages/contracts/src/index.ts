@@ -1228,8 +1228,14 @@ export const acceptanceSectionSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   order: z.number().int(),
-  stage: z.object({ id: z.string().uuid(), name: z.string(), brigade: brigadeSchema.nullable() })
-    .nullable(),
+  stage: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    brigade: brigadeSchema.nullable(),
+    /** Дни этапа (этап Э8, ДР-1): отбор «этап идёт сегодня» у прораба. */
+    startsOn: z.string().date(),
+    endsOn: z.string().date(),
+  }).nullable(),
   positions: z.array(acceptancePositionSchema),
 });
 export type AcceptanceSection = z.infer<typeof acceptanceSectionSchema>;
@@ -1346,6 +1352,13 @@ export const accrualRowSchema = z.object({
 export type AccrualRow = z.infer<typeof accrualRowSchema>;
 
 export const acceptanceViewSchema = z.object({
+  /**
+   * Сегодняшний день организации (этап Э8, ДР-1). Отбор «этап идёт сегодня»
+   * считается по нему, а не по часам устройства: на границе суток часы
+   * телефона и сервера расходятся, и число пункта очереди не совпало бы с
+   * числом разделов на экране.
+   */
+  today: z.string().date(),
   sections: z.array(acceptanceSectionSchema),
   batches: z.array(acceptanceBatchSchema),
   totals: z.object({
@@ -1405,6 +1418,17 @@ export const materialExpenseSchema = z.object({
   createdBy: z.string().nullable(),
   createdAt: z.string(),
   confirmedBy: z.string().nullable(),
+  /**
+   * Мгновение решения руководителя — подтверждения или отклонения (этап Э8,
+   * ДР-1): с него пункт «свой чек отклонён» ждёт прораба. У черновика пусто.
+   */
+  decidedAt: z.string().nullable(),
+  /**
+   * Чек заведён тем, кто смотрит (этап Э8, ДР-1): отбор «свои отклонённые»
+   * у прораба. Признак, а не опознаватель автора: чужие опознаватели экрану
+   * не нужны.
+   */
+  own: z.boolean(),
 });
 export type MaterialExpense = z.infer<typeof materialExpenseSchema>;
 
@@ -1526,6 +1550,12 @@ export const trancheSchema = z.object({
    * местах обязано совпадать.
    */
   awaitingDays: z.number().int().nonnegative().nullable(),
+  /**
+   * Оплата просрочена по порогу договора заказчика (этап Э8, ДР-1): тем же
+   * правилом, что «просрочено» в бухгалтерии. Отбор вкладки «Транши» по
+   * просрочке показывает ровно те транши, что названы числом в очереди.
+   */
+  overdue: z.boolean(),
   /** Заполнение в сотых долях процента. Больше 10000 — перевыработка. */
   fill: z.number().int(),
   /** Копейки. Сумма платежей заказчика по траншу с учётом сторно. */
@@ -1659,6 +1689,11 @@ export const actRowSchema = z.object({
   trancheId: z.string().uuid(),
   number: z.number().int().nonnegative(),
   closedAt: z.string().date(),
+  /**
+   * Мгновение закрытия транша (этап Э8, ДР-1): «новые акты» заказчика
+   * отбираются по отметке его прошлого захода, а она — мгновение, не день.
+   */
+  closedTime: z.string(),
   signedAt: z.string().date().nullable(),
   paidAt: z.string().nullable(),
   positions: z.number().int().nonnegative(),
@@ -2066,6 +2101,12 @@ export const personRowSchema = z.object({
   phone: z.string().nullable(),
   /** Наименование записи справочника у заказчика; у прочих ролей пусто. */
   client: z.string().nullable(),
+  /**
+   * Опознаватель той же записи справочника (этап Э8, ДР-1): пункт очереди
+   * «заказчик ещё не входил» ведёт в «Люди» с отбором по заказчику, а
+   * наименования двух заказчиков могут совпасть.
+   */
+  clientId: z.string().uuid().nullable(),
   /** Входил ли человек хоть раз. Не время входа: учёта времени в продукте нет. */
   entered: z.boolean(),
 });
@@ -2085,3 +2126,52 @@ export type InviteUser = z.infer<typeof inviteUserSchema>;
 
 export const inviteIssuedSchema = z.object({ token: z.string() });
 export type InviteIssued = z.infer<typeof inviteIssuedSchema>;
+
+/* --- Очередь «Ждёт вашего действия» (этап Э8, ДР-1) ------------------------ */
+
+/**
+ * Вид пункта очереди. Каждый — факт, уже хранимый продуктом: очередь новых
+ * сущностей не заводит и вычисляется на сервере при каждом запросе.
+ */
+export const inboxKindSchema = z.enum([
+  "expenseDrafts", "trancheToClose", "actUnsigned", "paymentOverdue", "sectionsNoStage",
+  "clientNoAccess", "clientNotEntered", "waitingLong", "stageToday", "expenseRejected",
+  "newPhotos", "newActs",
+]);
+export type InboxKind = z.infer<typeof inboxKindSchema>;
+
+/**
+ * Пункт очереди: вид, объект, число и день, с которого ждёт. Число совпадает
+ * с числом записей в списке, куда ведёт `href`: адрес несёт отбор ровно этих
+ * записей (решение допроса Э8-4).
+ */
+export const inboxItemSchema = z.object({
+  kind: inboxKindSchema,
+  projectCode: projectCodeSchema,
+  count: z.number().int().positive(),
+  /** День, с которого пункт ждёт, по дню организации. */
+  since: z.string().date(),
+  /** Адрес экрана с отбором: `#R-99/expenses?draft`. */
+  href: z.string(),
+});
+export type InboxItem = z.infer<typeof inboxItemSchema>;
+
+export const inboxSchema = z.object({
+  /**
+   * Сегодняшний день организации: «с 01.10 · 4 дня» считается от него, а не
+   * от часов устройства — иначе на границе суток строка разошлась бы с
+   * сервером, посчитавшим «дольше 7 дней».
+   */
+  today: z.string().date(),
+  items: z.array(inboxItemSchema),
+  /**
+   * Отметка прошлого захода заказчика, по которой отобрано «новое»; `null` —
+   * заказчик заходит впервые или роль не заказчик.
+   */
+  seenAt: z.string().nullable(),
+});
+export type Inbox = z.infer<typeof inboxSchema>;
+
+/** Ответ на отметку захода заказчика: новое мгновение отметки. */
+export const inboxSeenSchema = z.object({ seenAt: z.string() });
+export type InboxSeen = z.infer<typeof inboxSeenSchema>;

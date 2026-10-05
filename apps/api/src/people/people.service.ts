@@ -34,6 +34,7 @@ export class PeopleService {
       orderBy: [{ role: "asc" }, { name: "asc" }],
       select: {
         id: true, name: true, role: true, email: true, phone: true, createdAt: true,
+        clientId: true,
         client: { select: { name: true } },
         sessions: { select: { id: true }, take: 1 },
       },
@@ -45,6 +46,7 @@ export class PeopleService {
       email: человек.email,
       phone: человек.phone,
       client: человек.client?.name ?? null,
+      clientId: человек.clientId,
       /* «Входил» — не время последнего входа, а признак: сессия у человека
          была. Точное время означало бы учёт рабочего времени, которого в
          продукте нет и не будет (границы объёма). */

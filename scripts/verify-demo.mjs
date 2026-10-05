@@ -708,6 +708,57 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Очередь «Ждёт вашего действия» (этап Э8, ДР-1) -------------------------
+   Двойник считает пункты R-99 по живому состоянию теми же правилами домена,
+   что сервер: число пункта обязано совпасть с полосой отбора и с записями
+   экрана, куда ведёт кнопка. У заказчика очередь — первый блок «Обзора». */
+{
+  const ЗАПИСИ = {
+    expenses: "#panel-expenses .records > li",
+    documents: "#panel-documents .records > li",
+    tranches: "#panel-tranches .tranche__row",
+    acceptance: "#panel-acceptance .accept__sections [role='tab']",
+  };
+  const сверено = [];
+  for (const роль of ["Руководитель", "Бухгалтер", "Прораб", "Заказчик"]) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    await page.click(`.demorole .segmented__option:has-text("${роль}")`);
+    await page.waitForTimeout(700);
+    /* Адрес — после смены роли: «Главная» заказчику закрыта, и адрес,
+       набранный до смены, у него откатывается на объект. */
+    await page.goto(`${BASE}/${роль === "Заказчик" ? "#R-99" : "#home"}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(500);
+    await page.waitForSelector(".queue .queue__row, .queue .queue__empty", { timeout: 6000 })
+      .catch(() => { note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}: очереди нет`); });
+    const первый = await page.evaluate((заказчик) => (заказчик
+      ? document.querySelector("#panel-overview > .stack")
+      : document.querySelector("main.container"))?.firstElementChild?.className ?? "", роль === "Заказчик");
+    if (!первый.split(" ").includes("queue")) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}: первый блок «${первый}», а не очередь`);
+    const пункты = await page.locator(".queue__row").evaluateAll((строки) => строки.map((строка) => ({
+      текст: (строка.querySelector(".queue__what")?.textContent ?? "").trim(),
+      адрес: строка.querySelector(".queue__go")?.getAttribute("href") ?? "",
+      число: Number(строка.querySelector(".queue__go")?.getAttribute("data-count") ?? "0"),
+    })));
+    if (роль === "Руководитель" && пункты.length === 0) note("ДР-1 очередь", "демонстрация, руководитель: очередь пуста — проверять нечего");
+    if (роль === "Заказчик" && пункты.length === 0) note("ДР-1 очередь", "демонстрация, заказчик: нового с прошлого входа нет — проверять нечего");
+    сверено.push(`${роль.toLowerCase()} ${String(пункты.length)}`);
+    for (const пункт of пункты) {
+      if (!пункт.адрес.includes("?")) continue;
+      await page.goto(`${BASE}/${пункт.адрес}`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(900);
+      const вПолосе = Number((await page.locator(".filterbar").first().getAttribute("data-count").catch(() => null)) ?? "-1");
+      if (вПолосе !== пункт.число) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}, «${пункт.текст}»: пункт ${пункт.число}, полоса ${вПолосе}`);
+      const экран = /^#[A-Z]-\d+\/([a-z]+)/u.exec(пункт.адрес)?.[1] ?? "";
+      if (ЗАПИСИ[экран] !== undefined) {
+        const записей = await page.locator(ЗАПИСИ[экран]).count();
+        if (записей !== пункт.число) note("ДР-1 очередь", `демонстрация, ${роль.toLowerCase()}, «${пункт.текст}»: пункт ${пункт.число}, на экране ${записей}`);
+      }
+    }
+  }
+  console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
+}
+
 await browser.close();
 server.close();
 

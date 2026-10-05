@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { updateProjectStatusSchema } from "@priyomka/contracts";
-import { actTurn, expenseTurn, trancheTurn, waitingTurn, ХОД } from "./turn.js";
+import { inboxKindSchema } from "@priyomka/contracts";
+import { actTurn, expenseTurn, trancheTurn, waitingTurn, ПУНКТ, пунктов, ХОД } from "./turn.js";
 
 /**
  * Строка «чей ход» (этап Э8, ДР-4). Проверяется здесь, а не только обходом
@@ -89,5 +90,34 @@ describe("закрытость словаря", () => {
 
   it("словарь называет четыре оборота", () => {
     expect(Object.keys(ХОД)).toHaveLength(4);
+  });
+});
+
+/**
+ * Пункты очереди «Ждёт вашего действия» (этап Э8, ДР-1). Строка начинается
+ * с раздела продукта; число записей стоит во фразе, где их бывает больше
+ * одной, — то самое число, что сверяется с экраном назначения.
+ */
+describe("пункты очереди", () => {
+  it("у каждого вида контракта есть фраза, и только у них", () => {
+    expect(Object.keys(ПУНКТ).sort()).toEqual([...inboxKindSchema.options].sort());
+  });
+
+  it("число записей стоит во фразе там, где записей бывает больше одной", () => {
+    const одна = new Set(["trancheToClose", "clientNoAccess", "waitingLong"]);
+    for (const [вид, фраза] of Object.entries(ПУНКТ)) {
+      expect(фраза.что(17).includes("17"), вид).toBe(!одна.has(вид));
+    }
+  });
+
+  it("раздел — с прописной, кнопка ведёт глаголом «Перейти»", () => {
+    for (const фраза of Object.values(ПУНКТ)) {
+      expect(фраза.раздел).toMatch(/^[А-ЯЁ]/u);
+      expect(фраза.кнопка).toMatch(/^Перейти к /u);
+    }
+  });
+
+  it("число пунктов согласовано: 1 пункт, 3 пункта, 5 пунктов", () => {
+    expect([1, 3, 5, 11, 21].map(пунктов)).toEqual(["1 пункт", "3 пункта", "5 пунктов", "11 пунктов", "21 пункт"]);
   });
 });

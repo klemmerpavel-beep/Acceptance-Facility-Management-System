@@ -1,5 +1,5 @@
 import type {
-  CurrentUser, DocumentTemplate, InviteIssued, InviteUser, IssuedDocument, PersonRow,
+  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, InviteUser, IssuedDocument, PersonRow,
   ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
@@ -9,7 +9,7 @@ import {
   actListSchema, actViewSchema,
   blueprintRowSchema, blueprintViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
-  inviteIssuedSchema, personRowSchema,
+  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectFactsSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -641,6 +641,16 @@ export const reversePayment = (
 
    Превращение, отказ и правка задач объявлены отдельными вызовами, а не
    правкой полей: это разные события с разными отказами. */
+
+/**
+ * Очередь «Ждёт вашего действия» (этап Э8, ДР-1): что ждёт действия
+ * вошедшего, по всем его объектам. Состав пунктов решает роль на сервере.
+ */
+export const fetchInbox = (): Promise<Inbox> => request("/inbox", inboxSchema);
+
+/** Отметка захода заказчика: «новое» в следующий раз — после этого мгновения. */
+export const markInboxSeen = (): Promise<InboxSeen> =>
+  request("/inbox/seen", inboxSeenSchema, { method: "POST" });
 
 /** Бухгалтерия: деньги заказчиков по всему портфелю. Только руководителю. */
 export const fetchAccounting = (): Promise<AccountingView> =>

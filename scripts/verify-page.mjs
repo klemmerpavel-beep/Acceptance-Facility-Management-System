@@ -5865,6 +5865,107 @@ const РОЛИ_ВХОДА = [
   }
 }
 
+/* Этап Э8, ДР-1: очередь «Ждёт вашего действия» — первый блок главной.
+   Каждый пункт проходится кнопкой, одним касанием: адрес встаёт тот, что
+   назван пунктом, полоса отбора называет столько записей, сколько назвал
+   пункт, и столько же записей стоит на экране. «Показать все» снимает
+   отбор и возвращает весь список. Узкий экран — без бокового переполнения. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".queue .queue__row, .queue .queue__empty", { timeout: 8000 })
+    .catch(() => { note("ДР-1 очередь", "главная: блока очереди нет или он не загрузился"); });
+  const первый = await page.evaluate(() => document.querySelector("main.container")?.firstElementChild?.className ?? "");
+  if (!первый.split(" ").includes("queue")) note("ДР-1 очередь", `главная: первый блок «${первый}», а не очередь`);
+  const пункты = await page.locator(".queue__row").evaluateAll((строки) => строки.map((строка) => ({
+    вид: строка.getAttribute("data-kind") ?? "",
+    текст: (строка.querySelector(".queue__what")?.textContent ?? "").trim(),
+    адрес: строка.querySelector(".queue__go")?.getAttribute("href") ?? "",
+    число: Number(строка.querySelector(".queue__go")?.getAttribute("data-count") ?? "0"),
+    с: (строка.querySelector(".queue__since")?.textContent ?? "").trim(),
+  })));
+  if (пункты.length === 0) note("ДР-1 очередь", "у руководителя на стенде пустая очередь — проверять нечего");
+  const РАЗДЕЛ = /^(?:Чеки|Транши|Документы|Приёмка|Отчёт|Объект|Люди):/u;
+  for (const пункт of пункты) {
+    if (!РАЗДЕЛ.test(пункт.текст)) note("ДР-1 очередь", `строка «${пункт.текст}» не начинается с раздела продукта`);
+    if (!/^с (?:сегодня|\d{2}\.\d{2} · \d+ (?:день|дня|дней))$/u.test(пункт.с)) {
+      note("ДР-1 очередь", `строка «${пункт.текст}»: день «${пункт.с}» мимо словаря due.ts`);
+    }
+  }
+  await step("ДР-1: очередь на главной", "51-ochered.png");
+  console.log(`  ДР-1: пунктов очереди руководителя ${String(пункты.length)}, каждый пройден кнопкой`);
+
+  /* Записи экрана назначения — по тому, что на нём стоит. */
+  const ЗАПИСИ = {
+    expenses: "#panel-expenses .records > li",
+    documents: "#panel-documents .records > li",
+    tranches: "#panel-tranches .tranche__row",
+    acceptance: "#panel-acceptance .accept__sections [role='tab']",
+    settings: "#settings-panel-people .records > li",
+  };
+  for (const пункт of пункты) {
+    await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".queue__row", { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+    const кнопка = page.locator(`.queue__go[href="${пункт.адрес}"]`).first();
+    if ((await кнопка.count()) === 0) { note("ДР-1 очередь", `кнопки пункта «${пункт.текст}» нет`); continue; }
+    await кнопка.click();
+    await page.waitForTimeout(1300);
+    const адрес = await page.evaluate(() => decodeURIComponent(window.location.hash));
+    if (адрес !== пункт.адрес) note("ДР-1 очередь", `«${пункт.текст}»: переход на «${адрес}» вместо «${пункт.адрес}»`);
+    if (!пункт.адрес.includes("?")) {
+      const заголовок = ((await page.locator("h1").first().textContent().catch(() => "")) ?? "").trim();
+      const код = пункт.адрес.slice(1);
+      if (!заголовок.includes(код)) note("ДР-1 очередь", `«${пункт.текст}»: объект ${код} не открылся — «${заголовок}»`);
+      continue;
+    }
+    const полоса = page.locator(".filterbar").first();
+    const вПолосе = Number((await полоса.getAttribute("data-count").catch(() => null)) ?? "-1");
+    if (вПолосе !== пункт.число) {
+      note("ДР-1 очередь", `«${пункт.текст}»: пункт называет ${пункт.число}, полоса отбора — ${вПолосе}`);
+    }
+    const экран = /^#(?:[A-Z]-\d+\/)?([a-z]+)/u.exec(пункт.адрес)?.[1] ?? "";
+    const образец = ЗАПИСИ[экран];
+    if (образец !== undefined) {
+      const записей = await page.locator(образец).count();
+      if (записей !== пункт.число) {
+        note("ДР-1 очередь", `«${пункт.текст}»: пункт называет ${пункт.число}, на экране ${записей} записей`);
+      }
+    }
+  }
+
+  /* «Показать все» снимает отбор: адрес без отбора, полосы нет, записей
+     не меньше отобранного. Проверяется на первом пункте с отбором, у
+     которого экран считает записи строками: черновик R-99 к этому месту
+     обхода уже разобран. */
+  const сОтбором = пункты.find((пункт) => {
+    const экран = /^#(?:[A-Z]-\d+\/)?([a-z]+)\?/u.exec(пункт.адрес)?.[1] ?? "";
+    return ЗАПИСИ[экран] !== undefined;
+  });
+  if (сОтбором === undefined) {
+    note("ДР-1 очередь", "пункта с отбором нет — снятие отбора проверить не на чем");
+  } else {
+    const образец = ЗАПИСИ[/^#(?:[A-Z]-\d+\/)?([a-z]+)/u.exec(сОтбором.адрес)?.[1] ?? ""];
+    await page.goto(`${BASE}/${сОтбором.адрес}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1200);
+    const отобрано = await page.locator(образец).count();
+    await page.locator('.filterbar button:has-text("Показать все")').click();
+    await page.waitForTimeout(700);
+    const адрес = await page.evaluate(() => decodeURIComponent(window.location.hash));
+    const всего = await page.locator(образец).count();
+    if (адрес !== сОтбором.адрес.split("?")[0]) note("ДР-1 очередь", `после «Показать все» адрес «${адрес}» — отбор не снят`);
+    if ((await page.locator(".filterbar").count()) > 0) note("ДР-1 очередь", "после «Показать все» полоса отбора осталась");
+    if (всего < отобрано) note("ДР-1 очередь", `после «Показать все» записей ${всего} при отобранных ${отобрано}`);
+  }
+
+  /* Телефон: строка пункта переносится, боковой прокрутки нет. */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  await overflow("ДР-1: очередь на 390 px");
+  await step("ДР-1: очередь на телефоне", "52-ochered-390.png");
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
@@ -6027,6 +6128,23 @@ for (const роль of РОЛИ_ВХОДА) {
       `${роль.имя} стоит на «${заголовок || "—"}», а такого раздела в его навигации нет`);
   }
 
+  /* Очередь «Ждёт вашего действия» (ДР-1) — первый блок главной у
+     внутренних ролей, и в ней только пункты роли; пустая — словом
+     словаря, а не исчезнувшим блоком. */
+  if (роль.имя !== "заказчик") {
+    await лист.waitForSelector(".queue .queue__row, .queue .queue__empty", { timeout: 8000 }).catch(() => { /* ниже */ });
+    const первый = await лист.evaluate(() => document.querySelector("main.container")?.firstElementChild?.className ?? "");
+    if (!первый.split(" ").includes("queue")) note("ДР-1 очередь", `${роль.имя}: первый блок главной «${первый}», а не очередь`);
+    const ВИДЫ = { прораб: ["stageToday", "expenseRejected"], бухгалтер: ["trancheToClose", "actUnsigned", "paymentOverdue"] };
+    const виды = await лист.locator(".queue__row").evaluateAll((строки) => строки.map((строка) => строка.getAttribute("data-kind") ?? ""));
+    const чужие = виды.filter((вид) => !ВИДЫ[роль.имя].includes(вид));
+    if (чужие.length > 0) note("ДР-1 очередь", `${роль.имя}: чужие пункты очереди — ${чужие.join(", ")}`);
+    if (виды.length === 0) {
+      const слово = ((await лист.locator(".queue__empty").textContent().catch(() => "")) ?? "").trim();
+      if (слово !== "Ничего не ждёт вашего действия") note("ДР-1 очередь", `${роль.имя}: пустая очередь — «${слово || "без слова"}»`);
+    }
+  }
+
   /* Первичное действие на первом экране допустимо только той роли, которая
      его выполнит. Прорабу и бухгалтеру заведение объекта открыто, заказчику
      нет: показанная ему кнопка вела бы в лист, отказывающий первым запросом,
@@ -6067,6 +6185,19 @@ for (const роль of РОЛИ_ВХОДА) {
   } else {
     await соСметой.first().click();
     await лист.waitForTimeout(1400);
+    /* У заказчика очередь — первый блок «Обзора» его объекта: новое с
+       прошлого захода, без кода объекта в строке (ДР-1). */
+    if (роль.имя === "заказчик") {
+      const первый = await лист.evaluate(() =>
+        document.querySelector("#panel-overview > .stack")?.firstElementChild?.className ?? "");
+      if (!первый.split(" ").includes("queue")) note("ДР-1 очередь", `заказчик: первый блок «Обзора» R-99 «${первый}», а не очередь`);
+      const виды = await лист.locator("#panel-overview .queue__row").evaluateAll((строки) =>
+        строки.map((строка) => строка.getAttribute("data-kind") ?? ""));
+      if (виды.some((вид) => !["newPhotos", "newActs"].includes(вид))) note("ДР-1 очередь", `заказчик: чужие пункты — ${виды.join(", ")}`);
+      if ((await лист.locator("#panel-overview .queue .code-badge").count()) > 0) {
+        note("ДР-1 очередь", "заказчик: на «Обзоре» объекта строка очереди повторяет код объекта");
+      }
+    }
     /* Отбор ленты — только пункты, где у роли бывают записи (ДР-5). */
     {
       const ОТБОР = {
