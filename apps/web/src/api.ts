@@ -1,5 +1,5 @@
 import type {
-  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, InviteUser, IssuedDocument, PersonRow,
+  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, OrganizationContacts, InviteUser, IssuedDocument, PersonRow,
   ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
@@ -9,7 +9,7 @@ import {
   actListSchema, actViewSchema,
   blueprintRowSchema, blueprintViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
-  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema,
+  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema, organizationContactsSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectFactsSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -124,6 +124,10 @@ export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true 
 
 export const fetchOrganization = (): Promise<Organization> =>
   request("/organization", organizationSchema);
+
+/** Как связаться с организацией — экран первого входа заказчика (ДР-11). */
+export const fetchOrganizationContacts = (): Promise<OrganizationContacts> =>
+  request("/organization/contacts", organizationContactsSchema);
 
 export const saveOrganization = (patch: UpdateOrganization): Promise<Organization> =>
   request("/organization", organizationSchema, { ...json(patch), method: "PATCH" });
