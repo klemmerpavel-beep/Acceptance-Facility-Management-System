@@ -759,6 +759,26 @@ await page.waitForTimeout(800);
   console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
 }
 
+/* --- «Как пользоваться» заказчика (этап Э8, ДР-11) ---------------------------
+   Отметка захода в слепке есть, и сам экран не показывается; «Ещё → Как
+   пользоваться» открывает его: три блока, «Как связаться» — организация. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Заказчик")');
+  await page.waitForTimeout(700);
+  if ((await page.locator(".guide").count()) > 0) note("ДР-11 первый вход", "демонстрация: экран первого входа показан заказчику с отметкой захода");
+  await page.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+  await page.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+    .catch(() => { note("ДР-11 первый вход", "демонстрация: в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+  await page.waitForTimeout(500);
+  const заголовок = ((await page.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+  if (заголовок !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `демонстрация: «Ещё → Как пользоваться» — «${заголовок || "экрана нет"}»`);
+  const блоки = (await page.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+  if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `демонстрация: блоки «${блоки}»`);
+  console.log("ДР-11: «Как пользоваться» заказчика проверен из «Ещё»");
+}
+
 await browser.close();
 server.close();
 

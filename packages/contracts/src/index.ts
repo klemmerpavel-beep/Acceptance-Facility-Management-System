@@ -119,6 +119,15 @@ export const organizationSchema = z.object({
 });
 export type Organization = z.infer<typeof organizationSchema>;
 
+/**
+ * Как связаться с организацией (этап Э8, ДР-11): название, телефон и почта —
+ * блок «Как связаться» на экране первого входа заказчика. Узкий ответ, а не
+ * карточка организации целиком: реквизиты, часовой пояс и знак заказчику
+ * на этом экране не нужны, а карточка открыта только внутренним ролям.
+ */
+export const organizationContactsSchema = organizationSchema.pick({ name: true, phone: true, email: true });
+export type OrganizationContacts = z.infer<typeof organizationContactsSchema>;
+
 /** Правка организации: пустая строка в необязательном поле означает «стереть». */
 export const updateOrganizationSchema = z.object({
   name: z.string().trim().min(1, "Название обязательно").max(200).optional(),

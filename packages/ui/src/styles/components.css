@@ -2849,3 +2849,13 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .queue__what { grid-column: 1 / -1; }
   .queue__go { grid-column: 1 / -1; inline-size: 100%; }
 }
+
+/* Первый вход заказчика и «Как пользоваться» (этап Э8, ДР-11): три блока
+   текстом на карточках, без иллюстраций. */
+.guide__block {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+@media (max-width: 599px) {
+  .guide__block { padding: var(--space-3) var(--space-4); }
+}
