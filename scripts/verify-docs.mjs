@@ -64,6 +64,7 @@ const МЕСТА = [
   "docs/09_AUDIT.md",
   "docs/11_UI_AUDIT.md",
   "docs/13_FULL_AUDIT.md",
+  "docs/15_BASELINE.md",
   "README.md",
   "design/audit.html",
   "design/crm.body.html",
