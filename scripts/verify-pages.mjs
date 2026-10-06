@@ -156,6 +156,27 @@ for (const лист of ["prorab.html", "zakazchik.html"]) {
   if (!/--accent:\s*#/u.test(памятка)) note(`site/${лист}: переменные цвета продукта не объявлены`);
 }
 
+/* 9. Манифест приложения (этап Э8, ДР-12) опубликован рядом с демонстрацией:
+      сайт лежит в подпапке, и ссылка с корня («/manifest.webmanifest»)
+      вела бы мимо него — ссылка обязана быть относительной, значки —
+      лежать рядом. */
+{
+  const путь = join(site, "manifest.webmanifest");
+  if (!existsSync(путь)) {
+    note("ДР-12: нет файла site/manifest.webmanifest");
+  } else {
+    let манифест = {};
+    try { манифест = JSON.parse(readFileSync(путь, "utf8")); } catch { note("ДР-12: site/manifest.webmanifest не разбирается как JSON"); }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      if (!existsSync(join(site, значок.src))) note(`ДР-12: site/manifest.webmanifest — нет значка ${значок.src}`);
+    }
+  }
+  const главная = existsSync(join(site, "index.html")) ? readFileSync(join(site, "index.html"), "utf8") : "";
+  const ссылка = /<link rel="manifest" href="([^"]+)"/u.exec(главная)?.[1];
+  if (ссылка === undefined) note("ДР-12: site/index.html не объявляет манифест");
+  else if (ссылка.startsWith("/")) note(`ДР-12: site/index.html — манифест по ссылке с корня «${ссылка}», в подпапке сайта не найдётся`);
+}
+
 if (problems.length > 0) {
   console.error(`Дефектов публикации: ${problems.length}\n`
     + problems.map((p) => `  ${p}`).join("\n"));

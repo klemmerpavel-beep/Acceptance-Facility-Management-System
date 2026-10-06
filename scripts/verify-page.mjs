@@ -6053,6 +6053,72 @@ const РОЛИ_ВХОДА = [
   }
 }
 
+/* Этап Э8, ДР-12: телефон. До 480 px главная начинается с очереди, четыре
+   числа стоят сеткой 2 × 2 без бокового переполнения. Манифест объявлен:
+   имя «Приёмка», отдельное окно, цвет темы — токен полосы шапки, фон —
+   токен полотна, значки отвечают; сервис-воркера нет. */
+{
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".statrow--home .statcard", { timeout: 8000 })
+    .catch(() => { note("ДР-12 телефон", "390 px: числовых карточек главной нет"); });
+  await page.waitForTimeout(500);
+  const первый = await page.evaluate(() => document.querySelector("main.container")?.firstElementChild?.className ?? "");
+  if (!первый.split(" ").includes("queue")) note("ДР-12 телефон", `390 px: первый блок главной «${первый}», а не очередь`);
+  const карточки = await page.locator(".statrow--home .statcard").evaluateAll((узлы) => узлы.map((узел) => {
+    const место = узел.getBoundingClientRect();
+    return { x: Math.round(место.left), y: Math.round(место.top) };
+  }));
+  const [а, б, в, г] = карточки;
+  if (карточки.length !== 4 || а === undefined || б === undefined || в === undefined || г === undefined) {
+    note("ДР-12 телефон", `390 px: числовых карточек ${карточки.length} вместо четырёх`);
+  } else if (!(а.y === б.y && в.y === г.y && в.y > а.y && а.x === в.x && б.x > а.x)) {
+    note("ДР-12 телефон", `390 px: четыре числа не сеткой 2 × 2 — ${JSON.stringify(карточки)}`);
+  }
+  await overflow("ДР-12: главная на 390 px");
+  await step("ДР-12: главная на телефоне, 2 × 2", "54-glavnaya-2x2.png");
+
+  const сведения = await page.evaluate(async () => {
+    const корень = getComputedStyle(document.documentElement);
+    const воркеры = "serviceWorker" in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0;
+    return {
+      манифест: document.querySelector('link[rel="manifest"]')?.href ?? null,
+      тема: document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null,
+      полоса: корень.getPropertyValue("--band").trim().toUpperCase(),
+      полотно: корень.getPropertyValue("--bg").trim().toUpperCase(),
+      воркеры,
+    };
+  });
+  if (сведения.манифест === null) {
+    note("ДР-12 манифест", "страница не объявляет манифест");
+  } else {
+    const ответ = await page.request.get(сведения.манифест);
+    const манифест = ответ.ok() ? await ответ.json().catch(() => ({})) : {};
+    if (манифест.name !== "Приёмка") note("ДР-12 манифест", `имя «${String(манифест.name)}» вместо «Приёмка»`);
+    if (манифест.display !== "standalone") note("ДР-12 манифест", `вид окна «${String(манифест.display)}» вместо standalone`);
+    if (String(манифест.theme_color).toUpperCase() !== сведения.полоса) {
+      note("ДР-12 манифест", `цвет темы ${String(манифест.theme_color)}, а токен полосы ${сведения.полоса}`);
+    }
+    if (String(манифест.background_color).toUpperCase() !== сведения.полотно) {
+      note("ДР-12 манифест", `фон заставки ${String(манифест.background_color)}, а токен полотна ${сведения.полотно}`);
+    }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      const адрес = new URL(значок.src, сведения.манифест).href;
+      const файл = await page.request.get(адрес);
+      if (!файл.ok() || !(файл.headers()["content-type"] ?? "").startsWith("image/")) {
+        note("ДР-12 манифест", `значок ${значок.src} не отвечает картинкой: код ${файл.status()}`);
+      }
+    }
+    if (!Array.isArray(манифест.icons) || манифест.icons.length < 2) note("ДР-12 манифест", "в манифесте меньше двух значков");
+  }
+  if ((сведения.тема ?? "").toUpperCase() !== сведения.полоса) {
+    note("ДР-12 манифест", `theme-color страницы «${String(сведения.тема)}», а токен полосы ${сведения.полоса}`);
+  }
+  if (сведения.воркеры !== 0) note("ДР-12 манифест", `зарегистрировано сервис-воркеров: ${String(сведения.воркеры)}`);
+  console.log("  ДР-12: главная 2 × 2 на 390 px, манифест и значки проверены");
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
