@@ -2849,3 +2849,24 @@ button.score:hover { border-block-start-color: var(--accent); color: var(--accen
   .queue__what { grid-column: 1 / -1; }
   .queue__go { grid-column: 1 / -1; inline-size: 100%; }
 }
+
+/* Первый вход заказчика и «Как пользоваться» (этап Э8, ДР-11): три блока
+   текстом на карточках, без иллюстраций. */
+.guide__block {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+@media (max-width: 599px) {
+  .guide__block { padding: var(--space-3) var(--space-4); }
+}
+
+/* Четыре числа главной на телефоне — сеткой 2 × 2 (этап Э8, ДР-12). Одной
+   колонкой четыре карточки по 108 px уводили портфель под второй экран, а
+   над ними с ДР-1 стоит очередь. Карточка ужимается на шаг поля; подпись
+   под мерой переносится, а не обрезается — обрезанная подпись без
+   раскрытия скрывает смысл числа. Только на главной: денежные числа
+   бухгалтерии в половину ширины не встают. */
+@media (max-width: 480px) {
+  .statrow--home { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .statrow--home .statcard { min-block-size: 0; padding: var(--space-3); min-inline-size: 0; }
+}

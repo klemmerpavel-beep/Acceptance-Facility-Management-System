@@ -17,7 +17,7 @@ import type {
   ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
-  InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen,
+  InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen, OrganizationContacts,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -604,6 +604,12 @@ export async function confirmSmsCode(): Promise<{ ok: true }> {
 export async function fetchOrganization(): Promise<Organization> {
   await pause(40);
   return data.organization;
+}
+
+/** Как связаться: те же три поля карточки организации из слепка (ДР-11). */
+export async function fetchOrganizationContacts(): Promise<OrganizationContacts> {
+  await pause(40);
+  return { name: data.organization.name, phone: data.organization.phone, email: data.organization.email };
 }
 
 /** Правка в демонстрации не сохраняется: сервера нет, и врать об этом нельзя. */
