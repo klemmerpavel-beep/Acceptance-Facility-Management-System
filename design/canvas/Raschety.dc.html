@@ -1,0 +1,253 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+      --ink:#0E1A28; --ink-2:#3C4C5E; --ink-3:#5A6979; --ink-inv:#FFFFFF;
+      --line:#DCE2E9; --line-strong:#B7C2CE;
+      --accent:#4A3AB8; --accent-hover:#3B2E96; --accent-soft:#F0EEFD; --accent-ink:#FFFFFF;
+      --accent-fill:#675AC3; --accent-track:#7569C9;
+      --signal:#9C5E17; --signal-soft:#FBEEDC;
+      --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
+      --danger:#A5150D; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --band:#6C5CE7;--band-ink:#FFFFFF;--band-active:#FFFFFF;--band-active-ink:#4A3AB8;
+      --band-fill:#5F51CB;--band-track:#564AB9;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#B7B0F6;
+      --radius-sm:4px; --radius-chip:6px; --radius-md:8px; --radius-lg:12px; --radius-pill:999px;
+      --shadow-1:0 1px 2px rgba(14,26,40,.06); --shadow-2:0 4px 16px rgba(14,26,40,.10);
+      --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+      font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+    h1,h2,h3,p,dl,dd,dt,figure{margin:0}
+    a{color:var(--accent);text-underline-offset:2px}
+    a:hover{color:var(--accent-hover)}
+    .t-h1{font-family:var(--font-ui);font-size:24px;line-height:1.2;font-weight:700;letter-spacing:.01em}
+    .t-h2{font-family:var(--font-ui);font-size:19px;line-height:1.25;font-weight:700;letter-spacing:.01em}
+    .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-body{font-size:15px;line-height:1.55}
+    .t-sm{font-size:13px;line-height:1.45}
+    .t-cap{font-family:var(--font-ui);font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .t-muted{color:var(--ink-3)}
+    .t-secondary{color:var(--ink-2)}
+    .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
+      font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .panel{border-block:1px solid var(--line)}
+    .panel--sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md)}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
+      font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}
+    .pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
+      background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
+      font-size:13px;font-weight:600;letter-spacing:.02em}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
+      padding:0 16px;border:1px solid transparent;border-radius:var(--radius-md);font-size:15px;
+      font-weight:500;font-family:inherit;cursor:pointer}
+    .btn--primary{background:var(--accent);color:var(--accent-ink)}
+    .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+    .btn--text{background:transparent;color:var(--accent);padding:0 8px}
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:var(--radius-md)}
+    .segmented__option{min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:var(--radius-chip);
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+      font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
+    .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
+      background:var(--band);color:var(--band-ink)}
+    .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
+    .appbar__nav{display:flex;gap:4px;margin-inline:auto}
+    .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
+      border-radius:var(--radius-pill);color:var(--band-ink);text-decoration:none;font-size:13px;font-weight:500}
+    .appbar__link[aria-current="page"]{background:var(--band-active);color:var(--band-active-ink)}
+    .cover{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3)}
+    .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
+    .stamp{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
+      background:var(--surface);border-block:1px solid var(--ink);margin-bottom:24px}
+    .stamp__cell{display:flex;flex-direction:column;gap:2px;min-inline-size:0;
+      padding:8px 12px;border-inline-start:1px solid var(--line)}
+    .stamp__cell--wide{grid-column:span 2}
+    .stamp__cell:first-child{border-inline-start:0}
+    .stamp__value{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .stamp__value--code{font-family:var(--font-mono);font-weight:600;letter-spacing:.02em}
+    .stamp__crumbs{display:flex;align-items:center;gap:8px;padding:12px 0;
+      font-size:13px;color:var(--ink-3)}
+    .scale{display:flex;flex-direction:column;gap:4px;min-inline-size:140px}
+    .scale__track{position:relative;height:10px;border:1px solid var(--line-strong)}
+    .scale__fill{position:absolute;top:0;bottom:0;left:0;background:var(--accent)}
+    .scale__tick{position:absolute;top:-4px;width:1px;height:4px;background:var(--line-strong)}
+    .scale__legend{display:flex;justify-content:space-between;gap:8px;
+      font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+    .scale__value{font-weight:600;color:var(--ink)}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+    .tabs__item{padding:12px 0;border:0;border-bottom:2px solid transparent;background:none;
+      color:var(--ink-2);font-family:inherit;font-size:15px;cursor:pointer;white-space:nowrap}
+    .tabs__item[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field__label{font-size:13px;color:var(--ink-2)}
+    .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
+      border-radius:var(--radius-md);color:var(--ink);font-family:inherit;font-size:15px}
+    .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .deflist__term{font-size:13px;color:var(--ink-2)}
+    .deflist__value{font-size:13px;text-align:right}
+    .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+      stroke-linecap:square;stroke-linejoin:miter}
+    .rule{border:0;border-top:1px solid var(--line);margin:0}
+    .rule--inv{border-top-color:var(--line-inv)}
+    .spec{display:flex;flex-wrap:wrap;gap:6px 20px;margin:0}
+    .spec--col{flex-direction:column;gap:8px}
+    .spec__item{display:inline-flex;align-items:baseline;gap:6px;font-size:13px;line-height:1.45;color:var(--ink-2)}
+    .spec__value{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--accent);
+      font-variant-numeric:tabular-nums;white-space:nowrap}
+    .spec--inv .spec__item{color:var(--ink-on-inv-2)}
+    .spec--inv .spec__value{color:var(--accent-inv)}
+    .toggle{display:inline-flex;align-items:center;gap:10px;padding:0;border:0;background:none;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+    .toggle__track{position:relative;width:44px;height:24px;flex:none;border-radius:var(--radius-pill);
+      background:var(--line-strong)}
+    .toggle__knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:var(--radius-pill);
+      background:var(--surface);box-shadow:var(--shadow-1)}
+    .toggle__name{font-weight:500;color:var(--ink)}
+    .toggle[aria-checked="true"] .toggle__track{background:var(--accent)}
+    .toggle[aria-checked="true"] .toggle__knob{left:22px}
+    .toggle--inv .toggle__track{background:var(--line-inv)}
+    .toggle--inv .toggle__name{color:var(--ink-on-inv)}
+    .toggle--inv[aria-checked="true"] .toggle__track{background:var(--accent-inv)}
+    .selectwrap{position:relative;display:inline-flex;align-items:center}
+    .selectwrap .input{width:100%;padding-right:32px;appearance:none;-webkit-appearance:none}
+    .selectwrap__chevron{position:absolute;right:8px;color:var(--ink-3);pointer-events:none}
+    .iconbtn{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--line-strong);
+      border-radius:var(--radius-md);background:var(--surface);color:var(--ink-2);cursor:pointer}
+    .iconbtn--inv{border-color:var(--line-inv);background:transparent;color:var(--ink-on-inv-2)}
+    .figure{display:flex;flex-direction:column;gap:4px}
+    .figure+.figure{padding-top:16px;border-top:1px solid var(--line)}
+    .figure__label{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .figure__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:32px;
+      line-height:1.15;font-weight:600}
+    .figure__value--h2{font-size:19px;line-height:1.25}
+    .figure__note{font-size:13px;color:var(--ink-3)}
+    .tile{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 16px}
+    .tile--accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+    .tile--accent .figure__label,.tile--accent .figure__note{color:var(--accent-ink);opacity:.78}
+    .tile--accent .figure__value{color:var(--accent-ink)}
+    .section-head{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;
+      gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line-strong)}
+    .metric{display:inline-flex;flex-direction:column;gap:2px;padding:8px 12px;
+      border:1px solid var(--line-strong);border-radius:var(--radius-md)}
+    .metric__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}
+    .metric__label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+    .mail-gateway{display:inline-flex;align-items:center;flex-wrap:wrap;font-family:var(--font-mono);font-size:13px}
+    .empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:32px 16px}
+    .empty__title{font-size:16px;font-weight:600}
+    .empty__text{font-size:13px;color:var(--ink-3)}
+    .table{width:100%;border-collapse:collapse}
+    .table th{padding:8px 12px;border-bottom:1px solid var(--line-strong);font-size:11px;font-weight:500;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:left;white-space:nowrap}
+    .table td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+    .table tbody tr:nth-child(even){background:var(--surface-2)}
+    .table__sort{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;
+      font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+    .table th[aria-sort] .table__sort{color:var(--accent)}
+  </style>
+</helmet>
+<header class="appbar">
+  <span class="appbar__brand"><span class="appbar__lockup"><span class="appbar__product">Приёмка</span><span class="appbar__org">DOLGIY STUDIO</span></span></span>
+  <nav class="appbar__nav">
+    <a class="appbar__link" aria-current="page" href="#">Объекты</a>
+  </nav>
+  <!-- Колокол (этап Э9, ДР-10а): у заказчика впервые; счётчик — непрочитанные
+       записи ленты в проекции его роли. -->
+  <button class="btn btn--secondary" style="border-color:var(--band-track);color:var(--band-ink);gap:6px" aria-label="Уведомления: 3 непрочитанных">
+    <svg class="icon" aria-hidden="true"><path d="M6 14V9a4 4 0 0 1 8 0v5l1.5 1.5h-11z"/><path d="M8.5 17.5h3"/></svg>
+    <span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--radius-pill);background:var(--band-active);color:var(--band-active-ink);font-family:var(--font-mono);font-size:13px;font-weight:600">3</span>
+  </button>
+  <span style="font-size:13px;opacity:.82">Ирина Белова</span>
+  <button class="btn btn--secondary" style="border-color:var(--band-track);color:var(--band-ink)">Ещё</button>
+</header>
+
+<div style="padding:0 24px">
+  <p class="stamp__crumbs"><span>Объекты</span><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg><span>R-99</span></p>
+  <div class="stamp" style="margin-bottom:0">
+    <div class="stamp__cell"><span class="t-cap">Объект</span><span class="stamp__value stamp__value--code">R-99</span></div>
+    <div class="stamp__cell stamp__cell--wide"><span class="t-cap">Адрес</span><span class="stamp__value">Московский проспект 116</span></div>
+    <div class="stamp__cell"><span class="t-cap">Стадия</span><span class="stamp__value">В работе</span></div>
+    <div class="stamp__cell"><span class="t-cap">Прораб</span><span class="stamp__value">Фархат Юсупов</span></div>
+    <div class="stamp__cell"><span class="t-cap">Итог для вас</span><span class="stamp__value stamp__value--code">4 250 234,35 ₽</span></div>
+  </div>
+  <!-- Вкладка «Расчёты» — между «Отчётом» и «Документами» (07_IA, версия 4.4). -->
+  <div class="tabs" role="tablist" style="margin-top:8px">
+    <button class="tabs__item" role="tab">Обзор</button>
+    <button class="tabs__item" role="tab">Работа</button>
+    <button class="tabs__item" role="tab">Смета</button>
+    <button class="tabs__item" role="tab">Отчёт</button>
+    <button class="tabs__item" role="tab" aria-selected="true">Расчёты</button>
+    <button class="tabs__item" role="tab">Документы</button>
+  </div>
+</div>
+
+<main style="padding:24px;display:flex;flex-direction:column;gap:24px">
+  <!-- Три числа заказчика (этап Э9, ДР-6). Ставок, начислений, прибыли и
+       ориентира по заявке на вкладке нет. -->
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+    <div class="tile"><div class="figure"><span class="figure__label">Оплачено</span><span class="figure__value">1 200 000,00 ₽</span><span class="figure__note">транш № 1</span></div></div>
+    <div class="tile tile--accent"><div class="figure"><span class="figure__label">К оплате</span><span class="figure__value">1 300 000,00 ₽</span><span class="figure__note">транш № 2 — оплатить до 08.10</span></div></div>
+    <div class="tile"><div class="figure"><span class="figure__label">Остаток текущего транша</span><span class="figure__value">460 000,00 ₽</span><span class="figure__note">транш № 3: выработано 640 000,00 ₽ из 1 100 000,00 ₽</span></div></div>
+  </div>
+
+  <!-- График по траншам: «оплатить до» — расчётный срок, день закрытия плюс
+       порог договора (решение допроса Э9: даты не обещаются заранее). Будущий
+       транш — суммой без даты. -->
+  <section style="display:flex;flex-direction:column;gap:8px">
+    <div class="section-head">
+      <h2 class="t-h3">График платежей</h2>
+      <span class="t-sm t-muted">оплатить до — день закрытия транша и 10 дней по договору</span>
+    </div>
+    <table class="table">
+      <thead><tr><th>Транш</th><th style="text-align:right">Сумма</th><th>Закрыт</th><th>Оплатить до</th><th style="text-align:right">Оплачено</th><th>Состояние</th></tr></thead>
+      <tbody>
+        <tr><td>№ 1</td><td class="num">1 200 000,00 ₽</td><td class="num" style="text-align:left">01.09</td><td class="num" style="text-align:left">11.09</td><td class="num">1 200 000,00 ₽</td><td><span class="pill pill--ok">оплачен 09.09</span></td></tr>
+        <tr><td>№ 2</td><td class="num">1 300 000,00 ₽</td><td class="num" style="text-align:left">28.09</td><td class="num" style="text-align:left">08.10</td><td class="num">0,00 ₽</td><td><span class="pill pill--warn">ждёт оплаты · осталось 2 дня</span></td></tr>
+        <tr><td>№ 3</td><td class="num">1 100 000,00 ₽</td><td class="t-muted">идёт работа</td><td class="t-muted">после закрытия</td><td class="num">0,00 ₽</td><td><span class="pill">выработано 58 %</span></td></tr>
+        <tr><td>№ 4</td><td class="num">650 234,35 ₽</td><td class="t-muted">не открыт</td><td class="t-muted">после закрытия</td><td class="num">0,00 ₽</td><td><span class="pill">будущий</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Возмещаемые материалы (этап Э9, ДР-2а): чеки, подтверждённые
+       руководителем. Подтверждённое заказчиком не правится — только поправкой. -->
+  <section style="display:flex;flex-direction:column;gap:8px">
+    <div class="section-head">
+      <h2 class="t-h3">Возмещаемые материалы</h2>
+      <span class="t-sm t-muted">ждут вашего подтверждения: 2 чека</span>
+    </div>
+    <table class="table">
+      <thead><tr><th>Дата</th><th>Что куплено</th><th style="text-align:right">Сумма</th><th>Чек</th><th>Состояние</th></tr></thead>
+      <tbody>
+        <tr><td class="num" style="text-align:left">02.10</td><td>Клей плиточный и затирка — санузел</td><td class="num">18 450,00 ₽</td><td><a href="#">снимок</a></td>
+          <td><span style="display:flex;gap:8px"><button class="btn btn--primary">Подтвердить</button><button class="btn btn--secondary">Отклонить</button></span></td></tr>
+        <tr><td class="num" style="text-align:left">30.09</td><td>Грунтовка и армирующая сетка — коридор</td><td class="num">7 230,50 ₽</td><td><a href="#">снимок</a></td>
+          <td><span style="display:flex;gap:8px"><button class="btn btn--primary">Подтвердить</button><button class="btn btn--secondary">Отклонить</button></span></td></tr>
+        <tr><td class="num" style="text-align:left">24.09</td><td>Профиль и подвесы для потолка</td><td class="num">12 900,00 ₽</td><td><a href="#">снимок</a></td>
+          <td><span class="pill pill--ok">подтверждён вами 25.09</span></td></tr>
+        <tr><td class="num" style="text-align:left">19.09</td><td>Розетки и рамки — кухня</td><td class="num">6 120,00 ₽</td><td><a href="#">снимок</a></td>
+          <td><span style="display:flex;flex-direction:column;gap:2px"><span class="pill pill--danger" style="align-self:flex-start">отклонён вами 20.09</span><span class="t-sm t-muted">Причина: не та серия — в смете белые</span></span></td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</x-dc>
+</body>
+</html>
