@@ -5,7 +5,7 @@ import type {
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
   accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, ownerLevel,
-  remainingQty, sum,
+  remainingQty, sum, formatDay,
   type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
 import { randomUUID } from "node:crypto";
@@ -584,10 +584,23 @@ export class AcceptanceService {
         item: { select: { name: true } },
         accrual: { select: { unitWage: true, brigadeId: true } },
         reversal: { select: { id: true } },
+        batch: { select: { tranche: { select: { number: true, signedAt: true, fixedAt: true } } } },
       },
     });
     if (original === null) {
       throw new NotFoundException({ message: "Приёмка не найдена на этом объекте." });
+    }
+    /* Сторно ложится в пакет исходной приёмки, а значит в её транш. Акт
+       подписанного транша зафиксирован (этап Э9, ДР-3): сторно его не
+       меняет, а запрещено — ошибку исправляет поправка в текущем транше. */
+    const транш = original.batch.tranche;
+    if (транш !== null && транш.fixedAt !== null) {
+      throw new BadRequestException({
+        message: `Пакет вошёл в акт № ${String(транш.number)}`
+          + (транш.signedAt === null ? "" : `, подписанный ${formatDay(транш.signedAt.toISOString().slice(0, 10))}`)
+          + ": подписанный акт не меняется. Ошибку исправляет руководитель поправкой к акту на вкладке "
+          + "«Документы» — она войдёт в акт текущего транша.",
+      });
     }
     if (original.reversesId !== null) {
       throw new BadRequestException({

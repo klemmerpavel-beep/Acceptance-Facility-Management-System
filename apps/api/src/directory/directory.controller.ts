@@ -9,6 +9,7 @@ import {
   type ClientRow,
   type Foreman,
   type Organization,
+  type OrganizationContacts,
   type RepairType,
   type Unit,
   type WorkerRow,
@@ -48,6 +49,13 @@ export class DirectoryController {
     @Body() body: unknown,
   ): Promise<ClientRow[]> {
     return this.directory.updateClient(user, id, updateClientSchema.parse(body));
+  }
+
+  /* Заказчику — только как связаться (ДР-11): экран первого входа. */
+  @Get("organization/contacts")
+  @Roles("OWNER", "FOREMAN", "CLIENT")
+  contacts(@CurrentUser() user: RequestUser): Promise<OrganizationContacts> {
+    return this.directory.contacts(user);
   }
 
   @Get("organization")

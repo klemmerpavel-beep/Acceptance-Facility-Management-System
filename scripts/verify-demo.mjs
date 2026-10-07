@@ -640,6 +640,65 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Фиксация подписанного акта и поправка (этап Э9, ДР-3) ------------------
+   Двойник держит подпись и поправку в памяти вкладки, как сервер — в базе:
+   отметка подписания фиксирует акт, лист поправки не отправляется без
+   причины, записанная поправка встаёт в историю подписанного акта. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  await page.goto(`${BASE}/#R-99/documents`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const дата = page.locator('.acts-screen .record input[type="date"]').first();
+  if ((await дата.count()) === 0) {
+    note("ДР-3", "демонстрация: у неподписанного акта нет поля даты подписания");
+  } else {
+    await дата.fill("2026-09-12");
+    await page.waitForTimeout(600);
+    await page.locator('.acts-screen .record button:has-text("Открыть акт")').first().click();
+    await page.waitForTimeout(700);
+    if ((await page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" }).count()) === 0) {
+      note("ДР-3", "демонстрация: подписанный акт не назван зафиксированным");
+    }
+    const орган = page.locator('.acts-screen button:has-text("Оформить поправку")');
+    if ((await орган.count()) === 0) {
+      note("ДР-3", "демонстрация: у подписанного акта нет органа «Оформить поправку»");
+    } else {
+      await орган.first().click();
+      const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+      await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "демонстрация: лист поправки не открылся"));
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        note("ДР-3", "демонстрация: поправка доступна без причины");
+      }
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue().catch(() => "1");
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1))).catch(() => undefined);
+      await лист.locator('label:has-text("Причина") input').fill("Демонстрация: цена по договору").catch(() => undefined);
+      await page.waitForTimeout(200);
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        await записать.click();
+        await page.waitForTimeout(800);
+        const история = await page.locator('.acts-screen [role="note"] li').allTextContents();
+        if (!история.some((строка) => строка.includes("Демонстрация: цена по договору"))) {
+          note("ДР-3", "демонстрация: записанная поправка не встала в историю подписанного акта");
+        }
+      } else {
+        const текст = (await лист.innerText().catch(() => "")) ?? "";
+        if (!текст.includes("открытого транша у объекта нет")) {
+          note("ДР-3", "демонстрация: поправка с причиной недоступна, и лист не называет причину");
+        }
+        await лист.locator('.btn--text:has-text("Отмена")').click().catch(() => undefined);
+      }
+    }
+  }
+  /* Подпись и поправка живут в памяти вкладки: перезагрузка возвращает
+     двойник к слепку, и следующие проверки видят акт неподписанным. */
+  await page.reload({ waitUntil: "networkidle" });
+}
+
 /* --- Значки доказательности (этап Э8, ДР-7) ---------------------------------
    Пакеты приёмки и чеки R-99 в слепке — со снимками: значок у каждой строки. */
 {
@@ -757,6 +816,48 @@ await page.waitForTimeout(800);
     }
   }
   console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
+}
+
+/* --- Манифест приложения (этап Э8, ДР-12) -------------------------------------
+   Демонстрация собирается с относительными путями: манифест и значки
+   обязаны отвечать по адресу, объявленному страницей. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  const адрес = await page.evaluate(() => document.querySelector('link[rel="manifest"]')?.href ?? null);
+  if (адрес === null) {
+    note("ДР-12 манифест", "демонстрация не объявляет манифест");
+  } else {
+    const ответ = await page.request.get(адрес);
+    const манифест = ответ.ok() ? await ответ.json().catch(() => ({})) : {};
+    if (манифест.name !== "Приёмка" || манифест.display !== "standalone") {
+      note("ДР-12 манифест", `демонстрация: манифест «${String(манифест.name)}», окно «${String(манифест.display)}», код ${ответ.status()}`);
+    }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      const файл = await page.request.get(new URL(значок.src, адрес).href);
+      if (!файл.ok()) note("ДР-12 манифест", `демонстрация: значок ${значок.src} — код ${файл.status()}`);
+    }
+  }
+  console.log("ДР-12: манифест демонстрации проверен");
+}
+
+/* --- «Как пользоваться» заказчика (этап Э8, ДР-11) ---------------------------
+   Отметка захода в слепке есть, и сам экран не показывается; «Ещё → Как
+   пользоваться» открывает его: три блока, «Как связаться» — организация. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Заказчик")');
+  await page.waitForTimeout(700);
+  if ((await page.locator(".guide").count()) > 0) note("ДР-11 первый вход", "демонстрация: экран первого входа показан заказчику с отметкой захода");
+  await page.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+  await page.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+    .catch(() => { note("ДР-11 первый вход", "демонстрация: в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+  await page.waitForTimeout(500);
+  const заголовок = ((await page.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+  if (заголовок !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `демонстрация: «Ещё → Как пользоваться» — «${заголовок || "экрана нет"}»`);
+  const блоки = (await page.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+  if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `демонстрация: блоки «${блоки}»`);
+  console.log("ДР-11: «Как пользоваться» заказчика проверен из «Ещё»");
 }
 
 await browser.close();

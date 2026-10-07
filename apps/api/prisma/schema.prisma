@@ -354,6 +354,7 @@ model User {
   tranchePayments   TranchePayment[]
   expensesCreated   MaterialExpense[] @relation("ExpenseAuthor")
   expensesConfirmed MaterialExpense[] @relation("ExpenseConfirmer")
+  actCorrections    ActCorrection[]
 
   @@unique([orgId, email])
   @@index([orgId, role])
@@ -540,6 +541,7 @@ model EstimateItem {
   /// «помещение не выбрано», а не молчит.
   room        MeasureRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
   acceptances Acceptance[]
+  actLines    ActLine[]
 
   @@index([estimateId, order])
   @@index([sectionId, order])
@@ -1001,17 +1003,88 @@ model Tranche {
   signedScanKey  String?
   signedScanType String?
   signedScanAt   DateTime?
+  /// Фиксация акта (этап Э9, ДР-3): мгновение первой отметки подписания.
+  /// С этого мгновения акт читается из снимка строк `ActLine`, а не из
+  /// приёмок и текущих цен сметы: подписанная бумага не меняется правкой
+  /// сметы. `null` — акт не зафиксирован и следует за сметой (П-27).
+  fixedAt     DateTime?
+  /// Надбавка, по которой акт зафиксирован, в сотых долях процента.
+  fixedShare  Int?
   comment     String?
   createdById String?       @db.Uuid
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  batches   AcceptanceBatch[]
-  payments  TranchePayment[]
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  batches     AcceptanceBatch[]
+  payments    TranchePayment[]
+  actLines    ActLine[]
+  /// Поправки к подписанным актам, вошедшие в акт этого транша.
+  corrections ActCorrection[]
 
   @@unique([projectId, number])
   @@index([projectId, status])
   @@map("tranches")
+}
+
+/// Строка зафиксированного акта (этап Э9, ДР-3).
+///
+/// Пишется один раз — при первой отметке подписания — тем же сводом, каким
+/// акт показывался до фиксации: позиция одной строкой с суммарным принятым
+/// количеством, цена и ставка — из сметы на мгновение фиксации. После этого
+/// не правится и не удаляется: исправление — поправка `ActCorrection`.
+model ActLine {
+  id        String  @id @default(uuid()) @db.Uuid
+  trancheId String  @db.Uuid
+  /// Позиция сметы. SetNull — строка акта хранит наименование и цену сама
+  /// и от позиции не зависит.
+  itemId    String? @db.Uuid
+  order     Int
+  name      String
+  unit      String
+  /// Тысячные доли единицы.
+  qty       BigInt
+  /// Копейки.
+  unitPrice BigInt
+  unitWage  BigInt
+
+  tranche     Tranche         @relation(fields: [trancheId], references: [id], onDelete: Cascade)
+  item        EstimateItem?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  corrections ActCorrection[]
+
+  @@index([trancheId, order])
+  @@map("act_lines")
+}
+
+/// Поправка к подписанному акту (этап Э9, ДР-3; решение допроса 07.10.2026).
+///
+/// Подписанный акт не меняется. Ошибка в нём — неверная цена или лишний
+/// объём — исправляется строкой акта текущего транша: «было → стало» и
+/// разница суммой. Причина обязательна. Поправка — новая запись и сама не
+/// правится и не удаляется (БП-04, БП-10); вторая поправка той же строки
+/// начинается с того, чем кончилась первая.
+model ActCorrection {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Строка подписанного акта, которую поправка исправляет.
+  actLineId   String   @db.Uuid
+  /// Транш, в акт которого поправка входит: открытый в мгновение записи.
+  trancheId   String   @db.Uuid
+  /// Тысячные доли единицы.
+  qtyBefore   BigInt
+  qtyAfter    BigInt
+  /// Копейки.
+  priceBefore BigInt
+  priceAfter  BigInt
+  reason      String
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  actLine   ActLine @relation(fields: [actLineId], references: [id], onDelete: Cascade)
+  tranche   Tranche @relation(fields: [trancheId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([trancheId])
+  @@index([actLineId, createdAt])
+  @@map("act_corrections")
 }
 
 /// Платёж заказчика в счёт транша.
