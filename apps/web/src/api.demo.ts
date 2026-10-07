@@ -14,7 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, ClosedTranches, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
-  ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
+  ActCorrection, ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
   InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen, OrganizationContacts,
@@ -45,7 +45,7 @@ import {
   сколько,
   PREPAYMENT_NUMBER,
   inboxItems, адресПункта, актБезПодписи, разделБезЭтапа, разделСегодня, свойЧекОтклонён, чекЧерновик,
-  ВИДЫ_ОЧЕРЕДИ,
+  ВИДЫ_ОЧЕРЕДИ, correctionFault, correctionTotal,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
@@ -700,6 +700,9 @@ export async function fetchClosedTranches(code: string): Promise<ClosedTranches>
         number: транш.number,
         paid: транш.status === "PAID",
         signedAt: снятые.get(транш.number)?.signedAt ?? null,
+        /* Подпись, поставленная в самой демонстрации, фиксирует акт так же,
+           как на сервере (ДР-3). */
+        fixed: (снятые.get(транш.number)?.fixed ?? false) || подписанВДемонстрации(транш.number),
         items: снятые.get(транш.number)?.items ?? [],
       })),
   };
@@ -2375,10 +2378,28 @@ export const expensePhotoUrl = (): string => "";
    -------------------------------------------------------------------------- */
 const подписи = new Map<string, string>();
 
+/* Первая отметка подписи фиксирует акт (этап Э9, ДР-3): день фиксации —
+   день отметки в демонстрации. Снимок строк двойнику не нужен — правки сметы,
+   которая сдвинула бы акт, в слепке акта нет. */
+const фиксации = new Map<string, string>();
+
+const подписанВДемонстрации = (номер: number): boolean =>
+  data.acts.some((акт) => акт.number === номер && фиксации.has(акт.trancheId));
+
 const сПодписью = (акт: ActRow): ActRow => {
   const дата = подписи.get(акт.trancheId);
-  return дата === undefined ? акт : { ...акт, signedAt: дата };
+  return дата === undefined
+    ? акт
+    : { ...акт, signedAt: дата, fixedAt: акт.fixedAt ?? фиксации.get(акт.trancheId) ?? null };
 };
+
+/* Поправки к подписанным актам живут в памяти вкладки, как подписи: ключевое
+   действие ДР-3 обязано работать и в демонстрации. Строка снимка в слепке
+   неподписанного акта опознавателя не имеет — двойник выдаёт его по номеру
+   строки, тем же видом, что у сервера. */
+const поправки: ActCorrection[] = [];
+const опознавательСтроки = (индекс: number): string =>
+  `00000000-0000-4000-8000-${String(индекс + 1).padStart(12, "0")}`;
 
 /* Скан подписанного акта живёт в памяти вкладки адресом объекта браузера:
    сервера, который проверил бы содержимое, у демонстрации нет, и тип берётся
@@ -2405,7 +2426,15 @@ export async function fetchAct(
   const снимок = audience === "internal" ? data["act-internal"] : data["act-client"];
   if (code !== "R-99" || снимок === null) throw new Error("Акт не найден: транш ещё открыт.");
   const дата = подписи.get(trancheId);
-  return дата === undefined ? снимок : { ...снимок, signedAt: дата };
+  if (дата === undefined) return снимок;
+  const зафиксирован = снимок.fixedAt ?? фиксации.get(trancheId) ?? null;
+  return {
+    ...снимок,
+    signedAt: дата,
+    fixedAt: зафиксирован,
+    lines: снимок.lines.map((строка, индекс) => ({ ...строка, id: строка.id ?? опознавательСтроки(индекс) })),
+    amendments: поправки.filter((поправка) => поправка.act === снимок.number),
+  };
 }
 
 export async function signAct(
@@ -2415,6 +2444,48 @@ export async function signAct(
 ): Promise<ActRow[]> {
   await pause(240);
   подписи.set(trancheId, signedAt);
+  if (!фиксации.has(trancheId)) фиксации.set(trancheId, new Date().toISOString().slice(0, 10));
+  return data.acts.map(сДокументами);
+}
+
+export async function createActCorrection(
+  _code: string,
+  trancheId: string,
+  input: { lineId: string; qty: string; unitPrice: string; reason: string },
+): Promise<ActRow[]> {
+  await pause(240);
+  const акт = await fetchAct("R-99", trancheId);
+  if (акт.fixedAt === null) {
+    throw new Error(`Акт № ${String(акт.number)} не подписан и следует за сметой: его исправляет правка сметы.`);
+  }
+  const текущий = траншиR99().current;
+  if (текущий === null) {
+    throw new Error("У объекта нет открытого транша: поправка входит в акт текущего транша.");
+  }
+  const строка = акт.lines.find((line) => line.id === input.lineId);
+  if (строка === undefined) throw new Error(`Строка не найдена в акте № ${String(акт.number)}.`);
+  const прежняя = поправки.filter((поправка) => поправка.lineId === input.lineId).at(-1);
+  const было = прежняя === undefined
+    ? { qty: milliunits(строка.qty), unitPrice: kopecks(строка.unitPrice) }
+    : { qty: milliunits(прежняя.qtyAfter), unitPrice: kopecks(прежняя.priceAfter) };
+  const стало = { qty: milliunits(input.qty), unitPrice: kopecks(input.unitPrice) };
+  const ошибка = correctionFault({ было, стало, причина: input.reason });
+  if (ошибка !== null) throw new Error(ошибка);
+  поправки.push({
+    id: crypto.randomUUID(),
+    lineId: input.lineId,
+    act: акт.number,
+    into: текущий.number,
+    name: строка.name,
+    unit: строка.unit,
+    qtyBefore: было.qty.toString(),
+    qtyAfter: стало.qty.toString(),
+    priceBefore: было.unitPrice.toString(),
+    priceAfter: стало.unitPrice.toString(),
+    total: correctionTotal({ было, стало }).toString(),
+    reason: input.reason.trim(),
+    createdAt: new Date().toISOString().slice(0, 10),
+  });
   return data.acts.map(сДокументами);
 }
 

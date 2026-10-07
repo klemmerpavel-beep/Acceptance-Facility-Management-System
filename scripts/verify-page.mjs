@@ -2306,13 +2306,24 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
     const ПУТЬ = "**/api/projects/R-99/estimate/closed-tranches";
     await page.route(ПУТЬ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: 7, paid: true, signedAt: "2026-09-12", items: [перваяПозиция.id] }] }),
+      body: JSON.stringify({ tranches: [
+        { number: 7, paid: true, signedAt: "2026-09-12", fixed: true, items: [перваяПозиция.id] },
+        { number: 8, paid: true, signedAt: null, fixed: false, items: [перваяПозиция.id] },
+      ] }),
     }));
     await строка.locator('.btn--text:has-text("Править")').click();
     await page.waitForTimeout(600);
     const текст = (await заметка()) ?? "";
-    for (const нужно of ["закрытом транше № 7", "Подписан акт № 7 (12.09.2026)", "Оплачен транш № 7"]) {
+    for (const нужно of ["закрытом транше № 8", "Оплачен транш № 8"]) {
       if (!текст.includes(нужно)) note("правка сметы", `лист позиции не называет «${нужно}»: «${текст || "молча"}»`);
+    }
+    /* Подписанный акт зафиксирован (этап Э9, ДР-3): лист называет его тем,
+       что правка не изменит, а не тем, что изменится. */
+    if (!текст.includes("Акт № 7 (12.09.2026) подписан и зафиксирован")) {
+      note("ДР-3", `лист позиции не называет подписанный акт № 7 зафиксированным: «${текст || "молча"}»`);
+    }
+    if (текст.includes("закрытых траншах № 7") || текст.includes("закрытом транше № 7")) {
+      note("ДР-3", "лист позиции обещает изменить подписанный акт № 7");
     }
     await page.click('.sheet .btn--text:has-text("Отмена")');
     await page.waitForTimeout(300);
@@ -3796,6 +3807,93 @@ const размерЛиста = async (кто) => {
 await overflow("документы, 1440");
 await step("документы", "45-dokumenty.png");
 
+/*
+ * Фиксация подписанного акта и поправка (этап Э9, ДР-3). Проверка API идёт
+ * раньше: она подписывает акт № 1, пишет к нему две поправки в открытый
+ * тогда транш № 2 и закрывает его. Экран обязан показать поправки строками
+ * акта № 2, у акта № 1 — фиксацию и историю поправок, а лист поправки —
+ * не отправляться без причины.
+ */
+{
+  const строкаАкта = (номер) => page.locator(".acts-screen .record").filter({ hasText: `Акт № ${String(номер)} по объекту` });
+  const открыть = async (номер) => {
+    const кнопка = строкаАкта(номер).locator('button:has-text("Открыть акт")');
+    if ((await кнопка.count()) > 0) await кнопка.first().click();
+    await page.waitForTimeout(700);
+  };
+
+  if ((await строкаАкта(2).count()) === 0) {
+    note("ДР-3", "в перечне нет акта № 2, в который вошли поправки к акту № 1");
+  } else {
+    if (!(((await строкаАкта(2).innerText()) ?? "").includes("поправок к подписанным актам"))) {
+      note("ДР-3", "строка акта № 2 не называет вошедшие в него поправки");
+    }
+    await открыть(2);
+    const поправки = page.locator(".act .act__corrections");
+    if ((await поправки.count()) === 0) {
+      note("ДР-3", "в акте № 2 нет раздела «Поправки к подписанным актам»");
+    } else {
+      const текст = await поправки.innerText();
+      for (const нужно of ["Поправки к подписанным актам", "Поправка к акту № 1", "Причина:"]) {
+        if (!текст.includes(нужно)) note("ДР-3", `раздел поправок акта № 2 не называет «${нужно}»`);
+      }
+    }
+  }
+
+  await открыть(1);
+  const заметкаФиксации = page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" });
+  if ((await заметкаФиксации.count()) === 0) {
+    note("ДР-3", "у подписанного акта № 1 нет заметки о фиксации");
+  } else if (!(await заметкаФиксации.innerText()).includes("в акт № 2")) {
+    note("ДР-3", "заметка акта № 1 не называет поправки и акт, в который они вошли");
+  }
+  if ((await page.locator(".act .act__corrections").count()) > 0) {
+    note("ДР-3", "подписанный акт № 1 несёт раздел поправок — он обязан печататься тем, что подписан");
+  }
+
+  const органПоправки = page.locator('.acts-screen button:has-text("Оформить поправку")');
+  if ((await органПоправки.count()) === 0) {
+    note("ДР-3", "у подписанного акта нет органа «Оформить поправку»");
+  } else {
+    await органПоправки.first().click();
+    const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "лист поправки не открылся"));
+    if ((await лист.count()) > 0) {
+      if (!(await лист.innerText()).includes("подписан и не меняется")) {
+        note("ДР-3", "лист поправки не говорит, что подписанный акт не меняется");
+      }
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if (await записать.isEnabled()) note("ДР-3", "поправка доступна без причины");
+      const текущий = await page.evaluate(async () => (await fetch("/api/projects/R-99/tranches",
+        { credentials: "include" }).then((ответ) => ответ.json())).current?.number ?? null);
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue();
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1)));
+      await лист.locator('label:has-text("Причина") input').fill("Проверка страницы: цена по договору");
+      await page.waitForTimeout(200);
+      await step("ДР-3, лист поправки", "45b-dokumenty-popravka.png");
+      if (текущий === null) {
+        if (await записать.isEnabled()) note("ДР-3", "поправка доступна без открытого транша");
+        await лист.locator('.btn--text:has-text("Отмена")').click();
+      } else {
+        const поправокДо = await page.locator('.acts-screen [role="note"] li').count();
+        await записать.click();
+        await page.waitForTimeout(1200);
+        if ((await лист.count()) > 0) note("ДР-3", "лист поправки не закрылся после записи");
+        const поправокПосле = await page.locator('.acts-screen [role="note"] li').count();
+        if (поправокПосле !== поправокДо + 1) {
+          note("ДР-3", `после записи поправок у акта № 1 ${String(поправокПосле)} вместо ${String(поправокДо + 1)}`);
+        }
+        const объявлено = await page.locator(".visually-hidden[aria-live], [role='status']").allInnerTexts();
+        if (!объявлено.some((текст) => текст.includes("Поправка записана"))) {
+          note("ДР-3", "запись поправки не объявлена");
+        }
+      }
+    }
+  }
+  await overflow("ДР-3, документы, 1440");
+}
+
 await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
 
@@ -4684,9 +4782,32 @@ if ((await сторнируемая.count()) === 0) {
   if (траншПакета === null) {
     note("приёмка", "пакет обхода лёг вне транша — предупреждение сторно о закрытом транше не проверить");
   } else {
+    /* Пакет подписанного акта (этап Э9, ДР-3): лист называет запрет до
+       отправки и не даёт отправить даже с причиной — подписанный акт не
+       меняется. */
     await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", items: [] }] }),
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: true, items: [] }] }),
+    }));
+    await сторнируемая.click();
+    await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+    await page.waitForTimeout(500);
+    const текстЗапрета = (await page.locator(".sheet").count()) === 0 ? "" : await page.locator(".sheet").innerText();
+    if (!текстЗапрета.includes("сторно запрещено")) {
+      note("ДР-3", `лист сторно не называет запрет для пакета подписанного акта: «${текстЗапрета.slice(0, 200)}»`);
+    }
+    if ((await page.locator(".sheet .input").count()) > 0) await page.fill(".sheet .input", "Проверка страницы");
+    if ((await page.locator(".sheet .btn--danger").count()) > 0 && await page.locator(".sheet .btn--danger").isEnabled()) {
+      note("ДР-3", "сторно пакета подписанного акта доступно с причиной");
+    }
+    if ((await page.locator('.sheet .btn--text:has-text("Отмена")').count()) > 0) {
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
+    await page.unroute(ПУТЬ_ЗАКРЫТЫХ);
+    await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: false, items: [] }] }),
     }));
   }
   await сторнируемая.click();

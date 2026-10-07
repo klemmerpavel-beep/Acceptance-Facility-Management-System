@@ -299,6 +299,17 @@ export const fetchAct = (
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
 
+/**
+ * Поправка к строке подписанного акта (этап Э9, ДР-3): входит строкой в акт
+ * открытого транша. Подписанный акт не меняется.
+ */
+export const createActCorrection = (
+  code: string,
+  trancheId: string,
+  input: { lineId: string; qty: string; unitPrice: string; reason: string },
+): Promise<ActRow[]> =>
+  request(`/projects/${code}/acts/${trancheId}/corrections`, actListSchema, json(input));
+
 /** Скан подписанного экземпляра (план, пункт 4.10): снимок или PDF, тип — по содержимому. */
 export function attachActScan(code: string, trancheId: string, file: File): Promise<ActRow[]> {
   const form = new FormData();

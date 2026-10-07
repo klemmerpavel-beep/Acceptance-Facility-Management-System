@@ -1620,6 +1620,132 @@ if (!Array.isArray(акты) || акты.length !== 1) {
   check(лентаСкана.includes("скан подписанного экземпляра"),
     "загрузка скана не записана в журнал объекта");
   console.log(`Скан акта № ${String(акт.number)}: ${байтыСкана.length} байт, тип ${строкаСоСканом?.scan?.type}`);
+
+  /* --- фиксация подписанного акта и поправка (этап Э9, ДР-3) ----------------
+     Подписанный акт — бумага с подписью заказчика: первая отметка подписания
+     пишет его строки снимком, правка сметы его не меняет, сторно его пакета
+     запрещено, ошибка исправляется поправкой — строкой акта текущего транша.
+     Замечания называют позицию «ДР-3».
+     ------------------------------------------------------------------------ */
+  const поJSON = (запрос, путь, метод, тело) => запрос(путь, {
+    method: метод, headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const подписанный = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+  check(typeof подписанный.fixedAt === "string", `ДР-3: подписанный акт не зафиксирован: fixedAt ${подписанный.fixedAt}`);
+  check(Array.isArray(подписанный.lines) && подписанный.lines.length > 0
+    && подписанный.lines.every((строка) => typeof строка.id === "string"),
+    "ДР-3: у строк подписанного акта нет опознавателей снимка — поправку писать не к чему");
+
+  /* Новые поля — на четырёх ролях: перечень и акт открыты всем, кто их видит,
+     и внутренних величин в клиентском виде нет и после фиксации. */
+  for (const [кто, запрос] of [["руководителю", owner], ["бухгалтеру", accountant], ["прорабу", foreman], ["заказчику", client]]) {
+    const перечень = await запрос("/projects/R-99/acts").then((r) => r.json());
+    const строка = Array.isArray(перечень) ? перечень.find((x) => x.trancheId === акт.trancheId) : undefined;
+    check(строка?.fixedAt === подписанный.fixedAt && typeof строка?.corrections === "number",
+      `ДР-3: ${кто} в перечне актов нет дня фиксации или числа поправок: ${JSON.stringify(строка)?.slice(0, 160)}`);
+    const вид = await запрос(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(вид.fixedAt === подписанный.fixedAt && Array.isArray(вид.corrections) && Array.isArray(вид.amendments),
+      `ДР-3: ${кто} в акте нет фиксации и перечней поправок`);
+    check(findInternal(вид).length === 0, `ДР-3: ${кто} в клиентском акте внутренние поля: ${findInternal(вид).join(", ")}`);
+  }
+
+  /* Повторная отметка меняет дату, но не пишет второй снимок. */
+  await поJSON(owner, `/projects/R-99/acts/${акт.trancheId}/signature`, "POST", { signedAt: "2026-09-13" });
+  const переподписан = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+  check(переподписан.signedAt === "2026-09-13" && переподписан.lines.length === подписанный.lines.length
+    && переподписан.fixedAt === подписанный.fixedAt,
+    `ДР-3: повторная отметка подписания переписала снимок: строк ${переподписан.lines?.length} вместо ${подписанный.lines.length}`);
+  await поJSON(owner, `/projects/R-99/acts/${акт.trancheId}/signature`, "POST", { signedAt: "2026-09-12" });
+
+  /* Правка цены позиции подписанного акта: акт и выработка его транша не
+     меняются, перечень закрытых траншей называет акт зафиксированным. */
+  const первая = подписанный.lines[0];
+  const сметаДР3 = await owner("/projects/R-99/estimate").then((r) => r.json());
+  const позицияАкта = сметаДР3.sections.flatMap((раздел) =>
+    [...раздел.items, ...раздел.children.flatMap((вложенный) => вложенный.items)])
+    .find((позиция) => позиция.name === первая?.name);
+  if (позицияАкта === undefined) {
+    check(false, `ДР-3: позиция первой строки акта «${первая?.name}» не найдена в смете`);
+  } else {
+    const выработкаАкта = async () => (await owner("/projects/R-99/tranches").then((r) => r.json()))
+      .tranches.find((транш) => транш.id === акт.trancheId)?.produced;
+    const выработкаДо = await выработкаАкта();
+    const правка = await поJSON(owner, `/projects/R-99/estimate/items/${позицияАкта.id}`, "PATCH",
+      { unitPrice: (BigInt(позицияАкта.unitPrice) + 10_000n).toString() });
+    check(правка.ok, `ДР-3: правка цены позиции не прошла: код ${правка.status}`);
+    const послеПравки = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(JSON.stringify(послеПравки.lines) === JSON.stringify(подписанный.lines)
+      && послеПравки.totals.total === подписанный.totals.total,
+      `ДР-3: правка цены сметы изменила подписанный акт: итог ${подписанный.totals.total} → ${послеПравки.totals.total}`);
+    const выработкаПосле = await выработкаАкта();
+    check(выработкаПосле === выработкаДо,
+      `ДР-3: правка цены сметы изменила выработку подписанного транша: ${выработкаДо} → ${выработкаПосле}`);
+    const закрытыеДР3 = await owner("/projects/R-99/estimate/closed-tranches").then((r) => r.json());
+    check(закрытыеДР3.tranches?.find((транш) => транш.number === акт.number)?.fixed === true,
+      "ДР-3: перечень закрытых траншей не называет подписанный акт зафиксированным");
+    await поJSON(owner, `/projects/R-99/estimate/items/${позицияАкта.id}`, "PATCH",
+      { unitPrice: позицияАкта.unitPrice });
+  }
+
+  /* Сторно пакета подписанного акта запрещено: подписанный акт не меняется. */
+  const строкаПакетаАкта = (await owner("/projects/R-99/acceptance").then((r) => r.json())).batches
+    ?.filter((пакет) => пакет.trancheNumber === акт.number)
+    .flatMap((пакет) => пакет.lines)
+    .find((строка) => строка.reversedAt === null && BigInt(строка.qty) > 0n);
+  if (строкаПакетаАкта === undefined) {
+    check(false, `ДР-3: в акте № ${String(акт.number)} нет приёмки, которую можно было бы сторнировать`);
+  } else {
+    const сторно = await поJSON(owner, `/projects/R-99/acceptance/${строкаПакетаАкта.id}/reversal`, "POST",
+      { reason: "Проверка API: сторно подписанного" });
+    const отказ = сторно.ok ? "" : (await сторно.json()).message ?? "";
+    check(сторно.status === 400 && отказ.includes("поправк"),
+      `ДР-3: сторно пакета подписанного акта не отвергнуто с указанием на поправку: код ${сторно.status}, «${отказ}»`);
+  }
+
+  /* Поправка: только руководитель и бухгалтер, только с причиной, только
+     если что-то меняется, только в открытый транш. */
+  const поправить = (запрос, поля) => поJSON(запрос, `/projects/R-99/acts/${акт.trancheId}/corrections`, "POST", {
+    lineId: первая?.id, qty: первая?.qty, unitPrice: первая?.unitPrice, reason: "Проверка API: цена по договору", ...поля,
+  });
+  const ниже = (BigInt(первая?.unitPrice ?? "0") - 100n).toString();
+  check((await поправить(foreman, { unitPrice: ниже })).status === 403, "ДР-3: прораб записал поправку к акту");
+  check((await поправить(client, { unitPrice: ниже })).status === 403, "ДР-3: заказчик записал поправку к акту");
+  check((await поправить(owner, { unitPrice: ниже, reason: "   " })).status === 400, "ДР-3: поправка без причины принята");
+  check((await поправить(owner, {})).status === 400, "ДР-3: поправка, которая ничего не меняет, принята");
+  const текущийR99 = (await owner("/projects/R-99/tranches").then((r) => r.json())).current;
+  if (текущийR99 === null) {
+    check((await поправить(owner, { unitPrice: ниже })).status === 400,
+      "ДР-3: поправка принята без открытого транша — ей некуда войти");
+  } else {
+    const перваяПоправка = await поправить(accountant, { unitPrice: ниже });
+    check(перваяПоправка.ok, `ДР-3: бухгалтеру отказана поправка: код ${перваяПоправка.status}`);
+    const втораяПоправка = await поправить(owner, {
+      unitPrice: ниже, qty: (BigInt(первая?.qty ?? "0") * 9n / 10n).toString(), reason: "Проверка API: объём перемерен",
+    });
+    check(втораяПоправка.ok, `ДР-3: вторая поправка той же строки отвергнута: код ${втораяПоправка.status}`);
+    const сПоправками = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    const [п1, п2] = сПоправками.amendments ?? [];
+    check(сПоправками.amendments?.length === 2, `ДР-3: у подписанного акта поправок ${сПоправками.amendments?.length} вместо двух`);
+    check(п1?.priceBefore === первая?.unitPrice && п1?.qtyBefore === первая?.qty,
+      "ДР-3: первая поправка начата не со строки подписанного акта");
+    check(п2?.priceBefore === п1?.priceAfter && п2?.qtyBefore === п1?.qtyAfter,
+      "ДР-3: вторая поправка начата не с того, чем кончилась первая — разница учтена бы дважды");
+    check(п1?.into === текущийR99.number && п2?.into === текущийR99.number,
+      `ДР-3: поправки вошли в акт № ${п1?.into}, № ${п2?.into} вместо текущего № ${String(текущийR99.number)}`);
+    check(сПоправками.totals.total === подписанный.totals.total, "ДР-3: поправка изменила сумму подписанного акта");
+    const суммаПоправок = BigInt(п1?.total ?? "0") + BigInt(п2?.total ?? "0");
+    const текущийПосле = (await owner("/projects/R-99/tranches").then((r) => r.json())).current;
+    check(BigInt(текущийПосле?.produced ?? "0") - BigInt(текущийR99.produced) === суммаПоправок,
+      `ДР-3: выработка текущего транша изменилась на ${(BigInt(текущийПосле?.produced ?? "0") - BigInt(текущийR99.produced)).toString()} `
+        + `вместо суммы поправок ${суммаПоправок.toString()}`);
+    const заказчикуПоправки = await client(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(заказчикуПоправки.amendments?.length === 2 && findInternal(заказчикуПоправки).length === 0,
+      "ДР-3: заказчику не видны поправки к его подписанному акту или видны внутренние поля");
+    const лентаПоправки = await owner("/projects/R-99/events?limit=200").then((r) => r.text());
+    check(лентаПоправки.includes(`акт № ${String(акт.number)} — поправка`), "ДР-3: поправка не записана в журнал объекта");
+    console.log(`ДР-3: акт № ${String(акт.number)} зафиксирован, поправок 2 на ${суммаПоправок.toString()} копеек `
+      + `в акт № ${String(текущийR99.number)}`);
+  }
 }
 
 /* --- шаблоны документов организации ------------------------------------------
@@ -2820,6 +2946,20 @@ const закрытие = await создать(owner, `/projects/R-99/tranches/${
 check(закрытие.ok, `транш не закрылся: код ${закрытие.status}`);
 const послеЗакрытия = закрытие.ok ? await закрытие.json() : траншиПослеСторно;
 check(послеЗакрытия.current === null, "после закрытия остался текущий транш");
+/* Поправки к подписанному акту, записанные выше в открытый транш (ДР-3),
+   приходят строками его акта и входят в «Работы» — тем же числом, что в
+   выработке транша. */
+if (закрытие.ok) {
+  const актЗакрытого = await owner(`/projects/R-99/acts/${текущийId}`).then((r) => r.json());
+  const поправкиАкта = актЗакрытого.corrections ?? [];
+  check(поправкиАкта.length === 2, `ДР-3: в акте закрытого транша поправок ${поправкиАкта.length} вместо двух`);
+  const работыПоСтрокам = [...(актЗакрытого.lines ?? []), ...поправкиАкта]
+    .reduce((свод, строка) => свод + BigInt(строка.total), 0n);
+  check(BigInt(актЗакрытого.totals?.works ?? "-1") === работыПоСтрокам,
+    `ДР-3: работы акта ${актЗакрытого.totals?.works} не равны строкам с поправками ${работыПоСтрокам.toString()}`);
+  check(поправкиАкта.every((поправка) => поправка.reason.length > 0 && поправка.act === 1),
+    "ДР-3: поправка в акте не называет исправленный акт или причину");
+}
 check(
   послеЗакрытия.tranches.find((транш) => транш.id === текущийId)?.status === "CLOSED",
   "закрытый транш не перешёл в состояние CLOSED",

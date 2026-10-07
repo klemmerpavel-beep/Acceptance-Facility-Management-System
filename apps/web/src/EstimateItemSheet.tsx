@@ -44,7 +44,7 @@ export function количествоВТысячные(input: string): bigint | 
 }
 
 /** Тысячные в строку поля: 406910 → «406,91», незначащие нули отброшены. */
-const вПоле = (value: bigint, знаков: number): string => {
+export const вПоле = (value: bigint, знаков: number): string => {
   const делитель = 10n ** BigInt(знаков);
   const дробь = (value % делитель).toString().padStart(знаков, "0").replace(/0+$/, "");
   const целое = (value / делитель).toString();

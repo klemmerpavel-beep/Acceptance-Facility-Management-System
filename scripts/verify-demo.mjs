@@ -640,6 +640,65 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Фиксация подписанного акта и поправка (этап Э9, ДР-3) ------------------
+   Двойник держит подпись и поправку в памяти вкладки, как сервер — в базе:
+   отметка подписания фиксирует акт, лист поправки не отправляется без
+   причины, записанная поправка встаёт в историю подписанного акта. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  await page.goto(`${BASE}/#R-99/documents`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const дата = page.locator('.acts-screen .record input[type="date"]').first();
+  if ((await дата.count()) === 0) {
+    note("ДР-3", "демонстрация: у неподписанного акта нет поля даты подписания");
+  } else {
+    await дата.fill("2026-09-12");
+    await page.waitForTimeout(600);
+    await page.locator('.acts-screen .record button:has-text("Открыть акт")').first().click();
+    await page.waitForTimeout(700);
+    if ((await page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" }).count()) === 0) {
+      note("ДР-3", "демонстрация: подписанный акт не назван зафиксированным");
+    }
+    const орган = page.locator('.acts-screen button:has-text("Оформить поправку")');
+    if ((await орган.count()) === 0) {
+      note("ДР-3", "демонстрация: у подписанного акта нет органа «Оформить поправку»");
+    } else {
+      await орган.first().click();
+      const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+      await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "демонстрация: лист поправки не открылся"));
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        note("ДР-3", "демонстрация: поправка доступна без причины");
+      }
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue().catch(() => "1");
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1))).catch(() => undefined);
+      await лист.locator('label:has-text("Причина") input').fill("Демонстрация: цена по договору").catch(() => undefined);
+      await page.waitForTimeout(200);
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        await записать.click();
+        await page.waitForTimeout(800);
+        const история = await page.locator('.acts-screen [role="note"] li').allTextContents();
+        if (!история.some((строка) => строка.includes("Демонстрация: цена по договору"))) {
+          note("ДР-3", "демонстрация: записанная поправка не встала в историю подписанного акта");
+        }
+      } else {
+        const текст = (await лист.innerText().catch(() => "")) ?? "";
+        if (!текст.includes("открытого транша у объекта нет")) {
+          note("ДР-3", "демонстрация: поправка с причиной недоступна, и лист не называет причину");
+        }
+        await лист.locator('.btn--text:has-text("Отмена")').click().catch(() => undefined);
+      }
+    }
+  }
+  /* Подпись и поправка живут в памяти вкладки: перезагрузка возвращает
+     двойник к слепку, и следующие проверки видят акт неподписанным. */
+  await page.reload({ waitUntil: "networkidle" });
+}
+
 /* --- Значки доказательности (этап Э8, ДР-7) ---------------------------------
    Пакеты приёмки и чеки R-99 в слепке — со снимками: значок у каждой строки. */
 {
