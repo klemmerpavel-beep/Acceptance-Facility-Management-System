@@ -49,6 +49,7 @@ import {
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
+import { местныйДень } from "./today.js";
 
 interface Snapshot {
   /** Факты объектов для «Выполнено N из M» (пункт 7.8), по коду; снимает руководитель. */
@@ -1734,13 +1735,15 @@ export async function addPayment(
   const транш = вид.tranches.find((строка) => строка.id === id);
   if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
 
-  const сегодня = new Date().toISOString().slice(0, 10);
+  /* Дни — местные, тем же помощником, что у листа платежа: сервер считает
+     их днём организации, и двойник не должен отказывать там, где сервер
+     пропустит (фаза 0, дефект K10). */
   const fault = paymentFault({
     amount: kopecks(input.amount),
     paidOn: input.paidOn,
-    today: сегодня,
+    today: местныйДень(),
     status: транш.status,
-    openedOn: транш.openedAt.slice(0, 10),
+    openedOn: местныйДень(new Date(транш.openedAt)),
   });
   if (fault !== null) throw new Error(fault);
 
