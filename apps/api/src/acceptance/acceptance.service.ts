@@ -5,9 +5,10 @@ import type {
 import {
   acceptanceFault, acceptedQty, acceptedTotal, accrualAmount, accrualSummary,
   accrualsByTranche, groupByDay, photoSections, kopecks, milliunits, negateQuantity, ownerLevel,
-  remainingQty, sum,
+  remainingQty, requestedByItem, sectionFault, sum,
   type Kopecks, type Milliunits, type TrancheAccrualRecord,
 } from "@priyomka/domain";
+import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -416,11 +417,72 @@ export class AcceptanceService {
   }
 
   /**
+   * Позиции пакета, сверенные с разделом и остатком.
+   *
+   * Строки сводятся по позиции до сверки остатка: остаток сверяется с суммой
+   * запроса, а не со строкой (фаза 0, дефект K2). Каждая позиция обязана
+   * лежать в разделе пакета с учётом вложенных — иначе начисление ушло бы
+   * бригаде чужого этапа (дефект K1). Первый отказ возвращается сразу.
+   *
+   * Зовётся дважды: службой базы до записи снимка — чтобы обычный отказ не
+   * оставлял файла, — и клиентом транзакции под блокировкой строк позиций.
+   * Решает второй вызов: только он видит принятое, которое не изменится до
+   * записи пакета (дефект K3).
+   */
+  private async сверить(
+    клиент: Prisma.TransactionClient,
+    estimateId: string,
+    section: { id: string; name: string },
+    верхний: ReadonlyMap<string, string>,
+    input: CreateAcceptance,
+  ) {
+    const запрошено = requestedByItem(input.positions.map((position) => ({
+      itemId: position.itemId, qty: milliunits(position.qty),
+    })));
+
+    /* Позиции берутся вместе с принятым: проверить остаток можно только
+       зная, сколько уже принято, а это сумма записей, а не поле. */
+    const items = await клиент.estimateItem.findMany({
+      where: { id: { in: [...запрошено.keys()] }, estimateId, removedAt: null },
+      select: {
+        id: true, name: true, sectionId: true, qty: true, unitWage: true,
+        unit: { select: { code: true } },
+        acceptances: { select: { qty: true } },
+      },
+    });
+    const поId = new Map(items.map((item) => [item.id, item]));
+
+    for (const [itemId, requested] of запрошено) {
+      const item = поId.get(itemId);
+      if (item === undefined) {
+        throw new NotFoundException({ message: "Позиция не найдена в действующей смете объекта." });
+      }
+      const чужая = sectionFault(item, section, верхний);
+      if (чужая !== null) throw new BadRequestException({ message: чужая });
+      const fault = acceptanceFault({
+        requested,
+        qty: milliunits(item.qty),
+        accepted: acceptedQty(item.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
+        unit: item.unit.code,
+      });
+      if (fault !== null) throw new BadRequestException({ message: `${item.name}. ${fault}` });
+    }
+    return поId;
+  }
+
+  /**
    * Завести пакет приёмки.
    *
    * Порядок проверок: доступ к объекту, смета, раздел, этап с бригадой,
-   * фотография, затем количества. Первый отказ возвращается сразу —
-   * человеку нужна одна причина, а не список.
+   * затем позиции — раздел каждой и количества. Первый отказ возвращается
+   * сразу — человеку нужна одна причина, а не список.
+   *
+   * Сверка остатка и выбор транша идут в той же транзакции, что запись, под
+   * блокировкой строк (дефект K3). Прежде принятое читалось до транзакции,
+   * а между чтением и записью стояли перекодирование и запись снимка: два
+   * одновременных пакета по одной позиции — два устройства, повтор отправки
+   * при плохой связи — оба проходили сверку и принимали больше сметы, а
+   * пакет, записанный во время закрытия транша, получал уже закрытый транш.
    */
   async create(
     user: RequestUser,
@@ -433,10 +495,19 @@ export class AcceptanceService {
 
     const section = await this.prisma.estimateSection.findFirst({
       where: { id: input.sectionId, estimateId: estimate.id },
-      select: { id: true, name: true },
+      select: { id: true, name: true, parentId: true },
     });
     if (section === null) {
       throw new NotFoundException({ message: "Раздел не найден в действующей смете объекта." });
+    }
+    /* Пакет принимается разделом верхнего уровня — тем же словом, что у
+       этапа: этап ведёт только верхний раздел, и начислять по вложенному
+       было бы некому (дефект K1). */
+    if (section.parentId !== null) {
+      throw new BadRequestException({
+        message: `«${section.name}» — вложенный раздел. Пакет принимает раздел верхнего `
+          + "уровня: позиции вложенных разделов принимаются вместе с родительским.",
+      });
     }
 
     const stage = await this.prisma.workStage.findFirst({
@@ -454,35 +525,10 @@ export class AcceptanceService {
       });
     }
 
-    /* Позиции берутся вместе с принятым: проверить остаток можно только
-       зная, сколько уже принято, а это сумма записей, а не поле. */
-    const items = await this.prisma.estimateItem.findMany({
-      where: {
-        id: { in: input.positions.map((position) => position.itemId) },
-        estimateId: estimate.id,
-        removedAt: null,
-      },
-      select: {
-        id: true, name: true, qty: true, unitWage: true,
-        unit: { select: { code: true } },
-        acceptances: { select: { qty: true } },
-      },
-    });
-    const поId = new Map(items.map((item) => [item.id, item]));
-
-    for (const position of input.positions) {
-      const item = поId.get(position.itemId);
-      if (item === undefined) {
-        throw new NotFoundException({ message: "Позиция не найдена в действующей смете объекта." });
-      }
-      const fault = acceptanceFault({
-        requested: milliunits(position.qty),
-        qty: milliunits(item.qty),
-        accepted: acceptedQty(item.acceptances.map((row) => ({ qty: milliunits(row.qty) }))),
-        unit: item.unit.code,
-      });
-      if (fault !== null) throw new BadRequestException({ message: `${item.name}. ${fault}` });
-    }
+    /* Позиции относятся к разделам верхнего уровня общим правилом — той же
+       картой, по которой их раскладывает вид приёмки. */
+    const верхний = await topLevelSections(this.prisma, estimate.id);
+    await this.сверить(this.prisma, estimate.id, section, верхний, input);
 
     /* Ключ собирает сервер из опознавателя объекта, а не из его кода:
        код содержит заглавные буквы, а правило ключей хранилища их не
@@ -493,70 +539,96 @@ export class AcceptanceService {
        квартиры заказчика уходили вместе со снимком отчёта (П-39). */
     await this.storage.put(key, await безМетаданных(photo.buffer, photo.contentType), photo.contentType);
 
-    /* Транш проставляется снимком, как и бригада: открытие транша задним
-       числом не должно переписывать уже принятое (БП-04). Открытого транша
-       нет — пакет остаётся без него и попадает в разрез «вне транша».
-       Отсутствие транша приёмку не запрещает: прораб не заводит транши, и
-       отказать ему за то, чего он не делает, значило бы остановить работу. */
-    const транш = await this.prisma.tranche.findFirst({
-      where: { projectId: project.id, status: "OPEN" },
-      select: { id: true },
-    });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        /* Строки позиций блокируются в порядке опознавателя: два пакета с
+           общими позициями берут их в одном порядке и друг друга не
+           запирают. Второй пакет ждёт первого и затем читает принятое уже
+           с его записями. Значения уходят параметрами запроса, а не
+           текстом SQL. */
+        const позиции = [...new Set(input.positions.map((position) => position.itemId))];
+        await tx.$queryRaw`
+          SELECT "id" FROM "estimate_items"
+          WHERE "id" = ANY(${позиции}::uuid[])
+          ORDER BY "id"
+          FOR UPDATE`;
+        const поId = await this.сверить(tx, estimate.id, section, верхний, input);
 
-    await this.prisma.$transaction(async (tx) => {
-      const batch = await tx.acceptanceBatch.create({
-        data: {
-          projectId: project.id,
-          sectionId: section.id,
-          brigadeId,
-          trancheId: транш?.id ?? null,
-          createdById: user.id,
-          ...(input.comment === undefined ? {} : { comment: input.comment }),
-        },
-        select: { id: true },
-      });
+        /* Транш проставляется снимком, как и бригада: открытие транша задним
+           числом не должно переписывать уже принятое (БП-04). Открытого транша
+           нет — пакет остаётся без него и попадает в разрез «вне транша».
+           Отсутствие транша приёмку не запрещает: прораб не заводит транши, и
+           отказать ему за то, чего он не делает, значило бы остановить работу.
 
-      await tx.acceptancePhoto.create({
-        data: {
-          batchId: batch.id,
-          storageKey: key,
-          fileName: photo.fileName,
-          contentType: photo.contentType,
-          byteSize: photo.buffer.byteLength,
-          uploadedById: user.id,
-        },
-      });
+           Строка открытого транша читается с разделяемой блокировкой: два
+           пакета друг друга не ждут, закрытие транша ждёт записи пакета, а
+           пакет после закрытия транша его уже не находит. */
+        const [транш] = await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "tranches"
+          WHERE "projectId" = ${project.id}::uuid AND "status" = 'OPEN'
+          FOR SHARE`;
 
-      for (const position of input.positions) {
-        const item = поId.get(position.itemId);
-        if (item === undefined) continue;
-        const qty = milliunits(position.qty);
-        const acceptance = await tx.acceptance.create({
-          data: { batchId: batch.id, itemId: item.id, qty, createdById: user.id },
+        const batch = await tx.acceptanceBatch.create({
+          data: {
+            projectId: project.id,
+            sectionId: section.id,
+            brigadeId,
+            trancheId: транш?.id ?? null,
+            createdById: user.id,
+            ...(input.comment === undefined ? {} : { comment: input.comment }),
+          },
           select: { id: true },
         });
-        /* Ставка копируется снимком (БП-03): правка сметы задним числом
-           не переписывает начисленное. */
-        await tx.wageAccrual.create({
+
+        await tx.acceptancePhoto.create({
           data: {
-            acceptanceId: acceptance.id,
-            brigadeId,
-            unitWage: item.unitWage,
-            amount: accrualAmount(kopecks(item.unitWage), qty),
+            batchId: batch.id,
+            storageKey: key,
+            fileName: photo.fileName,
+            contentType: photo.contentType,
+            byteSize: photo.buffer.byteLength,
+            uploadedById: user.id,
           },
         });
-      }
 
-      await this.audit.record({
-        orgId: user.orgId,
-        actorId: user.id,
-        entity: "AcceptanceBatch",
-        entityId: batch.id,
-        field: `приёмка: ${section.name}, этап «${stage?.name ?? ""}»`,
-        oldValue: null,
-        newValue: `позиций ${String(input.positions.length)}`,
-      }, tx);
-    });
+        for (const position of input.positions) {
+          const item = поId.get(position.itemId);
+          if (item === undefined) continue;
+          const qty = milliunits(position.qty);
+          const acceptance = await tx.acceptance.create({
+            data: { batchId: batch.id, itemId: item.id, qty, createdById: user.id },
+            select: { id: true },
+          });
+          /* Ставка копируется снимком (БП-03): правка сметы задним числом
+             не переписывает начисленное. */
+          await tx.wageAccrual.create({
+            data: {
+              acceptanceId: acceptance.id,
+              brigadeId,
+              unitWage: item.unitWage,
+              amount: accrualAmount(kopecks(item.unitWage), qty),
+            },
+          });
+        }
+
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "AcceptanceBatch",
+          entityId: batch.id,
+          field: `приёмка: ${section.name}, этап «${stage?.name ?? ""}»`,
+          oldValue: null,
+          newValue: `позиций ${String(input.positions.length)}`,
+        }, tx);
+      });
+    } catch (error) {
+      /* Пакет не записался — его снимок никому не принадлежит. Отказ под
+         блокировкой бывает, когда параллельный пакет принял остаток первым;
+         такой снимок убирается сразу, а не ждёт уборки. Сбой удаления не
+         заслоняет причину отказа. */
+      await this.storage.remove(key).catch(() => undefined);
+      throw error;
+    }
 
     return this.build(user, project.id);
   }
