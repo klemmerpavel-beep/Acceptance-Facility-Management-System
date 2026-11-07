@@ -122,6 +122,13 @@ export const requestSmsCode = (phone: string): Promise<SmsCodeIssued> =>
 export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true }> =>
   request("/auth/phone/confirm", z.object({ ok: z.literal(true) }), json({ phone, code }));
 
+/**
+ * Обмен ссылки входа на сессию: токен — в теле, а не в адресе запроса
+ * (ADR-0008, п. 2; П-61). Кука ставится сервером.
+ */
+export const consumeLink = (token: string): Promise<{ ok: true }> =>
+  request("/auth/consume", z.object({ ok: z.literal(true) }), json({ token }));
+
 export const fetchOrganization = (): Promise<Organization> =>
   request("/organization", organizationSchema);
 

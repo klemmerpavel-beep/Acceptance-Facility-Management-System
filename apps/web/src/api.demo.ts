@@ -604,6 +604,15 @@ export async function confirmSmsCode(): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+/* Ссылка входа демонстрации — того же вида, что настоящая (`/#login/<токен>`),
+   и ровно так же ничего не открывает без сервера: двойник доступа не
+   создаёт. Экран входа по ссылке показывает этот отказ и ведёт к входу по
+   коду, который в демонстрации показан на экране. */
+export async function consumeLink(): Promise<{ ok: true }> {
+  await pause();
+  throw new Error("Демонстрация не выдаёт доступа: ссылка входа открывается только в рабочей системе. Войдите по номеру телефона — код показан на экране.");
+}
+
 export async function fetchOrganization(): Promise<Organization> {
   await pause(40);
   return data.organization;

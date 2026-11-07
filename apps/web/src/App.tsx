@@ -6,7 +6,7 @@ import {
   fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchInbox, fetchProjects, logout, markInboxSeen,
   setProjectStatus, errorMessage,
 } from "./api.js";
-import { SignIn } from "./SignIn.js";
+import { LinkSignIn, SignIn } from "./SignIn.js";
 import { Dashboard } from "./Dashboard.js";
 import { FilteredEventFeed } from "./FeedFilter.js";
 import { Contacts } from "./Contacts.js";
@@ -23,11 +23,13 @@ import { Settings } from "./Settings.js";
 import { ClientGuide } from "./ClientGuide.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
-import { адрес, простойЩелчок, разобрать, type Вкладка, type ОтборАдреса } from "./route.js";
+import { адрес, простойЩелчок, разобрать, токенВхода, type Вкладка, type ОтборАдреса } from "./route.js";
 
 type State =
   | { kind: "loading" }
   | { kind: "anonymous" }
+  /** Открыта ссылка входа `/#login/<токен>`: обмен идёт до того, как спросить «кто я». */
+  | { kind: "link"; token: string }
   | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
 
 /**
@@ -82,7 +84,12 @@ function применитьАдрес(hash: string, среда: {
 }
 
 export function App(): React.JSX.Element {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  /* Ссылка входа читается из адреса до первой отрисовки: «кто я» без сессии
+     ответил бы отказом и показал форму номера вместо входа по ссылке. */
+  const [state, setState] = useState<State>(() => {
+    const token = токенВхода(window.location.hash);
+    return token === null ? { kind: "loading" } : { kind: "link", token };
+  });
   /** Раздел, открытый объект и его вкладка хранятся состоянием, а адрес
    *  `#R-99/estimate` выводится из них (`route.ts`, П-50): роутер не
    *  вводится, хватает истории браузера. */
@@ -179,7 +186,13 @@ export function App(): React.JSX.Element {
     })();
   };
 
-  useEffect(load, []);
+  /* Страница, открытая ссылкой входа, грузит вошедшего после обмена
+     (`LinkSignIn`), а не сразу: «кто я» до обмена ответил бы отказом. Признак
+     берётся с первой отрисовки — к эффекту оболочки экран ссылки уже стёр
+     фрагмент из адреса. */
+  const открытаСсылкой = useRef(state.kind === "link");
+  const первыйЗаход = (): void => { if (!открытаСсылкой.current) load(); };
+  useEffect(первыйЗаход, []);
 
   /* Адрес — следствие состояния. Переход внутри продукта кладёт запись в
      историю браузера, и «Назад» ведёт на прежний экран продукта, а не прочь
@@ -239,6 +252,15 @@ export function App(): React.JSX.Element {
   }
 
   if (state.kind === "anonymous") return <SignIn onSignedIn={load} />;
+  if (state.kind === "link") {
+    return (
+      <LinkSignIn
+        token={state.token}
+        onSignedIn={load}
+        onPhone={() => { setState({ kind: "anonymous" }); }}
+      />
+    );
+  }
 
   const go = (next: Section): void => {
     setOpened(null);

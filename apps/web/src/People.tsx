@@ -5,6 +5,7 @@ import { Announce } from "./Announce.js";
 import { useModalDialog } from "./modal.js";
 import { завести } from "./verbs.js";
 import { отобрать, type СОтбором } from "./FilterBar.js";
+import { ссылкаВхода } from "./route.js";
 
 /**
  * Люди организации: кто имеет вход и с какой ролью.
@@ -41,9 +42,14 @@ const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
   CLIENT: "свой объект: ход работ, смета и бумаги",
 };
 
-/** Адрес личной ссылки входа: обмен на сессию идёт через тот же узел. */
+/**
+ * Адрес личной ссылки входа: приложение с токеном во фрагменте —
+ * `/#login/<токен>` (ADR-0008, п. 2; П-61). Прежде ссылка вела на
+ * `/api/auth/consume?token=…`, и токен оседал в журнале доступа nginx.
+ * Фрагмент на сервер не уходит; обмен идёт телом `POST` с экрана входа.
+ */
 export const адресСсылки = (token: string): string =>
-  `${window.location.origin}/api/auth/consume?token=${token}`;
+  ссылкаВхода(`${window.location.origin}${window.location.pathname}`, token);
 
 /**
  * Выданная ссылка. Показывается один раз и не хранится: она равна доступу.
