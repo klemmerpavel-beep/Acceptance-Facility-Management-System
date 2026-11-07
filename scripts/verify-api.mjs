@@ -582,7 +582,17 @@ const phoneConfirm = (phone, code) =>
     body: JSON.stringify({ phone, code }),
   });
 
-const known = await phoneRequest("8 900 000-00-00").then((r) => r.json());
+/* Номер — свой, заведённый здесь, а не номер руководителя: с 07.11.2026
+   пауза повторной выдачи отсчитывается от последнего выданного кода, погашен
+   он или нет (ADR-0008, п. 5), и код, выданный руководителю здесь, лишил бы
+   обход страницы, идущий следом, входа кодом на минуту. */
+const НОМЕР_ВХОДА = "+79000000033";
+const заведёнДляКода = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Проверка входа по коду", role: "ACCOUNTANT", email: null, phone: НОМЕР_ВХОДА, clientId: null }),
+});
+check(заведёнДляКода.status === 201, `человек для проверки входа по коду заведён с кодом ${заведёнДляКода.status}`);
+const known = await phoneRequest("8 900 000-00-33").then((r) => r.json());
 const unknown = await phoneRequest("+7 999 111-22-33").then((r) => r.json());
 check(known.sent === true && unknown.sent === true, "ответ различает известный и неизвестный номер");
 // Пробелы в показном номере неразрывные: иначе он рвётся переносом строки.
@@ -598,28 +608,39 @@ check(foreignCode.status === 400, `чужой код страны принят �
 const landline = await phoneRequest("+7 473 000-00-00");
 check(landline.status === 400, `городской номер принят на вход с кодом ${landline.status}`);
 
-const wrongShape = await phoneConfirm("+79000000000", "12");
+const wrongShape = await phoneConfirm(НОМЕР_ВХОДА, "12");
 check(wrongShape.status === 400, `код из двух цифр принят с кодом ${wrongShape.status}`);
 
 // Код нельзя обменять маршрутом ссылки: там не считаются попытки.
 const asLink = await fetch(`${BASE}/auth/consume?token=${known.code}`, { redirect: "manual" });
 check(asLink.status === 401 || asLink.status === 400, `код обменен маршрутом ссылки с кодом ${asLink.status}`);
 
-const entered = await phoneConfirm("+79000000000", known.code);
+const entered = await phoneConfirm(НОМЕР_ВХОДА, known.code);
 check(entered.status === 201 || entered.status === 200, `вход по коду отклонён с кодом ${entered.status}`);
 const phoneSession = /priyomka_session=([^;]+)/u.exec(entered.headers.get("set-cookie") ?? "")?.[1];
 check(Boolean(phoneSession), "вход по коду не выдал сессию");
 
-const reused = await phoneConfirm("+79000000000", known.code);
+const reused = await phoneConfirm(НОМЕР_ВХОДА, known.code);
 check(reused.status === 401, `погашенный код принят повторно с кодом ${reused.status}`);
 
-// Пять неверных попыток гасят код: шесть цифр перебираются за миллион запросов.
-const guessed = await phoneRequest("+79000000000").then((r) => r.json());
+/* Пять неверных попыток гасят код: шесть цифр перебираются за миллион запросов.
+   Номер — свой, заведённый здесь: с 07.11.2026 пауза повторной выдачи
+   отсчитывается от последнего выданного кода, погашен он или нет (ADR-0008,
+   п. 5), и номер, только что вошедший кодом, нового кода раньше паузы не
+   получит. */
+const НОМЕР_ПОПЫТОК = "+79000000066";
+const заведёнДляПопыток = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Проверка попыток кода", role: "ACCOUNTANT", email: null, phone: НОМЕР_ПОПЫТОК, clientId: null }),
+});
+check(заведёнДляПопыток.status === 201, `человек для проверки попыток кода заведён с кодом ${заведёнДляПопыток.status}`);
+const guessed = await phoneRequest(НОМЕР_ПОПЫТОК).then((r) => r.json());
+check(typeof guessed.code === "string", `код для проверки попыток не выдан: ${JSON.stringify(guessed)}`);
 const wrong = guessed.code === "000000" ? "111111" : "000000";
 const attempts = [];
-for (let i = 0; i < 5; i += 1) attempts.push((await phoneConfirm("+79000000000", wrong)).status);
+for (let i = 0; i < 5; i += 1) attempts.push((await phoneConfirm(НОМЕР_ПОПЫТОК, wrong)).status);
 check(attempts.every((status) => status === 401), `попытки отдали коды ${attempts.join(", ")}`);
-const blocked = await phoneConfirm("+79000000000", guessed.code);
+const blocked = await phoneConfirm(НОМЕР_ПОПЫТОК, guessed.code ?? "000000");
 check(blocked.status === 401, `верный код принят после пяти неудач с кодом ${blocked.status}`);
 
 /* Параллельный перебор кода (полный аудит 30.09.2026, П-24) здесь не
@@ -715,6 +736,163 @@ async function дождатьсяСервера(адрес, выход) {
     const кодВыхода = await промышленный.выход;
     check(!запустился && кодВыхода !== 0 && /AUTH_ECHO=1 при NODE_ENV=production/u.test(промышленный.вывод()),
       `сервер с флагом стенда в промышленном режиме ${запустился ? "запустился" : `вышел с кодом ${String(кодВыхода)} без объяснения`}`);
+  }
+}
+
+/* --- безопасность входа: ADR-0008, K5–K7 фазы 0 (П-61 — П-63) ---------------
+   Решение заказчика — ответ 15 «б» раунда 1 фазы 0. Стражи пункта 10 ADR,
+   каждый доказан откатом (`docs/13_FULL_AUDIT.md`, строки П-61 — П-63):
+   - `POST /auth/consume` с токеном в теле открывает сессию (K5): ссылка
+     выдаётся фрагментом адреса, и токен в строку запроса не попадает;
+   - прежняя персональная ссылка после повторной выдачи — 401 (K6);
+   - после гашения кода новый не выдаётся раньше паузы (K7);
+   - шестой код на номер за час — 429, и несуществующему номеру тоже (K7);
+   - ссылка по почте сверх предела строки не заводит и отвечает как обычно (K7).
+   Что ссылка из «Людей» несёт токен только во фрагменте, проверяют
+   `route.test.ts` и обход страницы: адрес ссылки собирает клиент, сервер
+   отдаёт один токен. Ступень nginx — работа CI «Поставка».
+   -------------------------------------------------------------------------- */
+{
+  const вТеле = (тело) => ({
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const обменятьТелом = (токен, адрес = BASE) => fetch(`${адрес}/auth/consume`, вТеле({ token: токен }));
+  const кукаИз = (ответ) => ответ.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const ктоПоКуке = (кука) => fetch(`${BASE}/auth/me`, { headers: { cookie: кука } });
+  /* Люди заводятся бухгалтерами: прораб, заведённый проверкой, встал бы в
+     выбор прораба нового объекта, и обход страницы, идущий следом, получил
+     бы на плитке чужое длинное имя. Вход ссылкой и кодом от роли не зависит. */
+  const завестиДляВхода = async (тело) => {
+    const ответ = await owner("/people", вТеле({ clientId: null, email: null, phone: null, ...тело }));
+    check(ответ.status === 201, `ADR-0008: человек «${тело.name}» заведён с кодом ${ответ.status}`);
+    return ответ.status === 201 ? (await ответ.json()).token : "";
+  };
+
+  /* K5 и K6: обмен телом и отзыв прежней ссылки повторной выдачей. */
+  const ИМЯ_K6 = "Проверка K6: ссылка";
+  const первая = await завестиДляВхода({ name: ИМЯ_K6, role: "ACCOUNTANT", email: "k6-proverka@dolgiy.studio" });
+  const вход = await обменятьТелом(первая);
+  check(вход.status === 201 || вход.status === 200, `K5: POST /auth/consume с токеном в теле ответил ${вход.status}`);
+  const кука = кукаИз(вход);
+  const кто = await ктоПоКуке(кука).then((r) => (r.ok ? r.json() : {}));
+  check(кто.name === ИМЯ_K6, `K5: POST /auth/consume не открыл сессию человека ссылки: «/auth/me» — ${JSON.stringify(кто)}`);
+  const второйРаз = await обменятьТелом(первая);
+  check(второйРаз.ok, `персональная ссылка перестала быть многоразовой (решение № 1): второй обмен — ${второйРаз.status}`);
+  const безТокена = await fetch(`${BASE}/auth/consume`, вТеле({}));
+  check(безТокена.status === 400, `K5: POST /auth/consume без токена ответил ${безТокена.status}, а не 400`);
+
+  const перевыдана = await owner(`/people/${String(кто.id)}/link`, вТеле({}));
+  check(перевыдана.status === 201, `K6: повторная выдача ссылки ответила ${перевыдана.status}`);
+  const { token: вторая = "" } = перевыдана.status === 201 ? await перевыдана.json() : {};
+  const прежняяТелом = await обменятьТелом(первая);
+  check(прежняяТелом.status === 401,
+    `K6: прежняя ссылка после повторной выдачи открыла вход телом — код ${прежняяТелом.status}, а не 401`);
+  const прежняяАдресом = await fetch(`${BASE}/auth/consume?token=${первая}`, { redirect: "manual" });
+  check(прежняяАдресом.status === 401,
+    `K6: прежняя ссылка после повторной выдачи открыла вход переходным GET — код ${прежняяАдресом.status}, а не 401`);
+  const новая = await обменятьТелом(вторая);
+  check(новая.ok, `K6: новая ссылка после повторной выдачи не открыла вход: ${новая.status}`);
+  /* Переходный GET для действующей ссылки работает: ранее выданные ссылки
+     живут до снятия GET (ADR-0008, п. 3; дата снятия — решение заказчика). */
+  const переходный = await fetch(`${BASE}/auth/consume?token=${вторая}`, { redirect: "manual" });
+  check(переходный.status === 302, `K5: переходный GET /auth/consume для действующей ссылки ответил ${переходный.status}`);
+  /* Сессия, открытая прежней ссылкой, по умолчанию ADR-0008 живёт до срока;
+     её судьба — вопрос заказчику при приёмке, поэтому здесь она называется,
+     а не стережётся. */
+  const сессияПрежней = (await ктоПоКуке(кука)).status;
+  console.log(`K6: сессия, открытая прежней ссылкой, после повторной выдачи — ${сессияПрежней === 200
+    ? "действует до срока (умолчание ADR-0008 до ответа заказчика)" : `код ${String(сессияПрежней)}`}`);
+
+  /* K7: пауза — от последнего выданного кода, погашен он или нет. */
+  const НОМЕР_ПАУЗЫ = "+79000000055";
+  await завестиДляВхода({ name: "Проверка K7: пауза", role: "ACCOUNTANT", phone: НОМЕР_ПАУЗЫ });
+  const первыйКод = await phoneRequest(НОМЕР_ПАУЗЫ).then((r) => r.json());
+  check(typeof первыйКод.code === "string", `K7: первый код на свежий номер не выдан: ${JSON.stringify(первыйКод)}`);
+  const погашен = await phoneConfirm(НОМЕР_ПАУЗЫ, первыйКод.code ?? "000000");
+  check(погашен.ok, `K7: вход по первому коду отклонён с кодом ${погашен.status}`);
+  const сразу = await phoneRequest(НОМЕР_ПАУЗЫ);
+  const сразуТело = await сразу.json();
+  check(сразу.ok && сразуТело.code === undefined && сразуТело.retryAfterSeconds > 0,
+    `K7: после гашения кода новый выдан раньше паузы: ${сразу.status} ${JSON.stringify(сразуТело)}`);
+  const НЕТ_ТАКОГО_НОМЕРА = "+79990000055";
+  await phoneRequest(НЕТ_ТАКОГО_НОМЕРА);
+  const чужойСразу = await phoneRequest(НЕТ_ТАКОГО_НОМЕРА).then((r) => r.json());
+  check(Object.keys(чужойСразу).sort().join() === Object.keys(сразуТело).sort().join()
+    && чужойСразу.retryAfterSeconds > 0 && чужойСразу.retryAfterSeconds <= 60,
+    `K7: пауза несуществующего номера отвечает иначе: ${JSON.stringify(чужойСразу)} против ${JSON.stringify(сразуТело)}`);
+
+  /* K7: предел кодов на номер за час — 429. Пять кодов при паузе в минуту
+     выдаются пять минут, поэтому предел проверяется вторым экземпляром той
+     же сборки с паузой в секунду и пределами по умолчанию — теми, что
+     действуют в поставке. Строки счёта — в той же базе. */
+  const НОМЕР_ПРЕДЕЛА = "+79000000044";
+  await завестиДляВхода({ name: "Проверка K7: предел", role: "ACCOUNTANT", phone: НОМЕР_ПРЕДЕЛА });
+  if (!existsSync(СЕРВЕР)) {
+    check(false, `сборки сервера нет (${СЕРВЕР}) — предел кодов на номер не проверен`);
+  } else {
+    const окружение = { ...process.env, PORT: "3093", AUTH_SMS_RESEND_SECONDS: "1" };
+    for (const имя of ["AUTH_SMS_PER_HOUR", "AUTH_SMS_PER_DAY", "AUTH_LINKS_PER_HOUR"]) delete окружение[имя];
+    const третий = поднятьСервер(окружение);
+    const адрес = "http://127.0.0.1:3093";
+    const поднят = await дождатьсяСервера(адрес, третий.выход);
+    check(поднят, `сервер с паузой кода в секунду не поднялся: ${третий.вывод().slice(-300)}`);
+    if (поднят) {
+      const шестьЗапросов = async (номер) => {
+        const ответы = [];
+        for (let i = 0; i < 6; i += 1) {
+          if (i > 0) await new Promise((готово) => { setTimeout(готово, 1100); });
+          const ответ = await fetch(`${адрес}/auth/phone/request`, вТеле({ phone: номер }));
+          ответы.push({ status: ответ.status, тело: await ответ.json().catch(() => ({})) });
+        }
+        return ответы;
+      };
+      const [свой, чужой] = await Promise.all([шестьЗапросов(НОМЕР_ПРЕДЕЛА), шестьЗапросов("+79990000044")]);
+      const выдано = свой.slice(0, 5).filter((ответ) => typeof ответ.тело.code === "string").length;
+      check(выдано === 5, `K7: при паузе в секунду выдано ${выдано} кодов из пяти — предел проверен не на выдаче`);
+      const шестой = свой[5] ?? { status: 0, тело: {} };
+      check(шестой.status === 429 && /^Слишком много запросов\. Повторите через \d+ мин\.$/u.test(шестой.тело.message ?? ""),
+        `K7: шестой код на номер за час — ${шестой.status} ${JSON.stringify(шестой.тело)}, а не 429 с числом минут`);
+      check(чужой.map((ответ) => ответ.status).join() === свой.map((ответ) => ответ.status).join()
+        && чужой[5]?.тело.message === шестой.тело.message,
+        `K7: несуществующий номер отвечает на предел иначе: ${чужой.map((ответ) => ответ.status).join()} против ${свой.map((ответ) => ответ.status).join()}`);
+    }
+    третий.процесс.kill();
+    await третий.выход;
+  }
+
+  /* K7: ссылки по почте — не больше пяти непогашенных за час; сверх предела
+     ответ прежний, строки нет. Строки считаются в базе: ответ сверх предела
+     нарочно неотличим от обычного, и снаружи разницу не увидеть. */
+  const ПОЧТА_ПИСЕМ = "k7-pisma@dolgiy.studio";
+  await завестиДляВхода({ name: "Проверка K7: письма", role: "ACCOUNTANT", email: ПОЧТА_ПИСЕМ });
+  if (process.env.DATABASE_URL === undefined) {
+    check(false, "K7: нет DATABASE_URL — строки ссылок по почте не сосчитать");
+  } else {
+    const { PrismaClient } = createRequire(new URL("../apps/api/package.json", import.meta.url))("@prisma/client");
+    const база = new PrismaClient();
+    const строк = () => база.authToken.count({ where: { user: { email: ПОЧТА_ПИСЕМ }, purpose: "MAGIC_LINK" } });
+    const письмо = async (почта) => {
+      const ответ = await fetch(`${BASE}/auth/magic-link`, вТеле({ email: почта }));
+      return { status: ответ.status, тело: await ответ.json() };
+    };
+    const пять = [];
+    for (let i = 0; i < 5; i += 1) пять.push(await письмо(ПОЧТА_ПИСЕМ));
+    check(пять.every((ответ) => typeof ответ.тело.token === "string"),
+      `K7: из пяти ссылок по почте выдано ${пять.filter((ответ) => typeof ответ.тело.token === "string").length}`);
+    const до = await строк();
+    const шестая = await письмо(ПОЧТА_ПИСЕМ);
+    const после = await строк();
+    const никому = await письмо("nikogo-net-k7@dolgiy.studio");
+    check(после === до, `K7: шестая ссылка на адрес за час завела строку (${до} → ${после})`);
+    check(шестая.status === никому.status && JSON.stringify(шестая.тело) === JSON.stringify(никому.тело)
+      && шестая.тело.sent === true && шестая.тело.token === undefined,
+      `K7: ответ сверх предела отличается от обычного: ${JSON.stringify(шестая)} против ${JSON.stringify(никому)}`);
+    /* Погашенная ссылка в счёт не идёт: она привела к входу и рассылкой не была. */
+    await обменятьТелом(пять[0]?.тело.token ?? "");
+    const седьмая = await письмо(ПОЧТА_ПИСЕМ);
+    check(typeof седьмая.тело.token === "string",
+      "K7: погашенная ссылка держит место в пределе — вошедший по письму нового письма не получит");
+    await база.$disconnect();
   }
 }
 
