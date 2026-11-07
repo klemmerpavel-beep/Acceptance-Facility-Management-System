@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { AcceptanceLine, ClosedTranches } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
 import { useModalDialog } from "./modal.js";
-import { предупреждениеОЗакрытых } from "./closed-tranches.js";
+import { предупреждениеОЗакрытых, сторноЗапрещено } from "./closed-tranches.js";
 
 /**
  * Сторно приёмки — право руководителя и только с причиной.
@@ -34,7 +34,10 @@ export function ReversalSheet({
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
   const [reason, setReason] = useState("");
-  const ready = reason.trim().length > 0;
+  /* Пакет подписанного акта не сторнируется (этап Э9, ДР-3): лист говорит
+     это до отправки и не даёт отправить — сервер откажет и сам. */
+  const запрещено = сторноЗапрещено(closed, tranche);
+  const ready = reason.trim().length > 0 && !запрещено;
   const предупреждение = предупреждениеОЗакрытых(closed, { транш: tranche });
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {

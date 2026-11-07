@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   fetchAcceptance, fetchActs, fetchClients, fetchDashboard, fetchEstimate, fetchEvents, fetchExpenses,
-  fetchForemen, fetchImports, fetchProject, fetchProjects, fetchReport, fetchStages, fetchTranches,
-  fetchWorkers, setDemoRole, type DemoRole,
+  fetchForemen, fetchImports, fetchMeasure, fetchProject, fetchProjects, fetchReport, fetchStages,
+  fetchTranches, fetchWorkers, setDemoRole, type DemoRole,
 } from "./api.demo.js";
+import { measureViewSchema } from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 /**
@@ -126,5 +127,35 @@ describe("двойник: внутренние величины не доход�
   it("руководителю внутренние величины приходят: отбор проверен не на пустом ответе", async () => {
     setDemoRole("OWNER");
     expect(внутренниеКлючи(await fetchEstimate("R-99")).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Обмер двойник считает сам — тем же доменом, что сервер, — а не берёт
+ * производные из слепка. Мерилом служат числа сервера в слепке: съёмка
+ * ходила на стенд, и площадь стен брутто и нетто, объём и итоги, снятые
+ * там, есть то, что сервер отдаёт. Двойник, забывший вычесть проёмы или
+ * вычитающий их из брутто, разойдётся здесь, а не на демонстрации у
+ * заказчика (этап Э11, шаг 1).
+ */
+describe("двойник: обмер считается как на сервере", () => {
+  it.each([
+    ["INITIAL", snapshot.measure],
+    ["REPLANNED", snapshot["measure-replanned"]],
+  ] as const)("набор %s", async (набор, снято) => {
+    setDemoRole("OWNER");
+    const вид = measureViewSchema.parse(await fetchMeasure("R-99", набор));
+    const производные = (комнаты: readonly { name: string; wallArea: string; volume: string }[]) =>
+      комнаты.map((комната) => ({
+        name: комната.name,
+        wallArea: комната.wallArea,
+        wallAreaNet: (комната as { wallAreaNet?: string }).wallAreaNet,
+        volume: комната.volume,
+      }));
+    expect(производные(вид.rooms)).toEqual(производные(снято.rooms));
+    expect(вид.totals).toEqual(снято.totals);
+    // Проёмы на стенде есть, поэтому нетто обязана быть меньше брутто:
+    // равенство значило бы, что вычет потерян по дороге.
+    expect(BigInt(вид.totals.wallAreaNet)).toBeLessThan(BigInt(вид.totals.wallArea));
   });
 });

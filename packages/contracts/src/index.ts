@@ -119,6 +119,15 @@ export const organizationSchema = z.object({
 });
 export type Organization = z.infer<typeof organizationSchema>;
 
+/**
+ * Как связаться с организацией (этап Э8, ДР-11): название, телефон и почта —
+ * блок «Как связаться» на экране первого входа заказчика. Узкий ответ, а не
+ * карточка организации целиком: реквизиты, часовой пояс и знак заказчику
+ * на этом экране не нужны, а карточка открыта только внутренним ролям.
+ */
+export const organizationContactsSchema = organizationSchema.pick({ name: true, phone: true, email: true });
+export type OrganizationContacts = z.infer<typeof organizationContactsSchema>;
+
 /** Правка организации: пустая строка в необязательном поле означает «стереть». */
 export const updateOrganizationSchema = z.object({
   name: z.string().trim().min(1, "Название обязательно").max(200).optional(),
@@ -1022,10 +1031,11 @@ export type UpdateSupervision = z.infer<typeof updateSupervisionSchema>;
 /**
  * Закрытые транши объекта и позиции, принятые в них.
  *
- * Акт следует за сметой: правка цены принятой позиции или надбавки меняет
- * суммы уже закрытых траншей и строки выпущенных актов (полный аудит
- * 30.09.2026, П-27). Решение заказчика от 01.10.2026 — оставить так и
- * предупреждать: листы правки позиции и надбавки называют, что изменится.
+ * Неподписанный акт следует за сметой: правка цены принятой позиции или
+ * надбавки меняет суммы закрытых траншей и строки актов (полный аудит
+ * 30.09.2026, П-27). Решение заказчика от 01.10.2026 — предупреждать: листы
+ * правки позиции и надбавки называют, что изменится. Подписанный акт с этапа
+ * Э9 (ДР-3) зафиксирован и правкой не меняется — лист называет и его.
  * Транш без принятых позиций (предоплата) правкой не задевается и сюда не
  * входит.
  */
@@ -1035,6 +1045,11 @@ export const closedTranchesSchema = z.object({
     paid: z.boolean(),
     /** День подписания акта заказчиком. `null` — акт не подписан. */
     signedAt: z.string().nullable(),
+    /**
+     * Акт зафиксирован (этап Э9, ДР-3): правка сметы его не меняет, сторно
+     * пакета запрещено — исправление идёт поправкой в текущем транше.
+     */
+    fixed: z.boolean(),
     /** Позиции сметы, принятые в этом транше, включая сторно. */
     items: z.array(z.string().uuid()),
   })),
@@ -1083,8 +1098,16 @@ export const measureRoomSchema = z.object({
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   height: measureAmountSchema,
-  /** Выводится сервером из четырёх величин выше. Клиент их не считает. */
+  /**
+   * Площадь стен брутто — без вычета проёмов. Выводится сервером из четырёх
+   * величин выше. Клиент их не считает.
+   */
   wallArea: measureAmountSchema,
+  /**
+   * Площадь стен нетто — брутто за вычетом площади проёмов помещения, не
+   * ниже нуля (этап Э11, шаг 1). Выводится сервером тем же доменом.
+   */
+  wallAreaNet: measureAmountSchema,
   volume: measureAmountSchema,
   openings: z.array(measureOpeningSchema),
 });
@@ -1101,7 +1124,10 @@ export type OpeningTotals = z.infer<typeof openingTotalsSchema>;
 export const measureTotalsSchema = z.object({
   rooms: z.number().int().nonnegative(),
   floorArea: measureAmountSchema,
+  /** Брутто объекта — сумма брутто помещений. */
   wallArea: measureAmountSchema,
+  /** Нетто объекта — сумма нетто помещений, а не брутто минус проёмы объекта. */
+  wallAreaNet: measureAmountSchema,
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   volume: measureAmountSchema,
@@ -1378,6 +1404,11 @@ export type AcceptanceView = z.infer<typeof acceptanceViewSchema>;
  * Заведение пакета. Раздел, отмеченные позиции с количествами и
  * необязательный комментарий; фотография приходит тем же запросом отдельной
  * частью, поэтому в схеме её нет.
+ *
+ * Позиция отмечается в пакете один раз. Повтор проходил проверку остатка
+ * строкой за строкой: две строки одной позиции на весь остаток принимали
+ * вдвое больше сметы (фаза 0, дефект K2; БП-02). Экран повтора не
+ * формирует — отказ стоит для прямого запроса и называет строку повтора.
  */
 export const createAcceptanceSchema = z.object({
   sectionId: z.string().uuid(),
@@ -1385,7 +1416,19 @@ export const createAcceptanceSchema = z.object({
   positions: z.array(z.object({
     itemId: z.string().uuid(),
     qty: milliunitsString,
-  })).min(1, "Отметьте хотя бы одну позицию."),
+  })).min(1, "Отметьте хотя бы одну позицию.").superRefine((позиции, ctx) => {
+    const отмечены = new Set<string>();
+    позиции.forEach((позиция, номер) => {
+      if (отмечены.has(позиция.itemId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [номер, "itemId"],
+          message: "Позиция отмечена в пакете дважды. Отметьте её один раз с общим количеством.",
+        });
+      }
+      отмечены.add(позиция.itemId);
+    });
+  }),
 });
 export type CreateAcceptance = z.infer<typeof createAcceptanceSchema>;
 
@@ -1641,6 +1684,11 @@ export type AccountingRow = z.infer<typeof accountingRowSchema>;
    ------------------------------------------------------------------------ */
 
 export const actLineSchema = z.object({
+  /**
+   * Строка снимка подписанного акта (этап Э9, ДР-3): к ней пишется поправка.
+   * `null` — акт не зафиксирован, строка собрана из приёмок на лету.
+   */
+  id: z.string().uuid().nullable(),
   name: z.string(),
   unit: z.string(),
   qty: milliunitsString,
@@ -1654,6 +1702,47 @@ export const actLineSchema = z.object({
 });
 export type ActLine = z.infer<typeof actLineSchema>;
 
+/**
+ * Поправка к подписанному акту, вошедшая в этот акт (этап Э9, ДР-3).
+ *
+ * Подписанный акт не меняется; его ошибка исправляется строкой следующего
+ * акта: «было → стало» и разница суммой по работам, без надбавки, — надбавка
+ * начисляется на итог работ этого акта вместе со строками. Причина печатается
+ * в акте: заказчик подписывает и её. Внутренних величин у поправки нет —
+ * она меняет только сумму для заказчика.
+ */
+export const actCorrectionSchema = z.object({
+  id: z.string().uuid(),
+  /** Строка подписанного акта, которую поправка исправляет. */
+  lineId: z.string().uuid(),
+  /** Номер подписанного акта, который поправка исправляет. */
+  act: z.number().int().nonnegative(),
+  /** Номер акта, в который поправка входит: акт транша, открытого при записи. */
+  into: z.number().int().nonnegative(),
+  name: z.string(),
+  unit: z.string(),
+  qtyBefore: milliunitsString,
+  qtyAfter: milliunitsString,
+  priceBefore: kopecksString,
+  priceAfter: kopecksString,
+  /** Разница по работам: стало минус было. Отрицательная уменьшает акт. */
+  total: kopecksString,
+  reason: z.string(),
+  createdAt: z.string().date(),
+});
+export type ActCorrection = z.infer<typeof actCorrectionSchema>;
+
+/** Запись поправки к строке подписанного акта. */
+export const createActCorrectionSchema = z.object({
+  lineId: z.string().uuid(),
+  qty: milliunitsString,
+  unitPrice: kopecksString,
+  reason: z.string().trim()
+    .min(1, "Причина поправки обязательна: заказчик прочтёт её в акте.")
+    .max(280, "Причина длиннее 280 знаков"),
+});
+export type CreateActCorrection = z.infer<typeof createActCorrectionSchema>;
+
 export const actViewSchema = z.object({
   /** Вид: клиентский или внутренний. */
   audience: z.enum(["client", "internal"]),
@@ -1663,6 +1752,11 @@ export const actViewSchema = z.object({
   /** Дата закрытия транша: ею акт и датируется. */
   closedAt: z.string().date(),
   signedAt: z.string().date().nullable(),
+  /**
+   * День фиксации (этап Э9, ДР-3): первая отметка подписания. С него строки
+   * акта — снимок и правкой сметы не меняются. `null` — акт следует за сметой.
+   */
+  fixedAt: z.string().date().nullable(),
   project: z.object({ code: z.string(), address: z.string() }),
   client: z.object({ name: z.string(), requisites: z.string().nullable() }),
   contractor: z.object({
@@ -1672,6 +1766,13 @@ export const actViewSchema = z.object({
     requisites: z.string().nullable(),
   }),
   lines: z.array(actLineSchema),
+  /** Поправки к подписанным актам, вошедшие в этот акт. Входят в «Работы». */
+  corrections: z.array(actCorrectionSchema),
+  /**
+   * Поправки к строкам этого акта, если он подписан: где и чем исправлен.
+   * В его суммы не входят — подписанный акт не меняется.
+   */
+  amendments: z.array(actCorrectionSchema),
   totals: z.object({
     works: kopecksString,
     supervisionShare: z.number().int().nonnegative(),
@@ -1695,8 +1796,12 @@ export const actRowSchema = z.object({
    */
   closedTime: z.string(),
   signedAt: z.string().date().nullable(),
+  /** День фиксации акта (этап Э9, ДР-3). `null` — акт следует за сметой. */
+  fixedAt: z.string().date().nullable(),
   paidAt: z.string().nullable(),
   positions: z.number().int().nonnegative(),
+  /** Поправок к подписанным актам, вошедших в этот акт. */
+  corrections: z.number().int().nonnegative(),
   total: kopecksString,
   /**
    * Скан подписанного экземпляра (план, пункт 4.10): тип файла и день

@@ -1,5 +1,5 @@
 import type {
-  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, InviteUser, IssuedDocument, PersonRow,
+  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, OrganizationContacts, InviteUser, IssuedDocument, PersonRow,
   ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
@@ -9,7 +9,7 @@ import {
   actListSchema, actViewSchema,
   blueprintRowSchema, blueprintViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
-  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema,
+  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema, organizationContactsSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectFactsSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -124,6 +124,10 @@ export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true 
 
 export const fetchOrganization = (): Promise<Organization> =>
   request("/organization", organizationSchema);
+
+/** Как связаться с организацией — экран первого входа заказчика (ДР-11). */
+export const fetchOrganizationContacts = (): Promise<OrganizationContacts> =>
+  request("/organization/contacts", organizationContactsSchema);
 
 export const saveOrganization = (patch: UpdateOrganization): Promise<Organization> =>
   request("/organization", organizationSchema, { ...json(patch), method: "PATCH" });
@@ -294,6 +298,17 @@ export const fetchAct = (
 
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
+
+/**
+ * Поправка к строке подписанного акта (этап Э9, ДР-3): входит строкой в акт
+ * открытого транша. Подписанный акт не меняется.
+ */
+export const createActCorrection = (
+  code: string,
+  trancheId: string,
+  input: { lineId: string; qty: string; unitPrice: string; reason: string },
+): Promise<ActRow[]> =>
+  request(`/projects/${code}/acts/${trancheId}/corrections`, actListSchema, json(input));
 
 /** Скан подписанного экземпляра (план, пункт 4.10): снимок или PDF, тип — по содержимому. */
 export function attachActScan(code: string, trancheId: string, file: File): Promise<ActRow[]> {
