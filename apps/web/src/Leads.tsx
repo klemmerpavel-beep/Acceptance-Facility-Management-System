@@ -206,7 +206,8 @@ function Column({
           >
             <span className="leadcard__head">
               <span className="num leadcard__number">№ {lead.number}</span>
-              <span className="t-sm t-muted">{formatDate(lead.createdAt.slice(0, 10))}</span>
+              {/* Обращение — мгновение: день по часам браузера, без среза UTC (П-74). */}
+              <span className="t-sm t-muted">{formatDate(lead.createdAt)}</span>
             </span>
             <span className="t-h3 leadcard__name">{lead.phone === "" ? lead.name : `${lead.name}, ${lead.phone}`}</span>
             {/* Вилка ориентира на карточке — отступление продукта от

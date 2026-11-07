@@ -49,7 +49,7 @@ import {
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
-import { местныйДень } from "./today.js";
+import { деньМгновения, местныйДень } from "./today.js";
 
 interface Snapshot {
   /** Факты объектов для «Выполнено N из M» (пункт 7.8), по коду; снимает руководитель. */
@@ -1031,7 +1031,9 @@ export async function fetchReport(code: string): Promise<PhotoReport> {
   let снимков = 0;
 
   for (const пакет of вид.batches) {
-    const день = пакет.createdAt.slice(0, 10);
+    /* День пакета — местный день его мгновения (П-74). Сервер раскладывает
+       отчёт пока срезом UTC (`groupByDay` домена) — замечание П-76. */
+    const день = деньМгновения(пакет.createdAt);
     const строки = пакет.lines.map((line) => ({
       positionName: line.positionName,
       unit: line.unit,
@@ -1503,7 +1505,9 @@ const СТАТУС_ПО_СОСТОЯНИЮ: Record<MoneyState, TrancheStatus> = 
 
 export async function fetchAccounting(): Promise<AccountingView> {
   await pause(220);
-  const сегодня = new Date().toISOString().slice(0, 10);
+  /* «Сегодня» и день закрытия — местные, как день организации у сервера
+     (`orgDay`); срез UTC отставал на сутки с полуночи до трёх ночи (П-74). */
+  const сегодня = местныйДень();
   const возраст = Math.round(
     (new Date(`${сегодня}T00:00:00.000Z`).getTime()
       - new Date(`${data.capturedOn}T00:00:00.000Z`).getTime()) / ДЕНЬ,
@@ -1521,7 +1525,7 @@ export async function fetchAccounting(): Promise<AccountingView> {
     status,
     amount: kopecks(amount),
     paid: kopecks(paid),
-    closedOn: closedAt === null ? null : closedAt.slice(0, 10),
+    closedOn: closedAt === null ? null : деньМгновения(closedAt),
     graceDays: порог,
   });
 
@@ -1687,7 +1691,9 @@ export async function createTranche(_code: string, input: CreateTranche): Promis
       ? [{
         id: новыйId(),
         amount: input.amount,
-        paidOn: now.slice(0, 10),
+        /* День предоплаты — местный (П-74); сервер пишет его пока днём UTC —
+           замечание П-76. */
+        paidOn: местныйДень(new Date(now)),
         comment: "Предоплата 30 %",
         reason: null,
         reversalOfId: null,
@@ -2702,7 +2708,9 @@ export async function issueDocument(id: string, projectCode: string): Promise<Is
     throw new Error(`Объект ${projectCode} не найден или недоступен.`);
   }
 
-  const сегодня = new Date().toISOString().slice(0, 10);
+  /* «Сегодня» документа — местный день (П-74); сервер берёт его пока срезом
+     UTC — замечание П-76. */
+  const сегодня = местныйДень();
   const значения: Record<string, string | null> = {
     "организация.наименование": data.organization.name,
     "организация.телефон": data.organization.phone,

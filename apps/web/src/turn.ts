@@ -1,6 +1,7 @@
 import type { ExpenseStatus, InboxKind, Tranche } from "@priyomka/contracts";
 import type { Отбор } from "@priyomka/domain";
 import { plural } from "./status.js";
+import { деньМгновения } from "./today.js";
 
 /**
  * Чей ход — закрытый словарь (этап Э8, ДР-4).
@@ -17,9 +18,10 @@ import { plural } from "./status.js";
  * `turn.test.ts`.
  */
 
-/** День и месяц: «05.10». Год не пишется — строка о текущих делах. */
-const ДЕНЬ_МЕСЯЦ = (iso: string): string => {
-  const [, месяц = "", число = ""] = iso.slice(0, 10).split("-");
+/** День и месяц календарного дня `ГГГГ-ММ-ДД`: «05.10». Год не пишется —
+ *  строка о текущих делах. */
+const ДЕНЬ_МЕСЯЦ = (календарный: string): string => {
+  const [, месяц = "", число = ""] = календарный.split("-");
   return `${число}.${месяц}`;
 };
 
@@ -45,7 +47,9 @@ export function trancheTurn(
   транш: Pick<Tranche, "status" | "closedAt" | "awaitingDays">,
 ): string | null {
   if (транш.status !== "CLOSED" || транш.closedAt === null || транш.awaitingDays === null) return null;
-  return `Закрыт ${ДЕНЬ_МЕСЯЦ(транш.closedAt)} · ${ХОД.оплата} · ${СКОЛЬКО(транш.awaitingDays)}`;
+  /* Закрытие транша — мгновение: день его — местный, а не срез UTC (П-74).
+     Дата подписания акта ниже — уже календарный день из API. */
+  return `Закрыт ${ДЕНЬ_МЕСЯЦ(деньМгновения(транш.closedAt))} · ${ХОД.оплата} · ${СКОЛЬКО(транш.awaitingDays)}`;
 }
 
 /** Акт: сформирован и ждёт подписи заказчика либо подписан — с датой. */

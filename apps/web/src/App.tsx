@@ -24,6 +24,7 @@ import { ClientGuide } from "./ClientGuide.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
 import { адрес, простойЩелчок, разобрать, токенВхода, type Вкладка, type ОтборАдреса } from "./route.js";
+import { местныйДень } from "./today.js";
 
 type State =
   | { kind: "loading" }
@@ -120,8 +121,10 @@ export function App(): React.JSX.Element {
   const [статусОшибка, setСтатусОшибка] = useState<string | null>(null);
 
   /** Сегодняшний день считается один раз на сеанс и передаётся вниз:
-   *  два экрана не должны разойтись на границе суток. */
-  const today = new Date().toISOString().slice(0, 10);
+   *  два экрана не должны разойтись на границе суток. День — местный, тем же
+   *  помощником, что у форм чека и платежа: срез UTC с полуночи до трёх ночи
+   *  по Москве отдавал экранам вчерашний день (класс K10, П-74). */
+  const today = местныйДень();
 
 
   const load = (): void => {

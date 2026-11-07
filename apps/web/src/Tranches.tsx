@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { plural } from "./status.js";
 import { trancheTurn } from "./turn.js";
+import { деньМгновения } from "./today.js";
 import { Пусто, пусто } from "./empty.js";
 import type { Role, Tranche, TranchePayment, TrancheView } from "@priyomka/contracts";
 import { formatKopecks, formatPercent } from "@priyomka/ui";
@@ -50,8 +51,11 @@ const STATUS_LABEL = {
   PAID: "Оплачен",
 } as const;
 
-const день = (iso: string): string => {
-  const [год = "", месяц = "", число = ""] = iso.slice(0, 10).split("-");
+/* Календарный день `ГГГГ-ММ-ДД` — «ДД.ММ.ГГГГ». Мгновение (`openedAt`) сюда
+   идёт через `деньМгновения`: срез UTC датировал транш, открытый в 00:30 по
+   Москве, вчерашним днём (П-74). */
+const день = (календарный: string): string => {
+  const [год = "", месяц = "", число = ""] = календарный.split("-");
   return `${число}.${месяц}.${год}`;
 };
 
@@ -149,7 +153,7 @@ export function Tranches({
           <h2 className="t-h3">
             {открытый === null
               ? Пусто("транш")
-              : `Транш № ${String(открытый.number)} · открыт ${день(открытый.openedAt)}`}
+              : `Транш № ${String(открытый.number)} · открыт ${день(деньМгновения(открытый.openedAt))}`}
           </h2>
           {ведёт && (
             <div className="row">

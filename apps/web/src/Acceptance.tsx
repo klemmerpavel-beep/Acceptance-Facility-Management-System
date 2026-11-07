@@ -9,6 +9,7 @@ import {
 } from "./api.js";
 import { AcceptSheet } from "./AcceptSheet.js";
 import { tabArrowHandler } from "./tabs.js";
+import { деньМгновения } from "./today.js";
 import { Announce } from "./Announce.js";
 import { ReversalSheet } from "./ReversalSheet.js";
 import { EvidenceMark } from "./Evidence.js";
@@ -36,8 +37,10 @@ const canAccept = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN
 /** Сторнирует руководитель: право отменять начисленное шире права его создавать. */
 const canReverse = (role: Role): boolean => ownerLevel(role);
 
-const день = (iso: string): string => {
-  const [год = "", месяц = "", число = ""] = iso.slice(0, 10).split("-");
+/* День пакета — местный день его мгновения, как и время на экранах: срез UTC
+   датировал пакет, принятый в 00:30 по Москве, вчерашним днём (П-74). */
+const день = (мгновение: string): string => {
+  const [год = "", месяц = "", число = ""] = деньМгновения(мгновение).split("-");
   return `${число}.${месяц}.${год}`;
 };
 

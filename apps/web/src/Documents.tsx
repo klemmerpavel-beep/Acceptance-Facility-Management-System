@@ -13,6 +13,7 @@ import { Announce } from "./Announce.js";
 import { useModalDialog } from "./modal.js";
 import { имяЛиста, печать } from "./print.js";
 import { завести } from "./verbs.js";
+import { деньМгновения } from "./today.js";
 
 /**
  * Раздел «Документы организации».
@@ -40,9 +41,12 @@ const ВИДЫ: Readonly<Record<string, string>> = {
   OTHER: "Прочее",
 };
 
-const дата = (iso: string): string => {
-  const [год, месяц, день] = iso.slice(0, 10).split("-");
-  return год === undefined ? iso : `${день ?? ""}.${месяц ?? ""}.${год}`;
+/* Календарный день `ГГГГ-ММ-ДД` — «ДД.ММ.ГГГГ»: дата документа приходит днём.
+   Правка шаблона — мгновение, и его день — местный (`деньМгновения`): срез
+   UTC датировал правку в 00:30 по Москве вчерашним днём (П-74). */
+const дата = (календарный: string): string => {
+  const [год, месяц, день] = календарный.split("-");
+  return год === undefined ? календарный : `${день ?? ""}.${месяц ?? ""}.${год}`;
 };
 
 interface Пункт { title: string; body: string }
@@ -195,7 +199,7 @@ export function Documents({
                 <div className="record__body">
                   <p className="record__head"><span className="t-strong">{row.name}</span></p>
                   <p className="t-sm t-muted">
-                    пунктов {row.clauses} · правлен {дата(row.updatedAt)}
+                    пунктов {row.clauses} · правлен {дата(деньМгновения(row.updatedAt))}
                   </p>
                 </div>
                 <div className="record__side">
