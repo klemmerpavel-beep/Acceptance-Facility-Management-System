@@ -23,11 +23,11 @@ if (!existsSync(site)) {
   process.exit(1);
 }
 
-/* 1. Состав. Страниц ровно семь, и каждая — ответ на отдельный вопрос
+/* 1. Состав. Страниц ровно восемь, и каждая — ответ на отдельный вопрос
       заказчика. Недостача означает, что источник переименовали, а сборку
       не поправили: на сайте вместо страницы будет 404. */
 const REQUIRED = [
-  "index.html", "showcase.html", "screens.html", "canvas.html", "audit.html", "prorab.html", "version.txt",
+  "index.html", "showcase.html", "screens.html", "canvas.html", "audit.html", "prorab.html", "zakazchik.html", "version.txt",
 ];
 for (const name of REQUIRED) {
   const path = join(site, name);
@@ -150,9 +150,32 @@ for (const файл of файлыГарнитур) {
 /* 8. Памятка прорабу получила токены продукта: отметка подстановки не
       осталась, переменные цвета объявлены. Без токенов лист печатается
       запасными цветами, и расхождение с продуктом никто не заметит. */
-const памятка = existsSync(join(site, "prorab.html")) ? readFileSync(join(site, "prorab.html"), "utf8") : "";
-if (памятка.includes("/*@tokens")) note("site/prorab.html: токены продукта не подставлены");
-if (!/--accent:\s*#/u.test(памятка)) note("site/prorab.html: переменные цвета продукта не объявлены");
+for (const лист of ["prorab.html", "zakazchik.html"]) {
+  const памятка = existsSync(join(site, лист)) ? readFileSync(join(site, лист), "utf8") : "";
+  if (памятка.includes("/*@tokens")) note(`site/${лист}: токены продукта не подставлены`);
+  if (!/--accent:\s*#/u.test(памятка)) note(`site/${лист}: переменные цвета продукта не объявлены`);
+}
+
+/* 9. Манифест приложения (этап Э8, ДР-12) опубликован рядом с демонстрацией:
+      сайт лежит в подпапке, и ссылка с корня («/manifest.webmanifest»)
+      вела бы мимо него — ссылка обязана быть относительной, значки —
+      лежать рядом. */
+{
+  const путь = join(site, "manifest.webmanifest");
+  if (!existsSync(путь)) {
+    note("ДР-12: нет файла site/manifest.webmanifest");
+  } else {
+    let манифест = {};
+    try { манифест = JSON.parse(readFileSync(путь, "utf8")); } catch { note("ДР-12: site/manifest.webmanifest не разбирается как JSON"); }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      if (!existsSync(join(site, значок.src))) note(`ДР-12: site/manifest.webmanifest — нет значка ${значок.src}`);
+    }
+  }
+  const главная = existsSync(join(site, "index.html")) ? readFileSync(join(site, "index.html"), "utf8") : "";
+  const ссылка = /<link rel="manifest" href="([^"]+)"/u.exec(главная)?.[1];
+  if (ссылка === undefined) note("ДР-12: site/index.html не объявляет манифест");
+  else if (ссылка.startsWith("/")) note(`ДР-12: site/index.html — манифест по ссылке с корня «${ссылка}», в подпапке сайта не найдётся`);
+}
 
 if (problems.length > 0) {
   console.error(`Дефектов публикации: ${problems.length}\n`
