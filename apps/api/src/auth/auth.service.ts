@@ -100,10 +100,19 @@ export class AuthService {
      действующими обе: потерянную можно было отозвать только снятием доступа
      целиком. Удаление, а не отметка обмена: отметку `usedAt` обмен
      персональной ссылки не проверяет. Сессии, уже открытые прежней ссылкой,
-     живут до своего срока — так решено до ответа заказчика при приёмке. */
+     живут до своего срока — так решено до ответа заказчика при приёмке.
+
+     Отзыв и выдача — под блокировкой строки человека, как подсчёт в
+     `issueLink` и `issueSmsCode` (П-70). Без неё две одновременные выдачи
+     одному человеку — два руководителя, две вкладки — удаляли только
+     прежние ссылки: удаление второй транзакции не видит незафиксированной
+     вставки первой, и действовали обе новые. Клиент транзакции поэтому
+     обязателен: блокировка вне транзакции снимается тем же запросом. */
   async issueForemanLink(
-    userId: string, orgId: string, tx: Prisma.TransactionClient = this.prisma,
+    userId: string, orgId: string, tx: Prisma.TransactionClient,
   ): Promise<{ token: string }> {
+    // Сырой запрос — шаблонной строкой: построитель Prisma блокировки строки не выражает.
+    await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
     const свой = await tx.user.findFirst({ where: { id: userId, orgId, revokedAt: null }, select: { id: true } });
     if (!свой) throw new NotFoundException({ message: "Человек не найден или недоступен." });
     await tx.authToken.deleteMany({ where: { userId: свой.id, purpose: AuthPurpose.FOREMAN_LINK } });
