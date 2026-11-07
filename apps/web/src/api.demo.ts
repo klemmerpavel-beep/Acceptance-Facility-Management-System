@@ -2389,7 +2389,9 @@ const подписи = new Map<string, string>();
 
 /* Первая отметка подписи фиксирует акт (этап Э9, ДР-3): день фиксации —
    день отметки в демонстрации. Снимок строк двойнику не нужен — правки сметы,
-   которая сдвинула бы акт, в слепке акта нет. */
+   которая сдвинула бы акт, в слепке акта нет. Дни фиксации, поправки и
+   скана — местный день (`местныйДень`), как у сервера день организации, а
+   не срез UTC: с полуночи до трёх ночи по Москве он был вчерашним (П-68). */
 const фиксации = new Map<string, string>();
 
 const подписанВДемонстрации = (номер: number): boolean =>
@@ -2453,7 +2455,7 @@ export async function signAct(
 ): Promise<ActRow[]> {
   await pause(240);
   подписи.set(trancheId, signedAt);
-  if (!фиксации.has(trancheId)) фиксации.set(trancheId, new Date().toISOString().slice(0, 10));
+  if (!фиксации.has(trancheId)) фиксации.set(trancheId, местныйДень());
   return data.acts.map(сДокументами);
 }
 
@@ -2493,7 +2495,7 @@ export async function createActCorrection(
     priceAfter: стало.unitPrice.toString(),
     total: correctionTotal({ было, стало }).toString(),
     reason: input.reason.trim(),
-    createdAt: new Date().toISOString().slice(0, 10),
+    createdAt: местныйДень(),
   });
   return data.acts.map(сДокументами);
 }
@@ -2512,7 +2514,7 @@ export async function attachActScan(_code: string, trancheId: string, file: File
   сканы.set(trancheId, {
     адрес: URL.createObjectURL(file),
     тип: file.type,
-    день: new Date().toISOString().slice(0, 10),
+    день: местныйДень(),
   });
   return data.acts.map(сДокументами);
 }

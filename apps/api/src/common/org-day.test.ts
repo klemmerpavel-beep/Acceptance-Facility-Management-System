@@ -164,3 +164,69 @@ describe("первый экран и доска заявок: один день 
     expect(доска.columns.flatMap((колонка) => колонка.leads)[0]?.tasks[0]?.state).toBe("просрочена");
   });
 });
+
+/* П-68, класс K10: дни акта — закрытие транша, фиксация, поправка, скан —
+   мгновения и переводятся в день организации. Служба срезала их по UTC: в
+   00:30 седьмого по Москве акт датировался шестым, фиксация и поправка —
+   тоже. Дата подписания — день календаря, хранимый полночью UTC, и
+   переводом не сдвигается: у организации к западу от Гринвича перевод дал
+   бы вчерашний день. */
+describe("акт: дни закрытия, фиксации, поправки и скана — по дню организации (П-68)", () => {
+  const ПОДПИСАН = new Date("2026-11-06T00:00:00Z");
+  const организацияВПоясе = (timeZone: string) => ({
+    findUnique: vi.fn(() => Promise.resolve({ timeZone })),
+    findUniqueOrThrow: vi.fn(() => Promise.resolve({ name: "Студия", phone: null, email: null, requisites: null })),
+  });
+  const объект = {
+    findFirst: vi.fn(() => Promise.resolve({
+      id: "объект", code: "R-1", supervisionShare: 1200, client: { name: "Заказчик", requisites: null },
+    })),
+  };
+  const поправка = {
+    id: "поправка", actLineId: "строка", qtyBefore: 1000n, qtyAfter: 900n, priceBefore: 100000n, priceAfter: 100000n,
+    reason: "Перемерено", createdAt: ГРАНИЦА,
+    actLine: { name: "Монтаж", unit: "шт", tranche: { number: 1 } },
+    tranche: { number: 2 },
+  };
+  const транш = {
+    id: "транш", number: 1, status: "CLOSED", closedAt: ГРАНИЦА, signedAt: ПОДПИСАН, paidAt: null,
+    signedScanType: "application/pdf", signedScanAt: ГРАНИЦА, fixedAt: ГРАНИЦА, fixedShare: 1200,
+    actLines: [{
+      id: "строка", itemId: "позиция", name: "Монтаж", unit: "шт", qty: 1000n, unitPrice: 100000n,
+      unitWage: 50000n, wageTotal: 50000n,
+    }],
+    corrections: [поправка],
+    batches: [],
+  };
+  const служба = (timeZone: string): ActsService => new ActsService({
+    organization: организацияВПоясе(timeZone),
+    project: объект,
+    estimate: { findFirst: vi.fn(() => Promise.resolve({ supervisionShare: 1200 })) },
+    tranche: { findMany: vi.fn(() => Promise.resolve([транш])), findFirst: vi.fn(() => Promise.resolve(транш)) },
+    actCorrection: { findMany: vi.fn(() => Promise.resolve([поправка])) },
+  } as never, журнал, {} as never);
+
+  it("перечень: акт закрыт, зафиксирован и отсканирован седьмого по Москве, хотя по UTC шестое", async () => {
+    const [строка] = await служба("Europe/Moscow").list(руководитель, "R-1");
+    expect(строка?.closedAt).toBe(СЕГОДНЯ);
+    expect(строка?.fixedAt).toBe(СЕГОДНЯ);
+    expect(строка?.scan?.uploadedAt).toBe(СЕГОДНЯ);
+    expect(строка?.signedAt).toBe("2026-11-06");
+  });
+
+  it("акт: дата, день фиксации и день поправки — седьмое по Москве", async () => {
+    const акт = await служба("Europe/Moscow").view(руководитель, "R-1", "транш", "internal");
+    expect(акт.closedAt).toBe(СЕГОДНЯ);
+    expect(акт.fixedAt).toBe(СЕГОДНЯ);
+    expect(акт.corrections[0]?.createdAt).toBe(СЕГОДНЯ);
+    expect(акт.amendments[0]?.createdAt).toBe(СЕГОДНЯ);
+  });
+
+  it("дата подписания — день календаря: к западу от Гринвича не сдвигается на вчера", async () => {
+    const [строка] = await служба("America/New_York").list(руководитель, "R-1");
+    expect(строка?.signedAt).toBe("2026-11-06");
+    expect(строка?.closedAt).toBe("2026-11-06");
+    const акт = await служба("America/New_York").view(руководитель, "R-1", "транш", "client");
+    expect(акт.signedAt).toBe("2026-11-06");
+  });
+});

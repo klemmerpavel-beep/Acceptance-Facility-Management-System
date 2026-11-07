@@ -48,7 +48,17 @@ import { типСкана } from "./scan-type";
    переменную она теряет литеральность — отказ читается десятком строк о
    несовместимости типов вместо одной о причине. Повтор здесь дешевле. */
 
-const день = (значение: Date): string => значение.toISOString().slice(0, 10);
+/**
+ * День календаря — дата подписания, хранимая полночью UTC (`@db.Date`): её
+ * срез UTC и есть день, а перевод в пояс организации к западу от Гринвича
+ * сдвинул бы его на вчера.
+ *
+ * Мгновения — закрытие транша, фиксация, поправка, загрузка скана —
+ * переводятся в день организации (`orgDay`), а не срезаются по UTC (П-68,
+ * класс K10): в Воронеже с полуночи до трёх ночи срез UTC датировал акт,
+ * фиксацию и поправку вчерашним днём.
+ */
+const деньКалендаря = (значение: Date): string => значение.toISOString().slice(0, 10);
 
 /**
  * Количество для журнала: «10,5», а не «10500». Журнал читает человек
@@ -167,8 +177,11 @@ interface ЗаписьПоправки {
   readonly tranche: { readonly number: number };
 }
 
-/** Поправка, вошедшая в акт, — в виде ответа. Внутренних величин у неё нет. */
-function поправкаАкта(запись: ЗаписьПоправки): ActCorrection {
+/**
+ * Поправка, вошедшая в акт, — в виде ответа. Внутренних величин у неё нет.
+ * День записи — день организации (П-68).
+ */
+function поправкаАкта(запись: ЗаписьПоправки, день: (мгновение: Date) => string): ActCorrection {
   return {
     id: запись.id,
     lineId: запись.actLineId,
@@ -231,6 +244,7 @@ export class ActsService {
    */
   async list(user: RequestUser, code: string): Promise<ActRow[]> {
     const project = await this.projectOf(user, code);
+    const { day: день } = await orgDay(this.prisma, user.orgId);
     /* Надбавка нужна уже перечню: строка показывает ту же сумму, что стоит
        в подвале самого акта. Показывать в перечне одни работы, а в акте —
        работы с сопровождением значит назвать документ двумя числами, из
@@ -279,7 +293,7 @@ export class ActsService {
           number: транш.number,
           closedAt: день(транш.closedAt),
           closedTime: транш.closedAt.toISOString(),
-          signedAt: транш.signedAt === null ? null : день(транш.signedAt),
+          signedAt: транш.signedAt === null ? null : деньКалендаря(транш.signedAt),
           fixedAt: транш.fixedAt === null ? null : день(транш.fixedAt),
           paidAt: транш.paidAt === null ? null : транш.paidAt.toISOString(),
           positions: транш.fixedAt !== null ? транш.actLines.length : строки.length,
@@ -361,6 +375,7 @@ export class ActsService {
     }
 
     const организация = await this.prisma.organization.findUniqueOrThrow({ where: { id: user.orgId } });
+    const { day: день } = await orgDay(this.prisma, user.orgId);
     const share = транш.fixedShare === null
       ? await this.действующаяНадбавка(project)
       : basisPoints(транш.fixedShare);
@@ -403,7 +418,7 @@ export class ActsService {
       };
     });
 
-    const corrections = транш.corrections.map(поправкаАкта);
+    const corrections = транш.corrections.map((запись) => поправкаАкта(запись, день));
     /* Поправки к строкам этого акта — где и чем он исправлен. Только у
        подписанного: у живого акта строк снимка, к которым пишут поправку,
        нет. В суммы акта они не входят. */
@@ -418,7 +433,7 @@ export class ActsService {
           actLine: { select: { name: true, unit: true, tranche: { select: { number: true } } } },
           tranche: { select: { number: true } },
         },
-      })).map(поправкаАкта);
+      })).map((запись) => поправкаАкта(запись, день));
     const works = sum([
       ...lines.map((строка) => kopecks(строка.total)),
       ...corrections.map((поправка) => kopecks(поправка.total)),
@@ -437,7 +452,7 @@ export class ActsService {
       number: транш.number,
       trancheId: транш.id,
       closedAt: день(транш.closedAt),
-      signedAt: транш.signedAt === null ? null : день(транш.signedAt),
+      signedAt: транш.signedAt === null ? null : деньКалендаря(транш.signedAt),
       fixedAt: транш.fixedAt === null ? null : день(транш.fixedAt),
       project: { code: project.code, address: project.address },
       client: { name: project.client.name, requisites: project.client.requisites },
@@ -521,7 +536,7 @@ export class ActsService {
         entity: "Tranche",
         entityId: транш.id,
         field: `акт № ${String(транш.number)} — подписание`,
-        oldValue: транш.signedAt === null ? null : formatDay(день(транш.signedAt)),
+        oldValue: транш.signedAt === null ? null : formatDay(деньКалендаря(транш.signedAt)),
         newValue: formatDay(input.signedAt),
       }, tx);
 
