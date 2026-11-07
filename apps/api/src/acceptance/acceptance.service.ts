@@ -43,6 +43,18 @@ const НЕДЕЛЯ_ДНЕЙ = 7;
 
 const iso = (date: Date): string => date.toISOString().slice(0, 10);
 
+/**
+ * Отказ сторно пакета подписанного акта (этап Э9, ДР-3). Дата подписания —
+ * день календаря, хранится полночью UTC, и срез UTC здесь и есть день.
+ */
+const отказПодписанного = (транш: { number: number; signedAt: Date | null }): BadRequestException =>
+  new BadRequestException({
+    message: `Пакет вошёл в акт № ${String(транш.number)}`
+      + (транш.signedAt === null ? "" : `, подписанный ${formatDay(транш.signedAt.toISOString().slice(0, 10))}`)
+      + ": подписанный акт не меняется. Ошибку исправляет руководитель поправкой к акту на вкладке "
+      + "«Документы» — она войдёт в акт текущего транша.",
+  });
+
 @Injectable()
 export class AcceptanceService {
   constructor(
@@ -639,7 +651,21 @@ export class AcceptanceService {
    * Создаётся обратная запись в том же пакете: свидетельство остаётся при
    * своей фотографии. Начисление сторнируется симметрично, и пара
    * складывается в ноль. Повторное сторно отсекается уникальностью ссылки
-   * на сторнируемую приёмку — правилом базы, а не проверкой в коде.
+   * на сторнируемую приёмку — правилом базы — и проверкой под блокировкой.
+   *
+   * Проверки «пакет не вошёл в подписанный акт» и «приёмка не сторнирована»
+   * решаются в транзакции записи под блокировкой (П-67, класс K3). Прежде
+   * они шли до транзакции и ничего не запирали: сторно, проверившее «акт не
+   * зафиксирован» до подписи и записанное после снимка, оставляло в
+   * подписанном акте сторнированное количество, а второе одновременное
+   * сторно той же приёмки падало кодом 500 на уникальности ссылки.
+   *
+   * Порядок блокировок — транш, затем строка приёмки. Подписание запирает
+   * ту же строку транша (`ActsService.sign`), и сторно ждёт его снимка или
+   * снимок ждёт сторно — третьего нет. Два сторно одной приёмки берут
+   * транш разделяемой блокировкой и друг друга на нём не ждут, а строку
+   * приёмки — по очереди. Строк позиций сторно не запирает, и с приёмкой
+   * (K3: позиции, затем транш разделяемой) у него нет встречной пары.
    */
   async reverse(
     user: RequestUser,
@@ -656,7 +682,7 @@ export class AcceptanceService {
         item: { select: { name: true } },
         accrual: { select: { unitWage: true, brigadeId: true } },
         reversal: { select: { id: true } },
-        batch: { select: { tranche: { select: { number: true, signedAt: true, fixedAt: true } } } },
+        batch: { select: { trancheId: true, tranche: { select: { number: true, signedAt: true, fixedAt: true } } } },
       },
     });
     if (original === null) {
@@ -666,14 +692,7 @@ export class AcceptanceService {
        подписанного транша зафиксирован (этап Э9, ДР-3): сторно его не
        меняет, а запрещено — ошибку исправляет поправка в текущем транше. */
     const транш = original.batch.tranche;
-    if (транш !== null && транш.fixedAt !== null) {
-      throw new BadRequestException({
-        message: `Пакет вошёл в акт № ${String(транш.number)}`
-          + (транш.signedAt === null ? "" : `, подписанный ${formatDay(транш.signedAt.toISOString().slice(0, 10))}`)
-          + ": подписанный акт не меняется. Ошибку исправляет руководитель поправкой к акту на вкладке "
-          + "«Документы» — она войдёт в акт текущего транша.",
-      });
-    }
+    if (транш !== null && транш.fixedAt !== null) throw отказПодписанного(транш);
     if (original.reversesId !== null) {
       throw new BadRequestException({
         message: "Это сторно, а не приёмка. Сторнировать обратную запись нельзя: "
@@ -687,6 +706,21 @@ export class AcceptanceService {
     const qty = negateQuantity(milliunits(original.qty));
 
     await this.prisma.$transaction(async (tx) => {
+      /* Решают проверки под блокировкой: проверки выше — быстрый отказ без
+         транзакции, но между ними и записью мог встать снимок подписи или
+         другое сторно той же приёмки. Значения уходят параметрами запроса. */
+      const траншId = original.batch.trancheId;
+      if (траншId !== null) {
+        const [состояние] = await tx.$queryRaw<{ number: number; signedAt: Date | null; fixedAt: Date | null }[]>`
+          SELECT "number", "signedAt", "fixedAt" FROM "tranches"
+          WHERE "id" = ${траншId}::uuid
+          FOR SHARE`;
+        if (состояние !== undefined && состояние.fixedAt !== null) throw отказПодписанного(состояние);
+      }
+      await tx.$queryRaw`SELECT "id" FROM "acceptances" WHERE "id" = ${original.id}::uuid FOR UPDATE`;
+      const прежнее = await tx.acceptance.findUnique({ where: { reversesId: original.id }, select: { id: true } });
+      if (прежнее !== null) throw new BadRequestException({ message: "Эта приёмка уже сторнирована." });
+
       const reversal = await tx.acceptance.create({
         data: {
           batchId: original.batchId,

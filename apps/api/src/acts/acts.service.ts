@@ -506,6 +506,11 @@ export class ActsService {
     const share = await this.действующаяНадбавка(project);
 
     await this.prisma.$transaction(async (tx) => {
+      /* Строка транша запирается до снимка (П-67, класс K3): сторно пакета
+         проверяет фиксацию под разделяемой блокировкой той же строки
+         (`AcceptanceService.reverse`) и ждёт снимка — или снимок ждёт его.
+         Сторно, записанное раньше, снимок видит; позже — получает отказ. */
+      await tx.$queryRaw`SELECT "id" FROM "tranches" WHERE "id" = ${транш.id}::uuid FOR UPDATE`;
       await tx.tranche.update({
         where: { id: транш.id },
         data: { signedAt: new Date(input.signedAt) },
