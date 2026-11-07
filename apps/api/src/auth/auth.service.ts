@@ -60,12 +60,21 @@ export class AuthService {
    * не зависит от того, кто и откуда её позовёт.
    */
   /* Клиент транзакции — чтобы выдача ссылки и её запись в журнале
-     фиксировались вместе (П-37). */
+     фиксировались вместе (П-37).
+
+     Новая ссылка отзывает прежние персональные ссылки человека — в той же
+     транзакции, до выдачи (ADR-0008, п. 4; K6 фазы 0, П-62). Персональная
+     ссылка многоразовая (`consume` ниже), и прежде «Выдать ссылку» оставляла
+     действующими обе: потерянную можно было отозвать только снятием доступа
+     целиком. Удаление, а не отметка обмена: отметку `usedAt` обмен
+     персональной ссылки не проверяет. Сессии, уже открытые прежней ссылкой,
+     живут до своего срока — так решено до ответа заказчика при приёмке. */
   async issueForemanLink(
     userId: string, orgId: string, tx: Prisma.TransactionClient = this.prisma,
   ): Promise<{ token: string }> {
     const свой = await tx.user.findFirst({ where: { id: userId, orgId, revokedAt: null }, select: { id: true } });
     if (!свой) throw new NotFoundException({ message: "Человек не найден или недоступен." });
+    await tx.authToken.deleteMany({ where: { userId: свой.id, purpose: AuthPurpose.FOREMAN_LINK } });
     return this.createToken(свой.id, AuthPurpose.FOREMAN_LINK, FOREMAN_LINK_TTL_MS, tx);
   }
 
