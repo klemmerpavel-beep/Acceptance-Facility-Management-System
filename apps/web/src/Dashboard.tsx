@@ -343,7 +343,7 @@ export function Dashboard({
     return (
       <main className="container stack stack--loose" aria-busy="true">
         {блокОчереди}
-        <div className="statrow">
+        <div className="statrow statrow--home">
           {[0, 1, 2, 3].map((index) => (
             <span className="skeleton skeleton--card" key={index} />
           ))}
@@ -394,7 +394,7 @@ export function Dashboard({
     <main className="container stack stack--groups">
       {блокОчереди}
       <div className="stack stack--loose">
-      <section className="statrow">
+      <section className="statrow statrow--home">
         <StatCard
           icon="#i-object"
           label="Активные объекты"

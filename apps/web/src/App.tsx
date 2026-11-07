@@ -6,7 +6,7 @@ import {
   fetchCanonicalUnits, fetchCurrentUser, fetchDashboard, fetchInbox, fetchProjects, logout, markInboxSeen,
   setProjectStatus, errorMessage,
 } from "./api.js";
-import { SignIn } from "./SignIn.js";
+import { LinkSignIn, SignIn } from "./SignIn.js";
 import { Dashboard } from "./Dashboard.js";
 import { FilteredEventFeed } from "./FeedFilter.js";
 import { Contacts } from "./Contacts.js";
@@ -17,25 +17,20 @@ import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { ProjectCard } from "./ProjectCard.js";
-import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
+import { PLANNED_SECTIONS, SECTIONS, разделДоступен, разделыРоли, type Section } from "./sections.js";
 import { Documents } from "./Documents.js";
 import { Settings } from "./Settings.js";
+import { ClientGuide } from "./ClientGuide.js";
 import { useModalDialog } from "./modal.js";
 import { MoreMenu, type ПунктЕщё } from "./MoreMenu.js";
-import { адрес, простойЩелчок, разобрать, type Вкладка, type ОтборАдреса } from "./route.js";
+import { адрес, простойЩелчок, разобрать, токенВхода, type Вкладка, type ОтборАдреса } from "./route.js";
 
 type State =
   | { kind: "loading" }
   | { kind: "anonymous" }
+  /** Открыта ссылка входа `/#login/<токен>`: обмен идёт до того, как спросить «кто я». */
+  | { kind: "link"; token: string }
   | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
-
-/**
- * Раздел, открытый роли. Повторяет шапку: заказчику — только его объекты,
- * бухгалтеру — всё, кроме настроек. Адрес, назвавший закрытый раздел,
- * экрана не меняет: показанный раздел с отказом читался бы поломкой.
- */
-const разделДоступен = (role: CurrentUser["role"], section: Section): boolean =>
-  role === "CLIENT" ? section === "projects" : !(role === "ACCOUNTANT" && section === "settings");
 
 /**
  * Перенос адреса в состояние оболочки (П-50). Объект ищется в списке,
@@ -81,7 +76,12 @@ function применитьАдрес(hash: string, среда: {
 }
 
 export function App(): React.JSX.Element {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  /* Ссылка входа читается из адреса до первой отрисовки: «кто я» без сессии
+     ответил бы отказом и показал форму номера вместо входа по ссылке. */
+  const [state, setState] = useState<State>(() => {
+    const token = токенВхода(window.location.hash);
+    return token === null ? { kind: "loading" } : { kind: "link", token };
+  });
   /** Раздел, открытый объект и его вкладка хранятся состоянием, а адрес
    *  `#R-99/estimate` выводится из них (`route.ts`, П-50): роутер не
    *  вводится, хватает истории браузера. */
@@ -101,6 +101,9 @@ export function App(): React.JSX.Element {
      запрос нового уже не показал бы (решение допроса Э8-2). */
   const [очередьЗаказчика, setОчередьЗаказчика] = useState<Inbox | null>(null);
   const [ошибкаОчереди, setОшибкаОчереди] = useState<string | null>(null);
+  /* Экран «Как пользоваться» заказчика (ДР-11): сам — при первом входе,
+     пока отметки захода нет; повторно — из «Ещё». */
+  const [памятка, setПамятка] = useState<"первый" | "повтор" | null>(null);
   /** Следующая запись адреса заменяет текущую, а не добавляется: первый
    *  адрес сеанса и адрес, поправленный после разбора. */
   const заменитьАдрес = useRef(true);
@@ -167,6 +170,7 @@ export function App(): React.JSX.Element {
         void fetchInbox()
           .then((очередь) => {
             setОчередьЗаказчика(очередь);
+            if (очередь.seenAt === null) setПамятка("первый");
             return markInboxSeen();
           })
           .catch((cause: unknown) => { setОшибкаОчереди(errorMessage(cause)); });
@@ -174,7 +178,13 @@ export function App(): React.JSX.Element {
     })();
   };
 
-  useEffect(load, []);
+  /* Страница, открытая ссылкой входа, грузит вошедшего после обмена
+     (`LinkSignIn`), а не сразу: «кто я» до обмена ответил бы отказом. Признак
+     берётся с первой отрисовки — к эффекту оболочки экран ссылки уже стёр
+     фрагмент из адреса. */
+  const открытаСсылкой = useRef(state.kind === "link");
+  const первыйЗаход = (): void => { if (!открытаСсылкой.current) load(); };
+  useEffect(первыйЗаход, []);
 
   /* Адрес — следствие состояния. Переход внутри продукта кладёт запись в
      историю браузера, и «Назад» ведёт на прежний экран продукта, а не прочь
@@ -193,10 +203,30 @@ export function App(): React.JSX.Element {
     заменитьАдрес.current = false;
   }, [нужныйАдрес]);
 
+  /* Ссылка входа, открытая в уже загруженной вкладке (П-71): браузер
+     переходит по одному фрагменту, без загрузки страницы, а токен прежде
+     читался только при первой отрисовке. Форма входа оставалась формой
+     номера, токен — в адресе и в истории; вошедший оставался прежним, а
+     ссылка выбрасывалась. Теперь адрес `#login/<токен>` в любом состоянии
+     перезагружает страницу: дальше — тот же путь, что у ссылки, открытой
+     с нуля, — экран «Вход по ссылке» стирает фрагмент и обменивает токен.
+     Перезагрузка, а не смена состояния: состояние прежнего вошедшего —
+     объекты, лента, очередь — к человеку ссылки не относится. */
+  useEffect(() => {
+    const поСсылке = (): void => {
+      if (токенВхода(window.location.hash) !== null) window.location.reload();
+    };
+    window.addEventListener("hashchange", поСсылке);
+    return () => { window.removeEventListener("hashchange", поСсылке); };
+  }, []);
+
   /* «Назад», «Вперёд» и адрес, набранный руками, возвращают экран из адреса. */
   useEffect(() => {
     if (state.kind !== "signed") return undefined;
     const слушать = (): void => {
+      /* Адрес ссылки входа — не экран: им занят слушатель выше, и вернуть
+         прежний адрес здесь значило бы стереть токен до перезагрузки. */
+      if (токенВхода(window.location.hash) !== null) return;
       применитьАдрес(window.location.hash, {
         user: state.user, projects: state.projects, текущий: нужныйАдрес,
         заменить: заменитьАдрес, setSection, setOpened, setВкладка, setОтбор,
@@ -234,10 +264,20 @@ export function App(): React.JSX.Element {
   }
 
   if (state.kind === "anonymous") return <SignIn onSignedIn={load} />;
+  if (state.kind === "link") {
+    return (
+      <LinkSignIn
+        token={state.token}
+        onSignedIn={load}
+        onPhone={() => { setState({ kind: "anonymous" }); }}
+      />
+    );
+  }
 
   const go = (next: Section): void => {
     setOpened(null);
     setОтбор(null);
+    setПамятка(null);
     setSection(next);
   };
 
@@ -251,6 +291,7 @@ export function App(): React.JSX.Element {
   const открыть = (project: ProjectSummary): void => {
     setOpened(project);
     setОтбор(null);
+    setПамятка(null);
     setВкладка("overview");
   };
 
@@ -315,15 +356,10 @@ export function App(): React.JSX.Element {
    * Знак — свой, в языке набора значков. Знак и слово эталона не
    * воспроизводятся: это чужой товарный знак.
    */
-  /* Разделы по роли. Заказчику открыт один — его объекты; прочие ведут
-     внутреннюю работу компании, и показанный раздел, отвечающий отказом,
-     был бы обещанием доступа, которого нет.
-
-     Состав повторяет разметку маршрутов сервера, но её не заменяет: скрытый
-     раздел — удобство, а запрет стоит в страже ролей. */
-  const разделы = state.user.role === "CLIENT"
-    ? SECTIONS.filter((item) => item.key === "projects")
-    : SECTIONS;
+  /* Разделы по роли (`разделыРоли` выше). Состав повторяет разметку
+     маршрутов сервера, но её не заменяет: скрытый раздел — удобство, а
+     запрет стоит в страже ролей. */
+  const разделы = разделыРоли(state.user.role);
 
   /* Служебные экраны и выход — один перечень на шапку и на таб-панель.
      Две копии разошлись бы на первой же правке состава. */
@@ -342,7 +378,10 @@ export function App(): React.JSX.Element {
      шаблоны её документов и дорожная карта продукта — внутренняя работа
      компании, а не сведения о его объекте. */
   const ещё: readonly ПунктЕщё[] = state.user.role === "CLIENT"
-    ? [{ label: "Выйти", onSelect: () => { void logout().then(load); } }]
+    ? [
+      { label: "Как пользоваться", onSelect: () => { setПамятка("повтор"); } },
+      { label: "Выйти", onSelect: () => { void logout().then(load); } },
+    ]
     : [...служебные, { label: "Выйти", onSelect: () => { void logout().then(load); } }];
 
   const header = (
@@ -457,30 +496,6 @@ export function App(): React.JSX.Element {
     </nav>
   );
 
-  if (opened !== null) {
-    return (
-      <>
-        {header}
-        <ProjectCard
-          key={opened.code}
-          project={opened}
-          user={state.user}
-          units={state.units}
-          today={today}
-          откуда={разделы.find((item) => item.key === section)?.label ?? "Проекты"}
-          tab={вкладка}
-          onTab={(next) => { setОтбор(null); setВкладка(next); }}
-          отбор={отбор}
-          onСброситьОтбор={() => { setОтбор(null); }}
-          очередь={state.user.role === "CLIENT" ? { inbox: очередьЗаказчика, error: ошибкаОчереди } : null}
-          onBack={() => { setОтбор(null); setOpened(null); }}
-          onChanged={replaceProject}
-        />
-        {tabbar}
-      </>
-    );
-  }
-
   /**
    * Обложка раздела: название организации крошкой и заголовок.
    *
@@ -521,6 +536,52 @@ export function App(): React.JSX.Element {
       </div>
     </div>
   );
+
+  /* Памятка заказчика стоит поверх раздела и объекта: «Перейти к объекту»
+     открывает его единственный объект, а при нескольких — их перечень. */
+  if (памятка !== null && state.user.role === "CLIENT") {
+    return (
+      <>
+        {header}
+        {cover(памятка === "первый" ? "Добро пожаловать в «Приёмку»" : "Как пользоваться «Приёмкой»", ["Проекты"])}
+        <ClientGuide
+          projects={state.projects}
+          onOpen={() => {
+            setПамятка(null);
+            const [один, ...прочие] = state.projects;
+            if (один !== undefined && прочие.length === 0) открыть(один);
+            else go("projects");
+          }}
+        />
+        {tabbar}
+      </>
+    );
+  }
+
+  if (opened !== null) {
+    return (
+      <>
+        {header}
+        <ProjectCard
+          key={opened.code}
+          project={opened}
+          user={state.user}
+          units={state.units}
+          today={today}
+          откуда={разделы.find((item) => item.key === section)?.label ?? "Проекты"}
+          tab={вкладка}
+          onTab={(next) => { setОтбор(null); setВкладка(next); }}
+          отбор={отбор}
+          onСброситьОтбор={() => { setОтбор(null); }}
+          очередь={state.user.role === "CLIENT" ? { inbox: очередьЗаказчика, error: ошибкаОчереди } : null}
+          onBack={() => { setОтбор(null); setOpened(null); }}
+          onChanged={replaceProject}
+        />
+        {tabbar}
+      </>
+    );
+  }
+
 
   /** Заведённый объект встаёт в список и открывается сразу: подтверждение
    *  действия — это сама запись на экране, а не всплывающее сообщение. */
@@ -584,9 +645,13 @@ export function App(): React.JSX.Element {
           </main>
         </>
       )}
-      {/* Заявки — раздел руководителя: прорабу маршруты закрыты ролью, и
-          показывать ему доску, которая ответит отказом, незачем. */}
-      {section === "requests" && (
+      {/* Заявки и Бухгалтерия — разделы руководителя и бухгалтера. Прорабу
+          и заказчику их нет ни в шапке, ни по адресу (`разделДоступен`), и
+          заглушка «Раздел ведёт руководитель», которой они прежде отвечали
+          прорабу, снята вместе с пунктами (K9, П-65). Проверка роли здесь —
+          вторая: раздел, попавший сюда мимо отбора, остаётся пустым, а не
+          спрашивает закрытый маршрут. */}
+      {section === "requests" && ownerLevel(state.user.role) && (
         <>
           {cover("Заявки", ["Главная", "Заявки"])}
           {/* Доска живёт в общем контейнере, как и прочие разделы. Без него
@@ -595,35 +660,14 @@ export function App(): React.JSX.Element {
               `.cover + main` стоит на элементе, а за обложкой шёл `section`
               (аудит Г-3). */}
           <main className="container stack stack--loose">
-            {ownerLevel(state.user.role) ? (
-              <Leads onOpenProject={открытьОбъект} />
-            ) : (
-              <div className="empty">
-                <p className="empty__title">Раздел ведёт руководитель</p>
-                <p className="empty__text">
-                  Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
-                </p>
-              </div>
-            )}
+            <Leads onOpenProject={открытьОбъект} />
           </main>
         </>
       )}
-      {/* Бухгалтерия — раздел руководителя по тому же правилу, что и
-          заявки: прорабу маршрут закрыт ролью, и показывать ему экран,
-          который ответит отказом, незачем. */}
-      {section === "accounting" && (
+      {section === "accounting" && ownerLevel(state.user.role) && (
         <>
           {cover("Бухгалтерия", ["Главная", "Бухгалтерия"])}
-          {ownerLevel(state.user.role) ? (
-            <Accounting onOpenProject={открытьОбъект} />
-          ) : (
-            <div className="empty">
-              <p className="empty__title">Раздел ведёт руководитель</p>
-              <p className="empty__text">
-                Деньги заказчика — не ваш контур. Ваша работа кончается принятой позицией.
-              </p>
-            </div>
-          )}
+          <Accounting onOpenProject={открытьОбъект} />
         </>
       )}
       {section === "contacts" && (

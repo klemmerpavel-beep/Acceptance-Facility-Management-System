@@ -14,10 +14,10 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, ClosedTranches, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
-  ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
+  ActCorrection, ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
-  InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen,
+  InviteIssued, InviteUser, PersonRow, Inbox, InboxItem, InboxKind, InboxSeen, OrganizationContacts,
   ImportResult, MeasureRoom, MeasureSetKind, MeasureView, Organization, ProjectEvent, ProjectStatus, ProjectSummary, UpdateProject, Foreman,
   CreateClient, CreateProject, CreateWorker,
   SmsCodeIssued, Unit, UpdateMeasureRoom, UpdateWorkStage, WorkerRow, WorkStage, CreateWorkStage,
@@ -39,16 +39,17 @@ import {
   estimateSectionRemovalFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
-  remainingQty, roomVolume, stageDateFault, taskState, wallArea,
+  remainingQty, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
   сколько,
   PREPAYMENT_NUMBER,
   inboxItems, адресПункта, актБезПодписи, разделБезЭтапа, разделСегодня, свойЧекОтклонён, чекЧерновик,
-  ВИДЫ_ОЧЕРЕДИ,
+  ВИДЫ_ОЧЕРЕДИ, correctionFault, correctionTotal,
 } from "@priyomka/domain";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
+import { местныйДень } from "./today.js";
 
 interface Snapshot {
   /** Факты объектов для «Выполнено N из M» (пункт 7.8), по коду; снимает руководитель. */
@@ -148,32 +149,33 @@ let measureRooms: Record<MeasureSetKind, MeasureRoom[]> = { INITIAL: [], REPLANN
 let measurePlan: Record<MeasureSetKind, MeasureView["plan"]> = { INITIAL: null, REPLANNED: null };
 let обмерВзят = false;
 
+/* Помещение в виде, который понимает домен. Проёмы входят обязательно: без
+   них площадь стен нетто демонстрации совпала бы с брутто, а сервер их
+   вычитает (этап Э11, шаг 1). */
+const какОбмер = (room: MeasureRoom) => ({
+  floorArea: milliunits(room.floorArea),
+  floorPerimeter: milliunits(room.floorPerimeter),
+  ceilingPerimeter: milliunits(room.ceilingPerimeter),
+  height: milliunits(room.height),
+  openings: room.openings.map((opening) => ({
+    kind: opening.kind, count: opening.count,
+    area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+  })),
+});
+
 const measured = (room: MeasureRoom): MeasureRoom => {
-  const values = {
-    floorArea: milliunits(room.floorArea),
-    floorPerimeter: milliunits(room.floorPerimeter),
-    ceilingPerimeter: milliunits(room.ceilingPerimeter),
-    height: milliunits(room.height),
-  };
+  const values = какОбмер(room);
   return {
     ...room,
     wallArea: wallArea(values).toString(),
+    wallAreaNet: wallAreaNet(values).toString(),
     volume: roomVolume(values).toString(),
   };
 };
 
 const measureView = (set: MeasureSetKind): MeasureView => {
   const комнаты = measureRooms[set];
-  const totals = measureTotals(комнаты.map((room) => ({
-    floorArea: milliunits(room.floorArea),
-    floorPerimeter: milliunits(room.floorPerimeter),
-    ceilingPerimeter: milliunits(room.ceilingPerimeter),
-    height: milliunits(room.height),
-    openings: room.openings.map((opening) => ({
-      kind: opening.kind, count: opening.count,
-      area: milliunits(opening.area), reveal: milliunits(opening.reveal),
-    })),
-  })));
+  const totals = measureTotals(комнаты.map(какОбмер));
   return {
     set,
     /* Заполненные наборы считаются по составу, а не помечаются отдельно:
@@ -184,6 +186,7 @@ const measureView = (set: MeasureSetKind): MeasureView => {
       rooms: totals.rooms,
       floorArea: totals.floorArea.toString(),
       wallArea: totals.wallArea.toString(),
+      wallAreaNet: totals.wallAreaNet.toString(),
       floorPerimeter: totals.floorPerimeter.toString(),
       ceilingPerimeter: totals.ceilingPerimeter.toString(),
       volume: totals.volume.toString(),
@@ -601,9 +604,24 @@ export async function confirmSmsCode(): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+/* Ссылка входа демонстрации — того же вида, что настоящая (`/#login/<токен>`),
+   и ровно так же ничего не открывает без сервера: двойник доступа не
+   создаёт. Экран входа по ссылке показывает этот отказ и ведёт к входу по
+   коду, который в демонстрации показан на экране. */
+export async function consumeLink(): Promise<{ ok: true }> {
+  await pause();
+  throw new Error("Демонстрация не выдаёт доступа: ссылка входа открывается только в рабочей системе. Войдите по номеру телефона — код показан на экране.");
+}
+
 export async function fetchOrganization(): Promise<Organization> {
   await pause(40);
   return data.organization;
+}
+
+/** Как связаться: те же три поля карточки организации из слепка (ДР-11). */
+export async function fetchOrganizationContacts(): Promise<OrganizationContacts> {
+  await pause(40);
+  return { name: data.organization.name, phone: data.organization.phone, email: data.organization.email };
 }
 
 /** Правка в демонстрации не сохраняется: сервера нет, и врать об этом нельзя. */
@@ -694,6 +712,9 @@ export async function fetchClosedTranches(code: string): Promise<ClosedTranches>
         number: транш.number,
         paid: транш.status === "PAID",
         signedAt: снятые.get(транш.number)?.signedAt ?? null,
+        /* Подпись, поставленная в самой демонстрации, фиксирует акт так же,
+           как на сервере (ДР-3). */
+        fixed: (снятые.get(транш.number)?.fixed ?? false) || подписанВДемонстрации(транш.number),
         items: снятые.get(транш.number)?.items ?? [],
       })),
   };
@@ -1309,9 +1330,12 @@ export async function fetchMeasure(
      повторное присвоение стёрло бы внесённое человеком. */
   if (!обмерВзят) {
     обмерВзят = true;
+    /* Производные пересчитываются доменом и у снятых помещений: двойник
+       считает сам, как сервер, а не повторяет слепок. Расхождение с числами
+       сервера в слепке ловит `api.demo.test.ts`. */
     measureRooms = {
-      INITIAL: data.measure.rooms,
-      REPLANNED: data["measure-replanned"].rooms,
+      INITIAL: data.measure.rooms.map(measured),
+      REPLANNED: data["measure-replanned"].rooms.map(measured),
     };
     measurePlan = {
       INITIAL: data.measure.plan,
@@ -1340,6 +1364,7 @@ export async function createRoom(
     ceilingPerimeter: room.ceilingPerimeter,
     height: room.height,
     wallArea: "0",
+    wallAreaNet: "0",
     volume: "0",
     openings: room.openings ?? [],
   })];
@@ -1734,13 +1759,15 @@ export async function addPayment(
   const транш = вид.tranches.find((строка) => строка.id === id);
   if (транш === undefined) throw new Error("Транш не найден у этого объекта.");
 
-  const сегодня = new Date().toISOString().slice(0, 10);
+  /* Дни — местные, тем же помощником, что у листа платежа: сервер считает
+     их днём организации, и двойник не должен отказывать там, где сервер
+     пропустит (фаза 0, дефект K10). */
   const fault = paymentFault({
     amount: kopecks(input.amount),
     paidOn: input.paidOn,
-    today: сегодня,
+    today: местныйДень(),
     status: транш.status,
-    openedOn: транш.openedAt.slice(0, 10),
+    openedOn: местныйДень(new Date(транш.openedAt)),
   });
   if (fault !== null) throw new Error(fault);
 
@@ -2369,10 +2396,30 @@ export const expensePhotoUrl = (): string => "";
    -------------------------------------------------------------------------- */
 const подписи = new Map<string, string>();
 
+/* Первая отметка подписи фиксирует акт (этап Э9, ДР-3): день фиксации —
+   день отметки в демонстрации. Снимок строк двойнику не нужен — правки сметы,
+   которая сдвинула бы акт, в слепке акта нет. Дни фиксации, поправки и
+   скана — местный день (`местныйДень`), как у сервера день организации, а
+   не срез UTC: с полуночи до трёх ночи по Москве он был вчерашним (П-68). */
+const фиксации = new Map<string, string>();
+
+const подписанВДемонстрации = (номер: number): boolean =>
+  data.acts.some((акт) => акт.number === номер && фиксации.has(акт.trancheId));
+
 const сПодписью = (акт: ActRow): ActRow => {
   const дата = подписи.get(акт.trancheId);
-  return дата === undefined ? акт : { ...акт, signedAt: дата };
+  return дата === undefined
+    ? акт
+    : { ...акт, signedAt: дата, fixedAt: акт.fixedAt ?? фиксации.get(акт.trancheId) ?? null };
 };
+
+/* Поправки к подписанным актам живут в памяти вкладки, как подписи: ключевое
+   действие ДР-3 обязано работать и в демонстрации. Строка снимка в слепке
+   неподписанного акта опознавателя не имеет — двойник выдаёт его по номеру
+   строки, тем же видом, что у сервера. */
+const поправки: ActCorrection[] = [];
+const опознавательСтроки = (индекс: number): string =>
+  `00000000-0000-4000-8000-${String(индекс + 1).padStart(12, "0")}`;
 
 /* Скан подписанного акта живёт в памяти вкладки адресом объекта браузера:
    сервера, который проверил бы содержимое, у демонстрации нет, и тип берётся
@@ -2399,7 +2446,15 @@ export async function fetchAct(
   const снимок = audience === "internal" ? data["act-internal"] : data["act-client"];
   if (code !== "R-99" || снимок === null) throw new Error("Акт не найден: транш ещё открыт.");
   const дата = подписи.get(trancheId);
-  return дата === undefined ? снимок : { ...снимок, signedAt: дата };
+  if (дата === undefined) return снимок;
+  const зафиксирован = снимок.fixedAt ?? фиксации.get(trancheId) ?? null;
+  return {
+    ...снимок,
+    signedAt: дата,
+    fixedAt: зафиксирован,
+    lines: снимок.lines.map((строка, индекс) => ({ ...строка, id: строка.id ?? опознавательСтроки(индекс) })),
+    amendments: поправки.filter((поправка) => поправка.act === снимок.number),
+  };
 }
 
 export async function signAct(
@@ -2409,6 +2464,48 @@ export async function signAct(
 ): Promise<ActRow[]> {
   await pause(240);
   подписи.set(trancheId, signedAt);
+  if (!фиксации.has(trancheId)) фиксации.set(trancheId, местныйДень());
+  return data.acts.map(сДокументами);
+}
+
+export async function createActCorrection(
+  _code: string,
+  trancheId: string,
+  input: { lineId: string; qty: string; unitPrice: string; reason: string },
+): Promise<ActRow[]> {
+  await pause(240);
+  const акт = await fetchAct("R-99", trancheId);
+  if (акт.fixedAt === null) {
+    throw new Error(`Акт № ${String(акт.number)} не подписан и следует за сметой: его исправляет правка сметы.`);
+  }
+  const текущий = траншиR99().current;
+  if (текущий === null) {
+    throw new Error("У объекта нет открытого транша: поправка входит в акт текущего транша.");
+  }
+  const строка = акт.lines.find((line) => line.id === input.lineId);
+  if (строка === undefined) throw new Error(`Строка не найдена в акте № ${String(акт.number)}.`);
+  const прежняя = поправки.filter((поправка) => поправка.lineId === input.lineId).at(-1);
+  const было = прежняя === undefined
+    ? { qty: milliunits(строка.qty), unitPrice: kopecks(строка.unitPrice) }
+    : { qty: milliunits(прежняя.qtyAfter), unitPrice: kopecks(прежняя.priceAfter) };
+  const стало = { qty: milliunits(input.qty), unitPrice: kopecks(input.unitPrice) };
+  const ошибка = correctionFault({ было, стало, причина: input.reason });
+  if (ошибка !== null) throw new Error(ошибка);
+  поправки.push({
+    id: crypto.randomUUID(),
+    lineId: input.lineId,
+    act: акт.number,
+    into: текущий.number,
+    name: строка.name,
+    unit: строка.unit,
+    qtyBefore: было.qty.toString(),
+    qtyAfter: стало.qty.toString(),
+    priceBefore: было.unitPrice.toString(),
+    priceAfter: стало.unitPrice.toString(),
+    total: correctionTotal({ было, стало }).toString(),
+    reason: input.reason.trim(),
+    createdAt: местныйДень(),
+  });
   return data.acts.map(сДокументами);
 }
 
@@ -2426,7 +2523,7 @@ export async function attachActScan(_code: string, trancheId: string, file: File
   сканы.set(trancheId, {
     адрес: URL.createObjectURL(file),
     тип: file.type,
-    день: new Date().toISOString().slice(0, 10),
+    день: местныйДень(),
   });
   return data.acts.map(сДокументами);
 }

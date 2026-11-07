@@ -29,6 +29,16 @@
  * проёмами. По периметру пола итог дал бы 232,39 м² вместо 262,95 —
  * недосчёт в тринадцать процентов оплачиваемой работы.
  *
+ * Площадь стен двух видов (этап Э11, шаг 1; ADR-0002, вариант «б»)
+ * ------------------------------------------------------------------
+ * Прежняя величина остаётся как была — площадь стен без вычета проёмов,
+ * «брутто». Рядом с ней — площадь стен за вычетом проёмов, «нетто»: брутто
+ * минус суммарная площадь окон и дверей помещения. Вычитаются площади
+ * проёмов, а не их откосы: откос — отдельная поверхность и считается
+ * отдельной позицией. Брутто не заменяется нетто: по ней считались уже
+ * подставленные количества сметы, и обе величины нужны работам разного
+ * рода — грунтовка идёт по всей стене, обои и покраска — за вычетом окон.
+ *
  * Единицы
  * -------
  * Все величины — тысячные доли, целым числом (`Milliunits`), по тому же
@@ -39,6 +49,7 @@
  */
 
 import { divideRoundHalfUp, type Milliunits } from "./money.js";
+import { количествоТекстом } from "./acceptance.js";
 
 /** Множитель тысячных долей — тот же, что у количеств сметы. */
 const MILLI = 1000n;
@@ -88,9 +99,52 @@ export interface OpeningTotals {
 const product = (a: Milliunits, b: Milliunits): Milliunits =>
   divideRoundHalfUp(a * b, MILLI) as Milliunits;
 
-/** Площадь стен: периметр потолка × высота. Проёмы не вычитаются. */
+/** Площадь стен брутто: периметр потолка × высота. Проёмы не вычитаются. */
 export function wallArea(room: RoomMeasure): Milliunits {
   return product(room.ceilingPerimeter, room.height);
+}
+
+/**
+ * Суммарная площадь проёмов помещения — окон и дверей вместе, тысячных м².
+ * Нет строки проёмов — нет и вычета: ноль, а не пропуск.
+ */
+export function openingsArea(room: RoomMeasure): Milliunits {
+  let area = 0n;
+  for (const opening of room.openings ?? []) area += opening.area;
+  return area as Milliunits;
+}
+
+/**
+ * Площадь стен нетто: брутто за вычетом суммарной площади проёмов.
+ *
+ * Не ниже нуля. Проёмы больше стен — почти наверняка промах ввода
+ * (площадь двери в сантиметрах, высота помещения не та), но отказывать
+ * здесь нельзя: проёмы вводятся тем же листом, что величины помещения, и
+ * отказ запер бы обмер целиком. Отрицательная площадь ушла бы количеством
+ * в смету и уменьшила бы её итог; поэтому ноль — и предупреждение
+ * `wallAreaNetWarning`, которое экран обязан показать.
+ *
+ * Деления нет: брутто уже округлена по единственному правилу системы
+ * (`product`), площади проёмов — измеренные тысячные. Разность целых
+ * тысячных округления не требует.
+ */
+export function wallAreaNet(room: RoomMeasure): Milliunits {
+  const net = wallArea(room) - openingsArea(room);
+  return (net > 0n ? net : 0n) as Milliunits;
+}
+
+/**
+ * Предупреждение, если проёмы помещения больше площади его стен: нетто
+ * тогда принята нулём (`wallAreaNet`). Равенство законно — предупреждения
+ * нет. Предупреждение, а не отказ — довод у `wallAreaNet`.
+ */
+export function wallAreaNetWarning(room: RoomMeasure): string | null {
+  const стены = wallArea(room);
+  const проёмы = openingsArea(room);
+  if (проёмы <= стены) return null;
+  return `Проёмы помещения (${количествоТекстом(проёмы, "м²")}) больше площади его стен`
+    + ` (${количествоТекстом(стены, "м²")}): площадь стен нетто принята равной нулю.`
+    + " Проверьте площадь окон и дверей, периметр потолка и высоту.";
 }
 
 /** Объём помещения: площадь пола × высота. */
@@ -102,7 +156,14 @@ export function roomVolume(room: RoomMeasure): Milliunits {
 export interface MeasureTotals {
   readonly rooms: number;
   readonly floorArea: Milliunits;
+  /** Площадь стен брутто — без вычета проёмов. */
   readonly wallArea: Milliunits;
+  /**
+   * Площадь стен нетто — сумма нетто помещений. Не «брутто объекта минус
+   * проёмы объекта»: у помещения, чьи проёмы больше стен, нетто — ноль, и
+   * его лишек не вычитается из стен соседних помещений.
+   */
+  readonly wallAreaNet: Milliunits;
   readonly floorPerimeter: Milliunits;
   readonly ceilingPerimeter: Milliunits;
   readonly volume: Milliunits;
@@ -147,6 +208,7 @@ function openingTotals(rooms: readonly RoomMeasure[], kind: OpeningKind): Openin
 export function measureTotals(rooms: readonly RoomMeasure[]): MeasureTotals {
   let floorArea = 0n;
   let walls = 0n;
+  let wallsNet = 0n;
   let floorPerimeter = 0n;
   let ceilingPerimeter = 0n;
   let volume = 0n;
@@ -156,6 +218,7 @@ export function measureTotals(rooms: readonly RoomMeasure[]): MeasureTotals {
     floorPerimeter += room.floorPerimeter;
     ceilingPerimeter += room.ceilingPerimeter;
     walls += wallArea(room);
+    wallsNet += wallAreaNet(room);
     volume += roomVolume(room);
   }
 
@@ -163,6 +226,7 @@ export function measureTotals(rooms: readonly RoomMeasure[]): MeasureTotals {
     rooms: rooms.length,
     floorArea: floorArea as Milliunits,
     wallArea: walls as Milliunits,
+    wallAreaNet: wallsNet as Milliunits,
     floorPerimeter: floorPerimeter as Milliunits,
     ceilingPerimeter: ceilingPerimeter as Milliunits,
     volume: volume as Milliunits,

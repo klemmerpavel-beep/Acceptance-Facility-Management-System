@@ -216,6 +216,11 @@ jobs:
       - name: Разграничение по полям
         run: node scripts/verify-api.mjs
 
+      # Замер базы метрик до Э9 сверяется с экраном денег и вкладками «Чеки»
+      # на тех же данных; числа стенда за базу не выдаются (решение Э9-12).
+      - name: Замер базы метрик
+        run: node scripts/verify-baseline.mjs
+
       # Нужен именно dev-сервер: прокси `/api` объявлен в vite.config.ts и в
       # `vite preview` не работает, а кука сессии httpOnly и кросс-доменно
       # браузером не отдаётся.
@@ -323,6 +328,52 @@ jobs:
             echo "поставка по умолчанию отдаёт ссылку входа в ответе: $body"; exit 1
           fi
           docker compose exec -T api node -e "require('/repo/apps/api/node_modules/sharp')"
+
+      # Ступень nginx безопасности входа (ADR-0008, пп. 1 и 7; K5 и K7 фазы 0,
+      # П-61 и П-63). Переходный обмен ссылки несёт токен в строке запроса, и
+      # журнал nginx его писать не должен — ни в обычном ответе, ни в отказе
+      # предела: отказ уходит внутренней переадресацией в именованное место, и
+      # журнал там свой (П-69). Залп запросов входа с одного адреса упирается в
+      # 429 до сервера, с текстом, который покажет экран входа. Журнал доступа
+      # сверяется на непустоту: молчащий журнал пропустил бы и токен, и проверку.
+      - name: Журнал и предел входа
+        run: |
+          token=proverka-postavki-takogo-tokena-net-0123456789
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:5173/api/auth/consume?token=$token")
+          if [ "$code" != "401" ]; then echo "переходный обмен ссылки ответил «$code» вместо 401"; exit 1; fi
+          limited=""
+          for i in $(seq 1 25); do
+            code=$(curl -s -o /tmp/predel.json -w '%{http_code}' -X POST -H 'content-type: application/json' \
+              -d '{"phone":"+79990000098"}' http://127.0.0.1:5173/api/auth/phone/request)
+            if [ "$code" = "429" ]; then limited="$i"; break; fi
+          done
+          if [ -z "$limited" ]; then echo "25 запросов кода подряд не упёрлись в предел nginx"; exit 1; fi
+          if ! grep -q "Слишком много запросов" /tmp/predel.json; then
+            echo "отказ предела без текста для экрана входа: $(cat /tmp/predel.json)"; exit 1
+          fi
+          echo "предел nginx: 429 на запросе № $limited"
+          # Переходный обмен, упёршийся в предел: прежде отказ писался общим
+          # именованным местом с журналом, и строка с токеном ложилась в журнал.
+          token429=proverka-postavki-predel-obmena-0123456789
+          obmen=""
+          for i in $(seq 1 25); do
+            code=$(curl -s -o /tmp/predel-obmena.json -w '%{http_code}' "http://127.0.0.1:5173/api/auth/consume?token=$token429")
+            if [ "$code" = "429" ]; then obmen="$i"; break; fi
+          done
+          if [ -z "$obmen" ]; then echo "25 переходных обменов подряд не упёрлись в предел nginx"; exit 1; fi
+          if ! grep -q "Слишком много запросов" /tmp/predel-obmena.json; then
+            echo "отказ предела обмена без текста для экрана входа: $(cat /tmp/predel-obmena.json)"; exit 1
+          fi
+          sleep 2
+          if ! docker compose logs web | grep -q "GET /api/auth/me"; then
+            echo "журнал доступа nginx пуст — проверка токена в журнале прошла бы вхолостую"; exit 1
+          fi
+          for t in "$token" "$token429"; do
+            if docker compose logs web api | grep -q "$t"; then
+              echo "токен ссылки входа попал в журнал:"; docker compose logs web api | grep "$t"; exit 1
+            fi
+          done
+          echo "переходный обмен: 429 на запросе № $obmen, токена в журналах нет"
 
       - name: Остановка
         if: always()

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ВИДЫ_ОЧЕРЕДИ, адресПункта } from "@priyomka/domain";
-import { ВКЛАДКИ, адрес, разобрать, type Маршрут } from "./route.js";
+import { ВКЛАДКИ, адрес, разобрать, ссылкаВхода, токенВхода, type Маршрут } from "./route.js";
 
 /**
  * Адреса экранов (полный аудит 30.09.2026, П-50; решение заказчика от
@@ -70,5 +70,43 @@ describe("отбор в адресе", () => {
 
   it("неизвестный отбор не отбирает ничего: экран открывается целиком", () => {
     expect(разобрать("#R-99/expenses?zzz")).toEqual({ kind: "project", code: "R-99", tab: "expenses" });
+  });
+});
+
+/**
+ * Ссылка входа — фрагмент адреса, а не строка запроса (ADR-0008, п. 2; П-61).
+ * Фрагмент на сервер не уходит и в журнал доступа не попадает; строка запроса
+ * попадала. Свойства: токен только во фрагменте; выданная ссылка разбирается
+ * обратно в тот же токен; адрес входа экраном вошедшего не считается.
+ */
+describe("ссылка входа во фрагменте", () => {
+  const ТОКЕН = "Zq3-x_Y8aB0cD1eF2gH3iJ4kL5mN6oP7qR8sT9uV0w";
+
+  it("токен — во фрагменте, строки запроса нет", () => {
+    const ссылка = ссылкаВхода("https://priyomka.example/", ТОКЕН);
+    expect(ссылка).toBe(`https://priyomka.example/#login/${ТОКЕН}`);
+    const адрес = new URL(ссылка);
+    expect(адрес.search).toBe("");
+    expect(адрес.pathname).toBe("/");
+    expect(адрес.hash).toBe(`#login/${ТОКЕН}`);
+    expect(ссылка).not.toMatch(/consume|token=/u);
+  });
+
+  it("путь демонстрации сохраняется, прежний фрагмент — нет", () => {
+    expect(ссылкаВхода("https://example.github.io/priyomka/#R-99", "abc")).toBe("https://example.github.io/priyomka/#login/abc");
+  });
+
+  it("выданная ссылка разбирается обратно в тот же токен", () => {
+    expect(токенВхода(new URL(ссылкаВхода("https://priyomka.example/", ТОКЕН)).hash)).toBe(ТОКЕН);
+  });
+
+  it("не ссылка входа — не токен", () => {
+    for (const hash of ["", "#", "#login", "#login/", "#login/a b", "#login/abc/def", "#R-99", "#home"]) {
+      expect(токенВхода(hash), hash).toBeNull();
+    }
+  });
+
+  it("адрес входа не экран вошедшего: оболочка остаётся на своём", () => {
+    expect(разобрать(`#login/${ТОКЕН}`)).toBeNull();
   });
 });

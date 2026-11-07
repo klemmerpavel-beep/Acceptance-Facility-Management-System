@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { ActRow, ActView } from "@priyomka/contracts";
-import { signActSchema } from "@priyomka/contracts";
+import { createActCorrectionSchema, signActSchema } from "@priyomka/contracts";
 import { ActsService } from "./acts.service";
 import { SessionGuard } from "../auth/session.guard";
 import { Roles, RolesGuard } from "../common/roles.guard";
@@ -52,6 +52,21 @@ export class ActsController {
     @Body() body: unknown,
   ): Promise<ActRow[]> {
     return this.acts.sign(user, code, id, signActSchema.parse(body));
+  }
+
+  /**
+   * Поправка к строке подписанного акта (этап Э9, ДР-3): входит строкой в акт
+   * открытого транша. Подписанный акт не меняется.
+   */
+  @Post(":id/corrections")
+  @Roles("OWNER")
+  correct(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<ActRow[]> {
+    return this.acts.correct(user, code, id, createActCorrectionSchema.parse(body));
   }
 
   /** Скан подписанного экземпляра акта (план, пункт 4.10). */

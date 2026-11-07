@@ -82,13 +82,11 @@ export class TranchesController {
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<TrancheView> {
-    /* Сегодняшний день берётся здесь, а не в правиле: домен чистый, и
-       отказ «платёж будущим днём», посчитанный от скрытого «сейчас»,
-       перестал бы воспроизводиться в тестах. Тот же приём, что в
-       бухгалтерии. */
-    return this.tranches.addPayment(
-      user, code, id, createPaymentSchema.parse(body), new Date().toISOString().slice(0, 10),
-    );
+    /* Сегодняшний день считает служба днём организации и передаёт в
+       правило: домен чистый, и отказ «платёж будущим днём», посчитанный от
+       скрытого «сейчас», перестал бы воспроизводиться в тестах. Прежде день
+       брался здесь по UTC (фаза 0, дефект K10). */
+    return this.tranches.addPayment(user, code, id, createPaymentSchema.parse(body));
   }
 
   /** Сторно платежа: запись того же вида с обратной суммой (БП-04). */

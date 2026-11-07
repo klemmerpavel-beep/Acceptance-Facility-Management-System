@@ -582,7 +582,17 @@ const phoneConfirm = (phone, code) =>
     body: JSON.stringify({ phone, code }),
   });
 
-const known = await phoneRequest("8 900 000-00-00").then((r) => r.json());
+/* Номер — свой, заведённый здесь, а не номер руководителя: с 07.11.2026
+   пауза повторной выдачи отсчитывается от последнего выданного кода, погашен
+   он или нет (ADR-0008, п. 5), и код, выданный руководителю здесь, лишил бы
+   обход страницы, идущий следом, входа кодом на минуту. */
+const НОМЕР_ВХОДА = "+79000000033";
+const заведёнДляКода = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Проверка входа по коду", role: "ACCOUNTANT", email: null, phone: НОМЕР_ВХОДА, clientId: null }),
+});
+check(заведёнДляКода.status === 201, `человек для проверки входа по коду заведён с кодом ${заведёнДляКода.status}`);
+const known = await phoneRequest("8 900 000-00-33").then((r) => r.json());
 const unknown = await phoneRequest("+7 999 111-22-33").then((r) => r.json());
 check(known.sent === true && unknown.sent === true, "ответ различает известный и неизвестный номер");
 // Пробелы в показном номере неразрывные: иначе он рвётся переносом строки.
@@ -598,28 +608,39 @@ check(foreignCode.status === 400, `чужой код страны принят �
 const landline = await phoneRequest("+7 473 000-00-00");
 check(landline.status === 400, `городской номер принят на вход с кодом ${landline.status}`);
 
-const wrongShape = await phoneConfirm("+79000000000", "12");
+const wrongShape = await phoneConfirm(НОМЕР_ВХОДА, "12");
 check(wrongShape.status === 400, `код из двух цифр принят с кодом ${wrongShape.status}`);
 
 // Код нельзя обменять маршрутом ссылки: там не считаются попытки.
 const asLink = await fetch(`${BASE}/auth/consume?token=${known.code}`, { redirect: "manual" });
 check(asLink.status === 401 || asLink.status === 400, `код обменен маршрутом ссылки с кодом ${asLink.status}`);
 
-const entered = await phoneConfirm("+79000000000", known.code);
+const entered = await phoneConfirm(НОМЕР_ВХОДА, known.code);
 check(entered.status === 201 || entered.status === 200, `вход по коду отклонён с кодом ${entered.status}`);
 const phoneSession = /priyomka_session=([^;]+)/u.exec(entered.headers.get("set-cookie") ?? "")?.[1];
 check(Boolean(phoneSession), "вход по коду не выдал сессию");
 
-const reused = await phoneConfirm("+79000000000", known.code);
+const reused = await phoneConfirm(НОМЕР_ВХОДА, known.code);
 check(reused.status === 401, `погашенный код принят повторно с кодом ${reused.status}`);
 
-// Пять неверных попыток гасят код: шесть цифр перебираются за миллион запросов.
-const guessed = await phoneRequest("+79000000000").then((r) => r.json());
+/* Пять неверных попыток гасят код: шесть цифр перебираются за миллион запросов.
+   Номер — свой, заведённый здесь: с 07.11.2026 пауза повторной выдачи
+   отсчитывается от последнего выданного кода, погашен он или нет (ADR-0008,
+   п. 5), и номер, только что вошедший кодом, нового кода раньше паузы не
+   получит. */
+const НОМЕР_ПОПЫТОК = "+79000000066";
+const заведёнДляПопыток = await owner("/people", {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ name: "Проверка попыток кода", role: "ACCOUNTANT", email: null, phone: НОМЕР_ПОПЫТОК, clientId: null }),
+});
+check(заведёнДляПопыток.status === 201, `человек для проверки попыток кода заведён с кодом ${заведёнДляПопыток.status}`);
+const guessed = await phoneRequest(НОМЕР_ПОПЫТОК).then((r) => r.json());
+check(typeof guessed.code === "string", `код для проверки попыток не выдан: ${JSON.stringify(guessed)}`);
 const wrong = guessed.code === "000000" ? "111111" : "000000";
 const attempts = [];
-for (let i = 0; i < 5; i += 1) attempts.push((await phoneConfirm("+79000000000", wrong)).status);
+for (let i = 0; i < 5; i += 1) attempts.push((await phoneConfirm(НОМЕР_ПОПЫТОК, wrong)).status);
 check(attempts.every((status) => status === 401), `попытки отдали коды ${attempts.join(", ")}`);
-const blocked = await phoneConfirm("+79000000000", guessed.code);
+const blocked = await phoneConfirm(НОМЕР_ПОПЫТОК, guessed.code ?? "000000");
 check(blocked.status === 401, `верный код принят после пяти неудач с кодом ${blocked.status}`);
 
 /* Параллельный перебор кода (полный аудит 30.09.2026, П-24) здесь не
@@ -715,6 +736,178 @@ async function дождатьсяСервера(адрес, выход) {
     const кодВыхода = await промышленный.выход;
     check(!запустился && кодВыхода !== 0 && /AUTH_ECHO=1 при NODE_ENV=production/u.test(промышленный.вывод()),
       `сервер с флагом стенда в промышленном режиме ${запустился ? "запустился" : `вышел с кодом ${String(кодВыхода)} без объяснения`}`);
+  }
+}
+
+/* --- безопасность входа: ADR-0008, K5–K7 фазы 0 (П-61 — П-63) ---------------
+   Решение заказчика — ответ 15 «б» раунда 1 фазы 0. Стражи пункта 10 ADR,
+   каждый доказан откатом (`docs/13_FULL_AUDIT.md`, строки П-61 — П-63):
+   - `POST /auth/consume` с токеном в теле открывает сессию (K5): ссылка
+     выдаётся фрагментом адреса, и токен в строку запроса не попадает;
+   - прежняя персональная ссылка после повторной выдачи — 401 (K6);
+   - после гашения кода новый не выдаётся раньше паузы (K7);
+   - шестой код на номер за час — 429, и несуществующему номеру тоже (K7);
+   - ссылка по почте сверх предела строки не заводит и отвечает как обычно (K7).
+   Что ссылка из «Людей» несёт токен только во фрагменте, проверяют
+   `route.test.ts` и обход страницы: адрес ссылки собирает клиент, сервер
+   отдаёт один токен. Ступень nginx — работа CI «Поставка».
+   -------------------------------------------------------------------------- */
+{
+  const вТеле = (тело) => ({
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const обменятьТелом = (токен, адрес = BASE) => fetch(`${адрес}/auth/consume`, вТеле({ token: токен }));
+  const кукаИз = (ответ) => ответ.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const ктоПоКуке = (кука) => fetch(`${BASE}/auth/me`, { headers: { cookie: кука } });
+  /* Люди заводятся бухгалтерами: прораб, заведённый проверкой, встал бы в
+     выбор прораба нового объекта, и обход страницы, идущий следом, получил
+     бы на плитке чужое длинное имя. Вход ссылкой и кодом от роли не зависит. */
+  const завестиДляВхода = async (тело) => {
+    const ответ = await owner("/people", вТеле({ clientId: null, email: null, phone: null, ...тело }));
+    check(ответ.status === 201, `ADR-0008: человек «${тело.name}» заведён с кодом ${ответ.status}`);
+    return ответ.status === 201 ? (await ответ.json()).token : "";
+  };
+
+  /* K5 и K6: обмен телом и отзыв прежней ссылки повторной выдачей. */
+  const ИМЯ_K6 = "Проверка K6: ссылка";
+  const первая = await завестиДляВхода({ name: ИМЯ_K6, role: "ACCOUNTANT", email: "k6-proverka@dolgiy.studio" });
+  const вход = await обменятьТелом(первая);
+  check(вход.status === 201 || вход.status === 200, `K5: POST /auth/consume с токеном в теле ответил ${вход.status}`);
+  const кука = кукаИз(вход);
+  const кто = await ктоПоКуке(кука).then((r) => (r.ok ? r.json() : {}));
+  check(кто.name === ИМЯ_K6, `K5: POST /auth/consume не открыл сессию человека ссылки: «/auth/me» — ${JSON.stringify(кто)}`);
+  const второйРаз = await обменятьТелом(первая);
+  check(второйРаз.ok, `персональная ссылка перестала быть многоразовой (решение № 1): второй обмен — ${второйРаз.status}`);
+  const безТокена = await fetch(`${BASE}/auth/consume`, вТеле({}));
+  check(безТокена.status === 400, `K5: POST /auth/consume без токена ответил ${безТокена.status}, а не 400`);
+
+  const перевыдана = await owner(`/people/${String(кто.id)}/link`, вТеле({}));
+  check(перевыдана.status === 201, `K6: повторная выдача ссылки ответила ${перевыдана.status}`);
+  const { token: вторая = "" } = перевыдана.status === 201 ? await перевыдана.json() : {};
+  const прежняяТелом = await обменятьТелом(первая);
+  check(прежняяТелом.status === 401,
+    `K6: прежняя ссылка после повторной выдачи открыла вход телом — код ${прежняяТелом.status}, а не 401`);
+  const прежняяАдресом = await fetch(`${BASE}/auth/consume?token=${первая}`, { redirect: "manual" });
+  check(прежняяАдресом.status === 401,
+    `K6: прежняя ссылка после повторной выдачи открыла вход переходным GET — код ${прежняяАдресом.status}, а не 401`);
+  const новая = await обменятьТелом(вторая);
+  check(новая.ok, `K6: новая ссылка после повторной выдачи не открыла вход: ${новая.status}`);
+  /* Переходный GET для действующей ссылки работает: ранее выданные ссылки
+     живут до снятия GET (ADR-0008, п. 3; дата снятия — решение заказчика). */
+  const переходный = await fetch(`${BASE}/auth/consume?token=${вторая}`, { redirect: "manual" });
+  check(переходный.status === 302, `K5: переходный GET /auth/consume для действующей ссылки ответил ${переходный.status}`);
+  /* Сессия, открытая прежней ссылкой, по умолчанию ADR-0008 живёт до срока;
+     её судьба — вопрос заказчику при приёмке, поэтому здесь она называется,
+     а не стережётся. */
+  const сессияПрежней = (await ктоПоКуке(кука)).status;
+  console.log(`K6: сессия, открытая прежней ссылкой, после повторной выдачи — ${сессияПрежней === 200
+    ? "действует до срока (умолчание ADR-0008 до ответа заказчика)" : `код ${String(сессияПрежней)}`}`);
+
+  /* K6, одновременные выдачи (П-70): «новая ссылка отменяет прежнюю» должно
+     держаться и тогда, когда ссылку одному человеку выдают разом — два
+     руководителя, две вкладки. Без блокировки строки человека удаление
+     каждой выдачи не видело вставок соседних, и действовали несколько новых.
+     Из залпа выдач вход открывает ровно одна ссылка. */
+  const ЗАЛП_ВЫДАЧ = 8;
+  const выдачи = await Promise.all(Array.from({ length: ЗАЛП_ВЫДАЧ }, () => owner(`/people/${String(кто.id)}/link`, вТеле({}))));
+  check(выдачи.every((ответ) => ответ.status === 201),
+    `K6: залп выдач ссылки — коды ${выдачи.map((ответ) => ответ.status).join(", ")}, а не 201`);
+  const токеныЗалпа = await Promise.all(выдачи.map((ответ) => (ответ.status === 201 ? ответ.json() : {})));
+  const входыЗалпа = await Promise.all(токеныЗалпа.map(({ token: токен = "" }) => обменятьТелом(токен)));
+  const действуют = входыЗалпа.filter((ответ) => ответ.ok).length;
+  check(действуют === 1,
+    `K6: после ${String(ЗАЛП_ВЫДАЧ)} одновременных выдач вход открывают новые ссылки в числе ${String(действуют)}, а не одна (П-70)`);
+
+  /* K7: пауза — от последнего выданного кода, погашен он или нет. */
+  const НОМЕР_ПАУЗЫ = "+79000000055";
+  await завестиДляВхода({ name: "Проверка K7: пауза", role: "ACCOUNTANT", phone: НОМЕР_ПАУЗЫ });
+  const первыйКод = await phoneRequest(НОМЕР_ПАУЗЫ).then((r) => r.json());
+  check(typeof первыйКод.code === "string", `K7: первый код на свежий номер не выдан: ${JSON.stringify(первыйКод)}`);
+  const погашен = await phoneConfirm(НОМЕР_ПАУЗЫ, первыйКод.code ?? "000000");
+  check(погашен.ok, `K7: вход по первому коду отклонён с кодом ${погашен.status}`);
+  const сразу = await phoneRequest(НОМЕР_ПАУЗЫ);
+  const сразуТело = await сразу.json();
+  check(сразу.ok && сразуТело.code === undefined && сразуТело.retryAfterSeconds > 0,
+    `K7: после гашения кода новый выдан раньше паузы: ${сразу.status} ${JSON.stringify(сразуТело)}`);
+  const НЕТ_ТАКОГО_НОМЕРА = "+79990000055";
+  await phoneRequest(НЕТ_ТАКОГО_НОМЕРА);
+  const чужойСразу = await phoneRequest(НЕТ_ТАКОГО_НОМЕРА).then((r) => r.json());
+  check(Object.keys(чужойСразу).sort().join() === Object.keys(сразуТело).sort().join()
+    && чужойСразу.retryAfterSeconds > 0 && чужойСразу.retryAfterSeconds <= 60,
+    `K7: пауза несуществующего номера отвечает иначе: ${JSON.stringify(чужойСразу)} против ${JSON.stringify(сразуТело)}`);
+
+  /* K7: предел кодов на номер за час — 429. Пять кодов при паузе в минуту
+     выдаются пять минут, поэтому предел проверяется вторым экземпляром той
+     же сборки с паузой в секунду и пределами по умолчанию — теми, что
+     действуют в поставке. Строки счёта — в той же базе. */
+  const НОМЕР_ПРЕДЕЛА = "+79000000044";
+  await завестиДляВхода({ name: "Проверка K7: предел", role: "ACCOUNTANT", phone: НОМЕР_ПРЕДЕЛА });
+  if (!existsSync(СЕРВЕР)) {
+    check(false, `сборки сервера нет (${СЕРВЕР}) — предел кодов на номер не проверен`);
+  } else {
+    const окружение = { ...process.env, PORT: "3093", AUTH_SMS_RESEND_SECONDS: "1" };
+    for (const имя of ["AUTH_SMS_PER_HOUR", "AUTH_SMS_PER_DAY", "AUTH_LINKS_PER_HOUR"]) delete окружение[имя];
+    const третий = поднятьСервер(окружение);
+    const адрес = "http://127.0.0.1:3093";
+    const поднят = await дождатьсяСервера(адрес, третий.выход);
+    check(поднят, `сервер с паузой кода в секунду не поднялся: ${третий.вывод().slice(-300)}`);
+    if (поднят) {
+      const шестьЗапросов = async (номер) => {
+        const ответы = [];
+        for (let i = 0; i < 6; i += 1) {
+          if (i > 0) await new Promise((готово) => { setTimeout(готово, 1100); });
+          const ответ = await fetch(`${адрес}/auth/phone/request`, вТеле({ phone: номер }));
+          ответы.push({ status: ответ.status, тело: await ответ.json().catch(() => ({})) });
+        }
+        return ответы;
+      };
+      const [свой, чужой] = await Promise.all([шестьЗапросов(НОМЕР_ПРЕДЕЛА), шестьЗапросов("+79990000044")]);
+      const выдано = свой.slice(0, 5).filter((ответ) => typeof ответ.тело.code === "string").length;
+      check(выдано === 5, `K7: при паузе в секунду выдано ${выдано} кодов из пяти — предел проверен не на выдаче`);
+      const шестой = свой[5] ?? { status: 0, тело: {} };
+      check(шестой.status === 429 && /^Слишком много запросов\. Повторите через \d+ мин\.$/u.test(шестой.тело.message ?? ""),
+        `K7: шестой код на номер за час — ${шестой.status} ${JSON.stringify(шестой.тело)}, а не 429 с числом минут`);
+      check(чужой.map((ответ) => ответ.status).join() === свой.map((ответ) => ответ.status).join()
+        && чужой[5]?.тело.message === шестой.тело.message,
+        `K7: несуществующий номер отвечает на предел иначе: ${чужой.map((ответ) => ответ.status).join()} против ${свой.map((ответ) => ответ.status).join()}`);
+    }
+    третий.процесс.kill();
+    await третий.выход;
+  }
+
+  /* K7: ссылки по почте — не больше пяти непогашенных за час; сверх предела
+     ответ прежний, строки нет. Строки считаются в базе: ответ сверх предела
+     нарочно неотличим от обычного, и снаружи разницу не увидеть. */
+  const ПОЧТА_ПИСЕМ = "k7-pisma@dolgiy.studio";
+  await завестиДляВхода({ name: "Проверка K7: письма", role: "ACCOUNTANT", email: ПОЧТА_ПИСЕМ });
+  if (process.env.DATABASE_URL === undefined) {
+    check(false, "K7: нет DATABASE_URL — строки ссылок по почте не сосчитать");
+  } else {
+    const { PrismaClient } = createRequire(new URL("../apps/api/package.json", import.meta.url))("@prisma/client");
+    const база = new PrismaClient();
+    const строк = () => база.authToken.count({ where: { user: { email: ПОЧТА_ПИСЕМ }, purpose: "MAGIC_LINK" } });
+    const письмо = async (почта) => {
+      const ответ = await fetch(`${BASE}/auth/magic-link`, вТеле({ email: почта }));
+      return { status: ответ.status, тело: await ответ.json() };
+    };
+    const пять = [];
+    for (let i = 0; i < 5; i += 1) пять.push(await письмо(ПОЧТА_ПИСЕМ));
+    check(пять.every((ответ) => typeof ответ.тело.token === "string"),
+      `K7: из пяти ссылок по почте выдано ${пять.filter((ответ) => typeof ответ.тело.token === "string").length}`);
+    const до = await строк();
+    const шестая = await письмо(ПОЧТА_ПИСЕМ);
+    const после = await строк();
+    const никому = await письмо("nikogo-net-k7@dolgiy.studio");
+    check(после === до, `K7: шестая ссылка на адрес за час завела строку (${до} → ${после})`);
+    check(шестая.status === никому.status && JSON.stringify(шестая.тело) === JSON.stringify(никому.тело)
+      && шестая.тело.sent === true && шестая.тело.token === undefined,
+      `K7: ответ сверх предела отличается от обычного: ${JSON.stringify(шестая)} против ${JSON.stringify(никому)}`);
+    /* Погашенная ссылка в счёт не идёт: она привела к входу и рассылкой не была. */
+    await обменятьТелом(пять[0]?.тело.token ?? "");
+    const седьмая = await письмо(ПОЧТА_ПИСЕМ);
+    check(typeof седьмая.тело.token === "string",
+      "K7: погашенная ссылка держит место в пределе — вошедший по письму нового письма не получит");
+    await база.$disconnect();
   }
 }
 
@@ -825,6 +1018,53 @@ check(
   replanned.rooms.some((room) => room.name === "Спальня"),
   "«Спальня» не попала во второй набор: ключ имени остался по объекту",
 );
+
+/* --- площадь стен за вычетом проёмов (этап Э11, шаг 1) ----------------------
+   Рядом с прежней площадью стен — брутто, по периметру потолка, — сервер
+   отдаёт площадь стен за вычетом проёмов: брутто минус площадь окон и
+   дверей помещения, не ниже нуля. Ожидание считается здесь из того же
+   ответа, а не берётся у сервера: проверка, сверяющая сервер с сервером,
+   не видит ничего. Брутто проверена выше прежним числом 262953 — вычет
+   её не трогает (ADR-0002, «Последствия»).
+   -------------------------------------------------------------------------- */
+const стеныЗаВычетом = (комната) => {
+  const стены = BigInt(комната.wallArea);
+  const проёмы = (комната.openings ?? []).reduce((всего, проём) => всего + BigInt(проём.area), 0n);
+  return стены > проёмы ? стены - проёмы : 0n;
+};
+/* Спальня: 47 520 − окно 2 100 − дверь 1 680 = 43 740 тысячных м². */
+check(bedroom?.wallAreaNet === "43740",
+  `площадь стен спальни за вычетом проёмов ${bedroom?.wallAreaNet} вместо 43740 = 47520 − 2100 − 1680`);
+for (const [имя, набор] of [["начальный", measure], ["после перепланировки", replanned]]) {
+  for (const комната of набор.rooms) {
+    check(комната.wallAreaNet === стеныЗаВычетом(комната).toString(),
+      `набор ${имя}, «${комната.name}»: стены за вычетом проёмов ${комната.wallAreaNet}`
+      + ` вместо ${стеныЗаВычетом(комната)} — проёмы не вычтены или вычтены не те`);
+  }
+  const сумма = набор.rooms.reduce((всего, комната) => всего + BigInt(комната.wallAreaNet ?? "0"), 0n);
+  check(набор.totals.wallAreaNet === сумма.toString(),
+    `набор ${имя}: итог стен за вычетом проёмов ${набор.totals.wallAreaNet} вместо суммы помещений ${сумма}`);
+  check(BigInt(набор.totals.wallAreaNet ?? набор.totals.wallArea) < BigInt(набор.totals.wallArea),
+    `набор ${имя}: стены за вычетом проёмов не меньше брутто при окнах и дверях на стенде — вычет потерян`);
+}
+check(measure.totals.wallAreaNet === "227523",
+  `итог стен за вычетом проёмов ${measure.totals.wallAreaNet} вместо 227523 = 262953 − 15480 окон − 19950 дверей`);
+check(replanned.totals.wallAreaNet === "205840",
+  `итог стен за вычетом проёмов после перепланировки ${replanned.totals.wallAreaNet} вместо 205840`);
+
+/* Четыре роли. Внутренних величин в обмере нет, и проекция у трёх ролей
+   компании одна: бухгалтер и прораб получают те же числа, что руководитель.
+   Заказчику вкладка закрыта целиком — величина не уходит ему и так. */
+for (const [роль, кем] of [["бухгалтер", accountant], ["прораб", foreman]]) {
+  const вид = await кем("/projects/R-99/measure").then((r) => (r.ok ? r.json() : null));
+  check(вид?.totals?.wallAreaNet === measure.totals.wallAreaNet,
+    `${роль}: итог стен за вычетом проёмов ${вид?.totals?.wallAreaNet} вместо ${measure.totals.wallAreaNet}`);
+  check(вид?.rooms?.find((комната) => комната.name === "Спальня")?.wallAreaNet === "43740",
+    `${роль}: у спальни стены за вычетом проёмов не 43740`);
+}
+const обмерЗаказчику = await client("/projects/R-99/measure");
+check(обмерЗаказчику.status === 403,
+  `заказчику отдан обмер с кодом ${обмерЗаказчику.status}: вкладка «Замер» ему закрыта`);
 
 /* --- помещение у позиции сметы (второй срез модуля 2) ------------------------
    Позиция сметы знает своё помещение. До этого помещение в продукте было, а
@@ -1620,6 +1860,132 @@ if (!Array.isArray(акты) || акты.length !== 1) {
   check(лентаСкана.includes("скан подписанного экземпляра"),
     "загрузка скана не записана в журнал объекта");
   console.log(`Скан акта № ${String(акт.number)}: ${байтыСкана.length} байт, тип ${строкаСоСканом?.scan?.type}`);
+
+  /* --- фиксация подписанного акта и поправка (этап Э9, ДР-3) ----------------
+     Подписанный акт — бумага с подписью заказчика: первая отметка подписания
+     пишет его строки снимком, правка сметы его не меняет, сторно его пакета
+     запрещено, ошибка исправляется поправкой — строкой акта текущего транша.
+     Замечания называют позицию «ДР-3».
+     ------------------------------------------------------------------------ */
+  const поJSON = (запрос, путь, метод, тело) => запрос(путь, {
+    method: метод, headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const подписанный = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+  check(typeof подписанный.fixedAt === "string", `ДР-3: подписанный акт не зафиксирован: fixedAt ${подписанный.fixedAt}`);
+  check(Array.isArray(подписанный.lines) && подписанный.lines.length > 0
+    && подписанный.lines.every((строка) => typeof строка.id === "string"),
+    "ДР-3: у строк подписанного акта нет опознавателей снимка — поправку писать не к чему");
+
+  /* Новые поля — на четырёх ролях: перечень и акт открыты всем, кто их видит,
+     и внутренних величин в клиентском виде нет и после фиксации. */
+  for (const [кто, запрос] of [["руководителю", owner], ["бухгалтеру", accountant], ["прорабу", foreman], ["заказчику", client]]) {
+    const перечень = await запрос("/projects/R-99/acts").then((r) => r.json());
+    const строка = Array.isArray(перечень) ? перечень.find((x) => x.trancheId === акт.trancheId) : undefined;
+    check(строка?.fixedAt === подписанный.fixedAt && typeof строка?.corrections === "number",
+      `ДР-3: ${кто} в перечне актов нет дня фиксации или числа поправок: ${JSON.stringify(строка)?.slice(0, 160)}`);
+    const вид = await запрос(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(вид.fixedAt === подписанный.fixedAt && Array.isArray(вид.corrections) && Array.isArray(вид.amendments),
+      `ДР-3: ${кто} в акте нет фиксации и перечней поправок`);
+    check(findInternal(вид).length === 0, `ДР-3: ${кто} в клиентском акте внутренние поля: ${findInternal(вид).join(", ")}`);
+  }
+
+  /* Повторная отметка меняет дату, но не пишет второй снимок. */
+  await поJSON(owner, `/projects/R-99/acts/${акт.trancheId}/signature`, "POST", { signedAt: "2026-09-13" });
+  const переподписан = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+  check(переподписан.signedAt === "2026-09-13" && переподписан.lines.length === подписанный.lines.length
+    && переподписан.fixedAt === подписанный.fixedAt,
+    `ДР-3: повторная отметка подписания переписала снимок: строк ${переподписан.lines?.length} вместо ${подписанный.lines.length}`);
+  await поJSON(owner, `/projects/R-99/acts/${акт.trancheId}/signature`, "POST", { signedAt: "2026-09-12" });
+
+  /* Правка цены позиции подписанного акта: акт и выработка его транша не
+     меняются, перечень закрытых траншей называет акт зафиксированным. */
+  const первая = подписанный.lines[0];
+  const сметаДР3 = await owner("/projects/R-99/estimate").then((r) => r.json());
+  const позицияАкта = сметаДР3.sections.flatMap((раздел) =>
+    [...раздел.items, ...раздел.children.flatMap((вложенный) => вложенный.items)])
+    .find((позиция) => позиция.name === первая?.name);
+  if (позицияАкта === undefined) {
+    check(false, `ДР-3: позиция первой строки акта «${первая?.name}» не найдена в смете`);
+  } else {
+    const выработкаАкта = async () => (await owner("/projects/R-99/tranches").then((r) => r.json()))
+      .tranches.find((транш) => транш.id === акт.trancheId)?.produced;
+    const выработкаДо = await выработкаАкта();
+    const правка = await поJSON(owner, `/projects/R-99/estimate/items/${позицияАкта.id}`, "PATCH",
+      { unitPrice: (BigInt(позицияАкта.unitPrice) + 10_000n).toString() });
+    check(правка.ok, `ДР-3: правка цены позиции не прошла: код ${правка.status}`);
+    const послеПравки = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(JSON.stringify(послеПравки.lines) === JSON.stringify(подписанный.lines)
+      && послеПравки.totals.total === подписанный.totals.total,
+      `ДР-3: правка цены сметы изменила подписанный акт: итог ${подписанный.totals.total} → ${послеПравки.totals.total}`);
+    const выработкаПосле = await выработкаАкта();
+    check(выработкаПосле === выработкаДо,
+      `ДР-3: правка цены сметы изменила выработку подписанного транша: ${выработкаДо} → ${выработкаПосле}`);
+    const закрытыеДР3 = await owner("/projects/R-99/estimate/closed-tranches").then((r) => r.json());
+    check(закрытыеДР3.tranches?.find((транш) => транш.number === акт.number)?.fixed === true,
+      "ДР-3: перечень закрытых траншей не называет подписанный акт зафиксированным");
+    await поJSON(owner, `/projects/R-99/estimate/items/${позицияАкта.id}`, "PATCH",
+      { unitPrice: позицияАкта.unitPrice });
+  }
+
+  /* Сторно пакета подписанного акта запрещено: подписанный акт не меняется. */
+  const строкаПакетаАкта = (await owner("/projects/R-99/acceptance").then((r) => r.json())).batches
+    ?.filter((пакет) => пакет.trancheNumber === акт.number)
+    .flatMap((пакет) => пакет.lines)
+    .find((строка) => строка.reversedAt === null && BigInt(строка.qty) > 0n);
+  if (строкаПакетаАкта === undefined) {
+    check(false, `ДР-3: в акте № ${String(акт.number)} нет приёмки, которую можно было бы сторнировать`);
+  } else {
+    const сторно = await поJSON(owner, `/projects/R-99/acceptance/${строкаПакетаАкта.id}/reversal`, "POST",
+      { reason: "Проверка API: сторно подписанного" });
+    const отказ = сторно.ok ? "" : (await сторно.json()).message ?? "";
+    check(сторно.status === 400 && отказ.includes("поправк"),
+      `ДР-3: сторно пакета подписанного акта не отвергнуто с указанием на поправку: код ${сторно.status}, «${отказ}»`);
+  }
+
+  /* Поправка: только руководитель и бухгалтер, только с причиной, только
+     если что-то меняется, только в открытый транш. */
+  const поправить = (запрос, поля) => поJSON(запрос, `/projects/R-99/acts/${акт.trancheId}/corrections`, "POST", {
+    lineId: первая?.id, qty: первая?.qty, unitPrice: первая?.unitPrice, reason: "Проверка API: цена по договору", ...поля,
+  });
+  const ниже = (BigInt(первая?.unitPrice ?? "0") - 100n).toString();
+  check((await поправить(foreman, { unitPrice: ниже })).status === 403, "ДР-3: прораб записал поправку к акту");
+  check((await поправить(client, { unitPrice: ниже })).status === 403, "ДР-3: заказчик записал поправку к акту");
+  check((await поправить(owner, { unitPrice: ниже, reason: "   " })).status === 400, "ДР-3: поправка без причины принята");
+  check((await поправить(owner, {})).status === 400, "ДР-3: поправка, которая ничего не меняет, принята");
+  const текущийR99 = (await owner("/projects/R-99/tranches").then((r) => r.json())).current;
+  if (текущийR99 === null) {
+    check((await поправить(owner, { unitPrice: ниже })).status === 400,
+      "ДР-3: поправка принята без открытого транша — ей некуда войти");
+  } else {
+    const перваяПоправка = await поправить(accountant, { unitPrice: ниже });
+    check(перваяПоправка.ok, `ДР-3: бухгалтеру отказана поправка: код ${перваяПоправка.status}`);
+    const втораяПоправка = await поправить(owner, {
+      unitPrice: ниже, qty: (BigInt(первая?.qty ?? "0") * 9n / 10n).toString(), reason: "Проверка API: объём перемерен",
+    });
+    check(втораяПоправка.ok, `ДР-3: вторая поправка той же строки отвергнута: код ${втораяПоправка.status}`);
+    const сПоправками = await owner(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    const [п1, п2] = сПоправками.amendments ?? [];
+    check(сПоправками.amendments?.length === 2, `ДР-3: у подписанного акта поправок ${сПоправками.amendments?.length} вместо двух`);
+    check(п1?.priceBefore === первая?.unitPrice && п1?.qtyBefore === первая?.qty,
+      "ДР-3: первая поправка начата не со строки подписанного акта");
+    check(п2?.priceBefore === п1?.priceAfter && п2?.qtyBefore === п1?.qtyAfter,
+      "ДР-3: вторая поправка начата не с того, чем кончилась первая — разница учтена бы дважды");
+    check(п1?.into === текущийR99.number && п2?.into === текущийR99.number,
+      `ДР-3: поправки вошли в акт № ${п1?.into}, № ${п2?.into} вместо текущего № ${String(текущийR99.number)}`);
+    check(сПоправками.totals.total === подписанный.totals.total, "ДР-3: поправка изменила сумму подписанного акта");
+    const суммаПоправок = BigInt(п1?.total ?? "0") + BigInt(п2?.total ?? "0");
+    const текущийПосле = (await owner("/projects/R-99/tranches").then((r) => r.json())).current;
+    check(BigInt(текущийПосле?.produced ?? "0") - BigInt(текущийR99.produced) === суммаПоправок,
+      `ДР-3: выработка текущего транша изменилась на ${(BigInt(текущийПосле?.produced ?? "0") - BigInt(текущийR99.produced)).toString()} `
+        + `вместо суммы поправок ${суммаПоправок.toString()}`);
+    const заказчикуПоправки = await client(`/projects/R-99/acts/${акт.trancheId}`).then((r) => r.json());
+    check(заказчикуПоправки.amendments?.length === 2 && findInternal(заказчикуПоправки).length === 0,
+      "ДР-3: заказчику не видны поправки к его подписанному акту или видны внутренние поля");
+    const лентаПоправки = await owner("/projects/R-99/events?limit=200").then((r) => r.text());
+    check(лентаПоправки.includes(`акт № ${String(акт.number)} — поправка`), "ДР-3: поправка не записана в журнал объекта");
+    console.log(`ДР-3: акт № ${String(акт.number)} зафиксирован, поправок 2 на ${суммаПоправок.toString()} копеек `
+      + `в акт № ${String(текущийR99.number)}`);
+  }
 }
 
 /* --- шаблоны документов организации ------------------------------------------
@@ -1802,6 +2168,112 @@ const probeId = afterCreate.rooms?.find((room) => room.name === "Проверо�
 if (probeId !== undefined) {
   const cleaned = await owner(`/projects/R-99/measure/rooms/${probeId}`, { method: "DELETE" }).then((r) => r.json());
   check(cleaned.totals?.floorArea === "80530", `после уборки итог ${cleaned.totals?.floorArea} вместо 80530`);
+}
+
+/* --- стены за вычетом проёмов: крайний случай и подстановка в смету ---------
+   Числа — помещения вымышленной контрольной квартиры доменного теста
+   (`packages/domain/src/measure.test.ts`, решение Д6): ответы посчитаны там
+   вручную.
+
+   Отрицательная проверка: тамбур, у которого проёмы больше стен —
+   1,200 м.п. × 2,500 м = 3,000 м², две двери 3,200 м². Это предупреждение,
+   а не отказ: помещение вносится, площадь стен за вычетом проёмов — ноль, а
+   не минус, и итог объекта лишек на соседей не переносит.
+   -------------------------------------------------------------------------- */
+{
+  const внести = (кем, тело, набор = "INITIAL") => кем(`/projects/R-99/measure/rooms?set=${набор}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(тело),
+  });
+  const тамбур = await внести(foreman, {
+    name: "Проверка стен: тамбур", floorArea: "1000", floorPerimeter: "1200",
+    ceilingPerimeter: "1200", height: "2500",
+    openings: [{ kind: "DOOR", count: 2, area: "3200", reveal: "0" }],
+  });
+  check(тамбур.status === 201,
+    `помещение с проёмами больше стен отклонено с кодом ${тамбур.status}: это предупреждение, а не отказ`);
+  const видСТамбуром = тамбур.status === 201 ? await тамбур.json() : null;
+  const строкаТамбура = видСТамбуром?.rooms?.find((комната) => комната.name === "Проверка стен: тамбур");
+  check(строкаТамбура?.wallArea === "3000", `брутто тамбура ${строкаТамбура?.wallArea} вместо 3000 = 1200 × 2500`);
+  check(строкаТамбура?.wallAreaNet === "0",
+    `стены тамбура за вычетом проёмов ${строкаТамбура?.wallAreaNet} вместо 0: проёмы 3200 больше стен 3000`);
+  check(видСТамбуром?.totals?.wallArea === "265953",
+    `итог брутто с тамбуром ${видСТамбуром?.totals?.wallArea} вместо 265953 = 262953 + 3000`);
+  check(видСТамбуром?.totals?.wallAreaNet === "227523",
+    `итог за вычетом проёмов с тамбуром ${видСТамбуром?.totals?.wallAreaNet} вместо 227523:`
+    + " лишек проёмов тамбура вычтен из стен соседних помещений");
+  if (строкаТамбура !== undefined) {
+    await owner(`/projects/R-99/measure/rooms/${строкаТамбура.id}`, { method: "DELETE" });
+  }
+
+  /* Положительная проверка с подстановкой. Комната контрольной квартиры:
+     15,400 × 2,850 = 43,890 м²; окно 1,960 + дверь 1,600; за вычетом —
+     40,330 м². Величина подставляется в количество позиции в м², и правка
+     обмера после этого количество не меняет: подставленное — копия. */
+  const комнатаОтвет = await внести(owner, {
+    name: "Проверка стен: комната", floorArea: "14600", floorPerimeter: "15000",
+    ceilingPerimeter: "15400", height: "2850",
+    openings: [
+      { kind: "WINDOW", count: 1, area: "1960", reveal: "0" },
+      { kind: "DOOR", count: 1, area: "1600", reveal: "0" },
+    ],
+  }, "REPLANNED");
+  check(комнатаОтвет.status === 201, `контрольная комната не внесена: код ${комнатаОтвет.status}`);
+  const видСКомнатой = комнатаОтвет.status === 201 ? await комнатаОтвет.json() : null;
+  const комната = видСКомнатой?.rooms?.find((строка) => строка.name === "Проверка стен: комната");
+  check(комната?.wallArea === "43890", `брутто контрольной комнаты ${комната?.wallArea} вместо 43890`);
+  check(комната?.wallAreaNet === "40330",
+    `стены контрольной комнаты за вычетом проёмов ${комната?.wallAreaNet} вместо 40330 = 43890 − 1960 − 1600`);
+
+  const позиция = позицииСметы(await owner("/projects/R-99/estimate").then((r) => r.json()))
+    .find((строка) => строка.unit === "м²" && строка.qtyAccepted === "0");
+  check(позиция !== undefined, "на стенде нет позиции в м² без приёмки: подстановку не на чем проверить");
+  if (комната !== undefined && позиция !== undefined) {
+    const править = (кем, тело) => кем(`/projects/R-99/estimate/items/${позиция.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(тело),
+    });
+    const количество = async () => позицииСметы(await owner("/projects/R-99/estimate").then((r) => r.json()))
+      .find((строка) => строка.id === позиция.id)?.qty;
+
+    const прорабПравит = await править(foreman, { roomId: комната.id, qty: комната.wallAreaNet });
+    check(прорабПравит.status === 403, `подстановку в смету прораб сделал с кодом ${прорабПравит.status}`);
+    const подстановка = await править(owner, { roomId: комната.id, qty: комната.wallAreaNet });
+    check(подстановка.ok, `подстановка стен за вычетом проёмов в количество отклонена с кодом ${подстановка.status}`);
+    const подставлено = await количество();
+    check(подставлено === "40330", `после подстановки количество позиции ${подставлено} вместо 40330`);
+
+    /* Окно заложили — стены за вычетом проёмов выросли до 42,290 м², а
+       подставленное количество осталось прежним. */
+    const правкаОбмера = await owner(`/projects/R-99/measure/rooms/${комната.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ openings: [{ kind: "DOOR", count: 1, area: "1600", reveal: "0" }] }),
+    });
+    const послеПравки = правкаОбмера.ok ? await правкаОбмера.json() : null;
+    check(послеПравки?.rooms?.find((строка) => строка.id === комната.id)?.wallAreaNet === "42290",
+      "правка проёмов не пересчитала стены за вычетом проёмов: ожидалось 42290 = 43890 − 1600");
+    const послеОбмера = await количество();
+    check(послеОбмера === подставлено,
+      `правка обмера пересчитала подставленное количество: ${послеОбмера} вместо подставленных ${подставлено}`);
+
+    /* Уборка: позиция возвращается к своему помещению и количеству. */
+    const вернуть = await править(owner, { roomId: позиция.room?.id ?? null, qty: позиция.qty });
+    check(вернуть.ok, `позиция не вернулась к исходному количеству: код ${вернуть.status}`);
+  }
+  if (комната !== undefined) {
+    const убрано = await owner(`/projects/R-99/measure/rooms/${комната.id}`, { method: "DELETE" })
+      .then((r) => r.json());
+    check(убрано.totals?.wallAreaNet === "205840",
+      `после уборки итог стен за вычетом проёмов после перепланировки ${убрано.totals?.wallAreaNet} вместо 205840`);
+  }
+  const послеУборки = await owner("/projects/R-99/measure").then((r) => r.json());
+  check(послеУборки.totals.wallAreaNet === "227523" && послеУборки.totals.wallArea === "262953",
+    `после уборки начальный обмер: стены ${послеУборки.totals.wallArea}, за вычетом ${послеУборки.totals.wallAreaNet}`);
+  console.log(`Стены за вычетом проёмов: R-99 ${measure.totals.wallAreaNet} при брутто ${measure.totals.wallArea};`,
+    `тамбур ${строкаТамбура?.wallAreaNet ?? "—"}, контрольная комната ${комната?.wallAreaNet ?? "—"} тысячных м²`);
 }
 
 /**
@@ -2541,6 +3013,66 @@ const неКартинка = await foreman("/projects/R-99/acceptance", {
 });
 check(неКартинка.status === 400, `файл, назвавшийся снимком, принят с кодом ${неКартинка.status}`);
 
+/* Фаза 0, дефекты K1 и K2: пакет принимает позиции своего раздела, и каждую —
+   один раз. Экран таких пакетов не формирует, отказ стоит для прямого
+   запроса: прежде позиция чужого раздела принималась и начислялась бригаде
+   этапа раздела пакета, а позиция, отмеченная дважды на весь остаток,
+   принималась вдвое сверх сметы. Отказ следа не оставляет: пакетов столько
+   же, сколько было. */
+const сметаРазделов = await owner("/projects/R-99/estimate").then((r) => r.json());
+const вложенный = (сметаРазделов.sections ?? []).flatMap((раздел) => раздел.children ?? [])
+  .find((раздел) => (раздел.items ?? []).length > 0);
+check(вложенный !== undefined, "K1: в смете R-99 нет вложенного раздела с позициями: проверять нечего");
+const пакетВложенного = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({ sectionId: вложенный?.id, positions: [{ itemId: вложенный?.items?.[0]?.id, qty: "1" }] }),
+});
+check(пакетВложенного.status === 400, `K1: пакет вложенного раздела «${вложенный?.name}» принят с кодом ${пакетВложенного.status}`);
+const текстПакетаВложенного = пакетВложенного.status === 400 ? (await пакетВложенного.json()).message : "";
+check(
+  текстПакетаВложенного.includes("вложенный раздел") && текстПакетаВложенного.includes("верхнего уровня"),
+  `K1: отказ пакету вложенного раздела не называет причину: «${текстПакетаВложенного}»`,
+);
+
+const другойРаздел = доПриёмки.sections.find((раздел) => раздел.id !== разделПриёмки.id
+  && раздел.positions.some((позиция) => BigInt(позиция.remaining) > 0n));
+const позицияДругого = другойРаздел?.positions.find((позиция) => BigInt(позиция.remaining) > 0n);
+check(позицияДругого !== undefined, "K1: на стенде нет второго раздела с позицией к приёмке");
+const пакетСЧужой = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({ sectionId: разделПриёмки.id, positions: [{ itemId: позицияДругого?.id, qty: "1" }] }),
+});
+check(
+  пакетСЧужой.status === 400,
+  `K1: позиция раздела «${другойРаздел?.name}» принята пакетом раздела «${разделПриёмки.name}» с кодом ${пакетСЧужой.status}`,
+);
+const текстЧужой = пакетСЧужой.status === 400 ? (await пакетСЧужой.json()).message : "";
+check(
+  текстЧужой.includes("не относится к разделу") && текстЧужой.includes(разделПриёмки.name),
+  `K1: отказ позиции чужого раздела не называет раздел пакета: «${текстЧужой}»`,
+);
+
+const остатокПовтора = принятая?.remaining ?? "0";
+const повторПозиции = await foreman("/projects/R-99/acceptance", {
+  method: "POST",
+  body: пакет({
+    sectionId: разделПриёмки.id,
+    positions: [
+      { itemId: позицияПриёмки?.id, qty: остатокПовтора },
+      { itemId: позицияПриёмки?.id, qty: остатокПовтора },
+    ],
+  }),
+});
+check(повторПозиции.status === 400, `K2: позиция дважды в одном пакете на весь остаток принята с кодом ${повторПозиции.status}`);
+const текстПовтораПозиции = повторПозиции.status === 400 ? (await повторПозиции.json()).message : "";
+check(текстПовтораПозиции.includes("дважды"), `K2: отказ повтору позиции не называет причину: «${текстПовтораПозиции}»`);
+
+const послеОтказов = await owner("/projects/R-99/acceptance").then((r) => r.json());
+check(
+  послеОтказов.batches.length === послеПриёмки.batches.length,
+  `K1, K2: отказанные пакеты оставили след: пакетов ${послеОтказов.batches.length} вместо ${послеПриёмки.batches.length}`,
+);
+
 /* Сторно — право руководителя, и только с причиной. */
 const строкаПакета = послеПриёмки.batches[0]?.lines?.[0];
 const отменаПрорабом = await создать(foreman, `/projects/R-99/acceptance/${строкаПакета?.id}/reversal`, {
@@ -2682,6 +3214,75 @@ check(отчётБезСессии.status === 401, `отчёт отдан без
 const чужойОтчёт = await foreman("/projects/R-31/acceptance/report");
 check(чужойОтчёт.status === 404, `чужой объект отдал отчёт с кодом ${чужойОтчёт.status}`);
 
+/* Фаза 0, дефект K1, обратная сторона: позиция вложенного раздела
+   принимается пакетом верхнего. Отказ «чужому разделу» сверяет верхний
+   раздел позиции той же свёрткой, что раскладывает вид, — правило, забывшее
+   о вложенности, отказало бы законному пакету. Принятое сторнируется. */
+{
+  const верхнийПозиции = new Map();
+  const обойти = (раздел, верхний) => {
+    for (const позиция of раздел.items ?? []) верхнийПозиции.set(позиция.id, { верхний, вложена: раздел.id !== верхний });
+    for (const вложенный of раздел.children ?? []) обойти(вложенный, верхний);
+  };
+  for (const раздел of сметаРазделов.sections ?? []) обойти(раздел, раздел.id);
+  const подходит = (раздел, позиция) => верхнийПозиции.get(позиция.id)?.верхний === раздел.id
+    && верхнийПозиции.get(позиция.id)?.вложена === true && BigInt(позиция.remaining) > 0n;
+  const раздел = сЭтапом.find((кандидат) => кандидат.stage?.brigade?.id !== undefined
+    && кандидат.positions.some((позиция) => подходит(кандидат, позиция)));
+  const позиция = раздел?.positions.find((кандидат) => подходит(раздел, кандидат));
+  check(позиция !== undefined, "K1: на стенде нет раздела с этапом и позицией вложенного раздела к приёмке");
+  const принят = await foreman("/projects/R-99/acceptance", {
+    method: "POST",
+    body: пакет({ sectionId: раздел?.id, comment: "Проверка вложенного раздела", positions: [{ itemId: позиция?.id, qty: "1" }] }),
+  });
+  check(принят.ok, `K1: позиция вложенного раздела отклонена пакетом раздела «${раздел?.name}» с кодом ${принят.status}`);
+  const строка = принят.ok ? (await принят.json()).batches
+    .find((запись) => запись.comment === "Проверка вложенного раздела")?.lines?.[0] : undefined;
+  if (строка !== undefined) {
+    await создать(owner, `/projects/R-99/acceptance/${строка.id}/reversal`, { reason: "Проверка вложенного раздела: приёмка отменена" });
+  }
+}
+
+/* Фаза 0, дефект K3: сверка остатка и запись пакета — одна транзакция под
+   блокировкой строк позиций. Залп одновременных пакетов одной позиции, каждый
+   на весь остаток: проходит ровно один, остальные получают отказ остатка, и
+   принятого не становится больше сметы. Прежде сверка шла до транзакции, а
+   между ней и записью стояли перекодирование и запись снимка — окно, в
+   которое помещался весь залп. Принятое залпом сторнируется: стенд
+   возвращается к прежнему остатку. */
+{
+  const ЗАЛП_ПРИЁМКИ = 8;
+  const позицияИз = (вид) => вид.sections?.find((раздел) => раздел.id === разделПриёмки.id)?.positions
+    ?.find((позиция) => позиция.id === позицияПриёмки?.id);
+  const остаток = BigInt(позицияИз(await owner("/projects/R-99/acceptance").then((r) => r.json()))?.remaining ?? "0");
+  check(остаток > 0n, `K3: у позиции залпа нет остатка: ${остаток.toString()}`);
+  const ответы = await Promise.all(Array.from({ length: ЗАЛП_ПРИЁМКИ }, () => foreman("/projects/R-99/acceptance", {
+    method: "POST",
+    body: пакет({
+      sectionId: разделПриёмки.id,
+      comment: "Проверка залпа приёмки",
+      positions: [{ itemId: позицияПриёмки?.id, qty: остаток.toString() }],
+    }),
+  })));
+  const прошло = ответы.filter((ответ) => ответ.ok).length;
+  const отказов = ответы.filter((ответ) => ответ.status === 400).length;
+  check(
+    прошло === 1 && отказов === ЗАЛП_ПРИЁМКИ - 1,
+    `K3: из ${String(ЗАЛП_ПРИЁМКИ)} одновременных пакетов одной позиции на весь остаток прошло ${String(прошло)}, отказов ${String(отказов)}`,
+  );
+  const послеЗалпа = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  check(
+    BigInt(позицияИз(послеЗалпа)?.remaining ?? "-1") === 0n,
+    `K3: после залпа остаток позиции ${String(позицияИз(послеЗалпа)?.remaining)} вместо нуля: принято больше сметы`,
+  );
+  const строкиЗалпа = (послеЗалпа.batches ?? []).filter((запись) => запись.comment === "Проверка залпа приёмки")
+    .flatMap((запись) => запись.lines).filter((строка) => строка.reversedAt === null);
+  for (const строка of строкиЗалпа) {
+    await создать(owner, `/projects/R-99/acceptance/${строка.id}/reversal`, { reason: "Проверка залпа: приёмка отменена" });
+  }
+  const вернулось = BigInt(позицияИз(await owner("/projects/R-99/acceptance").then((r) => r.json()))?.remaining ?? "-1");
+  check(вернулось === остаток, `K3: сторно залпа вернуло остаток ${вернулось.toString()} вместо ${остаток.toString()}`);
+}
 
 /* ТРАНШИ (пункты плана 4.2–4.4).
  *
@@ -2820,6 +3421,20 @@ const закрытие = await создать(owner, `/projects/R-99/tranches/${
 check(закрытие.ok, `транш не закрылся: код ${закрытие.status}`);
 const послеЗакрытия = закрытие.ok ? await закрытие.json() : траншиПослеСторно;
 check(послеЗакрытия.current === null, "после закрытия остался текущий транш");
+/* Поправки к подписанному акту, записанные выше в открытый транш (ДР-3),
+   приходят строками его акта и входят в «Работы» — тем же числом, что в
+   выработке транша. */
+if (закрытие.ok) {
+  const актЗакрытого = await owner(`/projects/R-99/acts/${текущийId}`).then((r) => r.json());
+  const поправкиАкта = актЗакрытого.corrections ?? [];
+  check(поправкиАкта.length === 2, `ДР-3: в акте закрытого транша поправок ${поправкиАкта.length} вместо двух`);
+  const работыПоСтрокам = [...(актЗакрытого.lines ?? []), ...поправкиАкта]
+    .reduce((свод, строка) => свод + BigInt(строка.total), 0n);
+  check(BigInt(актЗакрытого.totals?.works ?? "-1") === работыПоСтрокам,
+    `ДР-3: работы акта ${актЗакрытого.totals?.works} не равны строкам с поправками ${работыПоСтрокам.toString()}`);
+  check(поправкиАкта.every((поправка) => поправка.reason.length > 0 && поправка.act === 1),
+    "ДР-3: поправка в акте не называет исправленный акт или причину");
+}
 check(
   послеЗакрытия.tranches.find((транш) => транш.id === текущийId)?.status === "CLOSED",
   "закрытый транш не перешёл в состояние CLOSED",
@@ -2911,10 +3526,17 @@ await создать(owner, `/projects/R-99/acceptance/${строкаСверх?
 const оплатаОткрытого = await создать(owner, `/projects/R-99/tranches/${малыйId}/settlement`, {});
 check(оплатаОткрытого.status === 400, `открытый транш оплачен с кодом ${оплатаОткрытого.status}`);
 
+/* «Сегодня» платежа — день организации, а не UTC (фаза 0, дефект K10): с
+   полуночи до трёх ночи по Москве день UTC ещё вчерашний, и платёж
+   сегодняшним по UTC днём отклонился бы как платёж раньше открытия транша.
+   Проверка берёт день у сервера — тем же правилом, что очередь. */
+const сегодняДень = (await очередьРоли(owner)).today;
+const деньСпустя = (день, дней) => new Date(Date.parse(`${день}T00:00:00Z`) + дней * 86_400_000).toISOString().slice(0, 10);
+
 /* Платёж по открытому траншу отвергается по тому же доводу, что и отметка:
    сумма к оплате ещё не определена. */
 const платёжОткрытого = await создать(owner, `/projects/R-99/tranches/${малыйId}/payments`, {
-  amount: "100000", paidOn: new Date().toISOString().slice(0, 10),
+  amount: "100000", paidOn: сегодняДень,
 });
 check(платёжОткрытого.status === 400, `платёж по открытому траншу принят с кодом ${платёжОткрытого.status}`);
 
@@ -2946,7 +3568,6 @@ check(закрытийВЖурнале === 1, `закрытие транша з�
    Это и есть решение заказчика от 19.09.2026 — оплаченным транш называет
    отметка руководителя, а не арифметика платежей. Проверяется прямо: иначе
    первая же «удобная» правка выставила бы PAID по покрытию суммы. */
-const сегодняДень = new Date().toISOString().slice(0, 10);
 const частичный = await создать(owner, `/projects/R-99/tranches/${малыйId}/payments`, {
   amount: "300000", paidOn: сегодняДень, comment: "Частичная оплата",
 });
@@ -2967,7 +3588,7 @@ check(
 );
 
 /* Платёж будущим днём отвергается: пишется пришедшее, а не обещанное. */
-const завтра = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+const завтра = деньСпустя(сегодняДень, 1);
 const будущий = await создать(owner, `/projects/R-99/tranches/${малыйId}/payments`, {
   amount: "100000", paidOn: завтра,
 });
@@ -3035,6 +3656,173 @@ const доплата = await создать(owner, `/projects/R-99/tranches/${м
   amount: "100000", paidOn: сегодняДень, comment: "Доплата недобора",
 });
 check(доплата.ok, `доплата по оплаченному траншу отвергнута с кодом ${доплата.status}`);
+
+/* --- П-60: «начислено» внутреннего акта — сумма начислений -------------------
+   Решение В-1 от 07.11.2026: начисление бригаде хранит ставку на день
+   приёмки (БП-3), и «начислено» и прибыль внутреннего акта — сумма этих
+   начислений: живого акта — при выводе, подписанного — снимком при фиксации.
+   Опыт решения: приёмка 1 ед. по ставке 5 000,00 ₽, правка ставки до
+   5 100,00 ₽, закрытие, подпись — «начислено» живого и зафиксированного акта
+   5 000,00 ₽. Прежде акт брал ставку сметы на день вывода или подписи и
+   показывал 5 100,00 ₽ при начислении 5 000,00 ₽. Транш опыта свой: в нём
+   ровно одна строка, и сумма акта есть сумма этой строки. Замечания
+   называют «П-60».
+   -------------------------------------------------------------------------- */
+const П60_СТАВКА = 500_000n;
+const П60_НОВАЯ = 510_000n;
+{
+  const вид = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  const раздел = вид.sections.find((s) => s.stage?.brigade && s.positions.some((p) => BigInt(p.remaining) >= 1000n));
+  const позиция = раздел?.positions.find((p) => BigInt(p.remaining) >= 1000n);
+  check(позиция !== undefined, "П-60: на стенде нет позиции с остатком в единицу и бригадой этапа — опыт не поставить");
+  const ставка = (значение) => owner(`/projects/R-99/estimate/items/${позиция?.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ unitWage: значение.toString() }),
+  });
+  if (позиция !== undefined) {
+    const былаСтавка = BigInt(позиция.unitWage);
+    check((await ставка(П60_СТАВКА)).ok, "П-60: ставка опыта не выставлена");
+    const открыт = await создать(owner, "/projects/R-99/tranches", { amount: "1000000", comment: "Проверка П-60" });
+    check(открыт.ok, `П-60: транш опыта не открыт: код ${открыт.status}`);
+    const траншId = открыт.ok ? (await открыт.json()).current?.id : null;
+    const принят = await foreman("/projects/R-99/acceptance", {
+      method: "POST",
+      body: пакет({ sectionId: раздел.id, comment: "Проверка П-60", positions: [{ itemId: позиция.id, qty: "1000" }] }),
+    });
+    check(принят.ok, `П-60: приёмка опыта не прошла: код ${принят.status}`);
+    const строкаПриёмки = (await owner("/projects/R-99/acceptance").then((r) => r.json())).batches
+      ?.find((пакетОпыта) => пакетОпыта.comment === "Проверка П-60")?.lines?.[0];
+    check(строкаПриёмки?.amount === П60_СТАВКА.toString(),
+      `П-60: начисление приёмки ${строкаПриёмки?.amount} вместо ${П60_СТАВКА.toString()}`);
+    check((await ставка(П60_НОВАЯ)).ok, "П-60: правка ставки после приёмки не прошла");
+    check((await создать(owner, `/projects/R-99/tranches/${траншId}/closure`, {})).ok, "П-60: транш опыта не закрылся");
+
+    /* Строка акта одна: ставка, начислено и прибыль — из начисления, цена и
+       сумма для заказчика — из сметы (П-27 в части цены действует). */
+    const сверить = (акт, какой) => {
+      const [строка] = акт.lines ?? [];
+      check(акт.lines?.length === 1, `П-60: в ${какой} акте опыта строк ${акт.lines?.length} вместо одной`);
+      check(строка?.wageTotal === П60_СТАВКА.toString() && строка?.unitWage === П60_СТАВКА.toString(),
+        `П-60: ${какой} акт — ставка ${строка?.unitWage}, начислено ${строка?.wageTotal} вместо начисления `
+        + `${П60_СТАВКА.toString()}: акт взял ставку сметы, а не снимок начисления`);
+      check(акт.totals?.wage === П60_СТАВКА.toString(),
+        `П-60: ${какой} акт — «начислено» итогом ${акт.totals?.wage} вместо ${П60_СТАВКА.toString()}`);
+      check(BigInt(акт.totals?.profit ?? "0") === BigInt(акт.totals?.works ?? "0") - П60_СТАВКА
+        && BigInt(строка?.profit ?? "0") === BigInt(строка?.total ?? "0") - П60_СТАВКА,
+        `П-60: ${какой} акт — прибыль ${акт.totals?.profit} не равна работам ${акт.totals?.works} без начисленного`);
+    };
+    const живой = await owner(`/projects/R-99/acts/${траншId}?view=internal`).then((r) => r.json());
+    сверить(живой, "живой");
+    /* Вид для заказчика решением не меняется: строки сверяются без
+       опознавателя снимка — он появляется подписью. */
+    const видЗаказчика = async () => (await client(`/projects/R-99/acts/${траншId}`).then((r) => r.json()));
+    const строкиЗаказчика = (акт) => JSON.stringify((акт.lines ?? [])
+      .map((строка) => [строка.name, строка.unit, строка.qty, строка.unitPrice, строка.total]));
+    const клиентскийДо = await видЗаказчика();
+    check(findInternal(клиентскийДо).length === 0, `П-60: в клиентском акте внутренние поля: ${findInternal(клиентскийДо).join(", ")}`);
+
+    const подпись = await создать(owner, `/projects/R-99/acts/${траншId}/signature`, { signedAt: сегодняДень });
+    check(подпись.ok, `П-60: акт опыта не подписан: код ${подпись.status}`);
+    const подписанный = await owner(`/projects/R-99/acts/${траншId}?view=internal`).then((r) => r.json());
+    check(typeof подписанный.fixedAt === "string", "П-60: подписанный акт опыта не зафиксирован");
+    сверить(подписанный, "подписанный");
+    check(строкиЗаказчика(await видЗаказчика()) === строкиЗаказчика(клиентскийДо),
+      "П-60: фиксация изменила вид акта для заказчика");
+
+    /* Ставка возвращается — снимок подписанного акта её не видит. */
+    check((await ставка(былаСтавка)).ok, "П-60: ставка позиции не возвращена");
+    сверить(await owner(`/projects/R-99/acts/${траншId}?view=internal`).then((r) => r.json()), "подписанный после возврата ставки");
+  }
+
+  /* Поправки к подписанному акту (ДР-3) меняют только сумму для заказчика:
+     начисления у поправки нет, и «начислено» акта, в который она вошла, —
+     сумма начислений его строк, а прибыль — работы с поправками без него. */
+  const сПоправками = await owner(`/projects/R-99/acts/${текущийId}?view=internal`).then((r) => r.json());
+  const начисленоСтрок = (сПоправками.lines ?? []).reduce((всего, строка) => всего + BigInt(строка.wageTotal ?? "0"), 0n);
+  check((сПоправками.corrections ?? []).length > 0, "П-60: в акте с поправками поправок нет — сверять не на чем");
+  check(BigInt(сПоправками.totals?.wage ?? "-1") === начисленоСтрок
+    && BigInt(сПоправками.totals?.profit ?? "0") === BigInt(сПоправками.totals?.works ?? "0") - начисленоСтрок,
+    `П-60: акт с поправками — начислено ${сПоправками.totals?.wage}, прибыль ${сПоправками.totals?.profit} `
+    + `при начисленном строками ${начисленоСтрок.toString()}`);
+}
+
+/* --- П-67: сторно пакета против подписания акта (класс K3) -------------------
+   Проверка «пакет не вошёл в подписанный акт» и запись сторно сериализованы
+   с подписанием блокировкой строки транша; повтор сторно одной приёмки —
+   блокировкой строки приёмки. Прежде проверка шла до транзакции и ничего не
+   запирала: сторно, проверившее «не зафиксирован» до подписи и записанное
+   после снимка, оставляло в подписанном акте сторнированное количество, а
+   второе одновременное сторно той же приёмки падало кодом 500 на
+   уникальности ссылки. Залпы: восемь сторно одной приёмки — проходит одно,
+   прочие получают отказ «уже сторнирована»; подпись и сторно всех строк
+   закрытого транша разом — снимок акта сходится с несторнированным, сторно
+   после фиксации получает отказ с указанием на поправку. Замечания
+   называют «П-67».
+   -------------------------------------------------------------------------- */
+{
+  const ЗАЛП_СТОРНО = 8;
+  const СТРОК = 7;
+  const вид = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  const раздел = вид.sections.find((s) => s.stage?.brigade
+    && s.positions.filter((p) => BigInt(p.remaining) >= 1n).length >= СТРОК);
+  const позиции = (раздел?.positions ?? []).filter((p) => BigInt(p.remaining) >= 1n).slice(0, СТРОК);
+  check(позиции.length === СТРОК, `П-67: на стенде нет раздела с ${String(СТРОК)} позициями с остатком — залп не поставить`);
+  const открыт = await создать(owner, "/projects/R-99/tranches", { amount: "1000000", comment: "Проверка П-67" });
+  check(открыт.ok, `П-67: транш залпа не открыт: код ${открыт.status}`);
+  const траншId = открыт.ok ? (await открыт.json()).current?.id : null;
+  const принят = await foreman("/projects/R-99/acceptance", {
+    method: "POST",
+    body: пакет({ sectionId: раздел?.id, comment: "Проверка П-67", positions: позиции.map((p) => ({ itemId: p.id, qty: "1" })) }),
+  });
+  check(принят.ok, `П-67: пакет залпа не принят: код ${принят.status}`);
+  const послеПриёмки = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  const строки = (послеПриёмки.batches ?? []).find((пакетЗалпа) => пакетЗалпа.comment === "Проверка П-67")?.lines ?? [];
+  const сторнировать = (строка) => создать(owner, `/projects/R-99/acceptance/${строка?.id}/reversal`, { reason: "Проверка П-67: залп" });
+
+  /* Повтор сторно одной приёмки: одна обратная запись, остальным — отказ,
+     а не 500. Начислено возвращается ровно на одну сумму начисления. */
+  const [первая, ...прочие] = строки;
+  const начисленоДо = BigInt(послеПриёмки.totals?.accrued ?? "0");
+  const повтор = await Promise.all(Array.from({ length: ЗАЛП_СТОРНО }, () => сторнировать(первая)));
+  const прошлоПовтора = повтор.filter((ответ) => ответ.ok).length;
+  const отказовПовтора = повтор.filter((ответ) => ответ.status === 400).length;
+  check(прошлоПовтора === 1 && отказовПовтора === ЗАЛП_СТОРНО - 1,
+    `П-67: из ${String(ЗАЛП_СТОРНО)} одновременных сторно одной приёмки прошло ${String(прошлоПовтора)}, `
+    + `отказов ${String(отказовПовтора)}, коды ${повтор.map((ответ) => ответ.status).join(", ")}`);
+  const послеПовтора = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  check(BigInt(послеПовтора.totals?.accrued ?? "0") === начисленоДо - BigInt(первая?.amount ?? "0"),
+    `П-67: после залпа сторно начислено ${послеПовтора.totals?.accrued} вместо `
+    + `${(начисленоДо - BigInt(первая?.amount ?? "0")).toString()}: обратная запись не одна`);
+
+  /* Подпись и сторно всех прочих строк закрытого транша разом. Сторно,
+     вставшее до подписи, — в снимке как сторнированное; вставшее после —
+     отказ с указанием на поправку. Сторно рассыпаны по первым миллисекундам
+     залпа: окно прежнего кода — между проверкой фиксации и записью. */
+  check((await создать(owner, `/projects/R-99/tranches/${траншId}/closure`, {})).ok, "П-67: транш залпа не закрылся");
+  const подпись = создать(owner, `/projects/R-99/acts/${траншId}/signature`, { signedAt: сегодняДень });
+  const сторно = прочие.map((строка, номер) => new Promise((готово) => { setTimeout(готово, номер * 2); })
+    .then(() => сторнировать(строка)));
+  const [ответПодписи, ...ответыСторно] = await Promise.all([подпись, ...сторно]);
+  check(ответПодписи.ok, `П-67: подпись в залпе не прошла: код ${ответПодписи.status}`);
+  const отказы = await Promise.all(ответыСторно.map(async (ответ) => (ответ.ok ? "" : (await ответ.json()).message ?? "")));
+  check(ответыСторно.every((ответ, номер) => ответ.ok || (ответ.status === 400 && (отказы[номер] ?? "").includes("поправк"))),
+    `П-67: сторно в залпе с подписью ответили ${ответыСторно.map((ответ) => ответ.status).join(", ")}`);
+
+  const итог = await owner("/projects/R-99/acceptance").then((r) => r.json());
+  const строкиИтога = (итог.batches ?? []).find((пакетЗалпа) => пакетЗалпа.comment === "Проверка П-67")?.lines ?? [];
+  const акт = await owner(`/projects/R-99/acts/${траншId}?view=internal`).then((r) => r.json());
+  const расхождения = строкиИтога.flatMap((строка) => {
+    const вАкте = (акт.lines ?? []).find((строкаАкта) => строкаАкта.name === строка.positionName);
+    const принято = строка.reversedAt === null ? BigInt(строка.qty) : 0n;
+    const начислено = строка.reversedAt === null ? BigInt(строка.amount ?? "0") : 0n;
+    return BigInt(вАкте?.qty ?? "0") === принято && BigInt(вАкте?.wageTotal ?? "0") === начислено
+      ? [] : [`«${строка.positionName}»: в акте ${вАкте?.qty ?? "нет"} × ${вАкте?.wageTotal ?? "нет"}, принято ${принято.toString()} × ${начислено.toString()}`];
+  });
+  check(typeof акт.fixedAt === "string" && расхождения.length === 0,
+    `П-67: подписанный акт разошёлся с несторнированным: ${расхождения.slice(0, 3).join("; ")}`);
+  const прошлоСторно = ответыСторно.filter((ответ) => ответ.ok).length;
+  console.log(`П-67: повтор сторно — прошло 1 из ${String(ЗАЛП_СТОРНО)}; подпись и ${String(прочие.length)} сторно разом — `
+    + `до фиксации ${String(прошлоСторно)}, отказов ${String(прочие.length - прошлоСторно)}`);
+}
 
 /* Стенд возвращается к одному открытому рабочему траншу. */
 const рабочий = await создать(owner, "/projects/R-99/tranches", {
@@ -4648,6 +5436,48 @@ console.log(`Обложки: со снимками ${сОбложкой} объ�
   console.log(`ДР-1: очередь проверена на четырёх ролях — пунктов у руководителя ${String((очереди.руководитель.items ?? []).length)},`
     + ` у бухгалтера ${String((очереди.бухгалтер.items ?? []).length)}, у прораба ${String((очереди.прораб.items ?? []).length)},`
     + ` у заказчика ${String((заказчику.items ?? []).length)}; числа сверены с экранами назначения`);
+}
+
+/* --- Э8, ДР-11: первый вход заказчика -----------------------------------------
+   «Как связаться» читают все четыре роли — ровно три поля: название,
+   телефон и почта организации; карточка организации целиком заказчику
+   по-прежнему закрыта. Первый вход — это отметка захода, которой ещё нет:
+   у только что выданного входа очередь отдаёт `seenAt: null`, и экран
+   первого входа показывается; после отметки — уже нет.
+   -------------------------------------------------------------------------- */
+{
+  const организация = await owner("/organization").then((r) => r.json());
+  for (const [кто, кем] of [["руководитель", owner], ["бухгалтер", accountant], ["прораб", foreman], ["заказчик", client]]) {
+    const ответ = await кем("/organization/contacts");
+    const тело = ответ.ok ? await ответ.json() : {};
+    check(ответ.status === 200, `ДР-11: ${кто} не читает «Как связаться» — код ${ответ.status}`);
+    check(Object.keys(тело).sort().join() === "email,name,phone",
+      `ДР-11: ${кто}: в «Как связаться» поля ${Object.keys(тело).join(", ")} вместо названия, телефона и почты`);
+    check(тело.name === организация.name && тело.phone === организация.phone && тело.email === организация.email,
+      `ДР-11: ${кто}: «Как связаться» расходится с карточкой организации`);
+  }
+  const карточка = await client("/organization");
+  check(карточка.status === 403, `ДР-11: заказчик читает карточку организации целиком — код ${карточка.status}`);
+
+  const записи = await owner("/clients").then((r) => r.json());
+  const ПОЧТА = `dr11-${String(Date.now())}@dolgiy.studio`;
+  const выдан = await owner("/people", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Проверка ДР-11: заказчик", role: "CLIENT", email: ПОЧТА, phone: null, clientId: записи[0]?.id ?? null }),
+  });
+  check(выдан.status === 201, `ДР-11: вход заказчику для проверки не выдан — код ${выдан.status}`);
+  if (выдан.status === 201) {
+    const новый = await signIn(ПОЧТА);
+    const первая = await очередьРоли(новый);
+    check(первая.seenAt === null, `ДР-11: у только что выданного входа отметка захода «${String(первая.seenAt)}» — экран первого входа не покажется`);
+    check((первая.items ?? []).length === 0, "ДР-11: при первом входе очередь назвала «новое» — сравнивать ещё не с чем");
+    await новый("/inbox/seen", { method: "POST" });
+    const вторая = await очередьРоли(новый);
+    check(typeof вторая.seenAt === "string", "ДР-11: после первого захода отметки нет — экран первого входа покажется снова");
+    const человек = (await owner("/people").then((r) => r.json())).find((строка) => строка.email === ПОЧТА);
+    if (человек !== undefined) await owner(`/people/${человек.id}`, { method: "DELETE" });
+  }
+  console.log("ДР-11: «Как связаться» проверено на четырёх ролях; первый вход — отметка захода пуста до первого захода");
 }
 
 /* --- журнал читает человек ---------------------------------------------------

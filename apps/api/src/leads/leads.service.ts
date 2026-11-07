@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { обезличенныеПоля } from "./anonymize";
+import { orgDay } from "../common/org-day";
 
 /**
  * Заявки: воронка и ориентир цены (стадия F).
@@ -70,7 +71,7 @@ export class LeadsService {
       orderBy: { createdAt: "desc" },
       select: LeadsService.SELECT,
     });
-    const сегодня = new Date().toISOString().slice(0, 10);
+    const сегодня = await this.сегодня(user);
     const карточки = все.map((lead) => LeadsService.card(lead, сегодня));
     const видимые = openOnly ? карточки.filter((lead) => lead.outcome === "OPEN") : карточки;
 
@@ -112,7 +113,7 @@ export class LeadsService {
       }, tx);
       return заведённая;
     }));
-    return LeadsService.card(lead, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(lead, await this.сегодня(user));
   }
 
   /**
@@ -217,7 +218,7 @@ export class LeadsService {
       }
       return запись;
     });
-    return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(обновлённая, await this.сегодня(user));
   }
 
   /**
@@ -312,7 +313,7 @@ export class LeadsService {
       }
       throw cause;
     });
-    return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(обновлённая, await this.сегодня(user));
   }
 
   /** Отказ. Причина обязательна: отказ без причины ничему не учит. */
@@ -344,7 +345,7 @@ export class LeadsService {
       }, tx);
       return tx.lead.findUniqueOrThrow({ where: { id }, select: LeadsService.SELECT });
     });
-    return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(обновлённая, await this.сегодня(user));
   }
 
   /**
@@ -388,7 +389,7 @@ export class LeadsService {
       }, tx);
       return tx.lead.findUniqueOrThrow({ where: { id }, select: LeadsService.SELECT });
     });
-    return LeadsService.card(обновлённая, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(обновлённая, await this.сегодня(user));
   }
 
   async addTask(user: RequestUser, id: string, input: CreateLeadTask): Promise<LeadCard> {
@@ -455,9 +456,18 @@ export class LeadsService {
     }));
   }
 
+  /**
+   * Сегодняшний день организации: просрочка задачи считается по нему. Тем же
+   * днём считает просроченные задачи сводка первого экрана, и число на
+   * главной обязано совпасть с доской на границе суток (фаза 0, дефект K10).
+   */
+  private async сегодня(user: RequestUser): Promise<string> {
+    return (await orgDay(this.prisma, user.orgId)).today;
+  }
+
   private async card(user: RequestUser, id: string): Promise<LeadCard> {
     const lead = await this.own(user, id);
-    return LeadsService.card(lead, new Date().toISOString().slice(0, 10));
+    return LeadsService.card(lead, await this.сегодня(user));
   }
 
   private async own(user: RequestUser, id: string) {
