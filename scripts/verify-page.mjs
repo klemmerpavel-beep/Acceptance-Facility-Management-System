@@ -2306,13 +2306,24 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
     const ПУТЬ = "**/api/projects/R-99/estimate/closed-tranches";
     await page.route(ПУТЬ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: 7, paid: true, signedAt: "2026-09-12", items: [перваяПозиция.id] }] }),
+      body: JSON.stringify({ tranches: [
+        { number: 7, paid: true, signedAt: "2026-09-12", fixed: true, items: [перваяПозиция.id] },
+        { number: 8, paid: true, signedAt: null, fixed: false, items: [перваяПозиция.id] },
+      ] }),
     }));
     await строка.locator('.btn--text:has-text("Править")').click();
     await page.waitForTimeout(600);
     const текст = (await заметка()) ?? "";
-    for (const нужно of ["закрытом транше № 7", "Подписан акт № 7 (12.09.2026)", "Оплачен транш № 7"]) {
+    for (const нужно of ["закрытом транше № 8", "Оплачен транш № 8"]) {
       if (!текст.includes(нужно)) note("правка сметы", `лист позиции не называет «${нужно}»: «${текст || "молча"}»`);
+    }
+    /* Подписанный акт зафиксирован (этап Э9, ДР-3): лист называет его тем,
+       что правка не изменит, а не тем, что изменится. */
+    if (!текст.includes("Акт № 7 (12.09.2026) подписан и зафиксирован")) {
+      note("ДР-3", `лист позиции не называет подписанный акт № 7 зафиксированным: «${текст || "молча"}»`);
+    }
+    if (текст.includes("закрытых траншах № 7") || текст.includes("закрытом транше № 7")) {
+      note("ДР-3", "лист позиции обещает изменить подписанный акт № 7");
     }
     await page.click('.sheet .btn--text:has-text("Отмена")');
     await page.waitForTimeout(300);
@@ -3796,6 +3807,93 @@ const размерЛиста = async (кто) => {
 await overflow("документы, 1440");
 await step("документы", "45-dokumenty.png");
 
+/*
+ * Фиксация подписанного акта и поправка (этап Э9, ДР-3). Проверка API идёт
+ * раньше: она подписывает акт № 1, пишет к нему две поправки в открытый
+ * тогда транш № 2 и закрывает его. Экран обязан показать поправки строками
+ * акта № 2, у акта № 1 — фиксацию и историю поправок, а лист поправки —
+ * не отправляться без причины.
+ */
+{
+  const строкаАкта = (номер) => page.locator(".acts-screen .record").filter({ hasText: `Акт № ${String(номер)} по объекту` });
+  const открыть = async (номер) => {
+    const кнопка = строкаАкта(номер).locator('button:has-text("Открыть акт")');
+    if ((await кнопка.count()) > 0) await кнопка.first().click();
+    await page.waitForTimeout(700);
+  };
+
+  if ((await строкаАкта(2).count()) === 0) {
+    note("ДР-3", "в перечне нет акта № 2, в который вошли поправки к акту № 1");
+  } else {
+    if (!(((await строкаАкта(2).innerText()) ?? "").includes("поправок к подписанным актам"))) {
+      note("ДР-3", "строка акта № 2 не называет вошедшие в него поправки");
+    }
+    await открыть(2);
+    const поправки = page.locator(".act .act__corrections");
+    if ((await поправки.count()) === 0) {
+      note("ДР-3", "в акте № 2 нет раздела «Поправки к подписанным актам»");
+    } else {
+      const текст = await поправки.innerText();
+      for (const нужно of ["Поправки к подписанным актам", "Поправка к акту № 1", "Причина:"]) {
+        if (!текст.includes(нужно)) note("ДР-3", `раздел поправок акта № 2 не называет «${нужно}»`);
+      }
+    }
+  }
+
+  await открыть(1);
+  const заметкаФиксации = page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" });
+  if ((await заметкаФиксации.count()) === 0) {
+    note("ДР-3", "у подписанного акта № 1 нет заметки о фиксации");
+  } else if (!(await заметкаФиксации.innerText()).includes("в акт № 2")) {
+    note("ДР-3", "заметка акта № 1 не называет поправки и акт, в который они вошли");
+  }
+  if ((await page.locator(".act .act__corrections").count()) > 0) {
+    note("ДР-3", "подписанный акт № 1 несёт раздел поправок — он обязан печататься тем, что подписан");
+  }
+
+  const органПоправки = page.locator('.acts-screen button:has-text("Оформить поправку")');
+  if ((await органПоправки.count()) === 0) {
+    note("ДР-3", "у подписанного акта нет органа «Оформить поправку»");
+  } else {
+    await органПоправки.first().click();
+    const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "лист поправки не открылся"));
+    if ((await лист.count()) > 0) {
+      if (!(await лист.innerText()).includes("подписан и не меняется")) {
+        note("ДР-3", "лист поправки не говорит, что подписанный акт не меняется");
+      }
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if (await записать.isEnabled()) note("ДР-3", "поправка доступна без причины");
+      const текущий = await page.evaluate(async () => (await fetch("/api/projects/R-99/tranches",
+        { credentials: "include" }).then((ответ) => ответ.json())).current?.number ?? null);
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue();
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1)));
+      await лист.locator('label:has-text("Причина") input').fill("Проверка страницы: цена по договору");
+      await page.waitForTimeout(200);
+      await step("ДР-3, лист поправки", "45b-dokumenty-popravka.png");
+      if (текущий === null) {
+        if (await записать.isEnabled()) note("ДР-3", "поправка доступна без открытого транша");
+        await лист.locator('.btn--text:has-text("Отмена")').click();
+      } else {
+        const поправокДо = await page.locator('.acts-screen [role="note"] li').count();
+        await записать.click();
+        await page.waitForTimeout(1200);
+        if ((await лист.count()) > 0) note("ДР-3", "лист поправки не закрылся после записи");
+        const поправокПосле = await page.locator('.acts-screen [role="note"] li').count();
+        if (поправокПосле !== поправокДо + 1) {
+          note("ДР-3", `после записи поправок у акта № 1 ${String(поправокПосле)} вместо ${String(поправокДо + 1)}`);
+        }
+        const объявлено = await page.locator(".visually-hidden[aria-live], [role='status']").allInnerTexts();
+        if (!объявлено.some((текст) => текст.includes("Поправка записана"))) {
+          note("ДР-3", "запись поправки не объявлена");
+        }
+      }
+    }
+  }
+  await overflow("ДР-3, документы, 1440");
+}
+
 await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
 
@@ -4684,9 +4782,32 @@ if ((await сторнируемая.count()) === 0) {
   if (траншПакета === null) {
     note("приёмка", "пакет обхода лёг вне транша — предупреждение сторно о закрытом транше не проверить");
   } else {
+    /* Пакет подписанного акта (этап Э9, ДР-3): лист называет запрет до
+       отправки и не даёт отправить даже с причиной — подписанный акт не
+       меняется. */
     await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", items: [] }] }),
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: true, items: [] }] }),
+    }));
+    await сторнируемая.click();
+    await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+    await page.waitForTimeout(500);
+    const текстЗапрета = (await page.locator(".sheet").count()) === 0 ? "" : await page.locator(".sheet").innerText();
+    if (!текстЗапрета.includes("сторно запрещено")) {
+      note("ДР-3", `лист сторно не называет запрет для пакета подписанного акта: «${текстЗапрета.slice(0, 200)}»`);
+    }
+    if ((await page.locator(".sheet .input").count()) > 0) await page.fill(".sheet .input", "Проверка страницы");
+    if ((await page.locator(".sheet .btn--danger").count()) > 0 && await page.locator(".sheet .btn--danger").isEnabled()) {
+      note("ДР-3", "сторно пакета подписанного акта доступно с причиной");
+    }
+    if ((await page.locator('.sheet .btn--text:has-text("Отмена")').count()) > 0) {
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
+    await page.unroute(ПУТЬ_ЗАКРЫТЫХ);
+    await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: false, items: [] }] }),
     }));
   }
   await сторнируемая.click();
@@ -5963,6 +6084,159 @@ const РОЛИ_ВХОДА = [
   await page.waitForTimeout(900);
   await overflow("ДР-1: очередь на 390 px");
   await step("ДР-1: очередь на телефоне", "52-ochered-390.png");
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
+/* Этап Э8, ДР-11: вход заказчику с «Обзора» и первый вход заказчика.
+   Руководитель на «Обзоре» R-64 (входа у заказчика нет) нажимает «Выдать
+   вход заказчику»: лист «Новый человек» открывается с ролью «Заказчик» и
+   заказчиком объекта. Выданная ссылка открывается в чистом окне — заказчик
+   видит экран первого входа из трёх блоков; «Перейти к …» уводит к его
+   объектам; повторный заход экрана не показывает, а «Ещё → Как
+   пользоваться» открывает его снова. Выданный вход затем снимается. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-64`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const сводка = await page.request.get(`${BASE}/api/projects/R-64`).then((r) => r.json()).catch(() => ({}));
+  const выдать = page.locator('#panel-overview button:has-text("Выдать вход заказчику")');
+  if ((await выдать.count()) === 0) {
+    note("ДР-11 вход заказчику", "R-64: на «Обзоре» нет кнопки «Выдать вход заказчику», хотя входа у заказчика нет");
+  } else {
+    await выдать.first().click();
+    const лист = page.locator('[role="dialog"][aria-label="Новый человек"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+    if ((await лист.count()) === 0) {
+      note("ДР-11 вход заказчику", "кнопка не открыла лист «Новый человек»");
+    } else {
+      const [роль, заказчик] = await лист.locator("select").evaluateAll((списки) => списки.map((список) =>
+        список.selectedOptions[0]?.textContent?.trim() ?? ""));
+      if (роль !== "Заказчик") note("ДР-11 вход заказчику", `лист открылся с ролью «${роль ?? ""}», а не «Заказчик»`);
+      if (заказчик !== сводка.client?.name) {
+        note("ДР-11 вход заказчику", `лист открылся с заказчиком «${заказчик ?? ""}», а у объекта — «${String(сводка.client?.name)}»`);
+      }
+      await лист.locator("label.field", { hasText: "Имя" }).locator("input").fill("Обход ДР-11: заказчик");
+      await лист.locator('input[type="email"]').fill(`obhod-dr11-${String(Date.now())}@dolgiy.studio`);
+      await лист.locator(".btn--primary").click();
+      await page.waitForSelector("#panel-overview .invite__link", { timeout: 6000 })
+        .catch(() => { note("ДР-11 вход заказчику", "после выдачи ссылка на «Обзоре» не показана"); });
+      const ссылка = ((await page.locator("#panel-overview .invite__link").textContent().catch(() => "")) ?? "").trim();
+      await page.waitForTimeout(600);
+      if ((await выдать.count()) > 0) note("ДР-11 вход заказчику", "вход выдан, а строка «Вход заказчику: не выдан» осталась");
+
+      if (ссылка !== "") {
+        const окно = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
+        const лист2 = await окно.newPage();
+        /* Обмен ссылки переадресует в приложение. Если переадресация
+           пришла на тот же узел, приложение уже открылось с кукой — и это
+           и есть первый заход; если на другой имя того же места, куки там
+           нет, и первый заход — открытие своего узла. Второй переход в
+           первом случае был бы уже вторым заходом. */
+        await лист2.goto(ссылка.replace(/^https?:\/\/[^/]+/u, BASE), { waitUntil: "networkidle" }).catch(() => { /* переадресация */ });
+        const наСвоём = лист2.url().startsWith(BASE);
+        if (!наСвоём) await лист2.goto(BASE, { waitUntil: "networkidle" });
+        await лист2.waitForSelector(".guide", { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+        const заголовок = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (заголовок !== "Добро пожаловать в «Приёмку»") note("ДР-11 первый вход", `первый вход заказчика: «${заголовок || "экрана нет"}»`);
+        const блоки = (await лист2.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+        if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `блоки экрана: «${блоки}»`);
+        const связь = ((await лист2.locator('.guide section[aria-labelledby="guide-contact"]').textContent().catch(() => "")) ?? "");
+        const организация = await page.request.get(`${BASE}/api/organization`).then((r) => r.json()).catch(() => ({}));
+        if (!связь.includes(String(организация.name))) note("ДР-11 первый вход", `«Как связаться» не называет организацию «${String(организация.name)}»`);
+        if (!/Прораб объекта R-64: /u.test(связь)) note("ДР-11 первый вход", "«Как связаться» не называет прораба объекта R-64");
+        await лист2.screenshot({ path: `${SHOTS}/53-pervyy-vhod.png`, fullPage: true });
+        console.log("  снято: ДР-11: первый вход заказчика → 53-pervyy-vhod.png");
+        await лист2.locator(".guide .btn--primary").click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "на экране первого входа нет кнопки «Перейти к …»"); });
+        await лист2.waitForTimeout(900);
+        const после = ((await лист2.locator("h1").first().textContent().catch(() => "")) ?? "").trim();
+        if (после.includes("Добро пожаловать") || после === "") note("ДР-11 первый вход", `«Перейти к …» не увёл с экрана первого входа: «${после}»`);
+        await лист2.reload({ waitUntil: "networkidle" });
+        await лист2.waitForSelector(".appbar", { timeout: 8000 }).catch(() => { /* ниже */ });
+        await лист2.waitForTimeout(900);
+        if ((await лист2.locator(".guide").count()) > 0) note("ДР-11 первый вход", "экран первого входа показан и при втором заходе");
+        await лист2.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+        await лист2.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+        await лист2.waitForTimeout(500);
+        const повтор = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (повтор !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `«Ещё → Как пользоваться»: «${повтор || "экрана нет"}»`);
+        await лист2.setViewportSize({ width: 390, height: 844 });
+        await лист2.waitForTimeout(400);
+        const ширина = await лист2.evaluate(() => ({ полотно: document.documentElement.scrollWidth, окно: window.innerWidth }));
+        if (ширина.полотно > ширина.окно + 1) note("ДР-11 первый вход", `390 px: полотно ${ширина.полотно} при окне ${ширина.окно}`);
+        await окно.close();
+      }
+      const люди = await page.request.get(`${BASE}/api/people`).then((r) => r.json()).catch(() => []);
+      const заведён = (Array.isArray(люди) ? люди : []).find((человек) => человек.name === "Обход ДР-11: заказчик");
+      if (заведён !== undefined) await page.request.delete(`${BASE}/api/people/${заведён.id}`);
+    }
+  }
+}
+
+/* Этап Э8, ДР-12: телефон. До 480 px главная начинается с очереди, четыре
+   числа стоят сеткой 2 × 2 без бокового переполнения. Манифест объявлен:
+   имя «Приёмка», отдельное окно, цвет темы — токен полосы шапки, фон —
+   токен полотна, значки отвечают; сервис-воркера нет. */
+{
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".statrow--home .statcard", { timeout: 8000 })
+    .catch(() => { note("ДР-12 телефон", "390 px: числовых карточек главной нет"); });
+  await page.waitForTimeout(500);
+  const первый = await page.evaluate(() => document.querySelector("main.container")?.firstElementChild?.className ?? "");
+  if (!первый.split(" ").includes("queue")) note("ДР-12 телефон", `390 px: первый блок главной «${первый}», а не очередь`);
+  const карточки = await page.locator(".statrow--home .statcard").evaluateAll((узлы) => узлы.map((узел) => {
+    const место = узел.getBoundingClientRect();
+    return { x: Math.round(место.left), y: Math.round(место.top) };
+  }));
+  const [а, б, в, г] = карточки;
+  if (карточки.length !== 4 || а === undefined || б === undefined || в === undefined || г === undefined) {
+    note("ДР-12 телефон", `390 px: числовых карточек ${карточки.length} вместо четырёх`);
+  } else if (!(а.y === б.y && в.y === г.y && в.y > а.y && а.x === в.x && б.x > а.x)) {
+    note("ДР-12 телефон", `390 px: четыре числа не сеткой 2 × 2 — ${JSON.stringify(карточки)}`);
+  }
+  await overflow("ДР-12: главная на 390 px");
+  await step("ДР-12: главная на телефоне, 2 × 2", "54-glavnaya-2x2.png");
+
+  const сведения = await page.evaluate(async () => {
+    const корень = getComputedStyle(document.documentElement);
+    const воркеры = "serviceWorker" in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0;
+    return {
+      манифест: document.querySelector('link[rel="manifest"]')?.href ?? null,
+      тема: document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null,
+      полоса: корень.getPropertyValue("--band").trim().toUpperCase(),
+      полотно: корень.getPropertyValue("--bg").trim().toUpperCase(),
+      воркеры,
+    };
+  });
+  if (сведения.манифест === null) {
+    note("ДР-12 манифест", "страница не объявляет манифест");
+  } else {
+    const ответ = await page.request.get(сведения.манифест);
+    const манифест = ответ.ok() ? await ответ.json().catch(() => ({})) : {};
+    if (манифест.name !== "Приёмка") note("ДР-12 манифест", `имя «${String(манифест.name)}» вместо «Приёмка»`);
+    if (манифест.display !== "standalone") note("ДР-12 манифест", `вид окна «${String(манифест.display)}» вместо standalone`);
+    if (String(манифест.theme_color).toUpperCase() !== сведения.полоса) {
+      note("ДР-12 манифест", `цвет темы ${String(манифест.theme_color)}, а токен полосы ${сведения.полоса}`);
+    }
+    if (String(манифест.background_color).toUpperCase() !== сведения.полотно) {
+      note("ДР-12 манифест", `фон заставки ${String(манифест.background_color)}, а токен полотна ${сведения.полотно}`);
+    }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      const адрес = new URL(значок.src, сведения.манифест).href;
+      const файл = await page.request.get(адрес);
+      if (!файл.ok() || !(файл.headers()["content-type"] ?? "").startsWith("image/")) {
+        note("ДР-12 манифест", `значок ${значок.src} не отвечает картинкой: код ${файл.status()}`);
+      }
+    }
+    if (!Array.isArray(манифест.icons) || манифест.icons.length < 2) note("ДР-12 манифест", "в манифесте меньше двух значков");
+  }
+  if ((сведения.тема ?? "").toUpperCase() !== сведения.полоса) {
+    note("ДР-12 манифест", `theme-color страницы «${String(сведения.тема)}», а токен полосы ${сведения.полоса}`);
+  }
+  if (сведения.воркеры !== 0) note("ДР-12 манифест", `зарегистрировано сервис-воркеров: ${String(сведения.воркеры)}`);
+  console.log("  ДР-12: главная 2 × 2 на 390 px, манифест и значки проверены");
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 

@@ -13,6 +13,7 @@ import { FileStorage } from "../common/file-storage";
 import { безМетаданных } from "../common/clean-image";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
+import { orgDay } from "../common/org-day";
 import { IMAGE_EXTENSION, type ImageType } from "../measure/image-type";
 
 /**
@@ -48,9 +49,6 @@ const СОСТОЯНИЕ: Readonly<Record<"DRAFT" | "CONFIRMED" | "REJECTED", st
   CONFIRMED: "подтверждён",
   REJECTED: "отклонён",
 };
-
-/** Сегодняшний день организации в виде `ГГГГ-ММ-ДД`. */
-const сегодня = (): string => new Date().toISOString().slice(0, 10);
 
 const день = (значение: Date): string => значение.toISOString().slice(0, 10);
 
@@ -137,18 +135,24 @@ export class ExpensesService {
    * Снимок обязателен и проверен вызывающим по содержимому файла. Расход без
    * свидетельства нельзя предъявить заказчику, а предъявление и есть
    * назначение вкладки.
+   *
+   * «Сегодня» правила «чек из будущего» — день организации по её часовому
+   * поясу, а не по UTC. По UTC в Воронеже с полуночи до трёх ночи чек с
+   * сегодняшней датой отклонялся как чек из будущего (фаза 0, дефект K10).
+   * Мгновение передаётся доводом: граница суток иначе не испытывается.
    */
   async create(
     user: RequestUser,
     code: string,
     input: CreateExpense,
     photo: { fileName: string; contentType: ImageType; buffer: Buffer },
+    now = new Date(),
   ): Promise<ExpenseView> {
     const project = await this.projectOf(user, code);
 
     const отказ = expenseFault(
       { amount: kopecks(input.amount), seller: input.seller, spentAt: input.spentAt },
-      сегодня(),
+      (await orgDay(this.prisma, user.orgId, now)).today,
     );
     if (отказ !== null) throw new BadRequestException({ message: отказ });
 

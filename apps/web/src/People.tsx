@@ -41,6 +41,32 @@ const ЧТО_ВИДИТ: Readonly<Record<Role, string>> = {
   CLIENT: "свой объект: ход работ, смета и бумаги",
 };
 
+/** Адрес личной ссылки входа: обмен на сессию идёт через тот же узел. */
+export const адресСсылки = (token: string): string =>
+  `${window.location.origin}/api/auth/consume?token=${token}`;
+
+/**
+ * Выданная ссылка. Показывается один раз и не хранится: она равна доступу.
+ * Общая для «Людей» и шага «Выдать вход заказчику» на «Обзоре» (ДР-11).
+ */
+export function ВыданнаяСсылка({
+  имя, адрес, onHide,
+}: { имя: string; адрес: string; onHide: () => void }): React.JSX.Element {
+  return (
+    <div className="invite">
+      <p className="t-strong">Ссылка для «{имя}»</p>
+      <p className="t-sm t-muted">
+        Передайте её лично. Ссылка показывается один раз: она равна доступу, и на экране не
+        хранится. Потерялась — выдайте новую.
+      </p>
+      <code className="invite__link">{адрес}</code>
+      <button type="button" className="btn btn--text" onClick={onHide}>
+        Скрыть ссылку
+      </button>
+    </div>
+  );
+}
+
 export function People({ clients, ...сОтбором }: { clients: readonly ClientRow[] } & СОтбором): React.JSX.Element {
   const [rows, setRows] = useState<PersonRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +88,6 @@ export function People({ clients, ...сОтбором }: { clients: readonly Cli
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const адресСсылки = (token: string): string =>
-    `${window.location.origin}/api/auth/consume?token=${token}`;
 
   const пригласить = (input: InviteUser): void => {
     setBusy(true);
@@ -138,21 +162,7 @@ export function People({ clients, ...сОтбором }: { clients: readonly Cli
       {error !== null && <p className="field__error" role="alert">{error}</p>}
 
       {ссылка !== null && (
-        <div className="invite">
-          <p className="t-strong">Ссылка для «{ссылка.имя}»</p>
-          <p className="t-sm t-muted">
-            Передайте её лично. Ссылка показывается один раз: она равна доступу, и на экране не
-            хранится. Потерялась — выдайте новую.
-          </p>
-          <code className="invite__link">{ссылка.адрес}</code>
-          <button
-            type="button"
-            className="btn btn--text"
-            onClick={() => { setСсылка(null); }}
-          >
-            Скрыть ссылку
-          </button>
-        </div>
+        <ВыданнаяСсылка имя={ссылка.имя} адрес={ссылка.адрес} onHide={() => { setСсылка(null); }} />
       )}
 
       {полоса}
@@ -210,20 +220,33 @@ export function People({ clients, ...сОтбором }: { clients: readonly Cli
   );
 }
 
-/** Лист заведения человека. Роль выбирается первой: от неё зависят поля. */
-function InviteSheet({
-  clients, busy, onSave, onClose,
+/**
+ * Лист заведения человека. Роль выбирается первой: от неё зависят поля.
+ *
+ * С «Обзора» объекта лист открывается шагом «Выдать вход заказчику» (ДР-11)
+ * с ролью «Заказчик» и заказчиком объекта: выбирать их второй раз из
+ * перечней, когда объект уже их назвал, — лишние касания и лишний шанс
+ * выбрать не ту запись.
+ */
+export function InviteSheet({
+  clients, busy, error = null, onSave, onClose, роль = "FOREMAN", заказчик: заказчикОбъекта = "",
 }: {
   clients: readonly ClientRow[];
   busy: boolean;
+  /** Отказ сервера — в листе, у кнопки, которая его вызвала. */
+  error?: string | null;
   onSave: (input: InviteUser) => void;
   onClose: () => void;
+  /** Роль по умолчанию. */
+  роль?: Role;
+  /** Запись справочника по умолчанию — для роли «Заказчик». */
+  заказчик?: string;
 }): React.JSX.Element {
   const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("FOREMAN");
+  const [role, setRole] = useState<Role>(роль);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(заказчикОбъекта);
 
   /* Лист держит тот же клавиатурный контракт, что прочие девятнадцать:
      Escape закрывает, Tab не уходит за лист, фокус возвращается к кнопке,
@@ -302,6 +325,8 @@ function InviteSheet({
         <p className="t-sm t-muted">
           По заведении сразу выдаётся личная ссылка входа — передайте её человеку.
         </p>
+
+        {error !== null && <p className="field__error" role="alert">{error}</p>}
 
         <div className="sheet__actions">
           <button type="button" className="btn btn--secondary" onClick={onClose}>Отмена</button>
