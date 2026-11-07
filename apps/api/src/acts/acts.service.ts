@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { ActCorrection, ActRow, ActView, CreateActCorrection, SignAct } from "@priyomka/contracts";
 import {
-  acceptedTotal, basisPoints, clientTotals, correctedState, correctionFault, correctionTotal, formatKopecks,
-  kopecks, milliunits, multiplyByQuantity, projectActLine, sum,
-  type BasisPoints, type Kopecks,
+  acceptedTotal, actLineWage, basisPoints, clientTotals, correctedState, correctionFault, correctionTotal,
+  formatKopecks, kopecks, milliunits, multiplyByQuantity, projectActLine, sum,
+  type ActLineWage, type BasisPoints, type Kopecks,
   ownerLevel, formatDay,
 } from "@priyomka/domain";
 import { PrismaService } from "../prisma.service";
@@ -36,7 +36,11 @@ import { типСкана } from "./scan-type";
  * руководителю — проверка стоит и здесь, и декоратором маршрута.
  *
  * Строки акта собираются доменом (`projectActLine`), написанным заранее и
- * до этой работы ни разу не вызванным.
+ * до этой работы ни разу не вызванным. «Начислено» и прибыль внутреннего
+ * вида — сумма начислений приёмок строки (`actLineWage`; П-60, решение
+ * заказчика В-1 от 07.11.2026): живого акта — при выводе, подписанного —
+ * снимком при фиксации. Цена и надбавка живого акта следуют за сметой
+ * (П-27), ставка — нет: начисление бригаде хранит её снимком (БП-3).
  */
 
 /* Выборка пакетов вписана в оба запроса, а не вынесена в постоянную:
@@ -67,15 +71,18 @@ interface СтрокаАкта {
   readonly unit: string;
   readonly qty: bigint;
   readonly unitPrice: bigint;
-  readonly unitWage: bigint;
+  /** Ставка и начислено — из начислений приёмок строки, а не из сметы. */
+  readonly wage: ActLineWage;
 }
 
 interface ПриёмкаАкта {
   readonly qty: bigint;
   readonly item: {
-    readonly id: string; readonly name: string; readonly unitPrice: bigint; readonly unitWage: bigint;
+    readonly id: string; readonly name: string; readonly unitPrice: bigint;
     readonly unit: { readonly code: string };
   };
+  /** Начисление приёмки: снимок ставки на день приёмки и сумма (БП-3). */
+  readonly accrual: { readonly unitWage: bigint; readonly amount: bigint } | null;
 }
 
 /**
@@ -85,24 +92,64 @@ interface ПриёмкаАкта {
  * стоит в акте одной строкой. Три строки «Штукатурка стен» в акте заказчик
  * читает как ошибку. Тем же сводом пишется снимок при фиксации (ДР-3) —
  * подписанный акт повторяет ровно то, что заказчик видел до подписи.
+ *
+ * Начисления приёмок строки сводятся вместе с количеством: «начислено»
+ * строки — их сумма, ставка — их снимок (П-60). Приёмка без начисления
+ * ничего не начислила и в сумму не входит.
  */
 function живойСвод(пакеты: readonly { readonly acceptances: readonly ПриёмкаАкта[] }[]): СтрокаАкта[] {
-  const своды = new Map<string, СтрокаАкта>();
+  const своды = new Map<string, {
+    строка: Omit<СтрокаАкта, "wage" | "qty">; qty: bigint;
+    начисления: { qty: bigint; unitWage: bigint; amount: bigint }[];
+  }>();
   for (const пакет of пакеты) {
     for (const строка of пакет.acceptances) {
-      const было = своды.get(строка.item.id);
-      своды.set(строка.item.id, {
-        id: null,
-        itemId: строка.item.id,
-        name: строка.item.name,
-        unit: строка.item.unit.code,
-        unitPrice: строка.item.unitPrice,
-        unitWage: строка.item.unitWage,
-        qty: (было?.qty ?? 0n) + строка.qty,
-      });
+      const свод = своды.get(строка.item.id) ?? {
+        строка: {
+          id: null,
+          itemId: строка.item.id,
+          name: строка.item.name,
+          unit: строка.item.unit.code,
+          unitPrice: строка.item.unitPrice,
+        },
+        qty: 0n,
+        начисления: [],
+      };
+      свод.qty += строка.qty;
+      if (строка.accrual !== null) {
+        свод.начисления.push({ qty: строка.qty, unitWage: строка.accrual.unitWage, amount: строка.accrual.amount });
+      }
+      своды.set(строка.item.id, свод);
     }
   }
-  return [...своды.values()];
+  return [...своды.values()].map((свод) => ({
+    ...свод.строка,
+    qty: свод.qty,
+    wage: actLineWage(свод.начисления.map((начисление) => ({
+      qty: milliunits(начисление.qty),
+      unitWage: kopecks(начисление.unitWage),
+      amount: kopecks(начисление.amount),
+    }))),
+  }));
+}
+
+/** Строка снимка подписанного акта: ставка и начислено записаны фиксацией. */
+function строкаСнимка(строка: {
+  id: string; itemId: string | null; name: string; unit: string; qty: bigint; unitPrice: bigint;
+  unitWage: bigint | null; wageTotal: bigint;
+}): СтрокаАкта {
+  return {
+    id: строка.id,
+    itemId: строка.itemId,
+    name: строка.name,
+    unit: строка.unit,
+    qty: строка.qty,
+    unitPrice: строка.unitPrice,
+    wage: {
+      unitWage: строка.unitWage === null ? null : kopecks(строка.unitWage),
+      wageTotal: kopecks(строка.wageTotal),
+    },
+  };
 }
 
 interface ЗаписьПоправки {
@@ -202,12 +249,7 @@ export class ActsService {
             acceptances: {
               select: {
                 qty: true,
-                item: {
-                  select: {
-                    id: true, name: true, unitPrice: true, unitWage: true,
-                    unit: { select: { code: true } },
-                  },
-                },
+                item: { select: { unitPrice: true } },
               },
             },
           },
@@ -277,7 +319,10 @@ export class ActsService {
         fixedAt: true, fixedShare: true,
         actLines: {
           orderBy: { order: "asc" },
-          select: { id: true, itemId: true, name: true, unit: true, qty: true, unitPrice: true, unitWage: true },
+          select: {
+            id: true, itemId: true, name: true, unit: true, qty: true, unitPrice: true,
+            unitWage: true, wageTotal: true,
+          },
         },
         corrections: {
           orderBy: { createdAt: "asc" },
@@ -295,10 +340,11 @@ export class ActsService {
                 qty: true,
                 item: {
                   select: {
-                    id: true, name: true, unitPrice: true, unitWage: true,
+                    id: true, name: true, unitPrice: true,
                     unit: { select: { code: true } },
                   },
                 },
+                accrual: { select: { unitWage: true, amount: true } },
               },
             },
           },
@@ -318,30 +364,21 @@ export class ActsService {
     const share = транш.fixedShare === null
       ? await this.действующаяНадбавка(project)
       : basisPoints(транш.fixedShare);
-    const своды: readonly СтрокаАкта[] = транш.fixedAt !== null ? транш.actLines : живойСвод(транш.batches);
+    const своды: readonly СтрокаАкта[] = транш.fixedAt !== null
+      ? транш.actLines.map(строкаСнимка)
+      : живойСвод(транш.batches);
 
     const lines = своды.map((свод) => {
-      /* Поля позиции сметы, которых акту не нужно, всё равно передаются:
-         `ActLineRecord` наследует запись позиции целиком, и обрезать её
-         здесь значило бы завести второй, неполный образец той же записи.
-         Количество в акте отличается от количества в смете — принято
+      /* Количество в акте отличается от количества в смете — принято
          столько, сколько принято, а не столько, сколько заложено. */
       const запись = {
-        id: свод.itemId ?? "",
-        sectionId: "",
-        order: 0,
         name: свод.name,
         unit: свод.unit,
-        qty: milliunits(свод.qty),
-        qtyAccepted: milliunits(свод.qty),
         unitPrice: kopecks(свод.unitPrice),
-        unitWage: kopecks(свод.unitWage),
         qtyInAct: milliunits(свод.qty),
-        /* Помещение бланк акта не печатает — как и раздел выше. */
-        room: null,
       };
       if (audience === "internal") {
-        const строка = projectActLine(запись, "internal");
+        const строка = projectActLine(запись, "internal", свод.wage);
         return {
           id: свод.id,
           name: строка.name,
@@ -349,7 +386,7 @@ export class ActsService {
           qty: строка.qty.toString(),
           unitPrice: строка.unitPrice.toString(),
           total: строка.total.toString(),
-          unitWage: строка.unitWage.toString(),
+          unitWage: строка.unitWage === null ? null : строка.unitWage.toString(),
           wageTotal: строка.wageTotal.toString(),
           profit: строка.profit.toString(),
           profitShare: Number(строка.profitShare),
@@ -387,6 +424,10 @@ export class ActsService {
       ...corrections.map((поправка) => kopecks(поправка.total)),
     ]);
     const итоги = clientTotals(works, share);
+    /* «Начислено» акта — начисления его строк. Поправки к подписанным актам
+       начисления не несут (допущение ДР-3: поправка меняет только сумму для
+       заказчика), поэтому в «начислено» не входят, а в прибыль входят
+       вместе с работами. */
     const начислено: Kopecks = audience === "internal"
       ? sum(lines.map((строка) => kopecks(строка.wageTotal ?? "0")))
       : kopecks(0);
@@ -433,7 +474,8 @@ export class ActsService {
    *
    * Первая отметка фиксирует акт (этап Э9, ДР-3): строки, какими заказчик
    * их видел, пишутся снимком вместе с надбавкой, и правка сметы больше их
-   * не меняет. Повторная отметка меняет только дату — снимок один.
+   * не меняет; ставка и начислено снимка — из начислений приёмок (П-60).
+   * Повторная отметка меняет только дату — снимок один.
    *
    * «Завтра» считается от дня организации, а не от UTC: по UTC в Воронеже
    * до трёх часов ночи сегодняшняя дата подписания отвергалась как будущая —
@@ -495,14 +537,18 @@ export class ActsService {
               qty: true,
               item: {
                 select: {
-                  id: true, name: true, unitPrice: true, unitWage: true,
+                  id: true, name: true, unitPrice: true,
                   unit: { select: { code: true } },
                 },
               },
+              accrual: { select: { unitWage: true, amount: true } },
             },
           },
         },
       });
+      /* Ставка и начислено снимка — из начислений приёмок строки той же
+         транзакцией (П-60): правка ставки сметы между приёмкой и подписью
+         подписанный акт не сдвигает. */
       const строки = живойСвод(пакеты);
       await tx.actLine.createMany({
         data: строки.map((строка, order) => ({
@@ -513,7 +559,8 @@ export class ActsService {
           unit: строка.unit,
           qty: строка.qty,
           unitPrice: строка.unitPrice,
-          unitWage: строка.unitWage,
+          unitWage: строка.wage.unitWage,
+          wageTotal: строка.wage.wageTotal,
         })),
       });
       await this.audit.record({

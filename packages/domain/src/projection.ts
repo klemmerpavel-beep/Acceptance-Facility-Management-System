@@ -16,7 +16,7 @@
  */
 
 import {
-  applyPercent, multiplyByQuantity, shareOf, subtract,
+  applyPercent, kopecks, multiplyByQuantity, shareOf, subtract, sum,
   type BasisPoints, type Kopecks, type Milliunits,
 } from "./money.js";
 
@@ -150,8 +150,15 @@ export function projectEstimateItem(
   return internal;
 }
 
-/** Строка акта. Клиентская проекция получает те же поля, что и прораб. */
-export interface ActLineRecord extends EstimateItemRecord {
+/**
+ * Строка акта: что принято и почём. Ставки здесь нет: «начислено» строки
+ * внутреннего акта приходит из начислений её приёмок (`actLineWage`), а не
+ * из ставки сметы (П-60, решение заказчика В-1 от 07.11.2026).
+ */
+export interface ActLineRecord {
+  name: string;
+  unit: string;
+  unitPrice: Kopecks;
   qtyInAct: Milliunits;
 }
 
@@ -164,17 +171,68 @@ export interface PublicActLine {
 }
 
 export interface InternalActLine extends PublicActLine {
-  unitWage: Kopecks;
+  /** Ставка строки — снимок начислений; `null` — у приёмок строки ставки разные. */
+  unitWage: Kopecks | null;
   wageTotal: Kopecks;
   profit: Kopecks;
   profitShare: BasisPoints;
 }
 
-export function projectActLine(line: ActLineRecord, audience: "internal"): InternalActLine;
-export function projectActLine(line: ActLineRecord, audience: Audience): PublicActLine;
+/**
+ * Начисление приёмки, вошедшей в строку акта: количество (у сторно
+ * отрицательное), снимок ставки на день приёмки и сумма начисления (БП-3).
+ */
+export interface ActLineAccrual {
+  readonly qty: Milliunits;
+  readonly unitWage: Kopecks;
+  readonly amount: Kopecks;
+}
+
+/** Начисленное строки акта: ставка, если она одна, и точная сумма. */
+export interface ActLineWage {
+  readonly unitWage: Kopecks | null;
+  readonly wageTotal: Kopecks;
+}
+
+/**
+ * «Начислено» строки внутреннего акта — сумма начислений её приёмок
+ * (П-60; решение заказчика В-1 от 07.11.2026, ответ 19 «а» раунда 1).
+ *
+ * Начисление бригаде хранит ставку на день приёмки (БП-3). Акт прежде
+ * умножал ставку сметы на количество строки: после правки ставки между
+ * приёмкой и выводом — или подписью — «начислено» акта расходилось с
+ * начисленным бригаде. Теперь число одно: то, что начислено.
+ *
+ * Сумма — точная сумма начислений, а не ставка, умноженная на количество:
+ * начисление округляется по каждой приёмке, и произведение по суммарному
+ * количеству могло разойтись с ним на копейку и без правки ставки.
+ *
+ * Ставка строки — снимок, если у действующих приёмок строки он один. Пара
+ * «приёмка и её сторно» в ноль ставки не задаёт: её количество гасится.
+ * Ставку правили между приёмками строки — ставок две, и средней ставки с
+ * округлением не изобретается: ставка строки `null` («по снимкам
+ * приёмок»), а «начислено» остаётся точной суммой.
+ */
+export function actLineWage(начисления: readonly ActLineAccrual[]): ActLineWage {
+  const поСтавке = new Map<bigint, bigint>();
+  for (const начисление of начисления) {
+    поСтавке.set(начисление.unitWage, (поСтавке.get(начисление.unitWage) ?? 0n) + начисление.qty);
+  }
+  const действующие = [...поСтавке].filter(([, количество]) => количество !== 0n).map(([ставка]) => ставка);
+  const ставки = действующие.length > 0 ? действующие : [...поСтавке.keys()];
+  const [единственная] = ставки;
+  return {
+    unitWage: ставки.length === 1 && единственная !== undefined ? kopecks(единственная) : null,
+    wageTotal: sum(начисления.map((начисление) => начисление.amount)),
+  };
+}
+
+export function projectActLine(line: ActLineRecord, audience: "internal", wage: ActLineWage): InternalActLine;
+export function projectActLine(line: ActLineRecord, audience: "client"): PublicActLine;
 export function projectActLine(
   line: ActLineRecord,
   audience: Audience,
+  wage?: ActLineWage,
 ): PublicActLine | InternalActLine {
   const total = multiplyByQuantity(line.unitPrice, line.qtyInAct);
   const visible: PublicActLine = {
@@ -185,13 +243,15 @@ export function projectActLine(
     total,
   };
   if (audience === "client") return visible;
+  if (wage === undefined) {
+    throw new TypeError("Внутренняя строка акта считается по начислениям приёмок: начисленное не передано.");
+  }
 
-  const wageTotal = multiplyByQuantity(line.unitWage, line.qtyInAct);
-  const profit = subtract(total, wageTotal);
+  const profit = subtract(total, wage.wageTotal);
   const internal: InternalActLine = {
     ...visible,
-    unitWage: line.unitWage,
-    wageTotal,
+    unitWage: wage.unitWage,
+    wageTotal: wage.wageTotal,
     profit,
     profitShare: shareOf(profit, total),
   };

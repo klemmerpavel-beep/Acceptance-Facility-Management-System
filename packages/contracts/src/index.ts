@@ -1694,8 +1694,13 @@ export const actLineSchema = z.object({
   qty: milliunitsString,
   unitPrice: kopecksString,
   total: kopecksString,
-  /** Только внутреннему виду. */
-  unitWage: kopecksString.optional(),
+  /**
+   * Только внутреннему виду. Ставка и начислено строки — из начислений её
+   * приёмок (П-60, решение заказчика В-1 от 07.11.2026), а не из сметы.
+   * `null` — ставку правили между приёмками строки, и ставок у неё
+   * несколько: «начислено» и тогда точная сумма начислений.
+   */
+  unitWage: kopecksString.nullable().optional(),
   wageTotal: kopecksString.optional(),
   profit: kopecksString.optional(),
   profitShare: z.number().int().optional(),

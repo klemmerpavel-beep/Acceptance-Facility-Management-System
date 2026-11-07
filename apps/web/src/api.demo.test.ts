@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  fetchAcceptance, fetchActs, fetchClients, fetchDashboard, fetchEstimate, fetchEvents, fetchExpenses,
+  fetchAcceptance, fetchAct, fetchActs, fetchClients, fetchDashboard, fetchEstimate, fetchEvents, fetchExpenses,
   fetchForemen, fetchImports, fetchMeasure, fetchProject, fetchProjects, fetchReport, fetchStages,
   fetchTranches, fetchWorkers, setDemoRole, type DemoRole,
 } from "./api.demo.js";
@@ -127,6 +127,33 @@ describe("двойник: внутренние величины не доход�
   it("руководителю внутренние величины приходят: отбор проверен не на пустом ответе", async () => {
     setDemoRole("OWNER");
     expect(внутренниеКлючи(await fetchEstimate("R-99")).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * «Начислено» внутреннего акта двойника — сумма начислений приёмок его
+ * строк (П-60, решение заказчика В-1 от 07.11.2026), как у сервера. Акт
+ * двойник берёт из слепка, снятого с сервера, а начисления — из слепка
+ * приёмки руководителя: слепок, снятый со стенда до решения, где акт
+ * считал по ставке сметы, разошёлся бы с начислениями здесь.
+ */
+describe("двойник: «начислено» акта — сумма начислений (П-60)", () => {
+  it("строки и итог внутреннего акта сходятся с начислениями его пакетов", async () => {
+    setDemoRole("OWNER");
+    const [строкаПеречня] = await fetchActs("R-99");
+    expect(строкаПеречня).toBeDefined();
+    const акт = await fetchAct("R-99", строкаПеречня?.trancheId ?? "", "internal");
+    const начисления = new Map<string, bigint>();
+    for (const пакет of snapshot["acceptance-owner"].batches.filter((p) => p.trancheNumber === акт.number)) {
+      for (const строка of пакет.lines) {
+        const начислено = строка.reversedAt === null ? BigInt(строка.amount) : 0n;
+        начисления.set(строка.positionName, (начисления.get(строка.positionName) ?? 0n) + начислено);
+      }
+    }
+    expect(акт.lines.length).toBeGreaterThan(0);
+    expect(Object.fromEntries(акт.lines.map((строка) => [строка.name, BigInt(строка.wageTotal ?? "-1")])))
+      .toEqual(Object.fromEntries(начисления));
+    expect(BigInt(акт.totals.wage ?? "-1")).toBe([...начисления.values()].reduce((всего, сумма) => всего + сумма, 0n));
   });
 });
 

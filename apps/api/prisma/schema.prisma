@@ -1030,8 +1030,10 @@ model Tranche {
 ///
 /// Пишется один раз — при первой отметке подписания — тем же сводом, каким
 /// акт показывался до фиксации: позиция одной строкой с суммарным принятым
-/// количеством, цена и ставка — из сметы на мгновение фиксации. После этого
-/// не правится и не удаляется: исправление — поправка `ActCorrection`.
+/// количеством, цена — из сметы на мгновение фиксации; ставка и начислено —
+/// из начислений приёмок строки (П-60, решение заказчика В-1 от 07.11.2026).
+/// После этого не правится и не удаляется: исправление — поправка
+/// `ActCorrection`.
 model ActLine {
   id        String  @id @default(uuid()) @db.Uuid
   trancheId String  @db.Uuid
@@ -1045,7 +1047,12 @@ model ActLine {
   qty       BigInt
   /// Копейки.
   unitPrice BigInt
-  unitWage  BigInt
+  /// Снимок ставки начислений строки; пусто — ставку правили между
+  /// приёмками, и ставок у строки несколько.
+  unitWage  BigInt?
+  /// Начислено: сумма начислений `WageAccrual` приёмок строки с учётом
+  /// сторно — то же число, что начислено бригаде (БП-3).
+  wageTotal BigInt
 
   tranche     Tranche         @relation(fields: [trancheId], references: [id], onDelete: Cascade)
   item        EstimateItem?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
