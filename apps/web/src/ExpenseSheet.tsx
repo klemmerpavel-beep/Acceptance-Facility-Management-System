@@ -4,6 +4,7 @@ import { expenseFault, kopecks, parseRubles } from "@priyomka/domain";
 import type { CreateExpense, EstimateView, ExpenseKind, ExpenseView } from "@priyomka/contracts";
 import { createExpense, errorMessage, fetchEstimate } from "./api.js";
 import { useModalDialog } from "./modal.js";
+import { местныйДень } from "./today.js";
 
 /**
  * Заведение чека на материалы.
@@ -15,7 +16,9 @@ import { useModalDialog } from "./modal.js";
  *
  * Отказ проверяется тем же правилом домена (`expenseFault`), что и на
  * сервере: человек узнаёт о промахе до обращения к сети, а правило остаётся
- * одно на два места применения.
+ * одно на два места применения. «Сегодня» правила — местный день, тем же
+ * помощником, что у формы платежа: по UTC форма до трёх ночи подставляла
+ * вчерашнюю дату и не пускала сегодняшний чек (фаза 0, дефект K10).
  *
  * Раздел сметы необязателен намеренно: не всякая покупка ложится на раздел,
  * и принуждение к выбору дало бы неверный раздел вместо пустого.
@@ -27,8 +30,6 @@ const ВИДЫ = [
   ["TOOLS", "Инструмент"],
   ["OTHER", "Прочее"],
 ] as const;
-
-const сегодня = (): string => new Date().toISOString().slice(0, 10);
 
 export function ExpenseSheet({
   code,
@@ -43,7 +44,7 @@ export function ExpenseSheet({
   const [kind, setKind] = useState<ExpenseKind>("MATERIALS");
   const [сумма, setСумма] = useState("");
   const [seller, setSeller] = useState("");
-  const [spentAt, setSpentAt] = useState(сегодня());
+  const [spentAt, setSpentAt] = useState(местныйДень());
   const [reimbursable, setReimbursable] = useState(true);
   const [sectionId, setSectionId] = useState("");
   const [note, setNote] = useState("");
@@ -63,7 +64,7 @@ export function ExpenseSheet({
   const копейки = сумма.trim() === "" ? null : безопасно(сумма);
   const отказ = копейки === null
     ? null
-    : expenseFault({ amount: копейки, seller, spentAt }, сегодня());
+    : expenseFault({ amount: копейки, seller, spentAt }, местныйДень());
   const готово = копейки !== null && отказ === null && photo !== null;
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
