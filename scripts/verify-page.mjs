@@ -2265,6 +2265,45 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
     await page.waitForTimeout(300);
     console.log(`  подстановка после перепланировки: «${действующая.позиция.room}» ${действующая.помещение},`
       + ` объект ${действующая.объект} тысячных м²`);
+
+    /* Позиция на помещении начального обмера, которому перепланировка не
+       оставила одноимённого: лист просит выбрать помещение нового набора.
+       Выбранное помещение обязано дать свои величины, а просьба — сняться:
+       она о сохранённом помещении, а не о выбранном. */
+    const отставшая = await page.evaluate(async () => {
+      const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+      const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((r) => r.json());
+      const позиция = собрать(вид.sections)
+        .find((строка) => строка.unit === "м²" && строка.room?.set === "INITIAL");
+      const обмер = await fetch("/api/projects/R-99/measure?set=REPLANNED", { credentials: "include" })
+        .then((r) => r.json());
+      const новое = (обмер.rooms ?? []).find((строка) => (строка.openings ?? []).length > 0) ?? null;
+      return позиция === undefined || новое === null ? null
+        : { name: позиция.name, room: позиция.room.name, новое: новое.name, нетто: новое.wallAreaNet };
+    });
+    if (отставшая === null) {
+      note("стены за вычетом проёмов", "на стенде нет позиции в м² на помещении начального обмера R-99");
+    } else {
+      await page.locator("table.estimate tbody tr")
+        .filter({ hasText: отставшая.name }).filter({ hasText: `${отставшая.room} · из начального обмера` }).first()
+        .locator('.btn--text:has-text("Править")').click();
+      await page.waitForTimeout(400);
+      await page.locator('.sheet label.field:has(.field__label:text-is("Помещение")) select')
+        .selectOption({ label: отставшая.новое });
+      await page.waitForTimeout(200);
+      if ((await page.locator(".sheet").innerText()).includes("Выберите помещение нового набора")) {
+        note("стены за вычетом проёмов",
+          `после выбора «${отставшая.новое}» лист по-прежнему просит выбрать помещение нового набора`);
+      }
+      const выбранное = await нетто("из обмера помещения");
+      if (!выбранное.includes(вЧисло(отставшая.нетто))) {
+        note("стены за вычетом проёмов",
+          `выбранное помещение «${отставшая.новое}» не дало свою площадь стен нетто ${вЧисло(отставшая.нетто)}:`
+          + ` «${выбранное || "группы «из обмера помещения» нет"}»`);
+      }
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
   }
 }
 
