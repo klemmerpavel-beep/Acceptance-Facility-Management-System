@@ -269,7 +269,14 @@ export function ProjectCard({
   const [заготовка, setЗаготовка] = useState<"save" | "apply" | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [measure, setMeasure] = useState<MeasureView | null>(null);
+  /* Наборы обмера для подстановки в смету; первый — действующий. После
+     перепланировки действующий — второй набор: его помещения стоят в списке
+     выбора позиции (`estimate.rooms`), и «из обмера объекта» — его итог.
+     Начальный набор остаётся позициям на помещениях, которых перепланировка
+     не оставила. Прежде лист получал только начальный набор: позиции на
+     помещении действующего набора не предлагалось ни одной величины
+     помещения, а итог объекта брался у набора, которого больше нет. */
+  const [обмеры, setОбмеры] = useState<readonly MeasureView[]>([]);
   /* Прорабы тянутся только тому, кто правит: роль, которой поля не
      принадлежат, органов правки не видит, и список ей незачем. */
   const [прорабы, setПрорабы] = useState<Foreman[]>([]);
@@ -306,7 +313,12 @@ export function ProjectCard({
        вкладке «Замер» и переносу в смету — ни того ни другого у заказчика
        нет. */
     if (user.role !== "CLIENT") {
-      void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
+      void fetchMeasure(project.code)
+        .then(async (начальный) => начальный.filled.includes("REPLANNED")
+          ? [await fetchMeasure(project.code, "REPLANNED"), начальный]
+          : [начальный])
+        .then(setОбмеры)
+        .catch(() => { setОбмеры([]); });
     }
     /* Отчёт импорта спрашивается отдельно от сметы и заказчиком не
        спрашивается вовсе: маршрут ему закрыт. Прежде отчёт ждали внутри
@@ -1059,7 +1071,7 @@ export function ProjectCard({
               ? ""
               : разделПозиции(estimate.sections, editing.id)?.id ?? ""
           }
-          measure={measure}
+          measures={обмеры}
           closed={закрытые}
           busy={editBusy}
           error={editError}
@@ -1086,7 +1098,7 @@ export function ProjectCard({
           replanned={estimate.replanned}
           sections={разделыСписком(estimate.sections)}
           sectionId={новаяВ}
-          measure={measure}
+          measures={обмеры}
           closed={[]}
           busy={editBusy}
           error={editError}

@@ -2207,6 +2207,67 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
   }
 }
 
+/* Подстановка на перепланированном объекте (этап Э11, шаг 1). R-99 на
+   стенде перепланирован: список помещений позиции — действующий набор, и
+   лист обязан брать из него и величины помещения, и итог «из обмера
+   объекта». Прежде лист получал только начальный набор: позиции на
+   помещении действующего набора не предлагалось ни одной величины
+   помещения — площадь стен нетто туда было не подставить, — а итог объекта
+   был итогом набора, которого больше нет. Числа — у API той же сессией. */
+{
+  const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+    .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  const действующая = await page.evaluate(async () => {
+    const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+    const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((r) => r.json());
+    if (!вид.replanned) return { replanned: false, позиция: null };
+    const позиция = собрать(вид.sections)
+      .find((строка) => строка.unit === "м²" && строка.room?.set === "REPLANNED");
+    if (позиция === undefined) return { replanned: true, позиция: null };
+    const обмер = await fetch("/api/projects/R-99/measure?set=REPLANNED", { credentials: "include" })
+      .then((r) => r.json());
+    const комната = (обмер.rooms ?? []).find((строка) => строка.id === позиция.room.id);
+    return {
+      replanned: true,
+      позиция: { name: позиция.name, room: позиция.room.name },
+      помещение: комната?.wallAreaNet ?? null,
+      объект: обмер.totals?.wallAreaNet ?? null,
+    };
+  });
+  if (!действующая.replanned || действующая.позиция === null) {
+    note("стены за вычетом проёмов",
+      "на стенде нет позиции в м² на помещении действующего набора перепланированного R-99: подстановку не на чем проверить");
+  } else {
+    const раскрыть = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+    if ((await раскрыть.count()) > 0) {
+      await раскрыть.click();
+      await page.waitForTimeout(300);
+    }
+    const строка = page.locator("table.estimate tbody tr")
+      .filter({ hasText: действующая.позиция.name }).filter({ hasText: действующая.позиция.room }).first();
+    await строка.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(400);
+    const нетто = async (группа) => ((await page.locator(".estimate__from-measure").filter({ hasText: группа })
+      .locator(".btn").filter({ hasText: "площадь стен нетто" }).allTextContents())[0] ?? "")
+      .replace(/\s|\u00A0/g, "");
+    const уПомещения = await нетто("из обмера помещения");
+    if (!уПомещения.includes(вЧисло(действующая.помещение))) {
+      note("стены за вычетом проёмов",
+        `позиции на помещении «${действующая.позиция.room}» действующего набора не предложена его площадь стен нетто`
+        + ` ${вЧисло(действующая.помещение)}: «${уПомещения || "группы «из обмера помещения» нет"}»`);
+    }
+    const уОбъекта = await нетто("из обмера объекта");
+    if (!уОбъекта.includes(вЧисло(действующая.объект))) {
+      note("стены за вычетом проёмов",
+        `«из обмера объекта» предложено «${уОбъекта}» вместо итога действующего набора ${вЧисло(действующая.объект)}`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+    console.log(`  подстановка после перепланировки: «${действующая.позиция.room}» ${действующая.помещение},`
+      + ` объект ${действующая.объект} тысячных м²`);
+  }
+}
+
 /* Перестановка позиции работает с клавиатуры.
  *
  * Перетаскивание — ускорение, а не единственный путь: у человека без

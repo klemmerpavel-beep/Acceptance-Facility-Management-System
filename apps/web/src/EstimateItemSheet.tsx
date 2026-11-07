@@ -58,7 +58,7 @@ export function EstimateItemSheet({
   replanned,
   sections,
   sectionId,
-  measure,
+  measures,
   closed,
   busy,
   error,
@@ -89,7 +89,12 @@ export function EstimateItemSheet({
   sections: readonly { id: string; name: string; level: number }[];
   /** Раздел, в котором позиция стоит сейчас. */
   sectionId: string;
-  measure: MeasureView | null;
+  /**
+   * Наборы обмера объекта; первый — действующий: его итог подставляется
+   * «из обмера объекта». Помещение позиции ищется во всех наборах — позиция
+   * могла остаться на помещении начального обмера. Пусто — обмера нет.
+   */
+  measures: readonly MeasureView[];
   /** Закрытые транши объекта: лист называет те, что изменит правка (П-27). */
   closed: ClosedTranches["tranches"];
   busy: boolean;
@@ -156,7 +161,8 @@ export function EstimateItemSheet({
      Величины объекта остались рядом — работа вроде вывоза мусора и правда
      меряется объектом, — но подписаны своим источником, и перепутать их
      больше нельзя. */
-  const комната = measure?.rooms.find((строка) => строка.id === roomId) ?? null;
+  const measure = measures[0] ?? null;
+  const комната = measures.flatMap((набор) => набор.rooms).find((строка) => строка.id === roomId) ?? null;
   const поПомещению: readonly { source: MeasureSource; value: bigint }[] =
     комната === null
       ? []
