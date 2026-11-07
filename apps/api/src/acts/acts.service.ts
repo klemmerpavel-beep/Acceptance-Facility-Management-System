@@ -11,6 +11,7 @@ import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
+import { orgDay } from "../common/org-day";
 import { FileStorage } from "../common/file-storage";
 import { безМетаданных } from "../common/clean-image";
 import { типСкана } from "./scan-type";
@@ -433,8 +434,14 @@ export class ActsService {
    * Первая отметка фиксирует акт (этап Э9, ДР-3): строки, какими заказчик
    * их видел, пишутся снимком вместе с надбавкой, и правка сметы больше их
    * не меняет. Повторная отметка меняет только дату — снимок один.
+   *
+   * «Завтра» считается от дня организации, а не от UTC: по UTC в Воронеже
+   * до трёх часов ночи сегодняшняя дата подписания отвергалась как будущая —
+   * тот же класс, что у чека и платежа (фаза 0, дефект K10).
    */
-  async sign(user: RequestUser, code: string, id: string, input: SignAct): Promise<ActRow[]> {
+  async sign(
+    user: RequestUser, code: string, id: string, input: SignAct, now = new Date(),
+  ): Promise<ActRow[]> {
     if (!ownerLevel(user.role)) {
       throw new ForbiddenException({ message: "Подписание акта отмечает руководитель." });
     }
@@ -449,7 +456,7 @@ export class ActsService {
         message: `Транш № ${String(транш.number)} ещё открыт: подписывать нечего.`,
       });
     }
-    if (input.signedAt > день(new Date())) {
+    if (input.signedAt > (await orgDay(this.prisma, user.orgId, now)).today) {
       throw new BadRequestException({
         message: "Дата подписания позже сегодняшней. Подписанного завтра не бывает.",
       });

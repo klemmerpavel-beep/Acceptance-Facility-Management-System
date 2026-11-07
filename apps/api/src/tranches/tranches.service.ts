@@ -447,19 +447,26 @@ export class TranchesService {
    * `PAID` здесь, когда платежи покрыли сумму, велик и потому назван:
    * поддавшись ему, продукт завёл бы два способа назначить одно состояние,
    * а они расходятся на первой переплате и на первом сторно.
+   *
+   * «Сегодня» и день открытия транша — дни организации по её часовому поясу
+   * (фаза 0, дефект K10). По UTC в Воронеже с полуночи до трёх ночи платёж,
+   * датированный формой сегодняшним днём, отклонялся как платёж будущим
+   * днём, а транш, открытый в эти часы, числился открытым вчера. Мгновение
+   * передаётся доводом: граница суток иначе не испытывается.
    */
   async addPayment(
-    user: RequestUser, code: string, id: string, input: CreatePayment, today: string,
+    user: RequestUser, code: string, id: string, input: CreatePayment, now = new Date(),
   ): Promise<TrancheView> {
     const project = await this.projectOf(user, code);
     const транш = await this.trancheOf(project.id, id);
+    const день = await orgDay(this.prisma, user.orgId, now);
 
     const отказ = paymentFault({
       amount: kopecks(input.amount),
       paidOn: input.paidOn,
-      today,
+      today: день.today,
       status: транш.status,
-      openedOn: транш.openedAt.toISOString().slice(0, 10),
+      openedOn: день.day(транш.openedAt),
     });
     if (отказ !== null) throw new BadRequestException({ message: отказ });
 
@@ -483,7 +490,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project, await orgDay(this.prisma, user.orgId));
+    return this.build(project, день);
   }
 
   /**

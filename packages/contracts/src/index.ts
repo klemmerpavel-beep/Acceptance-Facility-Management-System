@@ -1393,6 +1393,11 @@ export type AcceptanceView = z.infer<typeof acceptanceViewSchema>;
  * Заведение пакета. Раздел, отмеченные позиции с количествами и
  * необязательный комментарий; фотография приходит тем же запросом отдельной
  * частью, поэтому в схеме её нет.
+ *
+ * Позиция отмечается в пакете один раз. Повтор проходил проверку остатка
+ * строкой за строкой: две строки одной позиции на весь остаток принимали
+ * вдвое больше сметы (фаза 0, дефект K2; БП-02). Экран повтора не
+ * формирует — отказ стоит для прямого запроса и называет строку повтора.
  */
 export const createAcceptanceSchema = z.object({
   sectionId: z.string().uuid(),
@@ -1400,7 +1405,19 @@ export const createAcceptanceSchema = z.object({
   positions: z.array(z.object({
     itemId: z.string().uuid(),
     qty: milliunitsString,
-  })).min(1, "Отметьте хотя бы одну позицию."),
+  })).min(1, "Отметьте хотя бы одну позицию.").superRefine((позиции, ctx) => {
+    const отмечены = new Set<string>();
+    позиции.forEach((позиция, номер) => {
+      if (отмечены.has(позиция.itemId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [номер, "itemId"],
+          message: "Позиция отмечена в пакете дважды. Отметьте её один раз с общим количеством.",
+        });
+      }
+      отмечены.add(позиция.itemId);
+    });
+  }),
 });
 export type CreateAcceptance = z.infer<typeof createAcceptanceSchema>;
 
