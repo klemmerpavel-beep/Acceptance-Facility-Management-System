@@ -17,7 +17,7 @@ import { Roadmap } from "./Roadmap.js";
 import { ProjectList } from "./ProjectList.js";
 import { StatusSheet } from "./StatusSheet.js";
 import { ProjectCard } from "./ProjectCard.js";
-import { PLANNED_SECTIONS, SECTIONS, type Section } from "./sections.js";
+import { PLANNED_SECTIONS, SECTIONS, разделДоступен, разделыРоли, type Section } from "./sections.js";
 import { Documents } from "./Documents.js";
 import { Settings } from "./Settings.js";
 import { ClientGuide } from "./ClientGuide.js";
@@ -31,14 +31,6 @@ type State =
   /** Открыта ссылка входа `/#login/<токен>`: обмен идёт до того, как спросить «кто я». */
   | { kind: "link"; token: string }
   | { kind: "signed"; user: CurrentUser; projects: ProjectSummary[]; units: string[] };
-
-/**
- * Раздел, открытый роли. Повторяет шапку: заказчику — только его объекты,
- * бухгалтеру — всё, кроме настроек. Адрес, назвавший закрытый раздел,
- * экрана не меняет: показанный раздел с отказом читался бы поломкой.
- */
-const разделДоступен = (role: CurrentUser["role"], section: Section): boolean =>
-  role === "CLIENT" ? section === "projects" : !(role === "ACCOUNTANT" && section === "settings");
 
 /**
  * Перенос адреса в состояние оболочки (П-50). Объект ищется в списке,
@@ -344,15 +336,10 @@ export function App(): React.JSX.Element {
    * Знак — свой, в языке набора значков. Знак и слово эталона не
    * воспроизводятся: это чужой товарный знак.
    */
-  /* Разделы по роли. Заказчику открыт один — его объекты; прочие ведут
-     внутреннюю работу компании, и показанный раздел, отвечающий отказом,
-     был бы обещанием доступа, которого нет.
-
-     Состав повторяет разметку маршрутов сервера, но её не заменяет: скрытый
-     раздел — удобство, а запрет стоит в страже ролей. */
-  const разделы = state.user.role === "CLIENT"
-    ? SECTIONS.filter((item) => item.key === "projects")
-    : SECTIONS;
+  /* Разделы по роли (`разделыРоли` выше). Состав повторяет разметку
+     маршрутов сервера, но её не заменяет: скрытый раздел — удобство, а
+     запрет стоит в страже ролей. */
+  const разделы = разделыРоли(state.user.role);
 
   /* Служебные экраны и выход — один перечень на шапку и на таб-панель.
      Две копии разошлись бы на первой же правке состава. */
@@ -638,9 +625,13 @@ export function App(): React.JSX.Element {
           </main>
         </>
       )}
-      {/* Заявки — раздел руководителя: прорабу маршруты закрыты ролью, и
-          показывать ему доску, которая ответит отказом, незачем. */}
-      {section === "requests" && (
+      {/* Заявки и Бухгалтерия — разделы руководителя и бухгалтера. Прорабу
+          и заказчику их нет ни в шапке, ни по адресу (`разделДоступен`), и
+          заглушка «Раздел ведёт руководитель», которой они прежде отвечали
+          прорабу, снята вместе с пунктами (K9, П-65). Проверка роли здесь —
+          вторая: раздел, попавший сюда мимо отбора, остаётся пустым, а не
+          спрашивает закрытый маршрут. */}
+      {section === "requests" && ownerLevel(state.user.role) && (
         <>
           {cover("Заявки", ["Главная", "Заявки"])}
           {/* Доска живёт в общем контейнере, как и прочие разделы. Без него
@@ -649,35 +640,14 @@ export function App(): React.JSX.Element {
               `.cover + main` стоит на элементе, а за обложкой шёл `section`
               (аудит Г-3). */}
           <main className="container stack stack--loose">
-            {ownerLevel(state.user.role) ? (
-              <Leads onOpenProject={открытьОбъект} />
-            ) : (
-              <div className="empty">
-                <p className="empty__title">Раздел ведёт руководитель</p>
-                <p className="empty__text">
-                  Воронка заявок — коммерческий контур. Ваша работа начинается с объекта.
-                </p>
-              </div>
-            )}
+            <Leads onOpenProject={открытьОбъект} />
           </main>
         </>
       )}
-      {/* Бухгалтерия — раздел руководителя по тому же правилу, что и
-          заявки: прорабу маршрут закрыт ролью, и показывать ему экран,
-          который ответит отказом, незачем. */}
-      {section === "accounting" && (
+      {section === "accounting" && ownerLevel(state.user.role) && (
         <>
           {cover("Бухгалтерия", ["Главная", "Бухгалтерия"])}
-          {ownerLevel(state.user.role) ? (
-            <Accounting onOpenProject={открытьОбъект} />
-          ) : (
-            <div className="empty">
-              <p className="empty__title">Раздел ведёт руководитель</p>
-              <p className="empty__text">
-                Деньги заказчика — не ваш контур. Ваша работа кончается принятой позицией.
-              </p>
-            </div>
-          )}
+          <Accounting onOpenProject={открытьОбъект} />
         </>
       )}
       {section === "contacts" && (
