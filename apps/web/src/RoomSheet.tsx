@@ -2,6 +2,7 @@ import { useState } from "react";
 import { завести } from "./verbs.js";
 import type { CreateMeasureRoom, MeasureOpening, MeasureRoom } from "@priyomka/contracts";
 import { formatMeasure } from "@priyomka/ui";
+import { milliunits, wallArea, wallAreaNet, wallAreaNetWarning, type RoomMeasure } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 
 /**
@@ -9,9 +10,13 @@ import { useModalDialog } from "./modal.js";
  *
  * Прораб вводит четыре величины: площадь пола, периметр пола, периметр
  * потолка и высоту. Площадь стен и объём здесь не спрашиваются — они
- * выводятся и показываются на экране после сохранения. Спрашивать
- * производную значило бы допустить обмер, в котором объём не сходится с
- * площадью и высотой.
+ * выводятся. Спрашивать производную значило бы допустить обмер, в котором
+ * объём не сходится с площадью и высотой.
+ *
+ * Площадь стен — обе величины, без вычета проёмов и за вычетом — лист
+ * показывает по мере ввода тем же доменом, что сервер (этап Э11, шаг 1):
+ * проёмы вводятся здесь же, и промах, после которого проёмы больше стен,
+ * виден до сохранения, а не после.
  *
  * Величины вводятся в метрах, а хранятся в тысячных долях. Перевод идёт
  * разбором строки в целое, а не через число с плавающей точкой: «18,4»
@@ -113,6 +118,25 @@ export function RoomSheet({
     FIELDS.map((field) => [field.key, toMilli(values[field.key])]),
   ) as Record<FieldKey, string | null>;
   const ready = name.trim().length > 0 && FIELDS.every((field) => milli[field.key] !== null) && проёмыВерны;
+
+  /* Обмер по введённому: считается, когда разобраны периметр потолка, высота
+     и проёмы, — площадь стен от них и только от них. */
+  const обмер: RoomMeasure | null =
+    milli.ceilingPerimeter === null || milli.height === null || !проёмыВерны
+      ? null
+      : {
+          floorArea: milliunits(milli.floorArea ?? "0"),
+          floorPerimeter: milliunits(milli.floorPerimeter ?? "0"),
+          ceilingPerimeter: milliunits(milli.ceilingPerimeter),
+          height: milliunits(milli.height),
+          openings: строкиПроёмов
+            .filter((строка): строка is MeasureOpening => typeof строка === "object" && строка !== null)
+            .map((строка) => ({
+              kind: строка.kind, count: строка.count,
+              area: milliunits(строка.area), reveal: milliunits(строка.reveal),
+            })),
+        };
+  const проёмыБольшеСтен = обмер === null ? null : wallAreaNetWarning(обмер);
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -226,6 +250,19 @@ export function RoomSheet({
                 Количество проёмов — целое число; площадь и откосы — в метрах с запятой: «3,6».
               </p>
             )}
+
+            {обмер !== null && (
+              <p className="spec">
+                <span className="spec__item">
+                  Площадь стен<span className="spec__value">{formatMeasure(wallArea(обмер), "м²")}</span>
+                </span>
+                <span className="spec__item">
+                  Стены за вычетом проёмов
+                  <span className="spec__value">{formatMeasure(wallAreaNet(обмер), "м²")}</span>
+                </span>
+              </p>
+            )}
+            {проёмыБольшеСтен !== null && <p className="field__hint" role="status">{проёмыБольшеСтен}</p>}
 
             {error !== null && <p className="field__error" role="alert">{error}</p>}
 

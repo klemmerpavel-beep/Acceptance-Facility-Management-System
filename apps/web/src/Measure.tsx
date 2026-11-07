@@ -3,7 +3,7 @@ import { завести } from "./verbs.js";
 import type {
   CreateMeasureRoom, MeasureRoom, MeasureSetKind, MeasureView, Role,
 } from "@priyomka/contracts";
-import { ownerLevel } from "@priyomka/domain";
+import { milliunits, ownerLevel, wallAreaNetWarning, type RoomMeasure } from "@priyomka/domain";
 import { formatMeasure } from "@priyomka/ui";
 import {
   createRoom, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl, updateRoom, uploadPlan,
@@ -44,9 +44,14 @@ const НАБОРЫ = [
 /** Кто вправе править обмер. Замер снимается на объекте — это работа прораба. */
 const canEdit = (role: Role): boolean => ownerLevel(role) || role === "FOREMAN";
 
+/* Площадь стен — двумя величинами рядом (этап Э11, шаг 1): прежняя, без
+   вычета проёмов, и за вычетом площади окон и дверей. Прежняя подпись не
+   меняется: по этой величине подставлены количества прежних смет, и
+   переименование выдало бы её за другую. */
 const TOTALS = [
   { key: "floorArea", label: "Площадь", unit: "м²" },
   { key: "wallArea", label: "Площадь стен", unit: "м²" },
+  { key: "wallAreaNet", label: "Стены за вычетом проёмов", unit: "м²" },
   { key: "ceilingPerimeter", label: "Периметр потолка", unit: "м.п." },
   { key: "floorPerimeter", label: "Периметр пола", unit: "м.п." },
   { key: "volume", label: "Объём", unit: "м³" },
@@ -55,6 +60,7 @@ const TOTALS = [
 const ROOM_BASE = [
   { key: "floorArea", label: "Площадь", unit: "м²" },
   { key: "wallArea", label: "Площадь стен", unit: "м²" },
+  { key: "wallAreaNet", label: "Стены за вычетом проёмов", unit: "м²" },
   { key: "height", label: "Высота", unit: "м" },
   { key: "volume", label: "Объём", unit: "м³" },
 ] as const;
@@ -65,6 +71,18 @@ const ROOM_DETAIL = [
 ] as const;
 
 const KIND_LABEL = { WINDOW: "Окна", DOOR: "Двери" } as const;
+
+/** Помещение ответа в виде, который понимает домен: предупреждение считает он, а не экран. */
+const какОбмер = (room: MeasureRoom): RoomMeasure => ({
+  floorArea: milliunits(room.floorArea),
+  floorPerimeter: milliunits(room.floorPerimeter),
+  ceilingPerimeter: milliunits(room.ceilingPerimeter),
+  height: milliunits(room.height),
+  openings: room.openings.map((opening) => ({
+    kind: opening.kind, count: opening.count,
+    area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+  })),
+});
 
 export function Measure({
   code,
@@ -131,6 +149,9 @@ export function Measure({
   const editable = canEdit(role);
   const rooms = view.rooms;
   const selected = rooms.find((room) => room.id === current) ?? rooms[0] ?? null;
+  /* Проёмы больше стен: нетто показана нулём, и молчать об этом нельзя —
+     ноль уйдёт в смету подстановкой (`wallAreaNet`, предупреждение, а не отказ). */
+  const проёмыБольшеСтен = selected === null ? null : wallAreaNetWarning(какОбмер(selected));
 
   const plan = (
     <div className="stack stack--tight">
@@ -375,6 +396,10 @@ export function Measure({
               </div>
             </div>
 
+            {проёмыБольшеСтен !== null && (
+              <p className="panel panel--pad t-sm" role="note">{проёмыБольшеСтен}</p>
+            )}
+
             {editable && (
               <div className="row row--wrap">
                 <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
@@ -416,7 +441,7 @@ export function Measure({
             <tr>
               <th>Помещение</th><th>Площадь, м²</th><th>Периметр пола, м.п.</th>
               <th>Периметр потолка, м.п.</th><th>Высота, м</th>
-              <th>Площадь стен, м²</th><th>Объём, м³</th>
+              <th>Площадь стен, м²</th><th>Стены за вычетом проёмов, м²</th><th>Объём, м³</th>
             </tr>
           </thead>
           <tbody>
@@ -428,6 +453,7 @@ export function Measure({
                 <td>{formatMeasure(BigInt(room.ceilingPerimeter), "")}</td>
                 <td>{formatMeasure(BigInt(room.height), "")}</td>
                 <td>{formatMeasure(BigInt(room.wallArea), "")}</td>
+                <td>{formatMeasure(BigInt(room.wallAreaNet), "")}</td>
                 <td>{formatMeasure(BigInt(room.volume), "")}</td>
               </tr>
             ))}
@@ -440,6 +466,7 @@ export function Measure({
               <td>{formatMeasure(BigInt(view.totals.ceilingPerimeter), "")}</td>
               <td>—</td>
               <td>{formatMeasure(BigInt(view.totals.wallArea), "")}</td>
+              <td>{formatMeasure(BigInt(view.totals.wallAreaNet), "")}</td>
               <td>{formatMeasure(BigInt(view.totals.volume), "")}</td>
             </tr>
           </tfoot>

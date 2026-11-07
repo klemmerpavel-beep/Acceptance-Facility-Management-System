@@ -1098,8 +1098,16 @@ export const measureRoomSchema = z.object({
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   height: measureAmountSchema,
-  /** Выводится сервером из четырёх величин выше. Клиент их не считает. */
+  /**
+   * Площадь стен брутто — без вычета проёмов. Выводится сервером из четырёх
+   * величин выше. Клиент их не считает.
+   */
   wallArea: measureAmountSchema,
+  /**
+   * Площадь стен нетто — брутто за вычетом площади проёмов помещения, не
+   * ниже нуля (этап Э11, шаг 1). Выводится сервером тем же доменом.
+   */
+  wallAreaNet: measureAmountSchema,
   volume: measureAmountSchema,
   openings: z.array(measureOpeningSchema),
 });
@@ -1116,7 +1124,10 @@ export type OpeningTotals = z.infer<typeof openingTotalsSchema>;
 export const measureTotalsSchema = z.object({
   rooms: z.number().int().nonnegative(),
   floorArea: measureAmountSchema,
+  /** Брутто объекта — сумма брутто помещений. */
   wallArea: measureAmountSchema,
+  /** Нетто объекта — сумма нетто помещений, а не брутто минус проёмы объекта. */
+  wallAreaNet: measureAmountSchema,
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   volume: measureAmountSchema,

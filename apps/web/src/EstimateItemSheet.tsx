@@ -5,7 +5,7 @@ import type {
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
   estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateItemWarning, measureSourcesFor,
-  MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
+  MEASURE_LABEL, kopecks, measureSourceNote, milliunits, multiplyByQuantity, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { предупреждениеОЗакрытых } from "./closed-tranches.js";
@@ -111,6 +111,10 @@ export function EstimateItemSheet({
   const [roomId, setRoomId] = useState(item?.room?.id ?? "");
   const [разделПозиции, setРазделПозиции] = useState(sectionId);
   const [удаляю, setУдаляю] = useState(false);
+  /* Источник подставленного количества: две площади стен рядом неотличимы
+     в поле количества, и лист называет, какую взяли. Живёт, пока в поле
+     стоит подставленное: правленое руками количество источника не имеет. */
+  const [подставлено, setПодставлено] = useState<{ поле: string; единица: string; текст: string } | null>(null);
   const принято = item === null ? "0" : item.qtyAccepted;
 
   const предупреждение = item === null ? null : предупреждениеОЗакрытых(closed, { позиция: item.id });
@@ -177,6 +181,15 @@ export function EstimateItemSheet({
     accepted: milliunits(item.qtyAccepted), name: item.name, unit: item.unit,
   });
   const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
+
+  const подставить = (source: MeasureSource, value: bigint, помещение: string | null): void => {
+    const поле = вПоле(value, 3);
+    setQty(поле);
+    setПодставлено({ поле, единица: unit, текст: measureSourceNote(source, помещение, milliunits(value), unit) });
+  };
+  const источник = подставлено !== null && подставлено.поле === qty && подставлено.единица === unit
+    ? подставлено.текст
+    : null;
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -314,7 +327,7 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value, комната?.name ?? null); }}
                 >
                   {MEASURE_LABEL[source]} {formatQty(value)}
                 </button>
@@ -333,12 +346,16 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value, null); }}
                 >
                   {MEASURE_LABEL[source]} {formatQty(value)}
                 </button>
               ))}
             </div>
+          )}
+
+          {источник !== null && (
+            <p className="field__hint" role="status">{источник}</p>
           )}
 
           <div className="row">

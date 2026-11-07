@@ -39,7 +39,7 @@ import {
   estimateSectionRemovalFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
-  remainingQty, roomVolume, stageDateFault, taskState, wallArea,
+  remainingQty, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
   сколько,
@@ -149,32 +149,33 @@ let measureRooms: Record<MeasureSetKind, MeasureRoom[]> = { INITIAL: [], REPLANN
 let measurePlan: Record<MeasureSetKind, MeasureView["plan"]> = { INITIAL: null, REPLANNED: null };
 let обмерВзят = false;
 
+/* Помещение в виде, который понимает домен. Проёмы входят обязательно: без
+   них площадь стен нетто демонстрации совпала бы с брутто, а сервер их
+   вычитает (этап Э11, шаг 1). */
+const какОбмер = (room: MeasureRoom) => ({
+  floorArea: milliunits(room.floorArea),
+  floorPerimeter: milliunits(room.floorPerimeter),
+  ceilingPerimeter: milliunits(room.ceilingPerimeter),
+  height: milliunits(room.height),
+  openings: room.openings.map((opening) => ({
+    kind: opening.kind, count: opening.count,
+    area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+  })),
+});
+
 const measured = (room: MeasureRoom): MeasureRoom => {
-  const values = {
-    floorArea: milliunits(room.floorArea),
-    floorPerimeter: milliunits(room.floorPerimeter),
-    ceilingPerimeter: milliunits(room.ceilingPerimeter),
-    height: milliunits(room.height),
-  };
+  const values = какОбмер(room);
   return {
     ...room,
     wallArea: wallArea(values).toString(),
+    wallAreaNet: wallAreaNet(values).toString(),
     volume: roomVolume(values).toString(),
   };
 };
 
 const measureView = (set: MeasureSetKind): MeasureView => {
   const комнаты = measureRooms[set];
-  const totals = measureTotals(комнаты.map((room) => ({
-    floorArea: milliunits(room.floorArea),
-    floorPerimeter: milliunits(room.floorPerimeter),
-    ceilingPerimeter: milliunits(room.ceilingPerimeter),
-    height: milliunits(room.height),
-    openings: room.openings.map((opening) => ({
-      kind: opening.kind, count: opening.count,
-      area: milliunits(opening.area), reveal: milliunits(opening.reveal),
-    })),
-  })));
+  const totals = measureTotals(комнаты.map(какОбмер));
   return {
     set,
     /* Заполненные наборы считаются по составу, а не помечаются отдельно:
@@ -185,6 +186,7 @@ const measureView = (set: MeasureSetKind): MeasureView => {
       rooms: totals.rooms,
       floorArea: totals.floorArea.toString(),
       wallArea: totals.wallArea.toString(),
+      wallAreaNet: totals.wallAreaNet.toString(),
       floorPerimeter: totals.floorPerimeter.toString(),
       ceilingPerimeter: totals.ceilingPerimeter.toString(),
       volume: totals.volume.toString(),
@@ -1319,9 +1321,12 @@ export async function fetchMeasure(
      повторное присвоение стёрло бы внесённое человеком. */
   if (!обмерВзят) {
     обмерВзят = true;
+    /* Производные пересчитываются доменом и у снятых помещений: двойник
+       считает сам, как сервер, а не повторяет слепок. Расхождение с числами
+       сервера в слепке ловит `api.demo.test.ts`. */
     measureRooms = {
-      INITIAL: data.measure.rooms,
-      REPLANNED: data["measure-replanned"].rooms,
+      INITIAL: data.measure.rooms.map(measured),
+      REPLANNED: data["measure-replanned"].rooms.map(measured),
     };
     measurePlan = {
       INITIAL: data.measure.plan,
@@ -1350,6 +1355,7 @@ export async function createRoom(
     ceilingPerimeter: room.ceilingPerimeter,
     height: room.height,
     wallArea: "0",
+    wallAreaNet: "0",
     volume: "0",
     openings: room.openings ?? [],
   })];

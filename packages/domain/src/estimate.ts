@@ -371,8 +371,13 @@ export function estimateItemWarning(edit: EstimateItemEdit): string | null {
    как количества сметы»). Требуется одно — соответствие «единица позиции ↔
    величина обмера», и оно объявлено здесь, чтобы экран не завёл своё. */
 
-/** Величина обмера, годная в количество позиции. */
-export type MeasureSource = "floorArea" | "wallArea" | "floorPerimeter" | "ceilingPerimeter";
+/**
+ * Величина обмера, годная в количество позиции. `wallArea` — площадь стен
+ * брутто, без вычета проёмов; `wallAreaNet` — за вычетом проёмов (этап
+ * Э11, шаг 1). Брутто не переименована и не заменена: по ней подставлены
+ * количества прежних смет.
+ */
+export type MeasureSource = "floorArea" | "wallArea" | "wallAreaNet" | "floorPerimeter" | "ceilingPerimeter";
 
 /**
  * Какие величины обмера подставляются позиции с этой единицей.
@@ -383,7 +388,10 @@ export type MeasureSource = "floorArea" | "wallArea" | "floorPerimeter" | "ceili
  * получает: подставлять нечего, и пустой список хуже отсутствия.
  */
 export const MEASURE_SOURCES: Readonly<Record<string, readonly MeasureSource[]>> = {
-  "м²": ["floorArea", "wallArea"],
+  /* Обе площади стен стоят рядом: какая нужна, решает работа — грунтовка
+     идёт по всей стене, обои и покраска за вычетом окон и дверей. Выбрать
+     за человека значило бы соврать в одном из двух случаев. */
+  "м²": ["floorArea", "wallArea", "wallAreaNet"],
   "м.п.": ["floorPerimeter", "ceilingPerimeter"],
 };
 
@@ -391,9 +399,33 @@ export const MEASURE_SOURCES: Readonly<Record<string, readonly MeasureSource[]>>
 export const MEASURE_LABEL: Readonly<Record<MeasureSource, string>> = {
   floorArea: "площадь пола",
   wallArea: "площадь стен",
+  wallAreaNet: "площадь стен за вычетом проёмов",
   floorPerimeter: "периметр пола",
   ceilingPerimeter: "периметр потолка",
 };
+
+/**
+ * Источник подставленного количества словами: «Подставлено из обмера
+ * помещения «Спальня»: площадь стен за вычетом проёмов, 43,74 м²».
+ *
+ * Подставленное количество — копия, а не ссылка: правка обмера его не
+ * меняет, и уже подставленные количества не пересчитываются (ADR-0002,
+ * п. 5). Поэтому источник называется в момент подстановки — иначе две
+ * площади стен рядом неотличимы в поле количества, и через месяц не
+ * сказать, по какой из них считалась позиция.
+ *
+ * `room` — имя помещения; `null` — величина объекта целиком.
+ */
+export function measureSourceNote(
+  source: MeasureSource,
+  room: string | null,
+  value: Milliunits,
+  unit: string,
+): string {
+  const откуда = room === null ? "из обмера объекта" : `из обмера помещения «${room}»`;
+  return `Подставлено ${откуда}: ${MEASURE_LABEL[source]}, ${количествоТекстом(value, unit)}.`
+    + " Это копия: правка обмера количество не изменит.";
+}
 
 /** Величины обмера, годные позиции с данной единицей. Пусто — переносить нечего. */
 export function measureSourcesFor(unit: string): readonly MeasureSource[] {

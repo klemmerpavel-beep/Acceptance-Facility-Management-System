@@ -818,6 +818,63 @@ await page.waitForTimeout(800);
   console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
 }
 
+/* --- Площадь стен за вычетом проёмов (этап Э11, шаг 1) ----------------------
+   Двойник считает обмер тем же доменом, что сервер: 262,95 без вычета и
+   227,52 за вычетом проёмов по объекту, 47,52 и 43,74 у спальни. Внесённое
+   в демонстрации помещение с проёмами больше стен даёт ноль и предупреждение,
+   а не минус и не отказ. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  await page.goto(`${BASE}/#R-99/measure`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".measure__item", { timeout: 8000 }).catch(() => undefined);
+  const общее = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
+  if (!/Площадь стен\s*262,95\u00A0м²/u.test(общее) || !/Стены за вычетом проёмов\s*227,52\u00A0м²/u.test(общее)) {
+    note("Э11 стены", `демонстрация: в «Общем» нет обеих площадей стен — «${общее.replace(/\n/g, " · ")}»`);
+  }
+  await page.locator('.measure__item:has-text("Спальня")').first().click().catch(() => undefined);
+  await page.waitForTimeout(200);
+  const спальня = (await page.locator(".measure .spec--inv").first().innerText().catch(() => "")) ?? "";
+  if (!/Стены за вычетом проёмов\s*43,74\u00A0м²/u.test(спальня)) {
+    note("Э11 стены", `демонстрация: у спальни нет «Стены за вычетом проёмов 43,74 м²» — «${спальня.replace(/\n/g, " · ")}»`);
+  }
+  const внести = page.locator('button:has-text("Добавить помещение")').first();
+  if ((await внести.count()) > 0) {
+    await внести.click();
+    await page.waitForSelector(".sheet input", { timeout: 5000 }).catch(() => undefined);
+    const поля = page.locator(".sheet input");
+    await поля.nth(0).fill("Тамбур демонстрации");
+    await поля.nth(1).fill("1");
+    await поля.nth(2).fill("1,2");
+    await поля.nth(3).fill("1,2");
+    await поля.nth(4).fill("2,5");
+    const двери = page.locator('.sheet fieldset.openings:has(legend:text-is("Двери")) input');
+    await двери.nth(0).fill("2");
+    await двери.nth(1).fill("3,2");
+    await page.waitForTimeout(200);
+    const лист = (await page.locator(".sheet").innerText().catch(() => "")) ?? "";
+    if (!лист.includes("больше площади его стен") || !/Стены за вычетом проёмов\s*0,00\u00A0м²/u.test(лист)) {
+      note("Э11 стены", "демонстрация: при проёмах больше стен лист помещения не показал ноль и предупреждение");
+    }
+    await page.locator('.sheet button:has-text("Добавить помещение")').click().catch(() => undefined);
+    await page.waitForTimeout(600);
+    const послеВнесения = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
+    if (!/Площадь стен\s*265,95\u00A0м²/u.test(послеВнесения) || !/Стены за вычетом проёмов\s*227,52\u00A0м²/u.test(послеВнесения)) {
+      note("Э11 стены", `демонстрация: после тамбура итоги «${послеВнесения.replace(/\n/g, " · ")}» вместо 265,95 и 227,52`);
+    }
+    await page.locator('.measure__item:has-text("Тамбур демонстрации")').first().click().catch(() => undefined);
+    await page.waitForTimeout(200);
+    if ((await page.locator('[role="note"]').filter({ hasText: "больше площади его стен" }).count()) === 0) {
+      note("Э11 стены", "демонстрация: под карточкой тамбура нет предупреждения о проёмах больше стен");
+    }
+  }
+  /* Внесённое живёт в памяти вкладки: перезагрузка возвращает двойник к слепку. */
+  await page.reload({ waitUntil: "networkidle" });
+  console.log("Э11: площадь стен за вычетом проёмов в демонстрации проверена");
+}
+
 /* --- Манифест приложения (этап Э8, ДР-12) -------------------------------------
    Демонстрация собирается с относительными путями: манифест и значки
    обязаны отвечать по адресу, объявленному страницей. */
