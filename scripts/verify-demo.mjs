@@ -831,14 +831,14 @@ await page.waitForTimeout(800);
   await page.goto(`${BASE}/#R-99/measure`, { waitUntil: "networkidle" });
   await page.waitForSelector(".measure__item", { timeout: 8000 }).catch(() => undefined);
   const общее = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
-  if (!/Площадь стен\s*262,95\u00A0м²/u.test(общее) || !/Стены за вычетом проёмов\s*227,52\u00A0м²/u.test(общее)) {
+  if (!/Площадь стен\s*262,95\u00A0м²/u.test(общее) || !/Площадь стен нетто\s*227,52\u00A0м²/u.test(общее)) {
     note("Э11 стены", `демонстрация: в «Общем» нет обеих площадей стен — «${общее.replace(/\n/g, " · ")}»`);
   }
   await page.locator('.measure__item:has-text("Спальня")').first().click().catch(() => undefined);
   await page.waitForTimeout(200);
   const спальня = (await page.locator(".measure .spec--inv").first().innerText().catch(() => "")) ?? "";
-  if (!/Стены за вычетом проёмов\s*43,74\u00A0м²/u.test(спальня)) {
-    note("Э11 стены", `демонстрация: у спальни нет «Стены за вычетом проёмов 43,74 м²» — «${спальня.replace(/\n/g, " · ")}»`);
+  if (!/Площадь стен нетто\s*43,74\u00A0м²/u.test(спальня)) {
+    note("Э11 стены", `демонстрация: у спальни нет «Площадь стен нетто 43,74 м²» — «${спальня.replace(/\n/g, " · ")}»`);
   }
   const внести = page.locator('button:has-text("Добавить помещение")').first();
   if ((await внести.count()) > 0) {
@@ -855,13 +855,13 @@ await page.waitForTimeout(800);
     await двери.nth(1).fill("3,2");
     await page.waitForTimeout(200);
     const лист = (await page.locator(".sheet").innerText().catch(() => "")) ?? "";
-    if (!лист.includes("больше площади его стен") || !/Стены за вычетом проёмов\s*0,00\u00A0м²/u.test(лист)) {
+    if (!лист.includes("больше площади его стен") || !/Площадь стен нетто\s*0,00\u00A0м²/u.test(лист)) {
       note("Э11 стены", "демонстрация: при проёмах больше стен лист помещения не показал ноль и предупреждение");
     }
     await page.locator('.sheet button:has-text("Добавить помещение")').click().catch(() => undefined);
     await page.waitForTimeout(600);
     const послеВнесения = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
-    if (!/Площадь стен\s*265,95\u00A0м²/u.test(послеВнесения) || !/Стены за вычетом проёмов\s*227,52\u00A0м²/u.test(послеВнесения)) {
+    if (!/Площадь стен\s*265,95\u00A0м²/u.test(послеВнесения) || !/Площадь стен нетто\s*227,52\u00A0м²/u.test(послеВнесения)) {
       note("Э11 стены", `демонстрация: после тамбура итоги «${послеВнесения.replace(/\n/g, " · ")}» вместо 265,95 и 227,52`);
     }
     await page.locator('.measure__item:has-text("Тамбур демонстрации")').first().click().catch(() => undefined);

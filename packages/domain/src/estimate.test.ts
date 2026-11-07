@@ -224,12 +224,12 @@ describe("перенос величин обмера", () => {
     // третьей строкой (этап Э11, шаг 1), а не вместо неё.
     expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea", "wallAreaNet"]);
     expect(MEASURE_LABEL.wallArea).toBe("площадь стен");
-    expect(MEASURE_LABEL.wallAreaNet).toBe("площадь стен за вычетом проёмов");
+    expect(MEASURE_LABEL.wallAreaNet).toBe("площадь стен нетто");
   });
 
   it("источник подстановки называет помещение, величину и число", () => {
     expect(measureSourceNote("wallAreaNet", "Спальня", milliunits(43_740), "м²")).toBe(
-      "Подставлено из обмера помещения «Спальня»: площадь стен за вычетом проёмов, 43,74\u00A0м²."
+      "Подставлено из обмера помещения «Спальня»: площадь стен нетто, 43,74\u00A0м²."
       + " Это копия: правка обмера количество не изменит.",
     );
     expect(measureSourceNote("wallArea", null, milliunits(262_953), "м²")).toBe(
