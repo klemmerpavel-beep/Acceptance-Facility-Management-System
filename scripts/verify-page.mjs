@@ -4873,9 +4873,12 @@ await page.waitForTimeout(300);
         body: JSON.stringify({ message: "Проём не найден или недоступен." }),
       })
       : запрос.continue()));
+    /* Отказ вызывает сама проверка — на один шаг, как у ДР-4. */
+    ожидаемыйОтказ = "/projects/R-72/measure/openings/";
     await нажать('.sheet fieldset[aria-label="Стена 1"] button:has-text("Привязать к этой стене")',
       "«Привязать к этой стене» в строке нового помещения");
     await page.waitForTimeout(1200);
+    ожидаемыйОтказ = null;
     await page.unroute(ПРИВЯЗКА);
     const послеОтказа = ((await page.locator(".sheet .t-h3").first().textContent().catch(() => "")) ?? "").trim();
     if (послеОтказа !== ТРЕТЬЕ) {
