@@ -4754,14 +4754,34 @@ await page.waitForTimeout(300);
       if ((await орган.count()) === 0 || await орган.isDisabled()) throw new Error(`${что}: органа нет или он заперт`);
       await орган.click();
     };
-    for (const длина of ["3", "3", "3", "3"]) {
+    const отказыСтен = page.locator('.sheet [role="group"][aria-label="Стены"] [role="alert"]');
+    for (const [номер, длина] of ["3", "3", "3", "3"].entries()) {
       await page.click('.sheet button:has-text("Добавить стену")');
       await page.waitForTimeout(120);
+      /* П-91: пустая длина новой строки — не ошибка: отказ с role="alert"
+         зачитывался бы до первой цифры. */
+      if (номер === 0 && (await отказыСтен.count()) > 0) {
+        note("стены", "«Добавить стену» сразу выводит отказ с role=\"alert\" о длине, которую ещё не вводили (П-91)");
+      }
       if (await ввестиДлину(длина)) фокусВДлине += 1;
     }
     if (фокусВДлине !== 4) {
       note("стены", `«Добавить стену» поставило фокус в поле длины ${фокусВДлине} раз из четырёх`);
     }
+    /* Набранная неверная длина — отказ, связанный с полем: aria-invalid и
+       aria-describedby на отказ (норматив, раздел о полях). */
+    const длина4 = строкаСтены("Стена 4").locator('label:has(> .field__label:text-is("Длина, м")) input');
+    await длина4.fill("3,5,5");
+    await page.waitForTimeout(120);
+    const связь = await длина4.evaluate((поле) => ({
+      invalid: поле.getAttribute("aria-invalid"),
+      текст: document.getElementById(поле.getAttribute("aria-describedby") ?? "")?.textContent ?? "",
+    }));
+    if (связь.invalid !== "true" || !связь.текст.includes("Длина стены обязательна")) {
+      note("стены", `неверная длина не связана с отказом: aria-invalid ${связь.invalid}, «${связь.текст}» (П-91)`);
+    }
+    await длина4.fill("3");
+    await page.waitForTimeout(120);
     const высота = await строкаСтены("Стена 1").locator('label:has(> .field__label:text-is("Высота, м")) input')
       .getAttribute("placeholder").catch(() => null);
     if (высота !== "2,70") note("стены", `пустая высота стены не показывает высоту помещения: заполнитель «${высота}»`);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { завести } from "./verbs.js";
 import type {
   CreateMeasureRoom, MeasureOpening, MeasureRoom, MeasureWallInput, UnboundOpening,
@@ -212,6 +212,16 @@ export function RoomSheet({
   /* У помещения со стенами итогов нет: поля скрыты и не проверяются. */
   const проёмыВерны = естьСтены || строкиПроёмов.every((строка) => строка !== "ошибка");
   const стеныВерны = стены.every((стена) => длинаСтены(стена) !== null && высотаСтены(стена) !== null);
+  /* Ошибка ввода стены — набранное не разобралось. Пустая длина новой строки
+     ошибкой ещё не является: «Добавить стену» ставит в неё фокус, и отказ с
+     `role="alert"`, зачитанный до первой цифры, говорил бы о поле, которое
+     человек ещё не заполнял (П-91). Без длины лист не сохраняется — об этом
+     подсказка, а не отказ. */
+  const длинаНеВерна = (стена: СтенаВвод): boolean => стена.length.trim() !== "" && длинаСтены(стена) === null;
+  const высотаНеВерна = (стена: СтенаВвод): boolean => высотаСтены(стена) === null;
+  const ошибкаСтен = стены.some((стена) => длинаНеВерна(стена) || высотаНеВерна(стена));
+  const безДлины = стены.some((стена) => стена.length.trim() === "");
+  const idОшибкиСтен = useId();
 
   const milli = Object.fromEntries(
     FIELDS.map((field) => [field.key, toMilli(values[field.key])]),
@@ -549,7 +559,8 @@ export function RoomSheet({
                           className="input input--num"
                           inputMode="decimal"
                           value={стена.length}
-                          aria-invalid={стена.length !== "" && длинаСтены(стена) === null}
+                          aria-invalid={длинаНеВерна(стена)}
+                          aria-describedby={длинаНеВерна(стена) ? idОшибкиСтен : undefined}
                           onChange={задать("length")}
                         />
                       </label>
@@ -560,7 +571,8 @@ export function RoomSheet({
                           inputMode="decimal"
                           value={стена.height}
                           placeholder={высотаПомещения}
-                          aria-invalid={высотаСтены(стена) === null}
+                          aria-invalid={высотаНеВерна(стена)}
+                          aria-describedby={высотаНеВерна(стена) ? idОшибкиСтен : undefined}
                           onChange={задать("height")}
                         />
                       </label>
@@ -690,10 +702,13 @@ export function RoomSheet({
                 <svg className="icon" aria-hidden="true"><use href="#i-plus" /></svg>
                 {завести("стена")}
               </button>
-              {!стеныВерны && (
-                <p className="field__error" role="alert">
+              {ошибкаСтен && (
+                <p className="field__error" role="alert" id={idОшибкиСтен}>
                   Длина стены обязательна, высота — пусто или число: метры с запятой, «4,6».
                 </p>
+              )}
+              {!ошибкаСтен && безДлины && (
+                <p className="field__hint">Введите длину стены: без неё помещение не сохранить.</p>
               )}
             </div>
 
