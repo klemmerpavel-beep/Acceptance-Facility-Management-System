@@ -2517,6 +2517,138 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
   }
 }
 
+/* Перевод на перепланировку снимает стену, источник удалён (решения
+   Э11-2.7 «в» и Э11-2.8 «б»; норматив, разделы 55.7 — 55.9; П-83, П-94).
+   Временное помещение начального обмера со стеной, позиция с адресом «одна
+   стена» и источником с неё; одноимённое помещение перепланировки
+   переводит позицию. Смета показывает «источник удалён» и в строке на
+   1440 px, и в карточке на 390 px; лист — подсказку 55.9 под пустым
+   списком «Стена». Выбор стены нового набора оставляет заметку признака, и
+   «Подставить заново» берёт величину новой стены — прежде заметка
+   пропадала с выбором стены вместе с действием. Стенд возвращается:
+   позиция — к прежним помещению и количеству без адреса, временные
+   помещения сняты. */
+{
+  const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+    .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  const api = (путь, init) => page.evaluate(async ([п, и]) => {
+    const ответ = await fetch(`/api${п}`, { credentials: "include", ...и });
+    return { ok: ответ.ok, status: ответ.status, body: await ответ.json().catch(() => null) };
+  }, [путь, init ?? {}]);
+  const послать = (метод, путь, тело) => api(путь, {
+    method: метод, headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+  const ИМЯ = "Обход страницы: перевод";
+  const раскрыть = async () => {
+    const кнопка = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+    if ((await кнопка.count()) > 0) { await кнопка.click(); await page.waitForTimeout(300); }
+  };
+  const позиция = собрать((await api("/projects/R-99/estimate")).body?.sections ?? [])
+    .find((строка) => строка.unit === "м²" && строка.qtyAccepted === "0" && строка.room !== null
+      && (строка.surface?.kind ?? null) === null);
+  let начальное = null;
+  let новое = null;
+  if (позиция === undefined) {
+    note("перевод на перепланировку", "на стенде нет позиции в м² без приёмки и адреса: перевод не на чем проверить");
+  } else {
+    try {
+      начальное = (await послать("POST", "/projects/R-99/measure/rooms?set=INITIAL", {
+        name: ИМЯ, floorArea: "12000", floorPerimeter: "14000", ceilingPerimeter: "14000", height: "2700",
+        walls: [{ length: "4000" }],
+      })).body?.rooms?.find((к) => к.name === ИМЯ) ?? null;
+      const стенаНачальная = начальное?.walls?.[0];
+      const адрес = await послать("PATCH", `/projects/R-99/estimate/items/${позиция.id}`, {
+        roomId: начальное?.id, surfaceKind: "WALL", wallId: стенаНачальная?.id,
+        qty: стенаНачальная?.wallAreaNet, qtySource: "wall:wallAreaNet",
+      });
+      if (!адрес.ok) throw new Error(`адрес позиции не поставлен: код ${адрес.status}`);
+      /* 5,00 × 2,70 = 13,50 — у стены нового набора другое нетто. */
+      новое = (await послать("POST", "/projects/R-99/measure/rooms?set=REPLANNED", {
+        name: ИМЯ, floorArea: "12000", floorPerimeter: "14000", ceilingPerimeter: "14000", height: "2700",
+        walls: [{ length: "5000" }],
+      })).body?.rooms?.find((к) => к.name === ИМЯ) ?? null;
+      const стенаНовая = новое?.walls?.[0];
+      if (стенаНовая === undefined) throw new Error("помещение перепланировки со стеной не заведено");
+
+      await page.reload({ waitUntil: "networkidle" });
+      await page.click('.tabs__item:has-text("Смета")');
+      await page.waitForSelector("table.estimate");
+      await раскрыть();
+      const строка = () => page.locator("table.estimate tbody tr").filter({ hasText: позиция.name }).filter({ hasText: ИМЯ }).first();
+      if ((await строка().locator('.pillbutton:has-text("источник удалён")').count()) === 0) {
+        note("перевод на перепланировку", `в строке сметы у переведённой позиции «${позиция.name}» нет пилюли «источник удалён»`);
+      }
+      /* Карточка позиции на телефоне — пилюля под наименованием (55.8). */
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(400);
+      await раскрыть();
+      const карточка = page.locator(".estcard").filter({ hasText: позиция.name }).filter({ hasText: ИМЯ }).first();
+      if ((await карточка.locator('.pillbutton:has-text("источник удалён")').count()) === 0) {
+        note("перевод на перепланировку", "в карточке позиции на 390 px нет пилюли «источник удалён»");
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(400);
+      await раскрыть();
+
+      await строка().locator('.btn--text:has-text("Править")').click();
+      await page.waitForTimeout(400);
+      const заметка = async () => (await page.locator('.sheet [role="status"]').allInnerTexts()).join(" | ");
+      if (!(await заметка()).includes("источник удалён")) {
+        note("перевод на перепланировку", `лист позиции не назвал «источник удалён»: «${await заметка()}»`);
+      }
+      const подсказка = await page.locator('.sheet label.field:has(> .field__label:text-is("Стена")) .field__hint')
+        .allTextContents();
+      if (!подсказка.some((т) => т.includes("Стена из начального обмера — выберите стену нового набора"))) {
+        note("перевод на перепланировку", `под списком «Стена» нет подсказки 55.9: «${подсказка.join(" | ")}»`);
+      }
+      await page.locator('.sheet label.field:has(> .field__label:text-is("Стена")) select')
+        .selectOption({ label: стенаНовая.name });
+      await page.waitForTimeout(150);
+      const заново = page.locator('.sheet button:has-text("Подставить заново")');
+      if ((await заново.count()) === 0) {
+        note("перевод на перепланировку",
+          `после выбора стены нового набора нет «Подставить заново»: «${await заметка()}» (П-83)`);
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+      } else {
+        await заново.click();
+        await page.waitForTimeout(150);
+        const источник = await заметка();
+        if (!источник.includes(`стена «${стенаНовая.name}»: площадь стены нетто, ${вЧисло(стенаНовая.wallAreaNet)}`)) {
+          note("перевод на перепланировку", `строка источника после «Подставить заново» не та: «${источник}»`);
+        }
+        await page.click('.sheet button[type="submit"]');
+        await page.waitForTimeout(900);
+        const после = собрать((await api("/projects/R-99/estimate")).body?.sections ?? []).find((с) => с.id === позиция.id);
+        if (после?.qty !== стенаНовая.wallAreaNet || после?.surface?.wall?.id !== стенаНовая.id
+          || после?.surface?.source?.state !== "same") {
+          note("перевод на перепланировку", `после «Подставить заново» позиция: количество ${после?.qty},`
+            + ` ${JSON.stringify(после?.surface)}`);
+        }
+      }
+    } catch (ошибка) {
+      note("перевод на перепланировку", `обход перевода прерван: ${String(ошибка).split("\n")[0].slice(0, 200)}`);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    /* Уборка: позиция — к прежним помещению и количеству без адреса, затем
+       временные помещения обоих наборов. */
+    const возврат = await послать("PATCH", `/projects/R-99/estimate/items/${позиция.id}`, {
+      roomId: позиция.room?.id ?? null, surfaceKind: null, wallId: null, qty: позиция.qty,
+    });
+    if (!возврат.ok) note("перевод на перепланировку", `позиция не вернулась: код ${возврат.status}`);
+    for (const комната of [новое, начальное]) {
+      if (комната === null) continue;
+      const снято = await api(`/projects/R-99/measure/rooms/${комната.id}`, { method: "DELETE" });
+      if (!снято.ok) note("перевод на перепланировку", `временное помещение не удалено: код ${снято.status}`);
+    }
+    await page.reload({ waitUntil: "networkidle" });
+    await page.click('.tabs__item:has-text("Смета")');
+    await page.waitForSelector("table.estimate");
+    console.log(`  перевод на перепланировку: «${позиция.name}» — источник удалён, подсказка 55.9, подставлено заново`);
+  }
+}
+
 /* Перестановка позиции работает с клавиатуры.
  *
  * Перетаскивание — ускорение, а не единственный путь: у человека без
