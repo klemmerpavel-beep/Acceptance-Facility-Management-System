@@ -52,12 +52,18 @@ const estimateOwner = await owner("/projects/R-99/estimate");
 const imports = await owner("/projects/R-99/estimate/imports");
 const last = imports[0];
 
+/* Сводка руководителя снимается до слепка: её «сегодня» — день организации
+   по её поясу (`orgDay` сервера), и им же датируется слепок (`capturedOn`
+   ниже). Сводка только читает: снятая раньше прочих ответов, она их не
+   меняет. */
+const сводкаРуководителя = await owner("/summary");
+
 const snapshot = {
   "me-owner": await owner("/auth/me"),
   "me-foreman": await foreman("/auth/me"),
   "projects-owner": await owner("/projects"),
   "projects-foreman": await foreman("/projects"),
-  "summary-owner": await owner("/summary"),
+  "summary-owner": сводкаРуководителя,
   "summary-foreman": await foreman("/summary"),
   "clients-owner": await owner("/clients"),
   "clients-foreman": await foreman("/clients"),
@@ -107,9 +113,14 @@ const snapshot = {
      транши всех объектов, и вывести их из траншей одного R-99 нельзя.
      Вместе со сводом снимается день съёмки: состояния денег отсчитываются
      от сегодняшнего дня, и без опоры на дату слепка ждущий транш через
-     месяц после съёмки стал бы просроченным сам собой. */
+     месяц после съёмки стал бы просроченным сам собой.
+
+     День съёмки — день организации из сводки, а не срез UTC: свод денег
+     сервер считает от дня организации (`orgDay`), и с полуночи до трёх ночи
+     по Москве срез UTC датировал бы слепок вчерашним днём — двойник сдвигал
+     бы даты слепка на сутки больше его возраста (класс K10, П-74). */
   accounting: await owner("/accounting"),
-  capturedOn: new Date().toISOString().slice(0, 10),
+  capturedOn: сводкаРуководителя.today,
   imports,
   "leads-owner": await owner("/leads?open=false"),
   "repair-types": await owner("/repair-types"),
