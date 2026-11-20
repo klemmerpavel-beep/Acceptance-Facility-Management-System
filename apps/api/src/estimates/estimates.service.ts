@@ -830,7 +830,7 @@ export class EstimatesService {
       where: { projectId: project.id, status: { in: ["CLOSED", "PAID"] } },
       orderBy: { number: "asc" },
       select: {
-        number: true, status: true, signedAt: true,
+        number: true, status: true, signedAt: true, fixedAt: true,
         batches: { select: { acceptances: { select: { itemId: true } } } },
       },
     });
@@ -840,6 +840,7 @@ export class EstimatesService {
           number: транш.number,
           paid: транш.status === "PAID",
           signedAt: транш.signedAt === null ? null : транш.signedAt.toISOString().slice(0, 10),
+          fixed: транш.fixedAt !== null,
           items: [...new Set(транш.batches.flatMap((пакет) => пакет.acceptances.map((строка) => строка.itemId)))],
         }))
         .filter((транш) => транш.items.length > 0),

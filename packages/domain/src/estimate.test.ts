@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { basisPoints, parseQuantity, parseRubles } from "./money.js";
+import { basisPoints, milliunits, parseQuantity, parseRubles } from "./money.js";
 import {
   buildEstimateView, estimateItemFault, estimateItemMoveFault, estimateItemWarning,
   groupByStageRoom,
   measureSourcesFor, sectionWeights, БЕЗ_ПОМЕЩЕНИЯ, ВНЕ_ГРАФИКА,
-  MEASURE_LABEL, MEASURE_SOURCES,
+  MEASURE_LABEL, MEASURE_SOURCES, measureSourceNote,
   type BuildEstimateInput, type GroupNode, type SectionNode,
   estimateItemRemovalFault,
   estimateSectionRemovalFault,
@@ -219,8 +219,31 @@ describe("предупреждение при правке позиции", () =
 });
 
 describe("перенос величин обмера", () => {
-  it("позиции в квадратных метрах предлагаются две площади", () => {
-    expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea"]);
+  it("позиции в квадратных метрах предлагаются площадь пола и обе площади стен", () => {
+    // Прежняя «площадь стен» — брутто — остаётся на месте; нетто встаёт рядом
+    // третьей строкой (этап Э11, шаг 1), а не вместо неё.
+    expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea", "wallAreaNet"]);
+    expect(MEASURE_LABEL.wallArea).toBe("площадь стен");
+    expect(MEASURE_LABEL.wallAreaNet).toBe("площадь стен нетто");
+  });
+
+  it("источник подстановки называет помещение, величину и число", () => {
+    expect(measureSourceNote("wallAreaNet", "Спальня", milliunits(43_740), "м²")).toBe(
+      "Подставлено из обмера помещения «Спальня»: площадь стен нетто, 43,74\u00A0м²."
+      + " Это копия: правка обмера количество не изменит.",
+    );
+    expect(measureSourceNote("wallArea", null, milliunits(262_953), "м²")).toBe(
+      "Подставлено из обмера объекта: площадь стен, 262,953\u00A0м²."
+      + " Это копия: правка обмера количество не изменит.",
+    );
+  });
+
+  it("источник называет ровно подставленное число — до тысячной, а не округлённое", () => {
+    // Санузел контрольной квартиры (measure.test.ts): 16,868 м² за вычетом
+    // проёмов. В поле количества ложится «16,868»; «16,87» в строке
+    // источника назвало бы не то число, что подставлено.
+    expect(measureSourceNote("wallAreaNet", "Санузел", milliunits(16_868), "м²")).toContain(", 16,868\u00A0м².");
+    expect(measureSourceNote("floorArea", "Санузел", milliunits(4_000), "м²")).toContain(", 4\u00A0м².");
   });
 
   it("позиции в погонных метрах предлагаются два периметра", () => {

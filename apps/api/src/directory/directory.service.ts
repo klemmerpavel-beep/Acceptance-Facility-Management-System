@@ -6,6 +6,7 @@ import type {
   CreateWorker,
   CreateRepairType,
   Organization,
+  OrganizationContacts,
   RepairType,
   Unit,
   UpdateClient,
@@ -79,6 +80,15 @@ export class DirectoryService {
         estimateTotal: sum(totals).toString(),
       };
     });
+  }
+
+  /** Как связаться с организацией (ДР-11): три поля, всем четырём ролям. */
+  async contacts(user: RequestUser): Promise<OrganizationContacts> {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: user.orgId },
+      select: { name: true, phone: true, email: true },
+    });
+    return organization;
   }
 
   /** Карточка организации. Читают все роли: часовой пояс нужен и прорабу. */

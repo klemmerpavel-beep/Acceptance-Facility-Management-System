@@ -9,6 +9,7 @@ import {
 import { PrismaService } from "../prisma.service";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
+import { orgDay } from "../common/org-day";
 import { estimateFacts } from "../common/estimate-facts";
 import { ProjectsService } from "../projects/projects.service";
 
@@ -28,9 +29,11 @@ export class SummaryService {
    *
    * Сегодняшний день вычисляется здесь и уходит в ответ: клиент показывает
    * ту же неделю, что посчитал сервер, и не расходится с ним на границе суток.
+   * День — организации, по её часовому поясу: по UTC в Воронеже до трёх
+   * часов ночи неделя считалась от вчерашнего дня (фаза 0, дефект K10).
    */
-  async dashboard(user: RequestUser, today = new Date()): Promise<Dashboard> {
-    const day = today.toISOString().slice(0, 10);
+  async dashboard(user: RequestUser, now = new Date()): Promise<Dashboard> {
+    const { today: day, day: деньОрганизации } = await orgDay(this.prisma, user.orgId, now);
 
     const projects = await this.prisma.project.findMany({
       where: projectScope(user),
@@ -130,7 +133,9 @@ export class SummaryService {
       .map((entry) => {
         const code = codeById.get(entry.projectId) ?? null;
         return {
-          date: asDay(entry.own.importedAt),
+          /* Импорт — мгновение, а не день: он ложится в неделю тем же
+             поясом, по которому считается «сегодня» этой недели. */
+          date: деньОрганизации(entry.own.importedAt),
           kind: "import" as const,
           title: `Импорт сметы${code === null ? "" : ` ${code}`}`,
           projectCode: code,

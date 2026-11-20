@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  fetchAcceptance, fetchActs, fetchClients, fetchDashboard, fetchEstimate, fetchEvents, fetchExpenses,
-  fetchForemen, fetchImports, fetchProject, fetchProjects, fetchReport, fetchStages, fetchTranches,
-  fetchWorkers, setDemoRole, type DemoRole,
+  fetchAcceptance, fetchAct, fetchActs, fetchClients, fetchDashboard, fetchEstimate, fetchEvents, fetchExpenses,
+  fetchForemen, fetchImports, fetchMeasure, fetchProject, fetchProjects, fetchReport, fetchStages,
+  fetchTranches, fetchWorkers, setDemoRole, type DemoRole,
 } from "./api.demo.js";
+import { measureViewSchema } from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 /**
@@ -126,5 +127,62 @@ describe("двойник: внутренние величины не доход�
   it("руководителю внутренние величины приходят: отбор проверен не на пустом ответе", async () => {
     setDemoRole("OWNER");
     expect(внутренниеКлючи(await fetchEstimate("R-99")).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * «Начислено» внутреннего акта двойника — сумма начислений приёмок его
+ * строк (П-60, решение заказчика В-1 от 07.11.2026), как у сервера. Акт
+ * двойник берёт из слепка, снятого с сервера, а начисления — из слепка
+ * приёмки руководителя: слепок, снятый со стенда до решения, где акт
+ * считал по ставке сметы, разошёлся бы с начислениями здесь.
+ */
+describe("двойник: «начислено» акта — сумма начислений (П-60)", () => {
+  it("строки и итог внутреннего акта сходятся с начислениями его пакетов", async () => {
+    setDemoRole("OWNER");
+    const [строкаПеречня] = await fetchActs("R-99");
+    expect(строкаПеречня).toBeDefined();
+    const акт = await fetchAct("R-99", строкаПеречня?.trancheId ?? "", "internal");
+    const начисления = new Map<string, bigint>();
+    for (const пакет of snapshot["acceptance-owner"].batches.filter((p) => p.trancheNumber === акт.number)) {
+      for (const строка of пакет.lines) {
+        const начислено = строка.reversedAt === null ? BigInt(строка.amount) : 0n;
+        начисления.set(строка.positionName, (начисления.get(строка.positionName) ?? 0n) + начислено);
+      }
+    }
+    expect(акт.lines.length).toBeGreaterThan(0);
+    expect(Object.fromEntries(акт.lines.map((строка) => [строка.name, BigInt(строка.wageTotal ?? "-1")])))
+      .toEqual(Object.fromEntries(начисления));
+    expect(BigInt(акт.totals.wage ?? "-1")).toBe([...начисления.values()].reduce((всего, сумма) => всего + сумма, 0n));
+  });
+});
+
+/**
+ * Обмер двойник считает сам — тем же доменом, что сервер, — а не берёт
+ * производные из слепка. Мерилом служат числа сервера в слепке: съёмка
+ * ходила на стенд, и площадь стен брутто и нетто, объём и итоги, снятые
+ * там, есть то, что сервер отдаёт. Двойник, забывший вычесть проёмы или
+ * вычитающий их из брутто, разойдётся здесь, а не на демонстрации у
+ * заказчика (этап Э11, шаг 1).
+ */
+describe("двойник: обмер считается как на сервере", () => {
+  it.each([
+    ["INITIAL", snapshot.measure],
+    ["REPLANNED", snapshot["measure-replanned"]],
+  ] as const)("набор %s", async (набор, снято) => {
+    setDemoRole("OWNER");
+    const вид = measureViewSchema.parse(await fetchMeasure("R-99", набор));
+    const производные = (комнаты: readonly { name: string; wallArea: string; volume: string }[]) =>
+      комнаты.map((комната) => ({
+        name: комната.name,
+        wallArea: комната.wallArea,
+        wallAreaNet: (комната as { wallAreaNet?: string }).wallAreaNet,
+        volume: комната.volume,
+      }));
+    expect(производные(вид.rooms)).toEqual(производные(снято.rooms));
+    expect(вид.totals).toEqual(снято.totals);
+    // Проёмы на стенде есть, поэтому нетто обязана быть меньше брутто:
+    // равенство значило бы, что вычет потерян по дороге.
+    expect(BigInt(вид.totals.wallAreaNet)).toBeLessThan(BigInt(вид.totals.wallArea));
   });
 });

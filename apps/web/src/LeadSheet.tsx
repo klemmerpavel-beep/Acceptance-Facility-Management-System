@@ -112,7 +112,7 @@ export function LeadSheet({
           № {lead.number} · {lead.name}
         </p>
         <p className="t-sm t-secondary">
-          {lead.phone === "" ? "" : `${lead.phone} · `}обращение {formatDate(lead.createdAt.slice(0, 10))}
+          {lead.phone === "" ? "" : `${lead.phone} · `}обращение {formatDate(lead.createdAt)}
           {lead.address === null ? "" : ` · ${lead.address}`}
         </p>
         {lead.note !== null && <p className="t-sm t-muted">{lead.note}</p>}

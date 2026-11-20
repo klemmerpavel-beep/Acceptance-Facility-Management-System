@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { basisPoints, parseQuantity, parseRubles } from "./money.js";
+import { accrualAmount } from "./acceptance.js";
+import { basisPoints, kopecks, negateQuantity, parseQuantity, parseRubles } from "./money.js";
 import {
-  INTERNAL_FIELDS, OWNER_LEVEL, clientTotals, findInternalFields, ownerLevel,
+  INTERNAL_FIELDS, OWNER_LEVEL, actLineWage, clientTotals, findInternalFields, ownerLevel,
   projectActLine, projectEstimateItem,
-  type EstimateItemRecord, type Role,
+  type ActLineAccrual, type EstimateItemRecord, type Role,
 } from "./projection.js";
 
 /** Позиция 3 действующей сметы: штукатурка стен по маякам. */
@@ -92,6 +93,11 @@ describe("разграничение на уровне полей", () => {
 
 describe("клиентская проекция акта", () => {
   const строка = { ...позиция, qtyInAct: parseQuantity("240") };
+  const принято = (qty: string, ставка: string): ActLineAccrual => {
+    const количество = parseQuantity(qty);
+    const снимок = parseRubles(ставка);
+    return { qty: количество, unitWage: снимок, amount: accrualAmount(снимок, количество) };
+  };
 
   it("клиентская строка акта не содержит внутренних величин", () => {
     const клиенту = projectActLine(строка, "client");
@@ -100,11 +106,68 @@ describe("клиентская проекция акта", () => {
   });
 
   it("внутренняя строка акта их содержит", () => {
-    const внутрь = projectActLine(строка, "internal");
+    const внутрь = projectActLine(строка, "internal", actLineWage([принято("240", "350")]));
     expect(внутрь.wageTotal).toBe(parseRubles("84 000,00"));
     expect(findInternalFields(внутрь).sort()).toEqual(
       INTERNAL_FIELDS.map((f) => `$.${f}`).sort(),
     );
+  });
+
+  /* П-60, решение В-1 от 07.11.2026: «начислено» внутреннего акта — сумма
+     начислений приёмок строки, а не ставка сметы на день вывода или
+     подписи. Опыт решения: приёмка 1 ед. по ставке 5 000,00 ₽, затем
+     правка ставки сметы до 5 100,00 ₽ — начислено 5 000,00 ₽. */
+  it("правка ставки после приёмки «начислено» акта не меняет", () => {
+    const опыт = { name: "Монтаж", unit: "шт", unitPrice: parseRubles("6 000"), qtyInAct: parseQuantity("1") };
+    const внутрь = projectActLine(опыт, "internal", actLineWage([принято("1", "5 000")]));
+    expect(внутрь.unitWage).toBe(parseRubles("5 000"));
+    expect(внутрь.wageTotal).toBe(parseRubles("5 000"));
+    expect(внутрь.profit).toBe(parseRubles("1 000"));
+    expect(внутрь.profitShare).toBe(basisPoints(1667n));
+  });
+
+  it("сумма — точная сумма начислений, а не ставка на суммарное количество", () => {
+    /* Две приёмки по 0,5 ед. по ставке 0,01 ₽: каждая округляется половиной
+       вверх до копейки — начислено 0,02 ₽, а 1 ед. × 0,01 ₽ дала бы 0,01 ₽. */
+    const начислено = actLineWage([принято("0,5", "0,01"), принято("0,5", "0,01")]);
+    expect(начислено.wageTotal).toBe(kopecks(2));
+    expect(начислено.unitWage).toBe(kopecks(1));
+  });
+
+  it("ставку правили между приёмками — ставки нет, начислено точное", () => {
+    const начислено = actLineWage([принято("2", "350"), принято("1", "370")]);
+    expect(начислено.unitWage).toBeNull();
+    expect(начислено.wageTotal).toBe(parseRubles("1 070"));
+  });
+
+  it("пара «приёмка и её сторно» ставки строки не задаёт", () => {
+    const отменённая = принято("2", "350");
+    const сторно = {
+      qty: negateQuantity(отменённая.qty),
+      unitWage: отменённая.unitWage,
+      amount: accrualAmount(отменённая.unitWage, negateQuantity(отменённая.qty)),
+    };
+    const начислено = actLineWage([отменённая, сторно, принято("1", "370")]);
+    expect(начислено.unitWage).toBe(parseRubles("370"));
+    expect(начислено.wageTotal).toBe(parseRubles("370"));
+  });
+
+  it("строка, сторнированная целиком, — ноль по ставке пары", () => {
+    const отменённая = принято("2", "350");
+    const начислено = actLineWage([отменённая, {
+      qty: negateQuantity(отменённая.qty),
+      unitWage: отменённая.unitWage,
+      amount: accrualAmount(отменённая.unitWage, negateQuantity(отменённая.qty)),
+    }]);
+    expect(начислено).toEqual({ unitWage: parseRubles("350"), wageTotal: kopecks(0) });
+  });
+
+  it("строка без начислений — ноль и без ставки", () => {
+    expect(actLineWage([])).toEqual({ unitWage: null, wageTotal: kopecks(0) });
+  });
+
+  it("внутренняя строка без начисленного не считается", () => {
+    expect(() => projectActLine(строка, "internal", undefined as never)).toThrow(TypeError);
   });
 
   it("БП-07: надбавка сопровождения показывается отдельной строкой", () => {

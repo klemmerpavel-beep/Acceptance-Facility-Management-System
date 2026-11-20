@@ -13,6 +13,7 @@ import { Queue } from "./Queue.js";
 import { ProjectTable } from "./ProjectTable.js";
 import { formatDay, formatTime, plural } from "./status.js";
 import { dueByDays } from "./due.js";
+import { поМестнымДням } from "./today.js";
 import { ReadinessChart, StatusBar } from "./HomeCharts.js";
 
 /** Порог ленты объектов в таблице главной: дальше — раздел «Проекты». */
@@ -145,13 +146,9 @@ export function EventFeed({
   const предел = preview ? (open ? events.length : FEED_PREVIEW) : FEED_LIMIT;
   const shown = events.slice(0, предел);
   const rest = events.length - shown.length;
-  const days: { day: string; rows: ProjectEvent[] }[] = [];
-  for (const event of shown) {
-    const day = event.at.slice(0, 10);
-    const last = days.at(-1);
-    if (last?.day === day) last.rows.push(event);
-    else days.push({ day, rows: [event] });
-  }
+  /* День группы — местный день мгновения, как и время строки (`formatTime`):
+     срез UTC клал событие в 00:30 по Москве под вчерашнюю дату (П-74). */
+  const days = поМестнымДням(shown);
 
   return (
     <div className="feed feed--byday" id="feed-list">
@@ -343,7 +340,7 @@ export function Dashboard({
     return (
       <main className="container stack stack--loose" aria-busy="true">
         {блокОчереди}
-        <div className="statrow">
+        <div className="statrow statrow--home">
           {[0, 1, 2, 3].map((index) => (
             <span className="skeleton skeleton--card" key={index} />
           ))}
@@ -394,7 +391,7 @@ export function Dashboard({
     <main className="container stack stack--groups">
       {блокОчереди}
       <div className="stack stack--loose">
-      <section className="statrow">
+      <section className="statrow statrow--home">
         <StatCard
           icon="#i-object"
           label="Активные объекты"

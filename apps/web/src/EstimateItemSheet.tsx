@@ -5,7 +5,7 @@ import type {
 import { formatKopecks, formatQty } from "@priyomka/ui";
 import {
   estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateItemWarning, measureSourcesFor,
-  MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
+  MEASURE_LABEL, kopecks, measureSourceNote, milliunits, multiplyByQuantity, type MeasureSource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { предупреждениеОЗакрытых } from "./closed-tranches.js";
@@ -44,7 +44,7 @@ export function количествоВТысячные(input: string): bigint | 
 }
 
 /** Тысячные в строку поля: 406910 → «406,91», незначащие нули отброшены. */
-const вПоле = (value: bigint, знаков: number): string => {
+export const вПоле = (value: bigint, знаков: number): string => {
   const делитель = 10n ** BigInt(знаков);
   const дробь = (value % делитель).toString().padStart(знаков, "0").replace(/0+$/, "");
   const целое = (value / делитель).toString();
@@ -58,7 +58,7 @@ export function EstimateItemSheet({
   replanned,
   sections,
   sectionId,
-  measure,
+  measures,
   closed,
   busy,
   error,
@@ -89,7 +89,12 @@ export function EstimateItemSheet({
   sections: readonly { id: string; name: string; level: number }[];
   /** Раздел, в котором позиция стоит сейчас. */
   sectionId: string;
-  measure: MeasureView | null;
+  /**
+   * Наборы обмера объекта; первый — действующий: его итог подставляется
+   * «из обмера объекта». Помещение позиции ищется во всех наборах — позиция
+   * могла остаться на помещении начального обмера. Пусто — обмера нет.
+   */
+  measures: readonly MeasureView[];
   /** Закрытые транши объекта: лист называет те, что изменит правка (П-27). */
   closed: ClosedTranches["tranches"];
   busy: boolean;
@@ -111,6 +116,10 @@ export function EstimateItemSheet({
   const [roomId, setRoomId] = useState(item?.room?.id ?? "");
   const [разделПозиции, setРазделПозиции] = useState(sectionId);
   const [удаляю, setУдаляю] = useState(false);
+  /* Источник подставленного количества: две площади стен рядом неотличимы
+     в поле количества, и лист называет, какую взяли. Живёт, пока в поле
+     стоит подставленное: правленое руками количество источника не имеет. */
+  const [подставлено, setПодставлено] = useState<{ поле: string; единица: string; текст: string } | null>(null);
   const принято = item === null ? "0" : item.qtyAccepted;
 
   const предупреждение = item === null ? null : предупреждениеОЗакрытых(closed, { позиция: item.id });
@@ -152,7 +161,8 @@ export function EstimateItemSheet({
      Величины объекта остались рядом — работа вроде вывоза мусора и правда
      меряется объектом, — но подписаны своим источником, и перепутать их
      больше нельзя. */
-  const комната = measure?.rooms.find((строка) => строка.id === roomId) ?? null;
+  const measure = measures[0] ?? null;
+  const комната = measures.flatMap((набор) => набор.rooms).find((строка) => строка.id === roomId) ?? null;
   const поПомещению: readonly { source: MeasureSource; value: bigint }[] =
     комната === null
       ? []
@@ -166,7 +176,11 @@ export function EstimateItemSheet({
      одноимённого помещения в новом наборе не завели — кухня и гостиная стали
      кухней-гостиной. Молчать об этом нельзя: количество позиции считалось по
      площади, которой больше нет. */
-  const отсталоОтПерепланировки = replanned && item !== null && item.room !== null && item.room.set === "INITIAL";
+  const отсталоОтПерепланировки = replanned && item !== null && item.room !== null && item.room.set === "INITIAL"
+    /* Просьба выбрать помещение нового набора — о сохранённом помещении:
+       выбранное помещение нового набора её снимает, иначе лист просил бы
+       выбрать уже выбранное рядом с его же величинами. */
+    && roomId === item.room.id;
   /* Помещение позиции вне действующего набора показывается отдельной строкой
      списка — тем же приёмом, что единица измерения вне справочника: иначе
      выбор молча съехал бы на первое попавшееся. */
@@ -177,6 +191,15 @@ export function EstimateItemSheet({
     accepted: milliunits(item.qtyAccepted), name: item.name, unit: item.unit,
   });
   const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
+
+  const подставить = (source: MeasureSource, value: bigint, помещение: string | null): void => {
+    const поле = вПоле(value, 3);
+    setQty(поле);
+    setПодставлено({ поле, единица: unit, текст: measureSourceNote(source, помещение, milliunits(value), unit) });
+  };
+  const источник = подставлено !== null && подставлено.поле === qty && подставлено.единица === unit
+    ? подставлено.текст
+    : null;
 
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -314,7 +337,7 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value, комната?.name ?? null); }}
                 >
                   {MEASURE_LABEL[source]} {formatQty(value)}
                 </button>
@@ -333,12 +356,16 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value, null); }}
                 >
                   {MEASURE_LABEL[source]} {formatQty(value)}
                 </button>
               ))}
             </div>
+          )}
+
+          {источник !== null && (
+            <p className="field__hint" role="status">{источник}</p>
           )}
 
           <div className="row">

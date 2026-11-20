@@ -60,10 +60,15 @@ export const formatDate = (iso: string): string =>
 export const formatTime = (iso: string): string =>
   new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-/** Дата с днём недели: заголовок группы в ленте событий. */
-export const formatDay = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    day: "2-digit", month: "long", weekday: "short",
+/**
+ * Календарный день `ГГГГ-ММ-ДД` с днём недели: заголовок группы в ленте
+ * событий. Группа — уже местный день (П-74), и строка дня читается и
+ * пишется в UTC: иначе к западу от Гринвича полночь UTC пришлась бы на
+ * вчерашний вечер, и заголовок встал бы на день раньше своей группы.
+ */
+export const formatDay = (день: string): string =>
+  new Date(`${день}T00:00:00Z`).toLocaleDateString("ru-RU", {
+    day: "2-digit", month: "long", weekday: "short", timeZone: "UTC",
   });
 
 export const formatDateTime = (iso: string): string =>

@@ -4,7 +4,7 @@ import type {
   MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom,
 } from "@priyomka/contracts";
 import {
-  measureTotals, milliunits, roomVolume, wallArea, количествоТекстом, type RoomMeasure,
+  measureTotals, milliunits, roomVolume, wallArea, wallAreaNet, количествоТекстом, type RoomMeasure,
   сколько,
 } from "@priyomka/domain";
 import { Prisma } from "@prisma/client";
@@ -19,9 +19,9 @@ import { detectImageType, ALLOWED_IMAGE_TYPES, IMAGE_EXTENSION } from "./image-t
 /**
  * Обмерный план объекта.
  *
- * Производные величины — площадь стен и объём — в базе не лежат: они
- * выводятся доменом при каждой сборке ответа. Так экран, печатная форма и
- * будущий перенос площадей в смету получают одно и то же число.
+ * Производные величины — площадь стен брутто и нетто и объём — в базе не
+ * лежат: они выводятся доменом при каждой сборке ответа. Так экран,
+ * печатная форма и перенос площадей в смету получают одно и то же число.
  */
 
 /** Подписи полей для журнала: «floorArea» на экране прораба недопустимо. */
@@ -62,7 +62,8 @@ const asMeasure = (row: RoomRow): RoomMeasure => ({
   ceilingPerimeter: milliunits(row.ceilingPerimeter),
   height: milliunits(row.height),
   /* Проёмы входят в итоги объекта (план, пункт 7.4): «Общее» называет окна и
-     двери так же, как площади. Площадь стен их по-прежнему не вычитает. */
+     двери так же, как площади. С этапа Э11 (шаг 1) их площадь вычитается из
+     площади стен нетто; брутто их по-прежнему не вычитает. */
   openings: row.openings.map((opening) => ({
     kind: opening.kind,
     count: opening.count,
@@ -94,6 +95,7 @@ const toRoomDto = (row: RoomRow): MeasureRoom => {
     ceilingPerimeter: row.ceilingPerimeter.toString(),
     height: row.height.toString(),
     wallArea: wallArea(measure).toString(),
+    wallAreaNet: wallAreaNet(measure).toString(),
     volume: roomVolume(measure).toString(),
     openings: row.openings.map((opening) => ({
       kind: opening.kind,
@@ -192,6 +194,7 @@ export class MeasureService {
         rooms: totals.rooms,
         floorArea: totals.floorArea.toString(),
         wallArea: totals.wallArea.toString(),
+        wallAreaNet: totals.wallAreaNet.toString(),
         floorPerimeter: totals.floorPerimeter.toString(),
         ceilingPerimeter: totals.ceilingPerimeter.toString(),
         volume: totals.volume.toString(),
