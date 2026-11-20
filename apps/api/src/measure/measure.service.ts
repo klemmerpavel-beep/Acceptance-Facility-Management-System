@@ -7,7 +7,8 @@ import type {
 import {
   measureTotals, milliunits, openingArea, openingText, openingTotalsText, revealLength, roomVolume,
   singleWallArea, singleWallAreaNet, singleWallNetWarning, transferOpening, wallArea, wallAreaNet,
-  wallName, wallsLength, wallsLengthWarning, количествоТекстом, type RoomMeasure, сколько,
+  wallName, wallRemovalFault, wallsLength, wallsLengthWarning, количествоТекстом, type RoomMeasure,
+  type WallItemRefs, сколько,
 } from "@priyomka/domain";
 import { Prisma, type WallOpening } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
@@ -76,6 +77,9 @@ const проёмДляЖурнала = (opening: Pick<WallOpening, "kind" | "wid
 const откосыДляЖурнала = (value: bigint | null): string =>
   value === null ? "не измерены" : количествоТекстом(milliunits(value), "м.п.");
 
+/** Позиций на стене нет. */
+const БЕЗ_ПОЗИЦИЙ: WallItemRefs = { current: 0, previous: 0 };
+
 /**
  * Стена в ответе: величины, площади брутто и нетто тем же доменом, что
  * помещение, и проёмы на ней с любой стороны — со стороной и соседом.
@@ -85,6 +89,7 @@ const toWallDto = (
   wall: RoomWithWalls["walls"][number],
   openings: readonly WallOpening[],
   стены: ReadonlyMap<string, WallPlace>,
+  ссылки: ReadonlyMap<string, WallItemRefs>,
 ): MeasureWall => {
   const измерено = { id: wall.id, label: wall.label, length: milliunits(wall.length),
     height: wall.height === null ? null : milliunits(wall.height) };
@@ -120,6 +125,7 @@ const toWallDto = (
         },
       };
     }),
+    estimateItems: ссылки.get(wall.id) ?? БЕЗ_ПОЗИЦИЙ,
   };
 };
 
@@ -127,6 +133,7 @@ const toRoomDto = (
   row: RoomWithWalls,
   openings: readonly WallOpening[],
   стены: ReadonlyMap<string, WallPlace>,
+  ссылки: ReadonlyMap<string, WallItemRefs>,
 ): MeasureRoom => {
   const measure = помещениеДляДомена(row, openings);
   const длина = wallsLength(measure);
@@ -147,7 +154,7 @@ const toRoomDto = (
       area: opening.area.toString(),
       reveal: opening.reveal.toString(),
     })),
-    walls: row.walls.map((wall) => toWallDto(measure, wall, openings, стены)),
+    walls: row.walls.map((wall) => toWallDto(measure, wall, openings, стены, ссылки)),
     wallsLength: длина === null ? null : длина.toString(),
     wallsWarning: wallsLengthWarning(measure),
     revealLength: revealLength(measure).toString(),
@@ -219,6 +226,36 @@ export class MeasureService {
   }
 
   /**
+   * Позиции сметы с адресом на стенах — по стене: действующей редакции и
+   * прежних (норматив 55.5). Действующая — последняя по номеру, как везде.
+   */
+  private async ссылкиНаСтены(
+    projectId: string,
+    wallIds: readonly string[],
+  ): Promise<Map<string, WallItemRefs>> {
+    const ссылки = new Map<string, WallItemRefs>();
+    if (wallIds.length === 0) return ссылки;
+    const позиции = await this.prisma.estimateItem.findMany({
+      where: { wallId: { in: [...wallIds] }, removedAt: null },
+      select: { wallId: true, estimateId: true },
+    });
+    if (позиции.length === 0) return ссылки;
+    const действующая = await this.prisma.estimate.findFirst({
+      where: { projectId },
+      orderBy: { version: "desc" },
+      select: { id: true },
+    });
+    for (const позиция of позиции) {
+      if (позиция.wallId === null) continue;
+      const было = ссылки.get(позиция.wallId) ?? БЕЗ_ПОЗИЦИЙ;
+      ссылки.set(позиция.wallId, позиция.estimateId === действующая?.id
+        ? { current: было.current + 1, previous: было.previous }
+        : { current: было.current, previous: было.previous + 1 });
+    }
+    return ссылки;
+  }
+
+  /**
    * Обмер одного набора.
    *
    * Набор приходит запросом, а не выводится сервером из наличия
@@ -246,11 +283,12 @@ export class MeasureService {
     });
 
     const стены = стеныПоId(rooms);
+    const ссылки = await this.ссылкиНаСтены(project.id, [...стены.keys()]);
     const totals = measureTotals(rooms.map((room) => помещениеДляДомена(room, openings)));
     return {
       set,
       filled: заполнены.map((строка) => строка.set),
-      rooms: rooms.map((room) => toRoomDto(room, openings, стены)),
+      rooms: rooms.map((room) => toRoomDto(room, openings, стены, ссылки)),
       totals: {
         rooms: totals.rooms,
         floorArea: totals.floorArea.toString(),
@@ -380,26 +418,21 @@ export class MeasureService {
    * помещения (`deleteRoom`): связь объявлена `SET NULL`, и прямое удаление
    * сняло бы адрес «одна стена» с позиций молча. Считаются позиции всех
    * редакций, как у помещения: прежние редакции стоят на своём основании.
+   * Текст — функция домена, та же, что у листа: позиции прежних редакций
+   * не правятся, и отказ не обещает им пути, которого нет (П-85).
    */
   private async отказСтенСПозициями(
+    projectId: string,
     roomName: string,
     walls: readonly { id: string; order: number; label: string | null }[],
   ): Promise<void> {
     if (walls.length === 0) return;
-    const позиции = await this.prisma.estimateItem.findMany({
-      where: { wallId: { in: walls.map((wall) => wall.id) }, removedAt: null },
-      select: { wallId: true },
-    });
-    if (позиции.length === 0) return;
-    const поСтенам = walls
-      .map((wall) => ({ wall, n: позиции.filter((позиция) => позиция.wallId === wall.id).length }))
-      .filter(({ n }) => n > 0)
-      .map(({ wall, n }) => `${wallName(wall.order, wall.label)} — ${сколько(n, "позиция", "позиции", "позиций")}`);
-    throw new BadRequestException({
-      message: `На стены помещения «${roomName}» ссылаются позиции сметы: ${поСтенам.join(", ")}. `
-        + "Удаление сняло бы с них адрес молча. Перенесите позиции на другую стену или снимите адрес, "
-        + "затем удаляйте.",
-    });
+    const ссылки = await this.ссылкиНаСтены(projectId, walls.map((wall) => wall.id));
+    const отказ = wallRemovalFault(roomName, walls.map((wall) => ({
+      name: wallName(wall.order, wall.label),
+      refs: ссылки.get(wall.id) ?? БЕЗ_ПОЗИЦИЙ,
+    })));
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
   }
 
   /**
@@ -647,7 +680,7 @@ export class MeasureService {
         throw new BadRequestException({ message: ЧУЖАЯ_СТЕНА });
       }
       const остаются = new Set(стеныПосле.flatMap((стена) => (стена.id === undefined ? [] : [стена.id])));
-      await this.отказСтенСПозициями(before.name, before.walls.filter((wall) => !остаются.has(wall.id)));
+      await this.отказСтенСПозициями(project.id, before.name, before.walls.filter((wall) => !остаются.has(wall.id)));
     }
 
     await this.prisma.$transaction(async (tx) => {

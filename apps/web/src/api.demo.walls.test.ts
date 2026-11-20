@@ -162,8 +162,12 @@ describe("двойник: адрес поверхности, источник и
     expect(сПризнаком?.surface?.source?.state).toBe("changed");
     expect(сПризнаком?.surface?.source?.drift).toBe("Подставлено 24,705\u00A0м², сейчас 25,11\u00A0м². Количество само не меняется.");
 
-    /* Стену, на которую ссылается позиция, удалить нельзя. */
+    /* Стену, на которую ссылается позиция, удалить нельзя; число позиций
+       стоит в ответе обмера — лист показывает по нему отказ вместо кнопки
+       (норматив 55.5; П-88). */
     const соСтеной = помещение(await fetchMeasure("R-99", "REPLANNED"), "Кухня-гостиная");
+    expect(соСтеной.walls[0]?.estimateItems).toEqual({ current: 1, previous: 0 });
+    expect(соСтеной.walls[1]?.estimateItems).toEqual({ current: 0, previous: 0 });
     await expect(updateRoom("R-99", кухня.id, {
       walls: соСтеной.walls.filter((стена) => стена.order !== 1)
         .map((стена) => ({ id: стена.id, label: стена.label, length: стена.length })),

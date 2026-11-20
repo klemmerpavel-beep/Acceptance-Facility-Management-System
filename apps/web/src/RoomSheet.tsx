@@ -6,7 +6,8 @@ import type {
 import { formatMeasure } from "@priyomka/ui";
 import {
   milliunits, openingTotalsDropNote, singleWallArea, singleWallAreaNet, wallArea, wallAreaNet,
-  wallAreaNetWarning, wallName, wallsLength, wallsLengthWarning, type RoomMeasure, type WallMeasure,
+  wallAreaNetWarning, wallName, wallRemovalFault, wallsLength, wallsLengthWarning, type RoomMeasure,
+  type WallMeasure,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { ДОБАВИТЬ_ПРОЁМ, проёмСловами, проёмыСтен } from "./walls.js";
@@ -138,6 +139,7 @@ export function RoomSheet({
   error,
   onSave,
   onDelete,
+  onClearError,
   onClose,
 }: {
   room: MeasureRoom | null;
@@ -159,6 +161,12 @@ export function RoomSheet({
    */
   onSave: (room: CreateMeasureRoom | null, после?: ПослеСохранения) => void;
   onDelete: (() => void) | null;
+  /**
+   * Снять ошибку листа: отказ удаления, оставшийся после «Не удалять» или
+   * «Отмена», стоял бы под формой рядом с «Сохранить» и читался бы отказом
+   * сохранения (П-88).
+   */
+  onClearError: () => void;
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
@@ -379,7 +387,11 @@ export function RoomSheet({
             <button type="button" className="btn btn--danger btn--block" disabled={busy} onClick={onDelete}>
               Удалить помещение
             </button>
-            <button type="button" className="btn btn--text btn--block" onClick={() => { setConfirming(false); }}>
+            <button
+              type="button"
+              className="btn btn--text btn--block"
+              onClick={() => { setConfirming(false); onClearError(); }}
+            >
               Отмена
             </button>
           </div>
@@ -481,6 +493,13 @@ export function RoomSheet({
                    55.1 записано находкой П-80 до решения заказчика. */
                 const предложения = unbound.filter((проём) => проём.roomId !== room?.id && проём.kind === "DOOR");
                 const удаляется = удаляюСтену === стена.ключ;
+                /* На стену ссылаются позиции сметы — отказ вместо кнопки
+                   подтверждения, тем же правилом домена, что у сервера
+                   (норматив 55.5; П-88): кнопка, которая заведомо получит
+                   отказ, обещала бы удаление. */
+                const отказУдаления = сохранённая === undefined || room === null
+                  ? null
+                  : wallRemovalFault(room.name, [{ name: сохранённая.name, refs: сохранённая.estimateItems }]);
                 const задать = (поле: "label" | "length" | "height") =>
                   (event: React.ChangeEvent<HTMLInputElement>): void => {
                     const next = event.target.value;
@@ -584,7 +603,18 @@ export function RoomSheet({
                       </div>
                     ))}
 
-                    {удаляется && удаляемая !== null ? (
+                    {удаляется && удаляемая !== null && отказУдаления !== null ? (
+                      <div className="stack stack--tight" role="group" aria-label={`Удаление: ${имя}`}>
+                        <p className="field__error" role="alert">{отказУдаления}</p>
+                        <button
+                          type="button"
+                          className="btn btn--text btn--block"
+                          onClick={() => { setУдаляюСтену(null); onClearError(); }}
+                        >
+                          Не удалять
+                        </button>
+                      </div>
+                    ) : удаляется && удаляемая !== null ? (
                       <div className="stack stack--tight" role="group" aria-label={`Удаление: ${имя}`}>
                         <p className="t-sm">{имя} будет удалена.</p>
                         {судьбаПроёмов(new Set(стена.id === undefined ? [] : [стена.id])).map((строка, номер) => (
@@ -608,7 +638,11 @@ export function RoomSheet({
                         >
                           Удалить стену
                         </button>
-                        <button type="button" className="btn btn--text btn--block" onClick={() => { setУдаляюСтену(null); }}>
+                        <button
+                          type="button"
+                          className="btn btn--text btn--block"
+                          onClick={() => { setУдаляюСтену(null); onClearError(); }}
+                        >
                           Не удалять
                         </button>
                       </div>

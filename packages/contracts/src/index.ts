@@ -1202,6 +1202,17 @@ export const measureWallSchema = z.object({
   /** Проёмы на стене больше её площади: нетто принята нулём. */
   warning: z.string().nullable(),
   openings: z.array(measureWallOpeningSchema),
+  /**
+   * Позиции сметы с адресом «одна стена» на этой стене — действующей
+   * редакции и прежних. Лист помещения показывает по ним отказ удалить
+   * стену вместо кнопки подтверждения (норматив 55.5; П-88). Число, а не
+   * перечень: сами позиции и их адрес видит уровень руководителя, а отказ
+   * сервера называет то же число и прорабу.
+   */
+  estimateItems: z.object({
+    current: z.number().int().nonnegative(),
+    previous: z.number().int().nonnegative(),
+  }),
 });
 export type MeasureWall = z.infer<typeof measureWallSchema>;
 

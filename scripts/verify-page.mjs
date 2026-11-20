@@ -2468,6 +2468,32 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
               + ` признак «${после?.surface?.source?.state}»`);
           }
         }
+
+        /* П-88: на стену ссылается позиция сметы — лист помещения показывает
+           отказ вместо кнопки удаления (норматив 55.5), а «Не удалять»
+           снимает его и не оставляет под формой. */
+        await page.click('.tabs__item:has-text("Замер")');
+        await page.waitForSelector(".measure__item");
+        await page.locator('[aria-label="Набор обмера"] button:has-text("После перепланировки")').click();
+        await page.waitForTimeout(400);
+        await page.locator(".measure__item", { hasText: комната.name }).first().click();
+        await page.click('button:has-text("Править помещение")');
+        await page.waitForSelector(".sheet input");
+        await page.click(`.sheet button[aria-label="Удалить стену: ${стена.name}"]`);
+        await page.waitForTimeout(200);
+        const удаление = page.locator(`.sheet [role="group"][aria-label="Удаление: ${стена.name}"]`);
+        const отказ = (await удаление.locator(".field__error").allTextContents()).join(" ");
+        if (!отказ.includes("1 позиция") || (await удаление.locator(".btn--danger").count()) > 0) {
+          note("удаление стены с позициями",
+            `лист предложил удалить «${стена.name}», на которую ссылается позиция сметы, вместо отказа: «${отказ}»`);
+        }
+        await удаление.locator('button:has-text("Не удалять")').click();
+        await page.waitForTimeout(150);
+        if ((await page.locator(".sheet .field__error").count()) > 0) {
+          note("удаление стены с позициями", "после «Не удалять» отказ остался в листе под формой");
+        }
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+        await page.waitForTimeout(200);
       }
     } catch (ошибка) {
       note("адрес поверхности", `обход адреса прерван: ${String(ошибка).split("\n")[0].slice(0, 200)}`);

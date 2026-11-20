@@ -3,7 +3,7 @@ import { milliunits } from "./money.js";
 import {
   hasWalls, measureTotals, openingArea, openingText, openingsArea, openingsOnWall, openingTotalsDropNote, openingTotalsText,
   revealLength, roomVolume, singleWallArea, singleWallAreaNet, singleWallNetWarning, transferOpening, wallArea,
-  wallAreaNet, wallAreaNetWarning, wallHeight, wallName, wallsLength, wallsLengthWarning, wallsTolerance,
+  wallAreaNet, wallAreaNetWarning, wallHeight, wallName, wallRemovalFault, wallsLength, wallsLengthWarning, wallsTolerance,
   type RoomMeasure, type WallMeasure, type WallOpeningMeasure,
 } from "./measure.js";
 
@@ -524,5 +524,42 @@ describe("стены и проёмы: контрольная квартира ш
     // Итогов нет или стены уже есть — снимать нечего.
     expect(openingTotalsDropNote({ ...КУХНЯ_2, openings: [] })).toBeNull();
     expect(openingTotalsDropNote(КОМНАТА_2)).toBeNull();
+  });
+});
+
+/**
+ * Отказ удалить стену с позициями сметы (норматив 55.5; П-85). Путь
+ * называется только тот, что есть: позиции прежних редакций не правятся.
+ */
+describe("отказ удалить стену с позициями сметы", () => {
+  const стена = (current: number, previous: number) => ({ name: "Стена 1 · у окна", refs: { current, previous } });
+
+  it("позиций нет — удалять можно", () => {
+    expect(wallRemovalFault("Спальня", [стена(0, 0), { name: "Стена 2", refs: { current: 0, previous: 0 } }])).toBeNull();
+    expect(wallRemovalFault("Спальня", [])).toBeNull();
+  });
+
+  it("позиции действующей редакции — путь: перенести или снять адрес", () => {
+    expect(wallRemovalFault("Спальня", [стена(1, 0)])).toBe(
+      "На стены помещения «Спальня» ссылаются позиции сметы: Стена 1 · у окна — 1 позиция."
+      + " Удаление сняло бы с них адрес молча."
+      + " Перенесите позиции на другую стену или снимите адрес, затем удаляйте.",
+    );
+  });
+
+  it("позиции прежних редакций — отказ говорит, что их адрес не правится, и пути не обещает", () => {
+    const только = wallRemovalFault("Спальня", [стена(0, 1)]);
+    expect(только).toBe(
+      "На стены помещения «Спальня» ссылаются позиции сметы: Стена 1 · у окна — 1 позиция прежних редакций сметы."
+      + " Удаление сняло бы с них адрес молча."
+      + " Позиции прежних редакций не правятся: стену, на которую они ссылаются, удалить нельзя.",
+    );
+    expect(только).not.toContain("Перенесите позиции на другую стену");
+    expect(wallRemovalFault("Спальня", [стена(1, 1), { name: "Стена 2", refs: { current: 0, previous: 0 } }])).toBe(
+      "На стены помещения «Спальня» ссылаются позиции сметы: Стена 1 · у окна — 2 позиции, из них 1 — в прежних редакциях сметы."
+      + " Удаление сняло бы с них адрес молча."
+      + " Позиции действующей редакции перенесите на другую стену или снимите с них адрес."
+      + " Позиции прежних редакций не правятся: стену, на которую они ссылаются, удалить нельзя.",
+    );
   });
 });

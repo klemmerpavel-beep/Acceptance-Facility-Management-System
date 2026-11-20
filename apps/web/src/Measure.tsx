@@ -604,6 +604,7 @@ export function Measure({
             const id = лист.room?.id;
             if (id !== undefined) { setCurrent(null); run(deleteRoom(code, id), "Помещение удалено"); }
           }}
+          onClearError={() => { setSheetError(null); }}
           onClose={() => { setЛист(null); setSheetError(null); }}
         />
       )}

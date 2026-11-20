@@ -42,7 +42,7 @@ import {
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, revealLength, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
   measureDrift, measureDriftNote, openingArea, qtySourceFault, qtySourceMismatch, qtySourceNote, qtySourceScope,
-  qtySourceValue, singleWallArea, singleWallAreaNet, singleWallNetWarning, surfaceFault, transferOpening, wallName,
+  qtySourceValue, singleWallArea, singleWallAreaNet, singleWallNetWarning, surfaceFault, transferOpening, wallName, wallRemovalFault,
   wallsLength, wallsLengthWarning,
   type Milliunits, type QtySource, type RoomMeasure, type SurfaceKind, type WallOpeningMeasure,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
@@ -254,6 +254,8 @@ const стенаОтвета = (
           },
         };
       }),
+    /* Редакция в двойнике одна — прежних нет. */
+    estimateItems: { current: позицийНаСтене(wall.id), previous: 0 },
   };
 };
 
@@ -1538,15 +1540,13 @@ function снятьСтены(walls: readonly СтенаДвойника[]): voi
   });
 }
 
-/** Отказ, если на снимаемые стены ссылаются позиции сметы, — как у сервера. */
+/** Отказ, если на снимаемые стены ссылаются позиции сметы, — функцией домена, как у сервера. */
 function отказСтенСПозициями(roomName: string, walls: readonly СтенаДвойника[]): void {
-  const поСтенам = walls
-    .map((wall) => ({ wall, n: позицийНаСтене(wall.id) }))
-    .filter(({ n }) => n > 0)
-    .map(({ wall, n }) => `${wallName(wall.order, wall.label)} — ${сколько(n, "позиция", "позиции", "позиций")}`);
-  if (поСтенам.length === 0) return;
-  throw new Error(`На стены помещения «${roomName}» ссылаются позиции сметы: ${поСтенам.join(", ")}. `
-    + "Удаление сняло бы с них адрес молча. Перенесите позиции на другую стену или снимите адрес, затем удаляйте.");
+  const отказ = wallRemovalFault(roomName, walls.map((wall) => ({
+    name: wallName(wall.order, wall.label),
+    refs: { current: позицийНаСтене(wall.id), previous: 0 },
+  })));
+  if (отказ !== null) throw new Error(отказ);
 }
 
 /** Правка обмера в демонстрации: сервера нет, но кнопка обязана работать. */
