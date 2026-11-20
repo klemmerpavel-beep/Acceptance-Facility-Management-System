@@ -820,6 +820,53 @@ export const estimateItemRoomSchema = z.object({
 });
 export type EstimateItemRoom = z.infer<typeof estimateItemRoomSchema>;
 
+/**
+ * Вид поверхности — адрес работы позиции внутри помещения (этап Э11, шаг 2;
+ * решение Д4). Перечень повторяет `SURFACE_KINDS` домена и `SurfaceKind`
+ * схемы; расхождение ловит `apps/api/src/estimates/surface.test.ts`.
+ */
+export const surfaceKindSchema = z.enum(["FLOOR", "CEILING", "WALLS", "WALL", "REVEALS"]);
+export type SurfaceKindDto = z.infer<typeof surfaceKindSchema>;
+
+/**
+ * Источник подставленного количества: величина с областью — помещение,
+ * одна стена или итог объекта (решение Э11-2.7 «в»). Перечень повторяет
+ * `QTY_SOURCES` домена.
+ */
+export const qtySourceSchema = z.enum([
+  "room:floorArea", "room:wallArea", "room:wallAreaNet",
+  "room:floorPerimeter", "room:ceilingPerimeter", "room:revealLength",
+  "wall:wallArea", "wall:wallAreaNet",
+  "project:floorArea", "project:wallArea", "project:wallAreaNet",
+  "project:floorPerimeter", "project:ceilingPerimeter",
+]);
+export type QtySourceDto = z.infer<typeof qtySourceSchema>;
+
+/**
+ * Адрес поверхности позиции, источник количества и признак «обмер
+ * изменился». До ответа второй очереди допроса — только уровню
+ * руководителя: у прораба и заказчика объекта ключа нет вовсе.
+ */
+export const estimateItemSurfaceSchema = z.object({
+  kind: surfaceKindSchema.nullable(),
+  /** Стена «одной стены»; пусто — не выбрана или снята переводом на перепланировку. */
+  wall: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  source: z.object({
+    key: qtySourceSchema,
+    /** Подставленное число, тысячные доли единицы позиции. */
+    value: milliunitsString,
+    /** Строка источника словами. */
+    note: z.string(),
+    /** Признак: та же величина, другая или источника больше нет. */
+    state: z.enum(["same", "changed", "removed"]),
+    /** Величина источника сейчас; пусто — источника нет. */
+    now: milliunitsString.nullable(),
+    /** Признак словами: «Подставлено X, сейчас Y…»; пусто — расхождения нет. */
+    drift: z.string().nullable(),
+  }).nullable(),
+});
+export type EstimateItemSurface = z.infer<typeof estimateItemSurfaceSchema>;
+
 /** Позиция сметы в ответе. Внутренние поля приходят только роли OWNER. */
 export const estimateItemSchema = z.object({
   id: z.string().uuid(),
@@ -836,6 +883,8 @@ export const estimateItemSchema = z.object({
   wageTotal: kopecksString.optional(),
   profit: kopecksString.optional(),
   profitShare: z.number().int().optional(),
+  /** Адрес поверхности, источник и признак — уровню руководителя. */
+  surface: estimateItemSurfaceSchema.optional(),
 });
 export type EstimateItem = z.infer<typeof estimateItemSchema>;
 
@@ -928,6 +977,21 @@ export const updateEstimateItemSchema = z.object({
    * не должно читаться как «убрал».
    */
   roomId: z.string().uuid().nullable().optional(),
+  /**
+   * Адрес поверхности (этап Э11, шаг 2): вид и стена — только у вида «одна
+   * стена». `null` снимает, отсутствие поля не трогает. Смена помещения,
+   * вида или стены снимает источник количества: подставленное относилось к
+   * прежнему адресу.
+   */
+  surfaceKind: surfaceKindSchema.nullable().optional(),
+  wallId: z.string().uuid().nullable().optional(),
+  /**
+   * Источник подставленного количества: присылается вместе с подставленным
+   * числом в `qty`. Сервер сверяет число с величиной обмера сейчас.
+   * `null` снимает источник; правка количества без источника снимает его
+   * тоже — правленое руками количество источника не имеет.
+   */
+  qtySource: qtySourceSchema.nullable().optional(),
 });
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
@@ -972,6 +1036,10 @@ export const createEstimateItemSchema = z.object({
   unitWage: kopecksString,
   /** Помещение обмера; отсутствие поля и `null` — помещение не выбрано. */
   roomId: z.string().uuid().nullable().optional(),
+  /** Адрес поверхности и источник количества — как в правке. */
+  surfaceKind: surfaceKindSchema.nullable().optional(),
+  wallId: z.string().uuid().nullable().optional(),
+  qtySource: qtySourceSchema.nullable().optional(),
 });
 export type CreateEstimateItem = z.infer<typeof createEstimateItemSchema>;
 

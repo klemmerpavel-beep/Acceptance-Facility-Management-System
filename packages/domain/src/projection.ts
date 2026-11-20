@@ -19,6 +19,7 @@ import {
   applyPercent, kopecks, multiplyByQuantity, shareOf, subtract, sum,
   type BasisPoints, type Kopecks, type Milliunits,
 } from "./money.js";
+import type { QtySource, SurfaceKind } from "./estimate.js";
 
 export type Role = "OWNER" | "FOREMAN" | "ACCOUNTANT" | "CLIENT";
 
@@ -77,6 +78,52 @@ export interface ItemRoom {
   set: "INITIAL" | "REPLANNED";
 }
 
+/**
+ * Поля позиции, которые до ответа второй очереди допроса шага 2 этапа Э11
+ * видит только уровень руководителя: адрес поверхности, источник
+ * подстановки и признак «обмер изменился» (`01_PROJECT.md`, раздел 6.5,
+ * уточнения 20.11.2026; `07_IA.md`, раздел 11.1).
+ *
+ * Отдельным перечнем, а не в `INTERNAL_FIELDS`: те поля закрыты решением —
+ * это деньги, — а эти закрыты до решения. Ответ второй очереди может
+ * открыть адрес прорабу, и тогда снимается этот перечень, а не правится
+ * перечень денег. Заказчику объекта признак не откроется и после: обмер ему
+ * закрыт.
+ */
+export const OWNER_LEVEL_ITEM_FIELDS = ["surface"] as const;
+
+/** Стена адреса позиции: опознаватель и имя «Стена 1 · у окна». */
+export interface ItemWall {
+  id: string;
+  name: string;
+}
+
+/**
+ * Источник подставленного количества и признак (этап Э11, шаг 2;
+ * решение Э11-2.7 «в»). Количество позиции — копия; признак сравнивает
+ * подставленное число с величиной источника сейчас.
+ */
+export interface ItemQtySource {
+  key: QtySource;
+  /** Подставленное число, тысячные доли единицы позиции. */
+  value: Milliunits;
+  /** Строка источника словами (норматив, раздел 55.7). */
+  note: string;
+  /** Признак: та же величина, другая или источника больше нет. */
+  state: "same" | "changed" | "removed";
+  /** Величина источника сейчас; пусто — источника нет. */
+  now: Milliunits | null;
+  /** Признак словами; пусто — расхождения нет. */
+  drift: string | null;
+}
+
+/** Адрес поверхности позиции: вид, стена и источник количества. */
+export interface ItemSurface {
+  kind: SurfaceKind | null;
+  wall: ItemWall | null;
+  source: ItemQtySource | null;
+}
+
 /** Позиция сметы, как она хранится. */
 export interface EstimateItemRecord {
   id: string;
@@ -90,6 +137,12 @@ export interface EstimateItemRecord {
   unitWage: Kopecks;
   /** Пусто — помещение не выбрано: импортированная смета комнат не знает. */
   room: ItemRoom | null;
+  /**
+   * Адрес поверхности, источник и признак. Необязателен: собирает его
+   * служба сметы из обмера, а двойник демонстрации и прежние записи его не
+   * знают.
+   */
+  surface?: ItemSurface;
 }
 
 /** Позиция, видимая прорабу и клиенту. */
@@ -112,6 +165,8 @@ export interface InternalEstimateItem extends PublicEstimateItem {
   wageTotal: Kopecks;
   profit: Kopecks;
   profitShare: BasisPoints;
+  /** Адрес поверхности — уровню руководителя (`OWNER_LEVEL_ITEM_FIELDS`). */
+  surface?: ItemSurface;
 }
 
 export function projectEstimateItem(
@@ -146,6 +201,7 @@ export function projectEstimateItem(
     wageTotal,
     profit,
     profitShare: shareOf(profit, total),
+    ...(item.surface === undefined ? {} : { surface: item.surface }),
   };
   return internal;
 }

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { accrualAmount } from "./acceptance.js";
 import { basisPoints, kopecks, negateQuantity, parseQuantity, parseRubles } from "./money.js";
 import {
-  INTERNAL_FIELDS, OWNER_LEVEL, actLineWage, clientTotals, findInternalFields, ownerLevel,
+  INTERNAL_FIELDS, OWNER_LEVEL, OWNER_LEVEL_ITEM_FIELDS, actLineWage, clientTotals, findInternalFields, ownerLevel,
   projectActLine, projectEstimateItem,
-  type ActLineAccrual, type EstimateItemRecord, type Role,
+  type ActLineAccrual, type EstimateItemRecord, type ItemSurface, type Role,
 } from "./projection.js";
 
 /** Позиция 3 действующей сметы: штукатурка стен по маякам. */
@@ -88,6 +88,43 @@ describe("разграничение на уровне полей", () => {
     const прораб = projectEstimateItem(позиция, "FOREMAN");
     const разница = Object.keys(руководитель).filter((k) => !Object.hasOwn(прораб, k)).sort();
     expect(разница).toEqual([...INTERNAL_FIELDS].sort());
+  });
+});
+
+describe("адрес поверхности позиции — уровню руководителя (этап Э11, шаг 2)", () => {
+  /* До ответа второй очереди адрес, источник и признак видит уровень
+     руководителя, который правит позицию; заказчику признак не откроется и
+     после — обмер ему закрыт (`01_PROJECT.md`, раздел 6.5, 20.11.2026). */
+  const адрес: ItemSurface = {
+    kind: "WALL",
+    wall: { id: "wall-01", name: "Стена 1 · у окна" },
+    source: {
+      key: "wall:wallAreaNet", value: parseQuantity("6,54"), note: "Подставлено…",
+      state: "changed", now: parseQuantity("6,24"), drift: "Подставлено 6,54 м², сейчас 6,24 м².",
+    },
+  };
+  const сАдресом: EstimateItemRecord = { ...позиция, surface: адрес };
+
+  it.each<Role>(["OWNER", "ACCOUNTANT"])("роль %s получает адрес, источник и признак", (роль) => {
+    expect(projectEstimateItem(сАдресом, роль)).toMatchObject({ surface: адрес });
+  });
+
+  it.each<Role>(["FOREMAN", "CLIENT"])("роль %s не получает ключа адреса вовсе", (роль) => {
+    const видимое = projectEstimateItem(сАдресом, роль);
+    for (const поле of OWNER_LEVEL_ITEM_FIELDS) expect(Object.hasOwn(видимое, поле)).toBe(false);
+    // Помещение — не адрес поверхности: прораб его по-прежнему получает.
+    expect(видимое.room?.name).toBe("Спальня");
+  });
+
+  it("разница проекций — деньги и адрес, и ничего сверх", () => {
+    const руководитель = projectEstimateItem(сАдресом, "OWNER");
+    const прораб = projectEstimateItem(сАдресом, "FOREMAN");
+    const разница = Object.keys(руководитель).filter((k) => !Object.hasOwn(прораб, k)).sort();
+    expect(разница).toEqual([...INTERNAL_FIELDS, ...OWNER_LEVEL_ITEM_FIELDS].sort());
+  });
+
+  it("позиция без собранного адреса ключа не получает и у руководителя", () => {
+    expect(Object.hasOwn(projectEstimateItem(позиция, "OWNER"), "surface")).toBe(false);
   });
 });
 

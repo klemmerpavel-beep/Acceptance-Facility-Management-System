@@ -12,10 +12,13 @@ import {
 import {
   acceptedQty, acceptedTotal, basisPoints, buildEstimateView, estimateItemFault,
   estimateItemMoveFault, estimateItemRemovalFault, estimateSectionNestingFault,
-  estimateSectionRemovalFault, formatKopecks, formatPercent, kopecks, multiplyByQuantity,
+  estimateSectionRemovalFault, formatKopecks, formatPercent, isQtySource, kopecks, measureDrift,
+  measureDriftNote, measureTotals, multiplyByQuantity, qtySourceFault, qtySourceMismatch, qtySourceNote,
+  qtySourceScope, qtySourceValue, surfaceFault, SURFACE_LABEL, wallName,
   количествоТекстом,
   milliunits, ownerLevel,
   сколько,
+  type ItemSurface, type Milliunits, type MeasureTotals, type QtySource, type RoomMeasure, type SurfaceKind,
 } from "@priyomka/domain";
 import { toEstimateViewDto } from "./estimate.mapper";
 import { PrismaService } from "../prisma.service";
@@ -24,6 +27,9 @@ import { currentEstimate } from "../common/current-estimate";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { toImportReport } from "./report.mapper";
+import {
+  обмерСоСтенами, помещениеДляДомена, стенаДляДомена, стеныПоId, type RoomWithWalls,
+} from "../measure/measure-load";
 
 
 /**
@@ -72,6 +78,47 @@ function значениеДляЖурнала(field: string, value: string | nul
   return value;
 }
 
+/** Адрес и источник позиции в хранении (этап Э11, шаг 2; миграция М-3). */
+interface ItemAddress {
+  roomId: string | null;
+  surfaceKind: SurfaceKind | null;
+  wallId: string | null;
+  qtySource: string | null;
+  qtySourceValue: bigint | null;
+  qtySourceRoomId: string | null;
+  qtySourceWallId: string | null;
+}
+
+/** Правка адреса из тела запроса: отсутствие поля его не трогает. */
+interface AddressInput {
+  roomId?: string | null | undefined;
+  surfaceKind?: SurfaceKind | null | undefined;
+  wallId?: string | null | undefined;
+  qtySource?: QtySource | null | undefined;
+}
+
+/** Колонки адреса и источника, которые пишет правка. */
+type AddressData = Pick<ItemAddress, "surfaceKind" | "wallId" | "qtySource" | "qtySourceValue"
+  | "qtySourceRoomId" | "qtySourceWallId">;
+
+/** Пустой источник: правленое руками количество источника не имеет. */
+const БЕЗ_ИСТОЧНИКА = {
+  qtySource: null, qtySourceValue: null, qtySourceRoomId: null, qtySourceWallId: null,
+} as const;
+
+/**
+ * Обмер объекта для подстановки и признака: помещения обоих наборов со
+ * стенами, проёмы на стенах, указатель стен и итоги действующего набора —
+ * того, что предлагает «из обмера объекта». Действующий — набор после
+ * перепланировки, если он заведён, иначе начальный: то же правило, что у
+ * списка помещений сметы.
+ */
+interface MeasureIndex {
+  rooms: Map<string, { row: RoomWithWalls; measure: RoomMeasure }>;
+  walls: ReturnType<typeof стеныПоId>;
+  totals: MeasureTotals;
+}
+
 @Injectable()
 export class EstimatesService {
   constructor(
@@ -84,6 +131,213 @@ export class EstimatesService {
     const project = await this.prisma.project.findFirst({ where: { ...projectScope(user), code } });
     if (!project) throw new NotFoundException({ message: `Объект ${code} не найден или недоступен.` });
     return project;
+  }
+
+  /**
+   * Обмер объекта со стенами — для величин источника (этап Э11, шаг 2).
+   * Тот же загрузчик и та же сборка для домена, что у вкладки «Замер»:
+   * признак в смете и число на экране обмера не могут разойтись.
+   */
+  private async обмерОбъекта(projectId: string): Promise<MeasureIndex> {
+    const { rooms, openings } = await обмерСоСтенами(this.prisma, { projectId });
+    const действующий = rooms.some((room) => room.set === "REPLANNED") ? "REPLANNED" : "INITIAL";
+    const поId = new Map(rooms.map((row) => [row.id, { row, measure: помещениеДляДомена(row, openings) }]));
+    return {
+      rooms: поId,
+      walls: стеныПоId(rooms),
+      totals: measureTotals([...поId.values()]
+        .filter(({ row }) => row.set === действующий)
+        .map(({ measure }) => measure)),
+    };
+  }
+
+  /** Величина источника сейчас: помещение, стена и итог — из одного обмера. */
+  private величинаИсточника(
+    обмер: MeasureIndex,
+    source: QtySource,
+    roomId: string | null,
+    wallId: string | null,
+  ): Milliunits | null {
+    const помещение = roomId === null ? undefined : обмер.rooms.get(roomId);
+    const стена = wallId === null ? undefined : обмер.walls.get(wallId);
+    return qtySourceValue(source, {
+      room: помещение?.measure ?? null,
+      wall: стена?.room.id === roomId ? стенаДляДомена(стена.wall) : null,
+      totals: обмер.totals,
+    });
+  }
+
+  /**
+   * Адрес поверхности и источник количества позиции после правки (этап
+   * Э11, шаг 2; решения Э11-2.5 и Э11-2.7).
+   *
+   * Вид и стена ставятся выбором: из величины адрес не выводится. Вид без
+   * помещения не адрес — снятое помещение снимает и вид; стена — только у
+   * «одной стены» и только стена помещения позиции. Стена, оставшаяся от
+   * прежнего помещения после его смены, снимается: она не того помещения.
+   *
+   * Источник ставится вместе с подставленным числом и сверяется с обмером
+   * сейчас: основание, которое уже в момент записи расходится с обмером,
+   * было бы неправдой. Ручная правка количества, смена единицы и смена
+   * адреса источник снимают: подставленное относилось к прежнему.
+   * Количество при этом не трогается — его меняет только человек.
+   */
+  private async адресПозиции(
+    projectId: string,
+    before: (ItemAddress & { qty: bigint; unit: string }) | null,
+    input: AddressInput,
+    after: { roomId: string | null; qty: bigint; unit: string },
+  ): Promise<{ data: AddressData; wallName: string | null; sourceNote: string | null }> {
+    let surfaceKind = input.surfaceKind !== undefined ? input.surfaceKind : before?.surfaceKind ?? null;
+    let wallId = input.wallId !== undefined ? input.wallId : before?.wallId ?? null;
+    if (after.roomId === null && input.surfaceKind === undefined) surfaceKind = null;
+    if (surfaceKind !== "WALL" && input.wallId === undefined) wallId = null;
+    const отказ = surfaceFault({ roomId: after.roomId, surface: surfaceKind, wallId });
+    if (отказ !== null) throw new BadRequestException({ message: отказ });
+
+    const нужноОбмер = wallId !== null || (input.qtySource !== undefined && input.qtySource !== null);
+    const обмер = нужноОбмер ? await this.обмерОбъекта(projectId) : null;
+    let стена = wallId === null || обмер === null ? undefined : обмер.walls.get(wallId);
+    if (wallId !== null && стена?.room.id !== after.roomId) {
+      if (input.wallId !== undefined) {
+        throw new BadRequestException({ message: "Такой стены нет у помещения позиции: выберите стену этого помещения." });
+      }
+      wallId = null;
+      стена = undefined;
+    }
+    const имяСтены = стена === undefined ? null : стена.name;
+
+    const адресСменился = after.roomId !== (before?.roomId ?? null)
+      || surfaceKind !== (before?.surfaceKind ?? null)
+      || wallId !== (before?.wallId ?? null);
+    const адрес = { surfaceKind, wallId };
+
+    if (input.qtySource === null) return { data: { ...адрес, ...БЕЗ_ИСТОЧНИКА }, wallName: имяСтены, sourceNote: null };
+    if (input.qtySource !== undefined && обмер !== null) {
+      const источник = input.qtySource;
+      const отказИсточника = qtySourceFault(источник, {
+        roomId: after.roomId, surface: surfaceKind, wallId, unit: after.unit,
+      });
+      if (отказИсточника !== null) throw new BadRequestException({ message: отказИсточника });
+      const область = qtySourceScope(источник);
+      const roomId = область === "project" ? null : after.roomId;
+      const sourceWallId = область === "wall" ? wallId : null;
+      const сейчас = this.величинаИсточника(обмер, источник, roomId, sourceWallId);
+      const расхождение = qtySourceMismatch(milliunits(after.qty), сейчас, after.unit);
+      if (расхождение !== null) throw new BadRequestException({ message: расхождение });
+      return {
+        data: {
+          ...адрес,
+          qtySource: источник,
+          qtySourceValue: after.qty,
+          qtySourceRoomId: roomId,
+          qtySourceWallId: sourceWallId,
+        },
+        wallName: имяСтены,
+        sourceNote: qtySourceNote(
+          источник,
+          { room: roomId === null ? null : обмер.rooms.get(roomId)?.row.name ?? null, wall: имяСтены },
+          milliunits(after.qty),
+          after.unit,
+        ),
+      };
+    }
+
+    /* Источника в теле нет: прежний остаётся, пока количество, единица и
+       адрес те же. */
+    const прежний = before?.qtySource == null
+      || after.qty !== before.qty || after.unit !== before.unit || адресСменился
+      ? БЕЗ_ИСТОЧНИКА
+      : {
+          qtySource: before.qtySource,
+          qtySourceValue: before.qtySourceValue,
+          qtySourceRoomId: before.qtySourceRoomId,
+          qtySourceWallId: before.qtySourceWallId,
+        };
+    return { data: { ...адрес, ...прежний }, wallName: имяСтены, sourceNote: null };
+  }
+
+  /**
+   * Журнал адреса и источника позиции — словами, той же транзакцией (БП-10):
+   * спор звучит как «кто снял стену с позиции», а не «кто правил смету».
+   */
+  private async журналАдреса(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    projectId: string,
+    orgId: string,
+    name: string,
+    before: { surfaceKind: SurfaceKind | null; wallName: string | null; qtySource: string | null } | null,
+    after: { data: AddressData; wallName: string | null; sourceNote: string | null },
+  ): Promise<void> {
+    const запись = (field: string, oldValue: string | null, newValue: string | null) =>
+      this.audit.record({
+        orgId, actorId: user.id, entity: "EstimateItem", entityId: projectId,
+        field: `${name} — ${field}`, oldValue, newValue,
+      }, tx);
+    const вид = (kind: SurfaceKind | null): string => (kind === null ? "не выбрана" : SURFACE_LABEL[kind]);
+    if ((before?.surfaceKind ?? null) !== after.data.surfaceKind) {
+      await запись("поверхность", before === null ? null : вид(before.surfaceKind), вид(after.data.surfaceKind));
+    }
+    if ((before?.wallName ?? null) !== after.wallName) {
+      await запись("стена", before === null ? null : before.wallName ?? "не выбрана", after.wallName ?? "не выбрана");
+    }
+    const былИсточник = before !== null && before.qtySource !== null;
+    if (after.sourceNote !== null) {
+      await запись("источник количества", былИсточник ? "подставлено из обмера" : "нет", after.sourceNote);
+    } else if (былИсточник && after.data.qtySource === null) {
+      await запись("источник количества", "подставлено из обмера",
+        "снят: правлены количество, единица или адрес позиции");
+    }
+  }
+
+  /**
+   * Адрес, источник и признак позиций для вида сметы (этап Э11, шаг 2).
+   * Признак — функция домена: подставленное число против величины
+   * источника сейчас; количество он не трогает.
+   */
+  private адресаДляВида(
+    обмер: MeasureIndex,
+    items: readonly (ItemAddress & { id: string; unit: string })[],
+  ): Map<string, ItemSurface> {
+    const адреса = new Map<string, ItemSurface>();
+    for (const item of items) {
+      const стена = item.wallId === null ? undefined : обмер.walls.get(item.wallId);
+      let source: ItemSurface["source"] = null;
+      if (item.qtySource !== null && isQtySource(item.qtySource) && item.qtySourceValue !== null) {
+        const value = milliunits(item.qtySourceValue);
+        const помещение = item.qtySourceRoomId === null ? undefined : обмер.rooms.get(item.qtySourceRoomId);
+        const стенаИсточника = item.qtySourceWallId === null ? undefined : обмер.walls.get(item.qtySourceWallId);
+        const признак = measureDrift(
+          { source: item.qtySource, value, roomId: item.qtySourceRoomId, wallId: item.qtySourceWallId },
+          item.roomId,
+          {
+            room: помещение?.measure ?? null,
+            wall: стенаИсточника === undefined ? null : стенаДляДомена(стенаИсточника.wall),
+            totals: обмер.totals,
+          },
+        );
+        source = {
+          key: item.qtySource,
+          value,
+          note: qtySourceNote(
+            item.qtySource,
+            { room: помещение?.row.name ?? null, wall: стенаИсточника?.name ?? null },
+            value,
+            item.unit,
+          ),
+          state: признак.state,
+          now: признак.state === "removed" ? null : признак.now,
+          drift: measureDriftNote(признак, value, item.unit),
+        };
+      }
+      адреса.set(item.id, {
+        kind: item.surfaceKind,
+        wall: стена === undefined ? null : { id: стена.wall.id, name: стена.name },
+        source,
+      });
+    }
+    return адреса;
   }
 
   /** Разбор без записи: показывает отчёт и написания единиц, ждущие решения. */
@@ -178,12 +432,19 @@ export class EstimatesService {
        Ключ переноса — путь раздела и наименование позиции: правка
        количеств и цен идёт на месте (Р11), а новая редакция рождается
        новым файлом, в котором позицию узнают по имени и месту. */
-    const прежниеПомещения = new Map<string, string>();
+    /* С этапа Э11 (шаг 2) тем же ключом переносится и адрес поверхности —
+       вид и стена (решение Э11-2.8 «б»): стена принадлежит помещению
+       позиции, и переносятся они вместе. Источник количества не
+       переносится: количество новой редакции пришло из книги, а не из
+       обмера. */
+    const прежниеПомещения = new Map<string, {
+      roomId: string; surfaceKind: SurfaceKind | null; wallId: string | null;
+    }>();
     if (previous !== null) {
       const было = await this.prisma.estimateItem.findMany({
         where: { estimateId: previous.id, removedAt: null, NOT: { roomId: null } },
         select: {
-          name: true, roomId: true,
+          name: true, roomId: true, surfaceKind: true, wallId: true,
           section: { select: { name: true, parent: { select: { name: true } } } },
         },
       });
@@ -192,7 +453,9 @@ export class EstimatesService {
         const путь = позиция.section.parent === null
           ? позиция.section.name
           : `${позиция.section.parent.name}·${позиция.section.name}`;
-        прежниеПомещения.set(`${путь}·${позиция.name}`, позиция.roomId);
+        прежниеПомещения.set(`${путь}·${позиция.name}`, {
+          roomId: позиция.roomId, surfaceKind: позиция.surfaceKind, wallId: позиция.wallId,
+        });
       }
     }
 
@@ -275,16 +538,20 @@ export class EstimatesService {
          раздел. Их число уходит в отчёт — импорт обязан называть то, что
          уносит, а не терять молча. */
       let помещенийПеренесено = 0;
+      let адресовПеренесено = 0;
       for (const item of parsed.items) {
         const sectionId = sectionIds.get(item.sectionPath.join("·"));
         if (sectionId === undefined || item.unit.kind !== "resolved") continue;
-        const roomId = прежниеПомещения.get(`${item.sectionPath.join("·")}·${item.name}`);
-        if (roomId !== undefined) помещенийПеренесено += 1;
+        const перенос = прежниеПомещения.get(`${item.sectionPath.join("·")}·${item.name}`);
+        if (перенос !== undefined) помещенийПеренесено += 1;
+        if (перенос !== undefined && перенос.surfaceKind !== null) адресовПеренесено += 1;
         await tx.estimateItem.create({
           data: {
             estimateId: estimate.id,
             sectionId,
-            ...(roomId === undefined ? {} : { roomId }),
+            ...(перенос === undefined ? {} : {
+              roomId: перенос.roomId, surfaceKind: перенос.surfaceKind, wallId: перенос.wallId,
+            }),
             unitId: unitId(units, item.unit.unit),
             name: item.name,
             order: (itemOrder.set(sectionId, (itemOrder.get(sectionId) ?? 0) + 1),
@@ -336,6 +603,24 @@ export class EstimatesService {
           },
         ];
       }
+      /* Адреса поверхностей считаются тем же образом и по той же причине
+         (решение Э11-2.8 «б»): первый повторный импорт не вправе унести
+         расстановку адресов молча. Нет адресов — нет и строки. */
+      const адресовБыло = [...прежниеПомещения.values()].filter((перенос) => перенос.surfaceKind !== null).length;
+      if (адресовБыло > 0) {
+        dto.findings = [
+          ...dto.findings,
+          {
+            kind: "surfaces",
+            title: адресовПеренесено === адресовБыло
+              ? `Адреса поверхностей перенесены целиком: ${адресовПеренесено} из ${адресовБыло}`
+              : `Адреса поверхностей перенесены не полностью: ${адресовПеренесено} из ${адресовБыло}.`
+                + " Остальные позиции сменили наименование или раздел — выберите им поверхность заново",
+            amount: null,
+            rows: [],
+          },
+        ];
+      }
 
       const record = await tx.estimateImport.create({
         data: {
@@ -362,7 +647,8 @@ export class EstimatesService {
           + ` пересчёт ${report.computedWorksTotal} коп.`
           + (прежниеПомещения.size === 0
             ? ""
-            : `, помещений перенесено ${помещенийПеренесено} из ${прежниеПомещения.size}`),
+            : `, помещений перенесено ${помещенийПеренесено} из ${прежниеПомещения.size}`)
+          + (адресовБыло === 0 ? "" : `, адресов поверхностей — ${адресовПеренесено} из ${адресовБыло}`),
       }, tx);
 
       return { importId: record.id, estimateId: estimate.id, version, report: dto };
@@ -432,6 +718,16 @@ export class EstimatesService {
       });
     }
 
+    /* Адрес поверхности, источник и признак — уровню руководителя: до
+       ответа второй очереди прорабу и заказчику объекта их нет (этап Э11,
+       шаг 2). Обмер читается только тогда, когда адрес уйдёт в ответ. */
+    const адреса = ownerLevel(user.role)
+      ? this.адресаДляВида(
+        await this.обмерОбъекта(project.id),
+        estimate.items.map((item) => ({ ...item, unit: item.unit.code })),
+      )
+      : new Map<string, ItemSurface>();
+
     const view = buildEstimateView({
       role: user.role,
       supervisionShare: basisPoints(BigInt(estimate.supervisionShare)),
@@ -456,6 +752,7 @@ export class EstimatesService {
         unitPrice: kopecks(item.unitPrice),
         unitWage: kopecks(item.unitWage),
         room: item.room,
+        ...(адреса.has(item.id) ? { surface: адреса.get(item.id) } : {}),
       })),
       otherExpenses: estimate.otherExpenses.map((expense) => ({
         id: expense.id,
@@ -556,8 +853,11 @@ export class EstimatesService {
       where: { id: itemId, estimateId: estimate.id, removedAt: null },
       select: {
         id: true, name: true, qty: true, unitPrice: true, unitWage: true, roomId: true,
+        surfaceKind: true, wallId: true, qtySource: true, qtySourceValue: true,
+        qtySourceRoomId: true, qtySourceWallId: true,
         unit: { select: { id: true, code: true } },
         room: { select: { name: true } },
+        wall: { select: { order: true, label: true } },
         acceptances: { select: { qty: true } },
       },
     });
@@ -624,6 +924,19 @@ export class EstimatesService {
       unitWage: before.unitWage.toString(),
     };
 
+    /* Адрес поверхности и источник количества (этап Э11, шаг 2): правка
+       количества, единицы или адреса без источника в теле источник снимает. */
+    const адрес = await this.адресПозиции(
+      project.id,
+      { ...before, unit: before.unit.code },
+      input,
+      {
+        roomId: input.roomId === undefined ? before.roomId : input.roomId,
+        qty: input.qty === undefined ? before.qty : BigInt(input.qty),
+        unit,
+      },
+    );
+
     await this.prisma.$transaction(async (tx) => {
       await tx.estimateItem.update({
         where: { id: before.id },
@@ -634,6 +947,7 @@ export class EstimatesService {
           ...(input.unitWage === undefined ? {} : { unitWage: kopecks(input.unitWage) }),
           ...(unitId === before.unit.id ? {} : { unitId }),
           ...(input.roomId === undefined ? {} : { roomId: input.roomId }),
+          ...адрес.data,
         },
       });
 
@@ -669,6 +983,11 @@ export class EstimatesService {
           newValue: помещение?.name ?? "не выбрано",
         }, tx);
       }
+      await this.журналАдреса(tx, user, project.id, project.orgId, before.name, {
+        surfaceKind: before.surfaceKind,
+        wallName: before.wall === null ? null : wallName(before.wall.order, before.wall.label),
+        qtySource: before.qtySource,
+      }, адрес);
     });
 
     return this.view(user, code);
@@ -696,9 +1015,12 @@ export class EstimatesService {
     const before = await this.prisma.estimateItem.findFirst({
       where: { id: itemId, estimateId: estimate.id, removedAt: null },
       select: {
-        id: true, name: true, sectionId: true, roomId: true,
+        id: true, name: true, sectionId: true, roomId: true, qty: true,
+        surfaceKind: true, wallId: true, qtySource: true, qtySourceValue: true,
+        qtySourceRoomId: true, qtySourceWallId: true,
         unit: { select: { code: true } },
         section: { select: { name: true } },
+        wall: { select: { order: true, label: true } },
         acceptances: { select: { qty: true } },
       },
     });
@@ -745,6 +1067,18 @@ export class EstimatesService {
 
     const прежнийРаздел = before.sectionId;
 
+    /* Перенос с другим помещением — смена адреса: стена прежнего помещения
+       снимается, без помещения снимается и вид, источник уходит вместе с
+       адресом (этап Э11, шаг 2). */
+    const адрес = input.roomId === undefined || input.roomId === before.roomId
+      ? null
+      : await this.адресПозиции(
+        project.id,
+        { ...before, unit: before.unit.code },
+        { roomId: input.roomId },
+        { roomId: input.roomId, qty: before.qty, unit: before.unit.code },
+      );
+
     await this.prisma.$transaction(async (tx) => {
       /* Порядок собирается списком и переписывается плотно: так он остаётся
          1..n без дыр и повторов при любом исходе жеста. */
@@ -767,6 +1101,7 @@ export class EstimatesService {
         data: {
           sectionId: целевой.id,
           ...(input.roomId === undefined ? {} : { roomId: input.roomId }),
+          ...(адрес === null ? {} : адрес.data),
         },
       });
       for (const [индекс, id] of ряд.entries()) {
@@ -812,6 +1147,13 @@ export class EstimatesService {
           oldValue: before.roomId === null ? "не выбрано" : "прежнее",
           newValue: помещение?.name ?? "не выбрано",
         }, tx);
+      }
+      if (адрес !== null) {
+        await this.журналАдреса(tx, user, project.id, project.orgId, before.name, {
+          surfaceKind: before.surfaceKind,
+          wallName: before.wall === null ? null : wallName(before.wall.order, before.wall.label),
+          qtySource: before.qtySource,
+        }, адрес);
       }
     });
 
@@ -928,6 +1270,13 @@ export class EstimatesService {
       }
     }
 
+    /* Адрес и источник новой позиции — тем же правилом, что в правке. */
+    const адрес = await this.адресПозиции(project.id, null, input, {
+      roomId: помещение?.id ?? null,
+      qty: BigInt(input.qty),
+      unit: input.unit,
+    });
+
     await this.prisma.$transaction(async (tx) => {
       const единица = await tx.unit.upsert({
         where: { orgId_code: { orgId: project.orgId, code: input.unit } },
@@ -951,6 +1300,7 @@ export class EstimatesService {
           unitPrice: kopecks(input.unitPrice),
           unitWage: kopecks(input.unitWage),
           roomId: помещение?.id ?? null,
+          ...адрес.data,
         },
       });
       /* Запись называет позицию целиком: что, сколько, почём и где. Ставка —
@@ -977,6 +1327,7 @@ export class EstimatesService {
         oldValue: null,
         newValue: formatKopecks(kopecks(input.unitWage)),
       }, tx);
+      await this.журналАдреса(tx, user, project.id, project.orgId, input.name, null, адрес);
     });
 
     return this.view(user, code);
