@@ -4687,6 +4687,7 @@ await page.waitForTimeout(300);
   const вЧислоПечати = (тысячные) => (Number(тысячные) / 1000).toFixed(2).replace(".", ",");
   const КОМНАТА = "Стены страницы";
   const СОСЕД = "Стены страницы: сосед";
+  const ТРЕТЬЕ = "Стены страницы: третье";
   const лист = () => page.locator(".sheet").first();
   const текстЛиста = async () => (await лист().innerText()).replace(/\n+/g, " · ");
   const поле = (подпись) => page.locator(`.sheet label.field:has(> .field__label:text-is("${подпись}")) input`);
@@ -4831,6 +4832,42 @@ await page.waitForTimeout(300);
     await page.click('.sheet .btn--text:has-text("Отмена")');
     await page.waitForTimeout(300);
 
+    /* П-89: «Привязать к этой стене» в строке нового помещения — два
+       запроса: заведение помещения и привязка. Привязка отказала (проём
+       удалили в другой сессии — здесь ответ 404 подменён перехватом) — лист
+       стоит на сохранённом помещении с отказом, а не на «Новом помещении». */
+    await page.click('button:has-text("Добавить помещение")');
+    await page.waitForSelector(".sheet input");
+    await поле("Название").fill(ТРЕТЬЕ);
+    await поле("Площадь пола, м²").fill("6");
+    await поле("Периметр пола, м.п.").fill("10");
+    await поле("Периметр потолка, м.п.").fill("10");
+    await поле("Высота, м").fill("2,7");
+    await page.click('.sheet button:has-text("Добавить стену")');
+    await page.waitForTimeout(120);
+    await ввестиДлину("3");
+    const ПРИВЯЗКА = "**/api/projects/R-72/measure/openings/**";
+    await page.route(ПРИВЯЗКА, (запрос) => (запрос.request().method() === "PATCH"
+      ? запрос.fulfill({
+        status: 404, contentType: "application/json",
+        body: JSON.stringify({ message: "Проём не найден или недоступен." }),
+      })
+      : запрос.continue()));
+    await нажать('.sheet fieldset[aria-label="Стена 1"] button:has-text("Привязать к этой стене")',
+      "«Привязать к этой стене» в строке нового помещения");
+    await page.waitForTimeout(1200);
+    await page.unroute(ПРИВЯЗКА);
+    const послеОтказа = ((await page.locator(".sheet .t-h3").first().textContent().catch(() => "")) ?? "").trim();
+    if (послеОтказа !== ТРЕТЬЕ) {
+      note("привязка второй стороны",
+        `после отказа привязки лист нового помещения не встал на сохранённое: «${послеОтказа}» (П-89)`);
+    }
+    if (!(await текстЛиста()).includes("Проём не найден или недоступен")) {
+      note("привязка второй стороны", "отказ привязки не показан в листе помещения");
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+
     /* Соседу заводят стену — его строка предлагает привязать дверь одним
        касанием; лист проёма открыт со стороны Б, фокус в откосах этой стороны. */
     await открыть(СОСЕД);
@@ -4913,7 +4950,7 @@ await page.waitForTimeout(300);
 
   /* Уборка: помещения обхода снимаются, замер R-72 возвращается пустым. */
   for (const комната of (await api("/projects/R-72/measure")).body?.rooms ?? []) {
-    if (комната.name === КОМНАТА || комната.name === СОСЕД) {
+    if (комната.name === КОМНАТА || комната.name === СОСЕД || комната.name === ТРЕТЬЕ) {
       await api(`/projects/R-72/measure/rooms/${комната.id}`, { method: "DELETE" });
     }
   }
