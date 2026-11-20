@@ -718,6 +718,9 @@ export class MeasureService {
       if (стеныПосле !== undefined) {
         await this.записатьСтены(tx, user, project.id, before, стеныПосле);
         if (стенПосле === 0 && before.walls.length > 0) {
+          /* Итоги называются теми, что сохранены этим же телом: лист со
+             снятой последней стеной присылает и введённые итоги, и запись
+             «итоги пусты» рядом с записью о них противоречила бы им (П-87). */
           await this.audit.record({
             orgId: user.orgId,
             actorId: user.id,
@@ -725,7 +728,7 @@ export class MeasureService {
             entityId: project.id,
             field: `${before.name} — стены сняты: помещение считается по четырём величинам`,
             oldValue: сколько(before.walls.length, "стена", "стены", "стен"),
-            newValue: "итоги проёмов пусты",
+            newValue: `итоги проёмов: ${проёмыДляЖурнала(input.openings ?? [])}`,
           }, tx);
         }
       }
