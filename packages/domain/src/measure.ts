@@ -353,7 +353,7 @@ export function wallsTolerance(ceilingPerimeter: Milliunits): Milliunits {
 
 /** Метры до тысячной, все три знака: «0,101 м» рядом с «0,100 м». */
 const метрыДоТысячной = (value: Milliunits): string =>
-  `${(value / MILLI).toString()},${(value % MILLI).toString().padStart(3, "0")} м`;
+  `${(value / MILLI).toString()},${(value % MILLI).toString().padStart(3, "0")}\u00A0м`;
 
 /**
  * Предупреждение Д15: сумма длин стен расходится с измеренным периметром
