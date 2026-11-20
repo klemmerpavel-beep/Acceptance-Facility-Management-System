@@ -1090,6 +1090,53 @@ export const measureOpeningSchema = z.object({
 });
 export type MeasureOpening = z.infer<typeof measureOpeningSchema>;
 
+/**
+ * Проём на стене в ответе (этап Э11, шаг 2). Проём — одна запись на два
+ * помещения, а в ответе он стоит у каждой стены, на которой стоит: сторона
+ * говорит, с какой стороны эта стена, откосы — этой стороны.
+ */
+export const measureWallOpeningSchema = z.object({
+  id: z.string().uuid(),
+  kind: openingKindSchema,
+  width: measureAmountSchema,
+  height: measureAmountSchema,
+  /** Площадь проёма — выводится доменом. */
+  area: measureAmountSchema,
+  /** «A» — стена, с которой проём заведён; «B» — стена соседа, привязанная к нему. */
+  side: z.enum(["A", "B"]),
+  /** Откосы этой стороны, тысячных м.п.; пусто — не измерены. */
+  reveal: measureAmountSchema.nullable(),
+  /** Другая сторона: помещение, стена и её откосы. Пусто — проём односторонний. */
+  other: z.object({
+    roomId: z.string().uuid(),
+    roomName: z.string(),
+    wallId: z.string().uuid(),
+    wallName: z.string(),
+    reveal: measureAmountSchema.nullable(),
+  }).nullable(),
+});
+export type MeasureWallOpening = z.infer<typeof measureWallOpeningSchema>;
+
+/** Стена помещения в ответе (этап Э11, шаг 2; ADR-0002, п. 1). */
+export const measureWallSchema = z.object({
+  id: z.string().uuid(),
+  /** Место стены в помещении, плотное 1..N. */
+  order: z.number().int().positive(),
+  label: z.string().nullable(),
+  /** «Стена 1 · у окна» — имя строки и журнала. */
+  name: z.string(),
+  length: measureAmountSchema,
+  /** Своя высота стены; пусто — высота помещения. */
+  height: measureAmountSchema.nullable(),
+  /** Площадь стены брутто и нетто — выводятся доменом, не хранятся. */
+  wallArea: measureAmountSchema,
+  wallAreaNet: measureAmountSchema,
+  /** Проёмы на стене больше её площади: нетто принята нулём. */
+  warning: z.string().nullable(),
+  openings: z.array(measureWallOpeningSchema),
+});
+export type MeasureWall = z.infer<typeof measureWallSchema>;
+
 export const measureRoomSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -1109,9 +1156,38 @@ export const measureRoomSchema = z.object({
    */
   wallAreaNet: measureAmountSchema,
   volume: measureAmountSchema,
+  /** Итоги проёмов по виду. У помещения со стенами пусто: первая стена их снимает. */
   openings: z.array(measureOpeningSchema),
+  /**
+   * Стены помещения (этап Э11, шаг 2). Пусто — помещение считается по
+   * четырём величинам, как на шаге 1; есть — площади стен выше — суммы по
+   * стенам.
+   */
+  walls: z.array(measureWallSchema),
+  /** Сумма длин стен; пусто — стен нет. */
+  wallsLength: measureAmountSchema.nullable(),
+  /** Предупреждение Д15: сумма длин расходится с периметром потолка сверх допуска. */
+  wallsWarning: z.string().nullable(),
+  /** Длина откосов своей стороны помещения — величина подстановки «откосы». */
+  revealLength: measureAmountSchema,
 });
 export type MeasureRoom = z.infer<typeof measureRoomSchema>;
+
+/**
+ * Проём без второй стороны (решение Э11-2.2 «а»). Строка стены другого
+ * помещения того же набора предлагает привязать его одним касанием.
+ */
+export const unboundOpeningSchema = z.object({
+  id: z.string().uuid(),
+  kind: openingKindSchema,
+  width: measureAmountSchema,
+  height: measureAmountSchema,
+  roomId: z.string().uuid(),
+  roomName: z.string(),
+  wallId: z.string().uuid(),
+  wallName: z.string(),
+});
+export type UnboundOpening = z.infer<typeof unboundOpeningSchema>;
 
 /** Итог проёмов одного вида по объекту (план, пункт 7.4). */
 export const openingTotalsSchema = z.object({
@@ -1165,6 +1241,8 @@ export const measureViewSchema = z.object({
   rooms: z.array(measureRoomSchema),
   totals: measureTotalsSchema,
   plan: measurePlanSchema.nullable(),
+  /** Проёмы набора без второй стороны — для предложения привязки. */
+  unboundOpenings: z.array(unboundOpeningSchema),
 });
 export type MeasureView = z.infer<typeof measureViewSchema>;
 
@@ -1187,6 +1265,23 @@ const inRange = (schema: typeof measureAmountSchema, min: number, max: number, w
     return amount >= min && amount <= max;
   }, `${what} вне допустимых границ`);
 
+/**
+ * Стена в теле сохранения помещения (этап Э11, шаг 2). Перечень стен
+ * присылается целиком, в порядке строк: стена с опознавателем правится,
+ * без него — заводится, прежняя, которой в перечне нет, — удаляется. Так
+ * лист помещения сохраняется одним действием, и первая стена снимает итоги
+ * проёмов тем же сохранением (решение Э11-2.1 «а»).
+ */
+export const measureWallInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  /** Подпись необязательна: без неё стена называется «Стена N». */
+  label: z.string().trim().max(40, "Слишком длинная подпись стены").nullable().optional(),
+  length: inRange(measureAmountSchema, 1, LENGTH_MAX, "Длина стены"),
+  /** Пусто — высота помещения. */
+  height: inRange(measureAmountSchema, HEIGHT_MIN, HEIGHT_MAX, "Высота стены").nullable().optional(),
+});
+export type MeasureWallInput = z.infer<typeof measureWallInputSchema>;
+
 export const createMeasureRoomSchema = z.object({
   name: z.string().trim().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
   floorArea: inRange(measureAmountSchema, 1, AREA_MAX, "Площадь пола"),
@@ -1203,11 +1298,51 @@ export const createMeasureRoomSchema = z.object({
       "Окна и двери вводятся одной строкой на вид: количество, площадь и откосы — общими.",
     )
     .optional(),
+  /** Стены помещения — перечнем целиком; отсутствие поля их не трогает. */
+  walls: z.array(measureWallInputSchema).max(40, "Стен в помещении не больше сорока")
+    .refine(
+      (стены) => {
+        const ids = стены.flatMap((стена) => (стена.id === undefined ? [] : [стена.id]));
+        return new Set(ids).size === ids.length;
+      },
+      "Одна стена встречается в перечне дважды.",
+    )
+    .optional(),
 });
 export type CreateMeasureRoom = z.infer<typeof createMeasureRoomSchema>;
 
 export const updateMeasureRoomSchema = createMeasureRoomSchema.partial();
 export type UpdateMeasureRoom = z.infer<typeof updateMeasureRoomSchema>;
+
+/**
+ * Заведение проёма со строки стены (этап Э11, шаг 2). Стена стороны А —
+ * из адреса запроса, вид — из тела: лист открывается кнопкой «Добавить
+ * окно» или «Добавить дверь» и их не переспрашивает.
+ *
+ * Сторона Б — стена соседнего помещения того же набора, необязательна:
+ * у соседа без стен проём сохраняется односторонним. Откосы второй стороны
+ * без её стены не вводятся.
+ */
+export const createWallOpeningSchema = z.object({
+  kind: openingKindSchema,
+  width: inRange(measureAmountSchema, 1, LENGTH_MAX, "Ширина проёма"),
+  height: inRange(measureAmountSchema, 1, HEIGHT_MAX, "Высота проёма"),
+  /* Откосы — измеренная длина, ноль законен (проём без откосов), предел —
+     тот же, что у длины: число сверх него не влезло бы в столбец базы и
+     вернулось бы ошибкой сервера вместо отказа. */
+  reveal: inRange(measureAmountSchema, 0, LENGTH_MAX, "Откосы проёма").nullable().optional(),
+  adjoiningWallId: z.string().uuid().nullable().optional(),
+  adjoiningReveal: inRange(measureAmountSchema, 0, LENGTH_MAX, "Откосы второй стороны").nullable().optional(),
+});
+export type CreateWallOpening = z.infer<typeof createWallOpeningSchema>;
+
+/**
+ * Правка проёма. `adjoiningWallId` — привязка второй стороны (предложение
+ * в строке стены соседа) или её снятие `null`; отсутствие поля её не
+ * трогает.
+ */
+export const updateWallOpeningSchema = createWallOpeningSchema.partial();
+export type UpdateWallOpening = z.infer<typeof updateWallOpeningSchema>;
 
 /* --- приёмка выполненных работ --------------------------------------------
    Внутренние величины (ставка, начисленное, свод по бригадам) объявлены

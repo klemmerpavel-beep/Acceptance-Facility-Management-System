@@ -1,13 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
-  MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom,
+  MeasureRoom, MeasureSetKind, MeasureView, CreateMeasureRoom, UpdateMeasureRoom, MeasureWallInput,
+  CreateWallOpening, UpdateWallOpening, MeasureWall,
 } from "@priyomka/contracts";
 import {
-  measureTotals, milliunits, roomVolume, wallArea, wallAreaNet, количествоТекстом, type RoomMeasure,
-  сколько,
+  measureTotals, milliunits, openingArea, openingText, openingTotalsText, revealLength, roomVolume,
+  singleWallArea, singleWallAreaNet, singleWallNetWarning, transferOpening, wallArea, wallAreaNet,
+  wallName, wallsLength, wallsLengthWarning, количествоТекстом, type RoomMeasure, сколько,
 } from "@priyomka/domain";
-import { Prisma } from "@prisma/client";
+import { Prisma, type WallOpening } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { AuditService } from "../common/audit.service";
 import { FileStorage } from "../common/file-storage";
@@ -15,6 +17,10 @@ import { безМетаданных } from "../common/clean-image";
 import type { RequestUser } from "../common/current-user";
 import { projectScope } from "../common/project-scope";
 import { detectImageType, ALLOWED_IMAGE_TYPES, IMAGE_EXTENSION } from "./image-type";
+import {
+  обмерСоСтенами, помещениеДляДомена, проёмДляДомена, стеныПоId, ROOM_WITH_WALLS,
+  type RoomWithWalls, type WallPlace,
+} from "./measure-load";
 
 /**
  * Обмерный план объекта.
@@ -45,47 +51,85 @@ const ЕДИНИЦА: Readonly<Record<(typeof MEASURED)[number], string>> = {
   height: "м",
 };
 
-interface RoomRow {
-  id: string;
-  name: string;
-  order: number;
-  floorArea: bigint;
-  floorPerimeter: bigint;
-  ceilingPerimeter: bigint;
-  height: bigint;
-  openings: { kind: "WINDOW" | "DOOR"; count: number; area: bigint; reveal: bigint }[];
-}
+/** Отказ: стены и итоги проёмов в одном теле — две записи об одних проёмах. */
+const СТЕНЫ_И_ИТОГИ = "У помещения со стенами итогов проёмов нет: с первой стеной оно считается по стенам,"
+  + " и окна и двери заводятся на стенах.";
 
-const asMeasure = (row: RoomRow): RoomMeasure => ({
-  floorArea: milliunits(row.floorArea),
-  floorPerimeter: milliunits(row.floorPerimeter),
-  ceilingPerimeter: milliunits(row.ceilingPerimeter),
-  height: milliunits(row.height),
-  /* Проёмы входят в итоги объекта (план, пункт 7.4): «Общее» называет окна и
-     двери так же, как площади. С этапа Э11 (шаг 1) их площадь вычитается из
-     площади стен нетто; брутто их по-прежнему не вычитает. */
-  openings: row.openings.map((opening) => ({
-    kind: opening.kind,
-    count: opening.count,
-    area: milliunits(opening.area),
-    reveal: milliunits(opening.reveal),
-  })),
-});
+/** Отказ: стена с опознавателем, которой у помещения нет. */
+const ЧУЖАЯ_СТЕНА = "Стены нет у этого помещения: перечень стен присылается своим помещением.";
 
-/** Проёмы помещения словами — для журнала: «окна 2 шт, 3,60 м², откосы 9,80 м.п.». */
-const проёмыДляЖурнала = (
-  openings: readonly { kind: "WINDOW" | "DOOR"; count: number; area: bigint | string; reveal: bigint | string }[],
-): string => {
-  if (openings.length === 0) return "нет";
-  return (["WINDOW", "DOOR"] as const)
-    .flatMap((вид) => openings.filter((проём) => проём.kind === вид))
-    .map((проём) => `${проём.kind === "WINDOW" ? "окна" : "двери"} ${String(проём.count)} шт, `
-      + `${количествоТекстом(milliunits(проём.area), "м²")}, откосы ${количествоТекстом(milliunits(проём.reveal), "м.п.")}`)
-    .join("; ");
+/** Отказ: откосы второй стороны без её стены. */
+const ОТКОСЫ_БЕЗ_СТЕНЫ = "Откосы второй стороны вводятся вместе с её стеной: выберите стену смежного помещения.";
+
+/** Длина или высота словами для журнала: «4,00 м». */
+const метры = (value: bigint): string => количествоТекстом(milliunits(value), "м");
+
+/** Стена в журнале: «длина 4,00 м, высота как у помещения». */
+const стенаДляЖурнала = (wall: { length: bigint; height: bigint | null }): string =>
+  `длина ${метры(wall.length)}, высота ${wall.height === null ? "как у помещения" : метры(wall.height)}`;
+
+/** Проём в журнале: «Дверь 0,80 × 2,10 м». */
+const проёмДляЖурнала = (opening: Pick<WallOpening, "kind" | "width" | "height">): string =>
+  openingText({ kind: opening.kind, width: milliunits(opening.width), height: milliunits(opening.height) });
+
+/** Откосы словами; не измерены — так и сказано. */
+const откосыДляЖурнала = (value: bigint | null): string =>
+  value === null ? "не измерены" : количествоТекстом(milliunits(value), "м.п.");
+
+/**
+ * Стена в ответе: величины, площади брутто и нетто тем же доменом, что
+ * помещение, и проёмы на ней с любой стороны — со стороной и соседом.
+ */
+const toWallDto = (
+  room: RoomMeasure,
+  wall: RoomWithWalls["walls"][number],
+  openings: readonly WallOpening[],
+  стены: ReadonlyMap<string, WallPlace>,
+): MeasureWall => {
+  const измерено = { id: wall.id, label: wall.label, length: milliunits(wall.length),
+    height: wall.height === null ? null : milliunits(wall.height) };
+  const наСтене = openings.filter((opening) => opening.wallId === wall.id || opening.adjoiningWallId === wall.id);
+  return {
+    id: wall.id,
+    order: wall.order,
+    label: wall.label,
+    name: wallName(wall.order, wall.label),
+    length: wall.length.toString(),
+    height: wall.height === null ? null : wall.height.toString(),
+    wallArea: singleWallArea(room, измерено).toString(),
+    wallAreaNet: singleWallAreaNet(room, измерено).toString(),
+    warning: singleWallNetWarning(room, измерено, wall.order),
+    openings: наСтене.map((opening) => {
+      const сторонаА = opening.wallId === wall.id;
+      const другаяСтена = сторонаА ? opening.adjoiningWallId : opening.wallId;
+      const другая = другаяСтена === null ? undefined : стены.get(другаяСтена);
+      return {
+        id: opening.id,
+        kind: opening.kind,
+        width: opening.width.toString(),
+        height: opening.height.toString(),
+        area: openingArea(проёмДляДомена(opening)).toString(),
+        side: сторонаА ? "A" as const : "B" as const,
+        reveal: (сторонаА ? opening.reveal : opening.adjoiningReveal)?.toString() ?? null,
+        other: другая === undefined ? null : {
+          roomId: другая.room.id,
+          roomName: другая.room.name,
+          wallId: другая.wall.id,
+          wallName: другая.name,
+          reveal: (сторонаА ? opening.adjoiningReveal : opening.reveal)?.toString() ?? null,
+        },
+      };
+    }),
+  };
 };
 
-const toRoomDto = (row: RoomRow): MeasureRoom => {
-  const measure = asMeasure(row);
+const toRoomDto = (
+  row: RoomWithWalls,
+  openings: readonly WallOpening[],
+  стены: ReadonlyMap<string, WallPlace>,
+): MeasureRoom => {
+  const measure = помещениеДляДомена(row, openings);
+  const длина = wallsLength(measure);
   return {
     id: row.id,
     name: row.name,
@@ -103,7 +147,23 @@ const toRoomDto = (row: RoomRow): MeasureRoom => {
       area: opening.area.toString(),
       reveal: opening.reveal.toString(),
     })),
+    walls: row.walls.map((wall) => toWallDto(measure, wall, openings, стены)),
+    wallsLength: длина === null ? null : длина.toString(),
+    wallsWarning: wallsLengthWarning(measure),
+    revealLength: revealLength(measure).toString(),
   };
+};
+
+/** Проёмы помещения словами — для журнала: «окна 2 шт, 3,60 м², откосы 9,80 м.п.». */
+const проёмыДляЖурнала = (
+  openings: readonly { kind: "WINDOW" | "DOOR"; count: number; area: bigint | string; reveal: bigint | string }[],
+): string => {
+  if (openings.length === 0) return "нет";
+  return (["WINDOW", "DOOR"] as const)
+    .flatMap((вид) => openings.filter((проём) => проём.kind === вид))
+    .map((проём) => `${проём.kind === "WINDOW" ? "окна" : "двери"} ${String(проём.count)} шт, `
+      + `${количествоТекстом(milliunits(проём.area), "м²")}, откосы ${количествоТекстом(milliunits(проём.reveal), "м.п.")}`)
+    .join("; ");
 };
 
 /**
@@ -150,7 +210,7 @@ export class MeasureService {
   private async roomOf(projectId: string, id: string) {
     const room = await this.prisma.measureRoom.findFirst({
       where: { id, projectId },
-      include: { openings: true },
+      include: ROOM_WITH_WALLS,
     });
     if (!room) {
       throw new NotFoundException({ message: "Помещение не найдено или недоступно." });
@@ -167,14 +227,14 @@ export class MeasureService {
    *
    * Рядом с набором идёт перечень заполненных: экран отличает
    * «перепланировки не было» от «перепланировка есть, но не выбрана».
+   *
+   * С этапа Э11 (шаг 2) помещение приходит со стенами и проёмами на них, а
+   * набор — с проёмами без второй стороны: строка стены соседа предлагает
+   * привязать их одним касанием (решение Э11-2.2 «а»).
    */
   async view(user: RequestUser, code: string, set: MeasureSetKind): Promise<MeasureView> {
     const project = await this.projectOf(user, code);
-    const rooms = await this.prisma.measureRoom.findMany({
-      where: { projectId: project.id, set },
-      include: { openings: true },
-      orderBy: { order: "asc" },
-    });
+    const { rooms, openings } = await обмерСоСтенами(this.prisma, { projectId: project.id, set });
     const plan = await this.prisma.measurePlan.findFirst({
       where: { projectId: project.id, set },
       include: { uploadedBy: { select: { name: true } } },
@@ -185,11 +245,12 @@ export class MeasureService {
       distinct: ["set"],
     });
 
-    const totals = measureTotals(rooms.map(asMeasure));
+    const стены = стеныПоId(rooms);
+    const totals = measureTotals(rooms.map((room) => помещениеДляДомена(room, openings)));
     return {
       set,
       filled: заполнены.map((строка) => строка.set),
-      rooms: rooms.map(toRoomDto),
+      rooms: rooms.map((room) => toRoomDto(room, openings, стены)),
       totals: {
         rooms: totals.rooms,
         floorArea: totals.floorArea.toString(),
@@ -216,6 +277,20 @@ export class MeasureService {
         uploadedAt: plan.uploadedAt.toISOString(),
         uploadedBy: plan.uploadedBy?.name ?? null,
       },
+      unboundOpenings: openings.flatMap((opening) => {
+        const место = стены.get(opening.wallId);
+        if (opening.adjoiningWallId !== null || место === undefined) return [];
+        return [{
+          id: opening.id,
+          kind: opening.kind,
+          width: opening.width.toString(),
+          height: opening.height.toString(),
+          roomId: место.room.id,
+          roomName: место.room.name,
+          wallId: место.wall.id,
+          wallName: место.name,
+        }];
+      }),
     };
   }
 
@@ -240,6 +315,13 @@ export class MeasureService {
    *
    * Переводятся позиции действующей редакции. Прежние редакции остаются на
    * своём основании: по ним считали тогда, и переписывать это незачем.
+   *
+   * Адрес поверхности (этап Э11, шаг 2; решение Э11-2.8 «б»): вид
+   * сохраняется, стена снимается всегда — стены принадлежат набору обмера, и
+   * стены начального обмера в новом помещении нет. Сопоставление по подписи
+   * угадывало бы: подписи необязательны, а «Стена 2» после перепланировки —
+   * не та стена. Источник количества не трогается: признак назовёт его
+   * «источник удалён» — позиция стоит уже не на его помещении.
    */
   private async перевестиПозиции(
     tx: Prisma.TransactionClient,
@@ -262,9 +344,12 @@ export class MeasureService {
     });
     if (редакция === null) return;
 
+    const соСтеной = await tx.estimateItem.count({
+      where: { estimateId: редакция.id, roomId: начальное.id, removedAt: null, NOT: { wallId: null } },
+    });
     const { count } = await tx.estimateItem.updateMany({
       where: { estimateId: редакция.id, roomId: начальное.id, removedAt: null },
-      data: { roomId: новоеПомещение },
+      data: { roomId: новоеПомещение, wallId: null },
     });
     if (count === 0) return;
 
@@ -277,6 +362,187 @@ export class MeasureService {
       oldValue: "начальный обмер",
       newValue: сколько(count, "позиция", "позиции", "позиций"),
     }, tx);
+    if (соСтеной > 0) {
+      await this.audit.record({
+        orgId,
+        actorId: user.id,
+        entity: "EstimateItem",
+        entityId: projectId,
+        field: `${имя} — стена адреса снята переводом: стены начального обмера в новом наборе нет`,
+        oldValue: "стена начального обмера",
+        newValue: `не выбрана у ${сколько(соСтеной, "позиции", "позиций", "позиций")}`,
+      }, tx);
+    }
+  }
+
+  /**
+   * Отказ, если на снимаемые стены ссылаются позиции сметы — по образцу
+   * помещения (`deleteRoom`): связь объявлена `SET NULL`, и прямое удаление
+   * сняло бы адрес «одна стена» с позиций молча. Считаются позиции всех
+   * редакций, как у помещения: прежние редакции стоят на своём основании.
+   */
+  private async отказСтенСПозициями(
+    roomName: string,
+    walls: readonly { id: string; order: number; label: string | null }[],
+  ): Promise<void> {
+    if (walls.length === 0) return;
+    const позиции = await this.prisma.estimateItem.findMany({
+      where: { wallId: { in: walls.map((wall) => wall.id) }, removedAt: null },
+      select: { wallId: true },
+    });
+    if (позиции.length === 0) return;
+    const поСтенам = walls
+      .map((wall) => ({ wall, n: позиции.filter((позиция) => позиция.wallId === wall.id).length }))
+      .filter(({ n }) => n > 0)
+      .map(({ wall, n }) => `${wallName(wall.order, wall.label)} — ${сколько(n, "позиция", "позиции", "позиций")}`);
+    throw new BadRequestException({
+      message: `На стены помещения «${roomName}» ссылаются позиции сметы: ${поСтенам.join(", ")}. `
+        + "Удаление сняло бы с них адрес молча. Перенесите позиции на другую стену или снимите адрес, "
+        + "затем удаляйте.",
+    });
+  }
+
+  /**
+   * Снятие стен в транзакции сохранения или удаления помещения (этап Э11,
+   * шаг 2). Проёмы решаются до удаления стен — каскад `wallId` удалил бы
+   * проём раньше, чем его передадут соседу:
+   *
+   *   стена — сторона А, сторона Б привязана: проём переходит к соседу,
+   *     откосы сторон меняются местами (решение Э11-2.3 «б», вместо прежнего
+   *     ADR-0002, п. 7); журнал называет переход;
+   *   стена — сторона А, стороны Б нет: проём удаляется каскадом;
+   *   стена — сторона Б: привязка снимается, откосы той стороны — тоже.
+   *
+   * `сПомещением` — стены уходят вместе с помещением: запись журнала об
+   * удалении помещения называет его, и строка на каждую стену была бы
+   * шумом. Переходы проёмов к соседям пишутся и тогда: они меняют соседа.
+   */
+  private async снятьСтены(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    projectId: string,
+    room: { name: string },
+    walls: readonly { id: string; order: number; label: string | null; length: bigint; height: bigint | null }[],
+    сПомещением: boolean,
+  ): Promise<void> {
+    const ids = new Set(walls.map((wall) => wall.id));
+    const затронуты = await tx.wallOpening.findMany({
+      where: { OR: [{ wallId: { in: [...ids] } }, { adjoiningWallId: { in: [...ids] } }] },
+      include: { wall: { include: { room: true } }, adjoiningWall: { include: { room: true } } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    const запись = (field: string, oldValue: string | null, newValue: string | null) =>
+      this.audit.record({
+        orgId: user.orgId, actorId: user.id, entity: "MeasureRoom", entityId: projectId,
+        field, oldValue, newValue,
+      }, tx);
+
+    for (const проём of затронуты) {
+      const текст = проёмДляЖурнала(проём);
+      const сторонаА = `«${проём.wall.room.name}», ${wallName(проём.wall.order, проём.wall.label)}`;
+      const сосед = проём.adjoiningWall;
+      if (ids.has(проём.wallId)) {
+        const перешёл = transferOpening(проёмДляДомена(проём));
+        if (перешёл !== null && сосед !== null && !ids.has(сосед.id)) {
+          await tx.wallOpening.update({
+            where: { id: проём.id },
+            data: {
+              wallId: перешёл.wallId,
+              adjoiningWallId: перешёл.adjoiningWallId,
+              reveal: перешёл.reveal,
+              adjoiningReveal: перешёл.adjoiningReveal,
+            },
+          });
+          await запись(
+            `${проём.wall.room.name} — ${текст} передан соседу`,
+            сторонаА,
+            `«${сосед.room.name}», ${wallName(сосед.order, сосед.label)}: `
+              + "его сторона стала первой, откосы сторон поменялись местами",
+          );
+        } else {
+          await запись(`${проём.wall.room.name} — ${текст} удалён вместе со стеной`, сторонаА, null);
+        }
+        continue;
+      }
+      if (сосед !== null) {
+        await tx.wallOpening.update({
+          where: { id: проём.id },
+          data: { adjoiningWallId: null, adjoiningReveal: null },
+        });
+        await запись(
+          `${проём.wall.room.name} — ${текст}: вторая сторона снята`,
+          `«${сосед.room.name}», ${wallName(сосед.order, сосед.label)}`,
+          "не привязана",
+        );
+      }
+    }
+
+    if (!сПомещением) {
+      for (const wall of walls) {
+        await запись(`${room.name} — ${wallName(wall.order, wall.label)} удалена`, стенаДляЖурнала(wall), null);
+      }
+    }
+    await tx.measureWall.deleteMany({ where: { id: { in: [...ids] } } });
+  }
+
+  /**
+   * Стены помещения перечнем целиком (этап Э11, шаг 2). Стена с
+   * опознавателем правится, без него — заводится; прежняя, которой в
+   * перечне нет, снимается (`снятьСтены`). Порядок — порядок перечня:
+   * «Стена N» называется по месту, и место плотное.
+   *
+   * Опознаватели постоянные: на стену ссылаются позиции сметы, и
+   * пересоздание строк, как у итогов проёмов, обнуляло бы их адрес каждым
+   * сохранением.
+   */
+  private async записатьСтены(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    projectId: string,
+    room: { id: string; name: string; walls: RoomWithWalls["walls"] },
+    стены: readonly MeasureWallInput[],
+  ): Promise<void> {
+    const прежние = new Map(room.walls.map((wall) => [wall.id, wall]));
+    const остаются = new Set(стены.flatMap((стена) => (стена.id === undefined ? [] : [стена.id])));
+    const снимаются = room.walls.filter((wall) => !остаются.has(wall.id));
+    if (снимаются.length > 0) await this.снятьСтены(tx, user, projectId, room, снимаются, false);
+
+    const запись = (field: string, oldValue: string | null, newValue: string | null) =>
+      this.audit.record({
+        orgId: user.orgId, actorId: user.id, entity: "MeasureRoom", entityId: projectId,
+        field, oldValue, newValue,
+      }, tx);
+
+    for (const [index, стена] of стены.entries()) {
+      const order = index + 1;
+      const подпись = стена.label?.trim() ?? "";
+      const label = подпись === "" ? null : подпись;
+      const length = BigInt(стена.length);
+      const height = стена.height === undefined || стена.height === null ? null : BigInt(стена.height);
+      const имя = wallName(order, label);
+      const прежняя = стена.id === undefined ? undefined : прежние.get(стена.id);
+      if (прежняя === undefined) {
+        await tx.measureWall.create({ data: { roomId: room.id, order, label, length, height } });
+        await запись(`${room.name} — ${имя} заведена`, null, стенаДляЖурнала({ length, height }));
+        continue;
+      }
+      await tx.measureWall.update({ where: { id: прежняя.id }, data: { order, label, length, height } });
+      /* Каждая величина — своей записью, словами и в единицах: спор звучит
+         как «кто поменял длину второй стены», а не «кто правил помещение». */
+      if (length !== прежняя.length) {
+        await запись(`${room.name} — ${имя}: длина`, метры(прежняя.length), метры(length));
+      }
+      if (height !== прежняя.height) {
+        await запись(
+          `${room.name} — ${имя}: высота`,
+          прежняя.height === null ? "как у помещения" : метры(прежняя.height),
+          height === null ? "как у помещения" : метры(height),
+        );
+      }
+      if (label !== прежняя.label) {
+        await запись(`${room.name} — ${имя}: подпись`, прежняя.label ?? "нет", label ?? "нет");
+      }
+    }
   }
 
   async createRoom(
@@ -303,6 +569,13 @@ export class MeasureService {
       throw new BadRequestException({
         message: `Помещение «${input.name}» в этом наборе обмера уже есть. Два одинаковых названия в одном наборе — ошибка замера: назовите «${input.name} 2».`,
       });
+    }
+    const стены = input.walls ?? [];
+    if (стены.length > 0 && (input.openings ?? []).length > 0) {
+      throw new BadRequestException({ message: СТЕНЫ_И_ИТОГИ });
+    }
+    if (стены.some((стена) => стена.id !== undefined)) {
+      throw new BadRequestException({ message: ЧУЖАЯ_СТЕНА });
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -336,6 +609,9 @@ export class MeasureService {
         oldValue: null,
         newValue: помещениеДляЖурнала(input.floorArea, input.height),
       }, tx);
+      if (стены.length > 0) {
+        await this.записатьСтены(tx, user, project.id, { id: заведено.id, name: input.name, walls: [] }, стены);
+      }
       if (set === "REPLANNED") {
         await this.перевестиПозиции(
           tx, user, project.id, user.orgId, input.name, заведено.id,
@@ -355,6 +631,25 @@ export class MeasureService {
     const project = await this.projectOf(user, code);
     const before = await this.roomOf(project.id, id);
 
+    /* Стены (этап Э11, шаг 2). С первой стеной помещение считается только
+       по стенам, и итогов проёмов у него нет (решение Э11-2.1 «а»): тело,
+       в котором есть и стены, и итоги, — две записи об одних и тех же
+       проёмах, и принимать его нельзя. Стена из другого помещения — отказ:
+       перечень присылается своим помещением. */
+    const стеныПосле = input.walls;
+    const стенПосле = стеныПосле?.length ?? before.walls.length;
+    if (стенПосле > 0 && (input.openings ?? []).length > 0) {
+      throw new BadRequestException({ message: СТЕНЫ_И_ИТОГИ });
+    }
+    if (стеныПосле !== undefined) {
+      const свои = new Set(before.walls.map((wall) => wall.id));
+      if (стеныПосле.some((стена) => стена.id !== undefined && !свои.has(стена.id))) {
+        throw new BadRequestException({ message: ЧУЖАЯ_СТЕНА });
+      }
+      const остаются = new Set(стеныПосле.flatMap((стена) => (стена.id === undefined ? [] : [стена.id])));
+      await this.отказСтенСПозициями(before.name, before.walls.filter((wall) => !остаются.has(wall.id)));
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.measureRoom.update({
         where: { id: before.id },
@@ -367,12 +662,32 @@ export class MeasureService {
         },
       });
 
-      /* Проёмы пишутся в журнал одной записью «было → стало» словами, в той
-         же транзакции (БП-10): прежде они пересоздавались молча, и спор
-         «кто убрал окно» разрешить было нечем. Запись делается, только если
-         проёмы и правда поменялись: лист присылает их при каждом
-         сохранении. */
-      if (input.openings !== undefined) {
+      /* Первая стена снимает итоги проёмов тем же сохранением (решение
+         Э11-2.1 «а»): о проёмах помещения остаётся одна запись — проёмы на
+         стенах. Снятие пишется в журнал было/стало словами и в единицах; лист
+         называет его до сохранения (`openingTotalsDropNote`). Прежние числа
+         не возвращаются и при удалении всех стен: поля итогов пусты. */
+      const первыеСтены = before.walls.length === 0 && стенПосле > 0;
+      if (первыеСтены && before.openings.length > 0) {
+        await this.audit.record({
+          orgId: user.orgId,
+          actorId: user.id,
+          entity: "MeasureRoom",
+          entityId: project.id,
+          field: `${before.name} — итоги проёмов сняты: помещение считается по стенам`,
+          oldValue: openingTotalsText(before.openings.map((opening) => ({
+            kind: opening.kind, count: opening.count,
+            area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+          }))),
+          newValue: "нет",
+        }, tx);
+        await tx.measureOpening.deleteMany({ where: { roomId: before.id } });
+      } else if (input.openings !== undefined && стенПосле === 0) {
+        /* Проёмы пишутся в журнал одной записью «было → стало» словами, в
+           той же транзакции (БП-10): прежде они пересоздавались молча, и
+           спор «кто убрал окно» разрешить было нечем. Запись делается, только
+           если проёмы и правда поменялись: лист присылает их при каждом
+           сохранении. */
         const было = проёмыДляЖурнала(before.openings);
         const стало = проёмыДляЖурнала(input.openings);
         if (было !== стало) {
@@ -397,6 +712,21 @@ export class MeasureService {
               reveal: BigInt(opening.reveal),
             },
           });
+        }
+      }
+
+      if (стеныПосле !== undefined) {
+        await this.записатьСтены(tx, user, project.id, before, стеныПосле);
+        if (стенПосле === 0 && before.walls.length > 0) {
+          await this.audit.record({
+            orgId: user.orgId,
+            actorId: user.id,
+            entity: "MeasureRoom",
+            entityId: project.id,
+            field: `${before.name} — стены сняты: помещение считается по четырём величинам`,
+            oldValue: сколько(before.walls.length, "стена", "стены", "стен"),
+            newValue: "итоги проёмов пусты",
+          }, tx);
         }
       }
 
@@ -460,6 +790,13 @@ export class MeasureService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      /* Стены уходят каскадом с помещением, но проёмы с привязанной
+         стороной Б сначала переходят к соседу (решение Э11-2.3 «б»):
+         удаление записи одного помещения — дубля, повторного ввода — не
+         вправе молча менять нетто соседнего. */
+      if (room.walls.length > 0) {
+        await this.снятьСтены(tx, user, project.id, room, room.walls, true);
+      }
       await tx.measureRoom.delete({ where: { id: room.id } });
       await this.audit.record({
         orgId: user.orgId,
@@ -473,6 +810,212 @@ export class MeasureService {
     });
 
     return this.view(user, code, room.set);
+  }
+
+  /**
+   * Стена внутри объекта: чужая и несуществующая дают одинаковый 404, как
+   * помещение.
+   */
+  private async стенаОбъекта(projectId: string, wallId: string) {
+    const стена = await this.prisma.measureWall.findFirst({
+      where: { id: wallId, room: { projectId } },
+      include: { room: true },
+    });
+    if (стена === null) {
+      throw new NotFoundException({ message: "Стена не найдена или недоступна." });
+    }
+    return стена;
+  }
+
+  /**
+   * Стена второй стороны проёма (ADR-0002, п. 2): стена соседнего помещения
+   * того же объекта и того же набора обмера. Ограничений базы на это нет —
+   * правило здесь, с отказом, который называет нарушенное.
+   */
+  private async стенаСоседа(
+    projectId: string,
+    сторонаА: { id: string; set: MeasureSetKind },
+    wallId: string,
+  ) {
+    const сосед = await this.prisma.measureWall.findFirst({
+      where: { id: wallId, room: { projectId } },
+      include: { room: true },
+    });
+    if (сосед === null) {
+      throw new BadRequestException({ message: "Стены второй стороны нет в обмере этого объекта." });
+    }
+    if (сосед.room.set !== сторонаА.set) {
+      throw new BadRequestException({
+        message: "Стена второй стороны — из другого набора обмера: проём соединяет помещения одного набора.",
+      });
+    }
+    if (сосед.room.id === сторонаА.id) {
+      throw new BadRequestException({
+        message: "Вторая сторона — стена соседнего помещения, а не этого же: проём соединяет два помещения.",
+      });
+    }
+    return сосед;
+  }
+
+  /**
+   * Заведение проёма со строки стены (этап Э11, шаг 2; решение Э11-2.4 «а»):
+   * стена стороны А — из адреса, вид — из тела. Вторая сторона
+   * необязательна: у соседа без стен проём сохраняется односторонним
+   * (решение Э11-2.2 «а»), сосед вычитает его своими итогами.
+   */
+  async createOpening(
+    user: RequestUser,
+    code: string,
+    wallId: string,
+    input: CreateWallOpening,
+  ): Promise<MeasureView> {
+    const project = await this.projectOf(user, code);
+    const стена = await this.стенаОбъекта(project.id, wallId);
+    const сторонаБ = input.adjoiningWallId ?? null;
+    if (сторонаБ === null && (input.adjoiningReveal ?? null) !== null) {
+      throw new BadRequestException({ message: ОТКОСЫ_БЕЗ_СТЕНЫ });
+    }
+    const сосед = сторонаБ === null ? null : await this.стенаСоседа(project.id, стена.room, сторонаБ);
+
+    await this.prisma.$transaction(async (tx) => {
+      const проём = await tx.wallOpening.create({
+        data: {
+          wallId: стена.id,
+          adjoiningWallId: сосед?.id ?? null,
+          kind: input.kind,
+          width: BigInt(input.width),
+          height: BigInt(input.height),
+          reveal: input.reveal === undefined || input.reveal === null ? null : BigInt(input.reveal),
+          adjoiningReveal: сосед === null || input.adjoiningReveal === undefined || input.adjoiningReveal === null
+            ? null
+            : BigInt(input.adjoiningReveal),
+        },
+      });
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "MeasureRoom",
+        entityId: project.id,
+        field: `${стена.room.name} — ${wallName(стена.order, стена.label)}: проём заведён`,
+        oldValue: null,
+        newValue: `${проёмДляЖурнала(проём)}, откосы ${откосыДляЖурнала(проём.reveal)}; `
+          + (сосед === null
+            ? "вторая сторона не привязана"
+            : `вторая сторона — «${сосед.room.name}», ${wallName(сосед.order, сосед.label)},`
+              + ` откосы ${откосыДляЖурнала(проём.adjoiningReveal)}`),
+      }, tx);
+    });
+
+    return this.view(user, code, стена.room.set);
+  }
+
+  /** Проём объекта с обеими стенами и их помещениями; чужой — 404. */
+  private async проёмОбъекта(projectId: string, id: string) {
+    const проём = await this.prisma.wallOpening.findFirst({
+      where: { id, wall: { room: { projectId } } },
+      include: { wall: { include: { room: true } }, adjoiningWall: { include: { room: true } } },
+    });
+    if (проём === null) {
+      throw new NotFoundException({ message: "Проём не найден или недоступен." });
+    }
+    return проём;
+  }
+
+  /**
+   * Правка проёма: размеры, откосы сторон, привязка второй стороны.
+   *
+   * Привязка — то самое «одно касание» в строке стены соседа (решение
+   * Э11-2.2 «а»): `adjoiningWallId` — стена соседа, `adjoiningReveal` —
+   * откосы его стороны. Новая вторая сторона без своих откосов получает
+   * пустые, а не прежние: прежние мерились у другой стены.
+   */
+  async updateOpening(
+    user: RequestUser,
+    code: string,
+    id: string,
+    input: UpdateWallOpening,
+  ): Promise<MeasureView> {
+    const project = await this.projectOf(user, code);
+    const before = await this.проёмОбъекта(project.id, id);
+
+    const сторонаБ = input.adjoiningWallId === undefined ? before.adjoiningWallId : input.adjoiningWallId;
+    const сменаБ = сторонаБ !== before.adjoiningWallId;
+    const сосед = !сменаБ
+      ? before.adjoiningWall
+      : сторонаБ === null ? null : await this.стенаСоседа(project.id, before.wall.room, сторонаБ);
+    let откосыБ: bigint | null;
+    if (сторонаБ === null) {
+      if ((input.adjoiningReveal ?? null) !== null) {
+        throw new BadRequestException({ message: ОТКОСЫ_БЕЗ_СТЕНЫ });
+      }
+      откосыБ = null;
+    } else if (input.adjoiningReveal !== undefined) {
+      откосыБ = input.adjoiningReveal === null ? null : BigInt(input.adjoiningReveal);
+    } else {
+      откосыБ = сменаБ ? null : before.adjoiningReveal;
+    }
+    const after = {
+      kind: input.kind ?? before.kind,
+      width: input.width === undefined ? before.width : BigInt(input.width),
+      height: input.height === undefined ? before.height : BigInt(input.height),
+      reveal: input.reveal === undefined ? before.reveal : input.reveal === null ? null : BigInt(input.reveal),
+      adjoiningWallId: сторонаБ,
+      adjoiningReveal: откосыБ,
+    };
+
+    const комнатаА = before.wall.room.name;
+    const текст = проёмДляЖурнала(before);
+    const где = (стена: typeof before.adjoiningWall): string =>
+      стена === null ? "не привязана" : `«${стена.room.name}», ${wallName(стена.order, стена.label)}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.wallOpening.update({ where: { id: before.id }, data: after });
+      const запись = (field: string, oldValue: string | null, newValue: string | null) =>
+        this.audit.record({
+          orgId: user.orgId, actorId: user.id, entity: "MeasureRoom", entityId: project.id,
+          field: `${комнатаА} — ${текст}: ${field}`, oldValue, newValue,
+        }, tx);
+      const стало = проёмДляЖурнала(after);
+      if (стало !== текст) await запись("вид и размеры", текст, стало);
+      if (after.reveal !== before.reveal) {
+        await запись(`откосы стороны «${комнатаА}»`, откосыДляЖурнала(before.reveal), откосыДляЖурнала(after.reveal));
+      }
+      if (сменаБ) await запись("вторая сторона", где(before.adjoiningWall), где(сосед));
+      if (сосед !== null && after.adjoiningReveal !== before.adjoiningReveal) {
+        await запись(
+          `откосы стороны «${сосед.room.name}»`,
+          сменаБ ? "не измерены" : откосыДляЖурнала(before.adjoiningReveal),
+          откосыДляЖурнала(after.adjoiningReveal),
+        );
+      }
+    });
+
+    return this.view(user, code, before.wall.room.set);
+  }
+
+  /** Удаление проёма — с обеих сторон сразу: запись одна на два помещения. */
+  async deleteOpening(user: RequestUser, code: string, id: string): Promise<MeasureView> {
+    const project = await this.projectOf(user, code);
+    const проём = await this.проёмОбъекта(project.id, id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.wallOpening.delete({ where: { id: проём.id } });
+      await this.audit.record({
+        orgId: user.orgId,
+        actorId: user.id,
+        entity: "MeasureRoom",
+        entityId: project.id,
+        field: `${проём.wall.room.name} — ${wallName(проём.wall.order, проём.wall.label)}: проём удалён`,
+        oldValue: проёмДляЖурнала(проём)
+          + (проём.adjoiningWall === null
+            ? ""
+            : `; вторая сторона — «${проём.adjoiningWall.room.name}», `
+              + wallName(проём.adjoiningWall.order, проём.adjoiningWall.label)),
+        newValue: null,
+      }, tx);
+    });
+
+    return this.view(user, code, проём.wall.room.set);
   }
 
   /**

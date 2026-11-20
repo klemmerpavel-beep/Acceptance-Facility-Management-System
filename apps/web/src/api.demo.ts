@@ -39,7 +39,7 @@ import {
   estimateSectionRemovalFault, expenseTotals, kopecks, measureTotals,
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
-  remainingQty, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
+  remainingQty, revealLength, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
   сколько,
@@ -152,7 +152,13 @@ let обмерВзят = false;
 /* Помещение в виде, который понимает домен. Проёмы входят обязательно: без
    них площадь стен нетто демонстрации совпала бы с брутто, а сервер их
    вычитает (этап Э11, шаг 1). */
-const какОбмер = (room: MeasureRoom) => ({
+/* Стены в двойнике — пункт 11.7 этапа Э11: слепок снят до шага 2, стен в
+   нём нет, и двойник считает помещения без стен — расчётом шага 1. Поля
+   стен он отдаёт пустыми, а не выдуманными: двойник показывает продукт, а
+   не макет. */
+type ПомещениеСлепка = Omit<MeasureRoom, "walls" | "wallsLength" | "wallsWarning" | "revealLength">;
+
+const какОбмер = (room: ПомещениеСлепка) => ({
   floorArea: milliunits(room.floorArea),
   floorPerimeter: milliunits(room.floorPerimeter),
   ceilingPerimeter: milliunits(room.ceilingPerimeter),
@@ -163,13 +169,17 @@ const какОбмер = (room: MeasureRoom) => ({
   })),
 });
 
-const measured = (room: MeasureRoom): MeasureRoom => {
+const measured = (room: ПомещениеСлепка): MeasureRoom => {
   const values = какОбмер(room);
   return {
     ...room,
     wallArea: wallArea(values).toString(),
     wallAreaNet: wallAreaNet(values).toString(),
     volume: roomVolume(values).toString(),
+    walls: [],
+    wallsLength: null,
+    wallsWarning: null,
+    revealLength: revealLength(values).toString(),
   };
 };
 
@@ -202,6 +212,7 @@ const measureView = (set: MeasureSetKind): MeasureView => {
       },
     },
     plan: measurePlan[set],
+    unboundOpenings: [],
   };
 };
 
@@ -1326,7 +1337,7 @@ export async function fetchMeasure(
 ): Promise<MeasureView> {
   await pause(220);
   if (code !== "R-99") {
-    return { set, filled: [], rooms: [], totals: measureView(set).totals, plan: null };
+    return { set, filled: [], rooms: [], totals: measureView(set).totals, plan: null, unboundOpenings: [] };
   }
   /* Слепок берётся один раз: дальше в памяти живёт правленое состояние, и
      повторное присвоение стёрло бы внесённое человеком. */
