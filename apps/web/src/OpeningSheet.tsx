@@ -6,7 +6,9 @@ import { formatMeasure } from "@priyomka/ui";
 import { milliunits, openingArea, singleWallAreaNet, type WallOpeningMeasure } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { toInput, toMilli } from "./RoomSheet.js";
-import { ВИД_ПРОЁМА, ДОБАВИТЬ_ПРОЁМ, обмерПомещения, проёмДомена, проёмСловами, стенаДомена } from "./walls.js";
+import {
+  ВИД_ПРОЁМА, ДОБАВИТЬ_ПРОЁМ, обмерПомещения, подсказкаСоседБезСтен, проёмДомена, проёмСловами, стенаДомена,
+} from "./walls.js";
 
 /**
  * Лист проёма (этап Э11, шаг 2; решения Э11-2.2 и Э11-2.4; норматив,
@@ -240,11 +242,7 @@ export function OpeningSheet({
                     </span>
                   </label>
                   {сосед !== null && сосед.walls.length === 0 && (
-                    <p className="field__hint" role="status">
-                      В помещении «{сосед.name}» стен нет — вторая сторона не привязана. «{сосед.name}»
-                      вычитает {kind === "DOOR" ? "двери" : "окна"} своими итогами; когда ему заведут стены,
-                      строка его стены предложит привязать {kind === "DOOR" ? "эту дверь" : "этот проём"}.
-                    </p>
+                    <p className="field__hint" role="status">{подсказкаСоседБезСтен(kind, сосед.name)}</p>
                   )}
                   {сосед !== null && сосед.walls.length > 0 && (
                     <>
