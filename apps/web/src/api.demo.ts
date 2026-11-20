@@ -1576,6 +1576,8 @@ export async function createRoom(
   };
   заведено.walls = записатьСтены(заведено, стены);
   measureRooms[set] = [...measureRooms[set], заведено];
+  /* Одноимённое помещение перепланировки переводит позиции — как сервер. */
+  if (set === "REPLANNED") перевестиПозиции(room.name, заведено);
   return measureView(set);
 }
 
@@ -1616,6 +1618,11 @@ export async function updateRoom(
   else if (room.openings !== undefined && стенПосле === 0) правка.openings = room.openings;
   if (room.walls !== undefined) правка.walls = записатьСтены(прежнее, room.walls);
   measureRooms[где] = measureRooms[где].map((existing) => (existing.id === id ? правка : existing));
+  /* Переименование помещения перепланировки в имя начального — то же
+     событие, что заведение: позиции переводятся, как у сервера. */
+  if (где === "REPLANNED" && room.name !== undefined && room.name !== прежнее.name) {
+    перевестиПозиции(room.name, правка);
+  }
   return measureView(где);
 }
 
@@ -2166,9 +2173,48 @@ const сметаR99 = (): EstimateView => {
     смета = structuredClone(data["estimate-owner"]);
     взятьАдреса(смета);
   }
+  приложитьПомещения(смета);
   приложитьАдреса(смета);
   return смета;
 };
+
+/**
+ * Помещения сметы — по обмеру двойника, как у сервера: список выбора —
+ * действующий набор, имя и набор позиции — те, что у помещения сейчас.
+ * Прежде список стоял слепком, и помещение, заведённое в демонстрации, в
+ * лист позиции не попадало (П-93).
+ */
+function приложитьПомещения(вид: EstimateView): void {
+  взятьОбмер();
+  const действующий: MeasureSetKind = measureRooms.REPLANNED.length > 0 ? "REPLANNED" : "INITIAL";
+  вид.replanned = measureRooms.REPLANNED.length > 0;
+  вид.rooms = measureRooms[действующий].map((room) => ({ id: room.id, name: room.name, set: действующий }));
+  const поId = new Map((["INITIAL", "REPLANNED"] as const)
+    .flatMap((set) => measureRooms[set].map((room) => [room.id, { id: room.id, name: room.name, set }] as const)));
+  for (const позиция of позицииСметы(вид)) {
+    if (позиция.room === null) continue;
+    позиция.room = поId.get(позиция.room.id) ?? позиция.room;
+  }
+}
+
+/**
+ * Перевод позиций сметы на одноимённое помещение перепланировки — как
+ * `перевестиПозиции` сервера (П-93): переводится ссылка и только ссылка,
+ * количество не пересчитывается; вид поверхности остаётся, стена снимается —
+ * стен начального обмера в новом наборе нет (решение Э11-2.8 «б»); источник
+ * не трогается — признак назовёт его «источник удалён».
+ */
+function перевестиПозиции(имя: string, новое: КомнатаДвойника): void {
+  const начальное = measureRooms.INITIAL.find((room) => room.name === имя);
+  if (начальное === undefined) return;
+  const вид = сметаR99();
+  for (const позиция of позицииСметы(вид)) {
+    if (позиция.room?.id !== начальное.id) continue;
+    позиция.room = { id: новое.id, name: новое.name, set: "REPLANNED" };
+    const адрес = адресаПозиций.get(позиция.id);
+    if (адрес !== undefined) адресаПозиций.set(позиция.id, { ...адрес, wallId: null });
+  }
+}
 
 /* --- адрес поверхности, источник и признак (этап Э11, шаг 2) ---------------
    Двойник хранит их так же, как база (миграция М-3): вид, стена и источник

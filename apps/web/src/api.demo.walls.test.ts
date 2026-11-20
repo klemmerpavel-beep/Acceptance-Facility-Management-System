@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { EstimateItem, EstimateView, MeasureRoom, MeasureView } from "@priyomka/contracts";
 import {
-  createOpening, deleteRoom, fetchEstimate, fetchMeasure, setDemoRole, updateEstimateItem, updateOpening,
-  updateRoom,
+  createOpening, createRoom, deleteRoom, fetchEstimate, fetchMeasure, setDemoRole, updateEstimateItem,
+  updateOpening, updateRoom,
 } from "./api.demo.js";
 
 /**
@@ -189,5 +189,51 @@ describe("двойник: адрес поверхности, источник и
     expect(вЛоджии?.room?.id).toBe(лоджия.id);
     expect(вЛоджии?.surface?.kind).toBe("WALL");
     expect(вЛоджии?.surface?.wall).toBeNull();
+  });
+});
+
+/**
+ * Перевод позиций на одноимённое помещение перепланировки (П-93) — правило
+ * `перевестиПозиции` сервера: прежде двойник его не повторял, и в
+ * демонстрации позиции оставались «из начального обмера», а правило Э11-2.8
+ * «перевод снимает стену» не было видно вовсе.
+ */
+describe("двойник: перевод позиций на перепланировку (этап Э11, шаг 2)", () => {
+  setDemoRole("OWNER");
+
+  it("одноимённое помещение перепланировки переводит позиции: вид остаётся, стена снимается, источник удалён", async () => {
+    const начальный = await fetchMeasure("R-99", "INITIAL");
+    const именаПосле = new Set((await fetchMeasure("R-99", "REPLANNED")).rooms.map((строка) => строка.name));
+    const смета = позиции(await fetchEstimate("R-99"));
+    const комната = начальный.rooms.find((строка) => !именаПосле.has(строка.name)
+      && смета.some((п) => п.room?.id === строка.id && п.unit === "м²" && п.qtyAccepted === "0"));
+    if (комната === undefined) throw new Error("в слепке нет помещения начального обмера без пары в перепланировке");
+    const наКомнате = смета.filter((п) => п.room?.id === комната.id);
+    const позиция = наКомнате.find((п) => п.unit === "м²" && п.qtyAccepted === "0");
+    if (позиция === undefined) throw new Error("на помещении нет позиции в м² без приёмки");
+
+    /* Стена начального обмера и позиция с адресом «одна стена» и источником с неё. */
+    const соСтеной = помещение(await updateRoom("R-99", комната.id, { walls: [{ length: "3000" }] }), комната.name);
+    const стена = соСтеной.walls[0];
+    if (стена === undefined) throw new Error("стена начального обмера не заведена");
+    await updateEstimateItem("R-99", позиция.id, {
+      surfaceKind: "WALL", wallId: стена.id, qty: стена.wallAreaNet, qtySource: "wall:wallAreaNet",
+    });
+
+    const заведено = await createRoom("R-99", "REPLANNED", величины(комната));
+    const новое = помещение(заведено, комната.name);
+    const после = await fetchEstimate("R-99");
+    const переведены = позиции(после).filter((п) => п.room?.id === новое.id);
+    expect(переведены.map((п) => п.id).sort()).toEqual(наКомнате.map((п) => п.id).sort());
+    expect(позиции(после).filter((п) => п.room?.id === комната.id)).toEqual([]);
+    expect(после.rooms.some((строка) => строка.id === новое.id && строка.set === "REPLANNED")).toBe(true);
+
+    const переведена = позиции(после).find((п) => п.id === позиция.id);
+    expect(переведена?.room).toEqual({ id: новое.id, name: комната.name, set: "REPLANNED" });
+    expect(переведена?.qty).toBe(стена.wallAreaNet);
+    expect(переведена?.surface?.kind).toBe("WALL");
+    expect(переведена?.surface?.wall).toBeNull();
+    expect(переведена?.surface?.source?.state).toBe("removed");
+    expect(переведена?.surface?.source?.drift).toContain("Позицию перевели на обмер после перепланировки");
   });
 });
