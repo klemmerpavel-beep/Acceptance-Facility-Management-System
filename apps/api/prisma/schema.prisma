@@ -77,6 +77,27 @@ enum OpeningKind {
   DOOR
 }
 
+/// Вид поверхности — адрес работы позиции сметы внутри помещения (этап Э11,
+/// шаг 2; ADR-0002, п. 3; решение Д4 от 07.11.2026). Пять видов и ни одного
+/// про запас: зоны части стены (фартук, плитка до высоты) в записанный
+/// перечень не входят и остаются второй очередью допроса.
+///
+/// Таблицы поверхностей нет: поверхность — «помещение + вид + стена», её
+/// площадь, периметр и длина откосов выводятся функциями домена. Отдельная
+/// таблица хранила бы строки, целиком выводимые из помещения и стен, —
+/// вторую правду о тех же числах.
+///
+/// FLOOR — пол; CEILING — потолок; WALLS — все стены помещения; WALL — одна
+/// стена (стена позиции обязательна по смыслу, но может быть снята переводом
+/// на перепланировку); REVEALS — откосы своей стороны помещения.
+enum SurfaceKind {
+  FLOOR
+  CEILING
+  WALLS
+  WALL
+  REVEALS
+}
+
 /// Набор обмера. Их ровно два, и это не заготовка под список: заказчик
 /// назвал задачу «второй набор — после перепланировки, рядом с начальным».
 /// Перечисление из двух значений отвечает на этот вопрос и ни на какой
@@ -506,18 +527,18 @@ model EstimateSection {
 
 /// Позиция сметы. Приёмке подлежат именно эти строки.
 model EstimateItem {
-  id         String @id @default(uuid()) @db.Uuid
-  estimateId String @db.Uuid
-  sectionId  String @db.Uuid
-  unitId     String @db.Uuid
-  name       String
-  order      Int
+  id              String       @id @default(uuid()) @db.Uuid
+  estimateId      String       @db.Uuid
+  sectionId       String       @db.Uuid
+  unitId          String       @db.Uuid
+  name            String
+  order           Int
   /// Количество в тысячных долях единицы измерения.
-  qty        BigInt
+  qty             BigInt
   /// Цена единицы и ставка оплаты труда, копейки.
-  unitPrice  BigInt
-  unitWage   BigInt @default(0)
-  sourceRow  Int?
+  unitPrice       BigInt
+  unitWage        BigInt       @default(0)
+  sourceRow       Int?
   /// Помещение обмера, работы которого ведёт позиция.
   ///
   /// Необязательно, и это не заготовка под обязательность: смета приходит
@@ -525,27 +546,58 @@ model EstimateItem {
   /// и нередко позже. Отдельного помещения «Без помещения» для таких
   /// позиций не заводится: строка обмера без замера попала бы в итоги
   /// площадей и развела бы их с обмерным планом.
-  roomId     String? @db.Uuid
+  roomId          String?      @db.Uuid
+  /// Адрес поверхности внутри помещения (этап Э11, шаг 2; решение Д4;
+  /// миграция М-3). Необязателен: у импортированных и прежних позиций его
+  /// нет, и выводить его из единицы или наименования было бы догадкой.
+  /// Ставит человек выбором (решение Э11-2.5 «а»).
+  surfaceKind     SurfaceKind?
+  /// Стена — только у вида «одна стена». Пусто при WALL — стена не выбрана
+  /// или снята переводом на перепланировку (решение Э11-2.8 «б»).
+  wallId          String?      @db.Uuid
+  /// Источник подставленного количества (решение Э11-2.7 «в»): строка
+  /// перечня подстановки с областью — «room:wallAreaNet», «wall:wallArea»,
+  /// «project:floorArea» (перечень — `QTY_SOURCES` домена). Область хранится
+  /// в самой строке, а не выводится из ссылок ниже: удаление помещения
+  /// обнуляет ссылку, и источник помещения выдал бы себя за итог объекта.
+  qtySource       String?
+  /// Подставленное число, тысячные доли единицы позиции. Количество позиции
+  /// остаётся копией: правка обмера его не меняет, признак «обмер
+  /// изменился» сравнивает это число с величиной источника сейчас.
+  qtySourceValue  BigInt?
+  /// Помещение и стена источника. SetNull: удаление в обмере не правит
+  /// смету молча — пустая ссылка при заданной области даёт «источник
+  /// удалён».
+  qtySourceRoomId String?      @db.Uuid
+  qtySourceWallId String?      @db.Uuid
   /// Позиция снята со сметы (план, пункт 7.3). Ставится только позиции, вся
   /// приёмка которой сторнирована: записи приёмки держат её внешним ключом,
   /// а история не переписывается. Снятая позиция не входит ни в вид сметы,
   /// ни в итоги, ни в приёмку; её записи приёмки и сторно остаются.
   /// Позицию без приёмки удаляют строкой — отметка ей не нужна.
-  removedAt  DateTime?
+  removedAt       DateTime?
 
-  estimate    Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
-  section     EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  unit        Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  estimate      Estimate        @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  section       EstimateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  unit          Unit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
   /// SetNull, а не Restrict: помещение удаляют в обмере, и смета не вправе
   /// запрещать правку обмера. Обрыв связи виден на экране словами
   /// «помещение не выбрано», а не молчит.
-  room        MeasureRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  acceptances Acceptance[]
-  actLines    ActLine[]
+  room          MeasureRoom?    @relation("ItemRoom", fields: [roomId], references: [id], onDelete: SetNull)
+  /// SetNull по тому же доводу, что у помещения; прямое удаление стены с
+  /// позициями служба замера предваряет отказом с числом позиций.
+  wall          MeasureWall?    @relation("ItemWall", fields: [wallId], references: [id], onDelete: SetNull)
+  qtySourceRoom MeasureRoom?    @relation("ItemSourceRoom", fields: [qtySourceRoomId], references: [id], onDelete: SetNull)
+  qtySourceWall MeasureWall?    @relation("ItemSourceWall", fields: [qtySourceWallId], references: [id], onDelete: SetNull)
+  acceptances   Acceptance[]
+  actLines      ActLine[]
 
   @@index([estimateId, order])
   @@index([sectionId, order])
   @@index([roomId])
+  @@index([wallId])
+  @@index([qtySourceRoomId])
+  @@index([qtySourceWallId])
   @@map("estimate_items")
 }
 
@@ -686,9 +738,16 @@ model MeasureRoom {
   height           BigInt
   createdAt        DateTime   @default(now())
 
-  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  openings MeasureOpening[]
-  items    EstimateItem[]
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Итоги проёмов по виду. Только у помещения без стен: первая сохранённая
+  /// стена снимает их тем же сохранением (решение Э11-2.1 «а»).
+  openings    MeasureOpening[]
+  /// Стены помещения (этап Э11, шаг 2). Нет стен — помещение считается по
+  /// четырём величинам, как на шаге 1; есть — только по стенам.
+  walls       MeasureWall[]
+  items       EstimateItem[]   @relation("ItemRoom")
+  /// Позиции, количество которых подставлено из величин этого помещения.
+  sourceItems EstimateItem[]   @relation("ItemSourceRoom")
 
   /// Имя помещения — то, чем прораб его называет; два «Санузла» в одном
   /// наборе это ошибка замера, а не данные. Заодно естественный ключ для
@@ -718,6 +777,94 @@ model MeasureOpening {
 
   @@unique([roomId, kind])
   @@map("measure_openings")
+}
+
+/// Стена помещения (этап Э11, шаг 2; ADR-0002, п. 1; миграция М-1).
+///
+/// Прораб измеряет длину; высоту — только если стена ниже или выше
+/// помещения (антресоль, подвесной потолок у одной стены): пустая высота
+/// значит «как у помещения», и правка высоты помещения переходит на такие
+/// стены сама. Число в поле на стене при этом хранило бы вторую правду и
+/// разошлось бы с помещением при первой правке. Материал, толщина и
+/// несущесть не вводятся: потребность не подтверждена.
+///
+/// Площадь стены брутто и нетто не хранится — её выводит домен
+/// (packages/domain/src/measure.ts), тем же правилом, что площадь стен
+/// помещения.
+///
+/// Опознаватель постоянный: стены не пересоздаются при сохранении листа
+/// помещения, как пересоздаются итоги проёмов. На стену ссылаются позиции
+/// сметы (адрес «одна стена»), и пересоздание обнуляло бы их адрес каждым
+/// сохранением.
+model MeasureWall {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @db.Uuid
+  /// Место стены в помещении, плотное 1..N: по нему стена называется
+  /// «Стена N», пока у неё нет подписи.
+  order     Int
+  /// Подпись прораба: «у окна». Необязательна.
+  label     String?
+  /// Тысячные доли метра, как величины помещения.
+  length    BigInt
+  /// Пусто — высота помещения.
+  height    BigInt?
+  createdAt DateTime @default(now())
+
+  room              MeasureRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  /// Проёмы, у которых эта стена — сторона А.
+  openings          WallOpening[]  @relation("OpeningWall")
+  /// Проёмы соседнего помещения, у которых эта стена — сторона Б.
+  adjoiningOpenings WallOpening[]  @relation("OpeningAdjoiningWall")
+  items             EstimateItem[] @relation("ItemWall")
+  sourceItems       EstimateItem[] @relation("ItemSourceWall")
+
+  @@index([roomId, order])
+  @@map("measure_walls")
+}
+
+/// Проём на стене — одна запись на два помещения, а не пара (этап Э11,
+/// шаг 2; ADR-0002, п. 2; миграция М-2).
+///
+/// Сторона А — стена, со строки которой проём заведён; сторона Б — стена
+/// соседнего помещения того же объекта и того же набора обмера,
+/// необязательна. Ссылки на помещение соседа без стены нет (решение
+/// Э11-2.2 «а»): пока у соседа стен нет, проём односторонний, и сосед
+/// вычитает его своими итогами.
+///
+/// Откосы — измеренные величины каждой стороны, а не вывод из размеров:
+/// довод у `OpeningKind` действует и здесь — откосы двери трёхсторонние и
+/// меряются по месту. Монтаж блока считается по проёму один раз, отделка —
+/// по каждой стороне.
+///
+/// Удаление стены стороны А каскадом удалило бы проём раньше, чем его
+/// передадут соседу (решение Э11-2.3 «б»), поэтому передачу делает служба
+/// замера до удаления, в той же транзакции; каскад остаётся для проёма без
+/// стороны Б. Удаление стены стороны Б снимает привязку.
+///
+/// Поля «высота от пола» нет: в расчёте шага 2 оно не участвует, а вводить
+/// ли его — вторая очередь допроса. Столбец, в который никто не пишет,
+/// был бы заготовкой; понадобится — добавится миграцией вперёд.
+model WallOpening {
+  id              String      @id @default(uuid()) @db.Uuid
+  /// Стена стороны А.
+  wallId          String      @db.Uuid
+  /// Стена стороны Б — соседнего помещения; пусто — проём односторонний.
+  adjoiningWallId String?     @db.Uuid
+  kind            OpeningKind
+  /// Тысячные доли метра.
+  width           BigInt
+  height          BigInt
+  /// Откосы стороны А и стороны Б, тысячных м.п. Пусто — не измерены.
+  reveal          BigInt?
+  adjoiningReveal BigInt?
+  createdAt       DateTime    @default(now())
+
+  wall          MeasureWall  @relation("OpeningWall", fields: [wallId], references: [id], onDelete: Cascade)
+  adjoiningWall MeasureWall? @relation("OpeningAdjoiningWall", fields: [adjoiningWallId], references: [id], onDelete: SetNull)
+
+  @@index([wallId])
+  @@index([adjoiningWallId])
+  @@map("wall_openings")
 }
 
 /// Изображение плана объекта. Один файл на набор обмера, не на помещение:
