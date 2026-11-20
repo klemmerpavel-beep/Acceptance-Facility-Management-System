@@ -1063,8 +1063,12 @@ for (const [имя, набор] of [["начальный", measure], ["посл�
 }
 check(measure.totals.wallAreaNet === "227523",
   `итог стен за вычетом проёмов ${measure.totals.wallAreaNet} вместо 227523 = 262953 − 15480 окон − 19950 дверей`);
-check(replanned.totals.wallAreaNet === "205840",
-  `итог стен за вычетом проёмов после перепланировки ${replanned.totals.wallAreaNet} вместо 205840`);
+/* Перепланировка: 233 010 − окна 15 480 − двери 11 690 = 205 840 по итогам;
+   с этапа Э11 (шаг 2) окно 1,50 × 1,40 между кухней-гостиной и лоджией —
+   общий проём двух помещений со стенами, и его 2 100 вычитаются и со
+   стороны лоджии: 205 840 − 2 100 = 203 740 (`apps/api/prisma/seed.mjs`). */
+check(replanned.totals.wallAreaNet === "203740",
+  `итог стен за вычетом проёмов после перепланировки ${replanned.totals.wallAreaNet} вместо 203740`);
 
 /* Четыре роли. Внутренних величин в обмере нет, и проекция у трёх ролей
    компании одна: бухгалтер и прораб получают те же числа, что руководитель.
@@ -2280,8 +2284,8 @@ if (probeId !== undefined) {
   if (комната !== undefined) {
     const убрано = await owner(`/projects/R-99/measure/rooms/${комната.id}`, { method: "DELETE" })
       .then((r) => r.json());
-    check(убрано.totals?.wallAreaNet === "205840",
-      `после уборки итог стен за вычетом проёмов после перепланировки ${убрано.totals?.wallAreaNet} вместо 205840`);
+    check(убрано.totals?.wallAreaNet === "203740",
+      `после уборки итог стен за вычетом проёмов после перепланировки ${убрано.totals?.wallAreaNet} вместо 203740`);
   }
   const послеУборки = await owner("/projects/R-99/measure").then((r) => r.json());
   check(послеУборки.totals.wallAreaNet === "227523" && послеУборки.totals.wallArea === "262953",
