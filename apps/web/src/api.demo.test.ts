@@ -4,7 +4,7 @@ import {
   fetchForemen, fetchImports, fetchMeasure, fetchProject, fetchProjects, fetchReport, fetchStages,
   fetchTranches, fetchWorkers, setDemoRole, type DemoRole,
 } from "./api.demo.js";
-import { measureViewSchema } from "@priyomka/contracts";
+import { measureViewSchema, type MeasureRoom, type UnboundOpening } from "@priyomka/contracts";
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 
 /**
@@ -181,6 +181,30 @@ describe("двойник: обмер считается как на сервер
       }));
     expect(производные(вид.rooms)).toEqual(производные(снято.rooms));
     expect(вид.totals).toEqual(снято.totals);
+    /* Стены и проёмы двух помещений (этап Э11, шаг 2): нетто каждой стены,
+       сторона и сосед проёма, Д15, откосы своей стороны и проёмы без второй
+       стороны — тем же доменом, что сервер. Проёмы — без порядка: сервер
+       ставит их по времени заведения, двойник — по слепку. */
+    const стены = (комнаты: readonly MeasureRoom[]) => комнаты.map((комната) => ({
+      name: комната.name,
+      wallsLength: комната.wallsLength,
+      wallsWarning: комната.wallsWarning,
+      revealLength: комната.revealLength,
+      walls: комната.walls.map((стена) => ({
+        ...стена,
+        openings: [...стена.openings].sort((а, б) => а.id.localeCompare(б.id)),
+      })),
+    }));
+    expect(стены(вид.rooms)).toEqual(стены(снято.rooms as MeasureRoom[]));
+    const поId = (проёмы: readonly UnboundOpening[]) => [...проёмы].sort((а, б) => а.id.localeCompare(б.id));
+    expect(поId(вид.unboundOpenings)).toEqual(поId(снято.unboundOpenings as UnboundOpening[]));
+    /* Сверка не на пустом месте: в наборе перепланировки слепок несёт
+       помещения со стенами и общий проём — его видно с обеих сторон. */
+    if (набор === "REPLANNED") {
+      const общий = вид.rooms.flatMap((комната) => комната.walls).flatMap((стена) => стена.openings)
+        .filter((проём) => проём.other !== null);
+      expect(new Set(общий.map((проём) => проём.side))).toEqual(new Set(["A", "B"]));
+    }
     // Проёмы на стенде есть, поэтому нетто обязана быть меньше брутто:
     // равенство значило бы, что вычет потерян по дороге.
     expect(BigInt(вид.totals.wallAreaNet)).toBeLessThan(BigInt(вид.totals.wallArea));

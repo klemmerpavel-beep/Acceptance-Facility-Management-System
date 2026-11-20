@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { завести } from "./verbs.js";
 import type {
-  CreateMeasureRoom, MeasureRoom, MeasureSetKind, MeasureView, Role,
+  CreateMeasureRoom, MeasureRoom, MeasureSetKind, MeasureView, MeasureWallOpening, Role,
 } from "@priyomka/contracts";
-import { milliunits, ownerLevel, wallAreaNetWarning, type RoomMeasure } from "@priyomka/domain";
+import { ownerLevel, wallAreaNetWarning } from "@priyomka/domain";
 import { formatMeasure } from "@priyomka/ui";
 import {
-  createRoom, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl, updateRoom, uploadPlan,
+  createOpening, createRoom, deleteOpening, deletePlan, deleteRoom, errorMessage, fetchMeasure, planUrl,
+  updateOpening, updateRoom, uploadPlan,
 } from "./api.js";
-import { RoomSheet } from "./RoomSheet.js";
+import { RoomSheet, type ПослеСохранения } from "./RoomSheet.js";
+import { OpeningSheet } from "./OpeningSheet.js";
 import { Announce } from "./Announce.js";
+import { обмерПомещения, проёмыВидаПоСтенам } from "./walls.js";
 
 /**
  * Вкладка «Замер» карточки объекта.
@@ -73,17 +76,23 @@ const ROOM_DETAIL = [
 
 const KIND_LABEL = { WINDOW: "Окна", DOOR: "Двери" } as const;
 
-/** Помещение ответа в виде, который понимает домен: предупреждение считает он, а не экран. */
-const какОбмер = (room: MeasureRoom): RoomMeasure => ({
-  floorArea: milliunits(room.floorArea),
-  floorPerimeter: milliunits(room.floorPerimeter),
-  ceilingPerimeter: milliunits(room.ceilingPerimeter),
-  height: milliunits(room.height),
-  openings: room.openings.map((opening) => ({
-    kind: opening.kind, count: opening.count,
-    area: milliunits(opening.area), reveal: milliunits(opening.reveal),
-  })),
-});
+/**
+ * Открытый лист вкладки. Лист проёма открывается со строки стены листа
+ * помещения и возвращает в него (`07_IA.md`, раздел 11.2): после сохранения
+ * проёма прораб продолжает с той же стеной, а не ищет помещение заново.
+ * `ключ` пересоздаёт лист помещения из сохранённого: после сохранения его
+ * поля равны ответу сервера, а не набранному.
+ */
+type Лист =
+  | { вид: "помещение"; room: MeasureRoom | null; ключ: number; стена?: string }
+  | {
+      вид: "проём";
+      roomId: string;
+      wallId: string;
+      kind: MeasureWallOpening["kind"];
+      openingId: string | null;
+      откосы: boolean;
+    };
 
 export function Measure({
   code,
@@ -101,7 +110,7 @@ export function Measure({
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [detailed, setDetailed] = useState(false);
-  const [editing, setEditing] = useState<{ room: MeasureRoom | null } | null>(null);
+  const [лист, setЛист] = useState<Лист | null>(null);
   const [busy, setBusy] = useState(false);
   /* Добавленное и удалённое помещение видно перерисовкой списка —
      перерисовка чтением с экрана не объявляется. */
@@ -129,9 +138,9 @@ export function Measure({
     setView(null);
   };
 
-  const apply = (next: MeasureView): void => {
+  const apply = (next: MeasureView, затем: Лист | null = null): void => {
     setView(next);
-    setEditing(null);
+    setЛист(затем);
     setSheetError(null);
     onEvents();
   };
@@ -144,6 +153,86 @@ export function Measure({
       .finally(() => { setBusy(false); });
   };
 
+  /** Лист помещения заново из сохранённого — после проёма и удаления стены. */
+  const кПомещению = (next: MeasureView, roomId: string, стена?: string): Лист | null => {
+    const room = next.rooms.find((строка) => строка.id === roomId);
+    return room === undefined ? null : { вид: "помещение", room, ключ: Date.now(), ...(стена === undefined ? {} : { стена }) };
+  };
+
+  /**
+   * Сохранение листа помещения и следующее действие (этап Э11, шаг 2).
+   * Проём, его правка и привязка второй стороны живут на сохранённой стене:
+   * лист с несохранённым сначала сохраняется, затем открывается лист проёма
+   * той стены — по месту строки, опознавателя у новой стены до сохранения нет.
+   */
+  const сохранитьПомещение = (
+    прежнее: MeasureRoom | null,
+    body: CreateMeasureRoom | null,
+    после: ПослеСохранения | undefined,
+  ): void => {
+    if (view === null) return;
+    setBusy(true);
+    const сохранено: Promise<MeasureView> = body === null
+      ? Promise.resolve(view)
+      : прежнее === null ? createRoom(code, set, body) : updateRoom(code, прежнее.id, body);
+    const сказано = body === null
+      ? null
+      : прежнее === null ? `Помещение «${body.name}» добавлено` : `Помещение «${body.name}» изменено`;
+    сохранено
+      .then(async (next) => {
+        const room = прежнее === null
+          ? next.rooms.find((строка) => строка.name === body?.name)
+          : next.rooms.find((строка) => строка.id === прежнее.id);
+        if (после === undefined || room === undefined) {
+          apply(next);
+          setОбъявление(сказано);
+          return;
+        }
+        if (после.вид === "остаться") {
+          apply(next, кПомещению(next, room.id));
+          setОбъявление(сказано);
+          return;
+        }
+        const wall = room.walls.find((стена) => стена.order === после.стена);
+        if (wall === undefined) {
+          apply(next, кПомещению(next, room.id));
+          return;
+        }
+        if (после.вид === "проём") {
+          apply(next, { вид: "проём", roomId: room.id, wallId: wall.id, kind: после.kind, openingId: null, откосы: false });
+          return;
+        }
+        if (после.вид === "правка проёма") {
+          const проём = wall.openings.find((строка) => строка.id === после.openingId);
+          apply(next, проём === undefined ? кПомещению(next, room.id) : {
+            вид: "проём", roomId: room.id, wallId: wall.id, kind: проём.kind, openingId: проём.id, откосы: false,
+          });
+          return;
+        }
+        /* Привязка второй стороны одним касанием (решение Э11-2.2 «а»): проём
+           соседа встаёт на эту стену, и лист открывается на откосах этой
+           стороны — их меряют по месту. */
+        const привязано = await updateOpening(code, после.openingId, { adjoiningWallId: wall.id });
+        const проём = привязано.rooms.find((строка) => строка.id === room.id)?.walls
+          .find((стена) => стена.id === wall.id)?.openings.find((строка) => строка.id === после.openingId);
+        apply(привязано, проём === undefined ? кПомещению(привязано, room.id) : {
+          вид: "проём", roomId: room.id, wallId: wall.id, kind: проём.kind, openingId: проём.id, откосы: true,
+        });
+        setОбъявление(`Проём привязан к стене «${wall.name}»`);
+      })
+      .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
+      .finally(() => { setBusy(false); });
+  };
+
+  /** Действие листа проёма: после него — снова лист помещения. */
+  const проёмом = (action: Promise<MeasureView>, roomId: string, wallId: string, сказать: string): void => {
+    setBusy(true);
+    action
+      .then((next) => { apply(next, кПомещению(next, roomId, wallId)); setОбъявление(сказать); })
+      .catch((cause: unknown) => { setSheetError(errorMessage(cause)); })
+      .finally(() => { setBusy(false); });
+  };
+
   if (error !== null) return <p className="field__error" role="alert">{error}</p>;
   if (view === null) return <p className="t-sm t-muted">Загружаем обмер…</p>;
 
@@ -152,7 +241,7 @@ export function Measure({
   const selected = rooms.find((room) => room.id === current) ?? rooms[0] ?? null;
   /* Проёмы больше стен: нетто показана нулём, и молчать об этом нельзя —
      ноль уйдёт в смету подстановкой (`wallAreaNet`, предупреждение, а не отказ). */
-  const проёмыБольшеСтен = selected === null ? null : wallAreaNetWarning(какОбмер(selected));
+  const проёмыБольшеСтен = selected === null ? null : wallAreaNetWarning(обмерПомещения(selected));
 
   const plan = (
     <div className="stack stack--tight">
@@ -306,7 +395,7 @@ export function Measure({
                   : "Помещения вносит прораб или руководитель на объекте.")}
             </p>
             {editable && (
-              <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
+              <button type="button" className="btn btn--primary" onClick={() => { setЛист({ вид: "помещение", room: null, ключ: Date.now() }); }}>
                 {завести("помещение")}
               </button>
             )}
@@ -363,11 +452,34 @@ export function Measure({
                           <span className="spec__value">{formatMeasure(BigInt(selected[line.key]), line.unit)}</span>
                         </span>
                       ))}
+                      {/* Помещение со стенами считается по стенам (этап Э11,
+                          шаг 2): плашка называет, сколько их и какова сумма
+                          длин — против неё сверяется периметр потолка. */}
+                      {selected.walls.length > 0 && (
+                        <span className="spec__item">
+                          Стен
+                          <span className="spec__value">{selected.walls.length}</span>
+                        </span>
+                      )}
+                      {detailed && selected.wallsLength !== null && (
+                        <span className="spec__item">
+                          Сумма длин стен
+                          <span className="spec__value">{formatMeasure(BigInt(selected.wallsLength), "м")}</span>
+                        </span>
+                      )}
                     </p>
                   </div>
 
                   {(["WINDOW", "DOOR"] as const).map((kind) => {
-                    const opening = selected.openings.find((item) => item.kind === kind);
+                    /* У помещения со стенами итогов проёмов нет: окна и двери —
+                       проёмы на его стенах с любой стороны, откосы — этой
+                       стороны (решение Э11-2.1 «а»). */
+                    const поСтенам = проёмыВидаПоСтенам(selected, kind);
+                    const opening = selected.walls.length > 0
+                      ? (поСтенам.count === 0 ? undefined : {
+                        count: поСтенам.count, area: поСтенам.area.toString(), reveal: поСтенам.reveal.toString(),
+                      })
+                      : selected.openings.find((item) => item.kind === kind);
                     return (
                       <div key={kind}>
                         <p className="measure__cap">{KIND_LABEL[kind]}</p>
@@ -400,13 +512,18 @@ export function Measure({
             {проёмыБольшеСтен !== null && (
               <p className="panel panel--pad t-sm" role="note">{проёмыБольшеСтен}</p>
             )}
+            {/* Допуск Д15 — предупреждение, а не отказ: обмер сохранён, но
+                сумма длин стен расходится с периметром потолка. */}
+            {selected.wallsWarning !== null && (
+              <p className="panel panel--pad t-sm" role="note">{selected.wallsWarning}</p>
+            )}
 
             {editable && (
               <div className="row row--wrap">
-                <button type="button" className="btn btn--primary" onClick={() => { setEditing({ room: null }); }}>
+                <button type="button" className="btn btn--primary" onClick={() => { setЛист({ вид: "помещение", room: null, ключ: Date.now() }); }}>
                   {завести("помещение")}
                 </button>
-                <button type="button" className="btn btn--secondary" onClick={() => { setEditing({ room: selected }); }}>
+                <button type="button" className="btn btn--secondary" onClick={() => { setЛист({ вид: "помещение", room: selected, ключ: Date.now() }); }}>
                   Править помещение
                 </button>
               </div>
@@ -474,22 +591,54 @@ export function Measure({
         </table>
       </section>
 
-      {editing !== null && (
+      {лист?.вид === "помещение" && (
         <RoomSheet
-          room={editing.room}
+          key={`${лист.room?.id ?? "новое"}-${String(лист.ключ)}`}
+          room={лист.room}
+          wallInView={лист.стена ?? null}
+          unbound={view.unboundOpenings}
           busy={busy}
           error={sheetError}
-          onSave={(room: CreateMeasureRoom) => {
-            run(editing.room === null ? createRoom(code, set, room) : updateRoom(code, editing.room.id, room),
-              editing.room === null ? `Помещение «${room.name}» добавлено` : `Помещение «${room.name}» изменено`);
-          }}
-          onDelete={editing.room === null ? null : () => {
-            const id = editing.room?.id;
+          onSave={(room, после) => { сохранитьПомещение(лист.room, room, после); }}
+          onDelete={лист.room === null ? null : () => {
+            const id = лист.room?.id;
             if (id !== undefined) { setCurrent(null); run(deleteRoom(code, id), "Помещение удалено"); }
           }}
-          onClose={() => { setEditing(null); setSheetError(null); }}
+          onClose={() => { setЛист(null); setSheetError(null); }}
         />
       )}
+
+      {лист?.вид === "проём" && (() => {
+        const room = rooms.find((строка) => строка.id === лист.roomId);
+        const wall = room?.walls.find((стена) => стена.id === лист.wallId);
+        if (room === undefined || wall === undefined) return null;
+        const opening = лист.openingId === null
+          ? null
+          : wall.openings.find((строка) => строка.id === лист.openingId) ?? null;
+        const назад = (): void => { setЛист(кПомещению(view, room.id, wall.id)); setSheetError(null); };
+        return (
+          <OpeningSheet
+            key={`${wall.id}-${лист.openingId ?? "новый"}`}
+            room={room}
+            wall={wall}
+            kind={лист.kind}
+            opening={opening}
+            neighbours={rooms.filter((строка) => строка.id !== room.id)}
+            revealFirst={лист.откосы}
+            busy={busy}
+            error={sheetError}
+            onCreate={(input) => {
+              проёмом(createOpening(code, wall.id, input), room.id, wall.id,
+                `${input.kind === "WINDOW" ? "Окно добавлено" : "Дверь добавлена"} на «${wall.name}»`);
+            }}
+            onUpdate={(input) => {
+              проёмом(updateOpening(code, opening?.id ?? "", input), room.id, wall.id, "Проём сохранён");
+            }}
+            onDelete={() => { проёмом(deleteOpening(code, opening?.id ?? ""), room.id, wall.id, "Проём удалён"); }}
+            onClose={назад}
+          />
+        );
+      })()}
     </div>
   );
 }

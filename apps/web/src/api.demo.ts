@@ -14,6 +14,7 @@ import type {
   CreateLead, CreateLeadTask, LeadBoard, LeadCard, LoseLead, RepairType,
   UpdateLead, UpdateLeadTask,
   ClientRow, ClosedTranches, CreateMeasureRoom, CurrentUser, Dashboard, EstimateView, ImportRecord, ImportReport,
+  CreateWallOpening, EstimateItemSurface, MeasureOpening, MeasureWall, MeasureWallInput, UpdateWallOpening,
   ActCorrection, ActRow, ActView, CreateExpense, ExpenseView, MaterialExpense,
   BlueprintRow, BlueprintView, CreateBlueprint,
   DocumentClause, DocumentTemplate, IssuedDocument, SaveTemplate, TemplateKind, TemplateRow,
@@ -40,6 +41,10 @@ import {
   milliunits, nextClientCode, nextProjectCode, nextTrancheNumber, projectRange,
   trancheFault, trancheFill, trancheRemainder,
   remainingQty, revealLength, roomVolume, stageDateFault, taskState, wallArea, wallAreaNet,
+  measureDrift, measureDriftNote, openingArea, qtySourceFault, qtySourceMismatch, qtySourceNote, qtySourceScope,
+  qtySourceValue, singleWallArea, singleWallAreaNet, singleWallNetWarning, surfaceFault, transferOpening, wallName,
+  wallsLength, wallsLengthWarning,
+  type Milliunits, type QtySource, type RoomMeasure, type SurfaceKind, type WallOpeningMeasure,
   fillTemplate, formatKopecks, templateFault, ownerLevel,
   type ProjectRange,
   сколько,
@@ -50,6 +55,7 @@ import {
 import snapshot from "./demo/snapshot.json" with { type: "json" };
 import { естьСнимок, снимокОбъекта } from "./demo/photos.js";
 import { деньМгновения, местныйДень } from "./today.js";
+import { проёмыСтен, стенаДомена } from "./walls.js";
 
 interface Snapshot {
   /** Факты объектов для «Выполнено N из M» (пункт 7.8), по коду; снимает руководитель. */
@@ -145,53 +151,145 @@ const changedFields = new Map<string, UpdateProject>();
 /* Обмер в демонстрации ведётся по наборам — как и на сервере. Один
    изменяемый набор на оба вида означал бы, что переключатель ничего не
    переключает, и заказчик увидел бы это первым же нажатием. */
-let measureRooms: Record<MeasureSetKind, MeasureRoom[]> = { INITIAL: [], REPLANNED: [] };
+
+/* Стены и проёмы двух помещений (этап Э11, шаг 2). Двойник держит их так
+   же, как база: стены — у помещения, проём — одной записью на два
+   помещения со стороной А и необязательной стороной Б. Ответ собирается
+   тем же доменом, что у сервера (`measure.service.ts`, `toRoomDto`), и
+   слепок сервера — мерило двойника (`api.demo.test.ts`). */
+interface СтенаДвойника {
+  id: string;
+  order: number;
+  label: string | null;
+  length: string;
+  height: string | null;
+}
+
+interface КомнатаДвойника {
+  id: string;
+  name: string;
+  order: number;
+  floorArea: string;
+  floorPerimeter: string;
+  ceilingPerimeter: string;
+  height: string;
+  /** Итоги проёмов — только у помещения без стен. */
+  openings: MeasureOpening[];
+  walls: СтенаДвойника[];
+}
+
+let measureRooms: Record<MeasureSetKind, КомнатаДвойника[]> = { INITIAL: [], REPLANNED: [] };
 let measurePlan: Record<MeasureSetKind, MeasureView["plan"]> = { INITIAL: null, REPLANNED: null };
+/** Проёмы на стенах обоих наборов: запись одна на два помещения. */
+let проёмыДвойника: WallOpeningMeasure[] = [];
 let обмерВзят = false;
 
-/* Помещение в виде, который понимает домен. Проёмы входят обязательно: без
-   них площадь стен нетто демонстрации совпала бы с брутто, а сервер их
-   вычитает (этап Э11, шаг 1). */
-/* Стены в двойнике — пункт 11.7 этапа Э11: слепок снят до шага 2, стен в
-   нём нет, и двойник считает помещения без стен — расчётом шага 1. Поля
-   стен он отдаёт пустыми, а не выдуманными: двойник показывает продукт, а
-   не макет. */
-type ПомещениеСлепка = Omit<MeasureRoom, "walls" | "wallsLength" | "wallsWarning" | "revealLength">;
-
-const какОбмер = (room: ПомещениеСлепка) => ({
-  floorArea: milliunits(room.floorArea),
-  floorPerimeter: milliunits(room.floorPerimeter),
-  ceilingPerimeter: milliunits(room.ceilingPerimeter),
-  height: milliunits(room.height),
-  openings: room.openings.map((opening) => ({
-    kind: opening.kind, count: opening.count,
-    area: milliunits(opening.area), reveal: milliunits(opening.reveal),
-  })),
-});
-
-const measured = (room: ПомещениеСлепка): MeasureRoom => {
-  const values = какОбмер(room);
+/** Помещение двойника в виде, который понимает домен, — как `помещениеДляДомена` сервера. */
+const обмерКомнаты = (room: КомнатаДвойника): RoomMeasure => {
+  const свои = new Set(room.walls.map((wall) => wall.id));
   return {
-    ...room,
+    floorArea: milliunits(room.floorArea),
+    floorPerimeter: milliunits(room.floorPerimeter),
+    ceilingPerimeter: milliunits(room.ceilingPerimeter),
+    height: milliunits(room.height),
+    openings: room.openings.map((opening) => ({
+      kind: opening.kind, count: opening.count,
+      area: milliunits(opening.area), reveal: milliunits(opening.reveal),
+    })),
+    walls: room.walls.map(стенаДомена),
+    wallOpenings: проёмыДвойника.filter((opening) => свои.has(opening.wallId)
+      || (opening.adjoiningWallId !== null && свои.has(opening.adjoiningWallId))),
+  };
+};
+
+/** Где стоит стена: помещение, стена и имя «Стена 1 · у окна» — как `стеныПоId` сервера. */
+interface МестоСтены { room: КомнатаДвойника; wall: СтенаДвойника; name: string }
+const стеныДвойника = (rooms: readonly КомнатаДвойника[]): Map<string, МестоСтены> => {
+  const указатель = new Map<string, МестоСтены>();
+  for (const room of rooms) {
+    for (const wall of room.walls) указатель.set(wall.id, { room, wall, name: wallName(wall.order, wall.label) });
+  }
+  return указатель;
+};
+
+/** Стена в ответе — как `toWallDto` сервера. */
+const стенаОтвета = (
+  measure: RoomMeasure,
+  wall: СтенаДвойника,
+  указатель: ReadonlyMap<string, МестоСтены>,
+): MeasureWall => {
+  const измерено = стенаДомена(wall);
+  return {
+    id: wall.id,
+    order: wall.order,
+    label: wall.label,
+    name: wallName(wall.order, wall.label),
+    length: wall.length,
+    height: wall.height,
+    wallArea: singleWallArea(measure, измерено).toString(),
+    wallAreaNet: singleWallAreaNet(measure, измерено).toString(),
+    warning: singleWallNetWarning(measure, измерено, wall.order),
+    openings: проёмыДвойника
+      .filter((opening) => opening.wallId === wall.id || opening.adjoiningWallId === wall.id)
+      .map((opening) => {
+        const сторонаА = opening.wallId === wall.id;
+        const другаяСтена = сторонаА ? opening.adjoiningWallId : opening.wallId;
+        const другая = другаяСтена === null ? undefined : указатель.get(другаяСтена);
+        const своиОткосы = сторонаА ? opening.reveal : opening.adjoiningReveal;
+        const ихОткосы = сторонаА ? opening.adjoiningReveal : opening.reveal;
+        return {
+          id: opening.id,
+          kind: opening.kind,
+          width: opening.width.toString(),
+          height: opening.height.toString(),
+          area: openingArea(opening).toString(),
+          side: сторонаА ? "A" as const : "B" as const,
+          reveal: своиОткосы === null ? null : своиОткосы.toString(),
+          other: другая === undefined ? null : {
+            roomId: другая.room.id,
+            roomName: другая.room.name,
+            wallId: другая.wall.id,
+            wallName: другая.name,
+            reveal: ихОткосы === null ? null : ихОткосы.toString(),
+          },
+        };
+      }),
+  };
+};
+
+/** Помещение в ответе — как `toRoomDto` сервера. */
+const measured = (room: КомнатаДвойника, указатель: ReadonlyMap<string, МестоСтены>): MeasureRoom => {
+  const values = обмерКомнаты(room);
+  const длина = wallsLength(values);
+  return {
+    id: room.id,
+    name: room.name,
+    order: room.order,
+    floorArea: room.floorArea,
+    floorPerimeter: room.floorPerimeter,
+    ceilingPerimeter: room.ceilingPerimeter,
+    height: room.height,
     wallArea: wallArea(values).toString(),
     wallAreaNet: wallAreaNet(values).toString(),
     volume: roomVolume(values).toString(),
-    walls: [],
-    wallsLength: null,
-    wallsWarning: null,
+    openings: room.openings,
+    walls: room.walls.map((wall) => стенаОтвета(values, wall, указатель)),
+    wallsLength: длина === null ? null : длина.toString(),
+    wallsWarning: wallsLengthWarning(values),
     revealLength: revealLength(values).toString(),
   };
 };
 
 const measureView = (set: MeasureSetKind): MeasureView => {
   const комнаты = measureRooms[set];
-  const totals = measureTotals(комнаты.map(какОбмер));
+  const указатель = стеныДвойника(комнаты);
+  const totals = measureTotals(комнаты.map(обмерКомнаты));
   return {
     set,
     /* Заполненные наборы считаются по составу, а не помечаются отдельно:
        вторая правда о том же разошлась бы с первой при первом удалении. */
     filled: (["INITIAL", "REPLANNED"] as const).filter((вид) => measureRooms[вид].length > 0),
-    rooms: комнаты,
+    rooms: комнаты.map((room) => measured(room, указатель)),
     totals: {
       rooms: totals.rooms,
       floorArea: totals.floorArea.toString(),
@@ -212,9 +310,59 @@ const measureView = (set: MeasureSetKind): MeasureView => {
       },
     },
     plan: measurePlan[set],
-    unboundOpenings: [],
+    /* Проёмы набора без второй стороны (решение Э11-2.2 «а»). */
+    unboundOpenings: проёмыДвойника.flatMap((opening) => {
+      const место = указатель.get(opening.wallId);
+      if (opening.adjoiningWallId !== null || место === undefined) return [];
+      return [{
+        id: opening.id,
+        kind: opening.kind,
+        width: opening.width.toString(),
+        height: opening.height.toString(),
+        roomId: место.room.id,
+        roomName: место.room.name,
+        wallId: место.wall.id,
+        wallName: место.name,
+      }];
+    }),
   };
 };
+
+/**
+ * Обмер слепка берётся один раз: дальше в памяти живёт правленое состояние,
+ * и повторное присвоение стёрло бы внесённое человеком. Производные
+ * пересчитываются доменом и у снятых помещений: двойник считает сам, как
+ * сервер, а не повторяет слепок. Расхождение с числами сервера в слепке
+ * ловит `api.demo.test.ts`.
+ */
+function взятьОбмер(): void {
+  if (обмерВзят) return;
+  обмерВзят = true;
+  const изСлепка = (room: MeasureRoom): КомнатаДвойника => ({
+    id: room.id,
+    name: room.name,
+    order: room.order,
+    floorArea: room.floorArea,
+    floorPerimeter: room.floorPerimeter,
+    ceilingPerimeter: room.ceilingPerimeter,
+    height: room.height,
+    openings: room.openings,
+    walls: room.walls.map((wall) => ({
+      id: wall.id, order: wall.order, label: wall.label, length: wall.length, height: wall.height,
+    })),
+  });
+  const снятые = [...data.measure.rooms, ...data["measure-replanned"].rooms];
+  measureRooms = {
+    INITIAL: data.measure.rooms.map(изСлепка),
+    REPLANNED: data["measure-replanned"].rooms.map(изСлепка),
+  };
+  /* Проём в слепке стоит у каждой своей стены; запись — одна. */
+  проёмыДвойника = проёмыСтен(снятые);
+  measurePlan = {
+    INITIAL: data.measure.plan,
+    REPLANNED: data["measure-replanned"].plan,
+  };
+}
 
 /**
  * Приведение отказа к тексту для экрана. Двойник обязан повторять весь
@@ -1339,23 +1487,66 @@ export async function fetchMeasure(
   if (code !== "R-99") {
     return { set, filled: [], rooms: [], totals: measureView(set).totals, plan: null, unboundOpenings: [] };
   }
-  /* Слепок берётся один раз: дальше в памяти живёт правленое состояние, и
-     повторное присвоение стёрло бы внесённое человеком. */
-  if (!обмерВзят) {
-    обмерВзят = true;
-    /* Производные пересчитываются доменом и у снятых помещений: двойник
-       считает сам, как сервер, а не повторяет слепок. Расхождение с числами
-       сервера в слепке ловит `api.demo.test.ts`. */
-    measureRooms = {
-      INITIAL: data.measure.rooms.map(measured),
-      REPLANNED: data["measure-replanned"].rooms.map(measured),
-    };
-    measurePlan = {
-      INITIAL: data.measure.plan,
-      REPLANNED: data["measure-replanned"].plan,
-    };
-  }
+  взятьОбмер();
   return measureView(set);
+}
+
+/* Отказы двойника — словами сервера (`measure.service.ts`): демонстрация,
+   послушнее продукта, показывала бы не продукт, а макет. */
+const СТЕНЫ_И_ИТОГИ = "У помещения со стенами итогов проёмов нет: с первой стеной оно считается по стенам,"
+  + " и окна и двери заводятся на стенах.";
+const ЧУЖАЯ_СТЕНА = "Стены нет у этого помещения: перечень стен присылается своим помещением.";
+const ОТКОСЫ_БЕЗ_СТЕНЫ = "Откосы второй стороны вводятся вместе с её стеной: выберите стену смежного помещения.";
+
+/** Позиции сметы двойника, что стоят на стене, — по адресу поверхности. */
+const позицийНаСтене = (wallId: string): number =>
+  [...адресаПозиций.values()].filter((адрес) => адрес.wallId === wallId).length;
+
+/**
+ * Стены помещения перечнем целиком — как `записатьСтены` сервера: стена с
+ * опознавателем правится, без него — заводится, прежняя, которой в перечне
+ * нет, — снимается; проём снимаемой стены стороны А с привязанной стороной
+ * Б переходит к соседу (решение Э11-2.3 «б»), без неё — удаляется.
+ */
+function записатьСтены(room: КомнатаДвойника, стены: readonly MeasureWallInput[]): СтенаДвойника[] {
+  const остаются = new Set(стены.flatMap((стена) => (стена.id === undefined ? [] : [стена.id])));
+  снятьСтены(room.walls.filter((wall) => !остаются.has(wall.id)));
+  return стены.map((стена, index) => {
+    const подпись = стена.label?.trim() ?? "";
+    return {
+      id: стена.id ?? новыйId(),
+      order: index + 1,
+      label: подпись === "" ? null : подпись,
+      length: стена.length,
+      height: стена.height ?? null,
+    };
+  });
+}
+
+/** Снятие стен: проёмы решаются до удаления — как `снятьСтены` сервера. */
+function снятьСтены(walls: readonly СтенаДвойника[]): void {
+  const ids = new Set(walls.map((wall) => wall.id));
+  проёмыДвойника = проёмыДвойника.flatMap((opening) => {
+    if (ids.has(opening.wallId)) {
+      const перешёл = transferOpening(opening);
+      return перешёл !== null && !ids.has(перешёл.wallId) ? [перешёл] : [];
+    }
+    if (opening.adjoiningWallId !== null && ids.has(opening.adjoiningWallId)) {
+      return [{ ...opening, adjoiningWallId: null, adjoiningReveal: null }];
+    }
+    return [opening];
+  });
+}
+
+/** Отказ, если на снимаемые стены ссылаются позиции сметы, — как у сервера. */
+function отказСтенСПозициями(roomName: string, walls: readonly СтенаДвойника[]): void {
+  const поСтенам = walls
+    .map((wall) => ({ wall, n: позицийНаСтене(wall.id) }))
+    .filter(({ n }) => n > 0)
+    .map(({ wall, n }) => `${wallName(wall.order, wall.label)} — ${сколько(n, "позиция", "позиции", "позиций")}`);
+  if (поСтенам.length === 0) return;
+  throw new Error(`На стены помещения «${roomName}» ссылаются позиции сметы: ${поСтенам.join(", ")}. `
+    + "Удаление сняло бы с них адрес молча. Перенесите позиции на другую стену или снимите адрес, затем удаляйте.");
 }
 
 /** Правка обмера в демонстрации: сервера нет, но кнопка обязана работать. */
@@ -1365,22 +1556,26 @@ export async function createRoom(
   room: CreateMeasureRoom,
 ): Promise<MeasureView> {
   await pause(260);
+  взятьОбмер();
   if (measureRooms[set].some((existing) => existing.name === room.name)) {
     throw new Error(`Помещение «${room.name}» в этом наборе обмера уже есть.`);
   }
-  measureRooms[set] = [...measureRooms[set], measured({
-    id: `demo-${set}-${String(measureRooms[set].length + 1)}`,
+  const стены = room.walls ?? [];
+  if (стены.length > 0 && (room.openings ?? []).length > 0) throw new Error(СТЕНЫ_И_ИТОГИ);
+  if (стены.some((стена) => стена.id !== undefined)) throw new Error(ЧУЖАЯ_СТЕНА);
+  const заведено: КомнатаДвойника = {
+    id: новыйId(),
     name: room.name,
     order: measureRooms[set].length + 1,
     floorArea: room.floorArea,
     floorPerimeter: room.floorPerimeter,
     ceilingPerimeter: room.ceilingPerimeter,
     height: room.height,
-    wallArea: "0",
-    wallAreaNet: "0",
-    volume: "0",
     openings: room.openings ?? [],
-  })];
+    walls: [],
+  };
+  заведено.walls = записатьСтены(заведено, стены);
+  measureRooms[set] = [...measureRooms[set], заведено];
   return measureView(set);
 }
 
@@ -1390,17 +1585,37 @@ export async function updateRoom(
   room: UpdateMeasureRoom,
 ): Promise<MeasureView> {
   await pause(260);
-  // Спред объединил бы необязательные поля запроса с обязательными полями
-  // помещения и подставил undefined там, где правки не было.
-  const patch = Object.fromEntries(
-    Object.entries(room).filter(([, value]) => value !== undefined),
-  ) as Partial<MeasureRoom>;
+  взятьОбмер();
   /* Набор ищется по помещению — тем же правилом, что на сервере: правят
      то, что открыто, и называть набор вторым местом незачем. */
   const где = наборПомещения(id);
-  measureRooms[где] = measureRooms[где].map((existing) =>
-    existing.id === id ? measured({ ...existing, ...patch }) : existing,
-  );
+  const прежнее = measureRooms[где].find((existing) => existing.id === id);
+  if (прежнее === undefined) throw new Error("Помещение не найдено или недоступно.");
+
+  /* Стены (этап Э11, шаг 2) — те же правила, что у сервера: стены и итоги
+     в одном теле — отказ, чужая стена — отказ, стена с позициями — отказ;
+     первая стена снимает итоги проёмов. */
+  const стенПосле = room.walls?.length ?? прежнее.walls.length;
+  if (стенПосле > 0 && (room.openings ?? []).length > 0) throw new Error(СТЕНЫ_И_ИТОГИ);
+  if (room.walls !== undefined) {
+    const свои = new Set(прежнее.walls.map((wall) => wall.id));
+    if (room.walls.some((стена) => стена.id !== undefined && !свои.has(стена.id))) throw new Error(ЧУЖАЯ_СТЕНА);
+    const остаются = new Set(room.walls.flatMap((стена) => (стена.id === undefined ? [] : [стена.id])));
+    отказСтенСПозициями(прежнее.name, прежнее.walls.filter((wall) => !остаются.has(wall.id)));
+  }
+
+  const правка: КомнатаДвойника = {
+    ...прежнее,
+    name: room.name ?? прежнее.name,
+    floorArea: room.floorArea ?? прежнее.floorArea,
+    floorPerimeter: room.floorPerimeter ?? прежнее.floorPerimeter,
+    ceilingPerimeter: room.ceilingPerimeter ?? прежнее.ceilingPerimeter,
+    height: room.height ?? прежнее.height,
+  };
+  if (прежнее.walls.length === 0 && стенПосле > 0) правка.openings = [];
+  else if (room.openings !== undefined && стенПосле === 0) правка.openings = room.openings;
+  if (room.walls !== undefined) правка.walls = записатьСтены(прежнее, room.walls);
+  measureRooms[где] = measureRooms[где].map((existing) => (existing.id === id ? правка : existing));
   return measureView(где);
 }
 
@@ -1410,9 +1625,112 @@ const наборПомещения = (id: string): MeasureSetKind =>
 
 export async function deleteRoom(_code: string, id: string): Promise<MeasureView> {
   await pause(220);
+  взятьОбмер();
   const где = наборПомещения(id);
-  measureRooms[где] = measureRooms[где].filter((room) => room.id !== id);
+  const room = measureRooms[где].find((existing) => existing.id === id);
+  if (room === undefined) throw new Error("Помещение не найдено или недоступно.");
+  /* Позиции сметы на помещении — отказ с числом, как у сервера: удаление
+     сняло бы с них основание количества молча. */
+  const привязано = позицииСметы(сметаR99()).filter((позиция) => позиция.room?.id === id).length;
+  if (привязано > 0) {
+    throw new Error(`К помещению «${room.name}» привязано позиций сметы: ${String(привязано)}. `
+      + "Удаление сняло бы с них основание количества молча. Перенесите их в другое помещение или отвяжите, "
+      + "затем удаляйте.");
+  }
+  снятьСтены(room.walls);
+  measureRooms[где] = measureRooms[где].filter((existing) => existing.id !== id);
   return measureView(где);
+}
+
+/** Стена объекта и её помещение; нет — отказ, как у сервера. */
+const стенаДвойника = (wallId: string): МестоСтены & { set: MeasureSetKind } => {
+  for (const set of ["INITIAL", "REPLANNED"] as const) {
+    const место = стеныДвойника(measureRooms[set]).get(wallId);
+    if (место !== undefined) return { ...место, set };
+  }
+  throw new Error("Стена не найдена или недоступна.");
+};
+
+/** Стена второй стороны: стена соседнего помещения того же набора. */
+const стенаСоседа = (сторонаА: { room: КомнатаДвойника; set: MeasureSetKind }, wallId: string): string => {
+  const сосед = (() => {
+    try { return стенаДвойника(wallId); } catch { return null; }
+  })();
+  if (сосед === null) throw new Error("Стены второй стороны нет в обмере этого объекта.");
+  if (сосед.set !== сторонаА.set) {
+    throw new Error("Стена второй стороны — из другого набора обмера: проём соединяет помещения одного набора.");
+  }
+  if (сосед.room.id === сторонаА.room.id) {
+    throw new Error("Вторая сторона — стена соседнего помещения, а не этого же: проём соединяет два помещения.");
+  }
+  return сосед.wall.id;
+};
+
+const необязательно = (value: string | null | undefined): Milliunits | null =>
+  value === undefined || value === null ? null : milliunits(value);
+
+/** Проём со строки стены (этап Э11, шаг 2) — правила `createOpening` сервера. */
+export async function createOpening(_code: string, wallId: string, input: CreateWallOpening): Promise<MeasureView> {
+  await pause(220);
+  взятьОбмер();
+  const стена = стенаДвойника(wallId);
+  const сторонаБ = input.adjoiningWallId ?? null;
+  if (сторонаБ === null && (input.adjoiningReveal ?? null) !== null) throw new Error(ОТКОСЫ_БЕЗ_СТЕНЫ);
+  const соседняя = сторонаБ === null ? null : стенаСоседа(стена, сторонаБ);
+  проёмыДвойника = [...проёмыДвойника, {
+    id: новыйId(),
+    kind: input.kind,
+    width: milliunits(input.width),
+    height: milliunits(input.height),
+    wallId: стена.wall.id,
+    adjoiningWallId: соседняя,
+    reveal: необязательно(input.reveal),
+    adjoiningReveal: соседняя === null ? null : необязательно(input.adjoiningReveal),
+  }];
+  return measureView(стена.set);
+}
+
+/** Правка проёма и привязка второй стороны — правила `updateOpening` сервера. */
+export async function updateOpening(_code: string, id: string, input: UpdateWallOpening): Promise<MeasureView> {
+  await pause(220);
+  взятьОбмер();
+  const before = проёмыДвойника.find((opening) => opening.id === id);
+  if (before === undefined) throw new Error("Проём не найден или недоступен.");
+  const стена = стенаДвойника(before.wallId);
+  const сторонаБ = input.adjoiningWallId === undefined ? before.adjoiningWallId : input.adjoiningWallId;
+  const сменаБ = сторонаБ !== before.adjoiningWallId;
+  const соседняя = !сменаБ || сторонаБ === null ? сторонаБ : стенаСоседа(стена, сторонаБ);
+  let откосыБ: Milliunits | null;
+  if (соседняя === null) {
+    if ((input.adjoiningReveal ?? null) !== null) throw new Error(ОТКОСЫ_БЕЗ_СТЕНЫ);
+    откосыБ = null;
+  } else if (input.adjoiningReveal !== undefined) {
+    откосыБ = необязательно(input.adjoiningReveal);
+  } else {
+    откосыБ = сменаБ ? null : before.adjoiningReveal;
+  }
+  const after: WallOpeningMeasure = {
+    ...before,
+    kind: input.kind ?? before.kind,
+    width: input.width === undefined ? before.width : milliunits(input.width),
+    height: input.height === undefined ? before.height : milliunits(input.height),
+    reveal: input.reveal === undefined ? before.reveal : необязательно(input.reveal),
+    adjoiningWallId: соседняя,
+    adjoiningReveal: откосыБ,
+  };
+  проёмыДвойника = проёмыДвойника.map((opening) => (opening.id === id ? after : opening));
+  return measureView(стена.set);
+}
+
+/** Удаление проёма — с обеих сторон сразу: запись одна на два помещения. */
+export async function deleteOpening(_code: string, id: string): Promise<MeasureView> {
+  await pause(200);
+  взятьОбмер();
+  const проём = проёмыДвойника.find((opening) => opening.id === id);
+  if (проём === undefined) throw new Error("Проём не найден или недоступен.");
+  const стена = стенаДвойника(проём.wallId);
+  проёмыДвойника = проёмыДвойника.filter((opening) => opening.id !== id);
+  return measureView(стена.set);
 }
 
 export async function uploadPlan(
@@ -1844,9 +2162,177 @@ export async function reversePayment(
 let смета: EstimateView | null = null;
 
 const сметаR99 = (): EstimateView => {
-  смета ??= structuredClone(data["estimate-owner"]);
+  if (смета === null) {
+    смета = structuredClone(data["estimate-owner"]);
+    взятьАдреса(смета);
+  }
+  приложитьАдреса(смета);
   return смета;
 };
+
+/* --- адрес поверхности, источник и признак (этап Э11, шаг 2) ---------------
+   Двойник хранит их так же, как база (миграция М-3): вид, стена и источник
+   подставленного количества с помещением и стеной источника. Вид сметы
+   несёт их уровню руководителя — двойник правит только его копию, у
+   прораба и заказчика ключа нет, как в их слепках. Признак — функция
+   домена `measureDrift` по обмеру двойника: правка стены в демонстрации
+   тут же назовёт расхождение в смете. */
+interface АдресПозиции {
+  surfaceKind: SurfaceKind | null;
+  wallId: string | null;
+  qtySource: QtySource | null;
+  qtySourceValue: Milliunits | null;
+  qtySourceRoomId: string | null;
+  qtySourceWallId: string | null;
+}
+
+const БЕЗ_ИСТОЧНИКА = {
+  qtySource: null, qtySourceValue: null, qtySourceRoomId: null, qtySourceWallId: null,
+} as const;
+
+const адресаПозиций = new Map<string, АдресПозиции>();
+
+/** Адреса из слепка: что сервер отдал, то и хранится. */
+function взятьАдреса(вид: EstimateView): void {
+  for (const позиция of позицииСметы(вид)) {
+    const surface = позиция.surface;
+    const источник = surface?.source ?? null;
+    const область = источник === null ? null : qtySourceScope(источник.key);
+    адресаПозиций.set(позиция.id, {
+      surfaceKind: surface?.kind ?? null,
+      wallId: surface?.wall?.id ?? null,
+      qtySource: источник?.key ?? null,
+      qtySourceValue: источник === null ? null : milliunits(источник.value),
+      qtySourceRoomId: область === null || область === "project" ? null : позиция.room?.id ?? null,
+      qtySourceWallId: область === "wall" ? surface?.wall?.id ?? null : null,
+    });
+  }
+}
+
+/** Обмер для признака: помещения обоих наборов, стены, итоги действующего — как `обмерОбъекта` сервера. */
+const обмерСметы = (): {
+  rooms: Map<string, { room: КомнатаДвойника; measure: RoomMeasure }>;
+  walls: Map<string, МестоСтены>;
+  totals: ReturnType<typeof measureTotals>;
+} => {
+  взятьОбмер();
+  const все = [...measureRooms.INITIAL, ...measureRooms.REPLANNED];
+  const действующий: MeasureSetKind = measureRooms.REPLANNED.length > 0 ? "REPLANNED" : "INITIAL";
+  return {
+    rooms: new Map(все.map((room) => [room.id, { room, measure: обмерКомнаты(room) }])),
+    walls: стеныДвойника(все),
+    totals: measureTotals(measureRooms[действующий].map(обмерКомнаты)),
+  };
+};
+
+/** Адрес, источник и признак позиций — как `адресаДляВида` сервера. */
+function приложитьАдреса(вид: EstimateView): void {
+  const обмер = обмерСметы();
+  for (const позиция of позицииСметы(вид)) {
+    const адрес = адресаПозиций.get(позиция.id) ?? { surfaceKind: null, wallId: null, ...БЕЗ_ИСТОЧНИКА };
+    const стена = адрес.wallId === null ? undefined : обмер.walls.get(адрес.wallId);
+    let source: EstimateItemSurface["source"] = null;
+    if (адрес.qtySource !== null && адрес.qtySourceValue !== null) {
+      const value = адрес.qtySourceValue;
+      const помещение = адрес.qtySourceRoomId === null ? undefined : обмер.rooms.get(адрес.qtySourceRoomId);
+      const стенаИсточника = адрес.qtySourceWallId === null ? undefined : обмер.walls.get(адрес.qtySourceWallId);
+      const признак = measureDrift(
+        { source: адрес.qtySource, value, roomId: адрес.qtySourceRoomId, wallId: адрес.qtySourceWallId },
+        позиция.room?.id ?? null,
+        {
+          room: помещение?.measure ?? null,
+          wall: стенаИсточника === undefined ? null : стенаДомена(стенаИсточника.wall),
+          totals: обмер.totals,
+        },
+      );
+      source = {
+        key: адрес.qtySource,
+        value: value.toString(),
+        note: qtySourceNote(
+          адрес.qtySource,
+          { room: помещение?.room.name ?? null, wall: стенаИсточника?.name ?? null },
+          value,
+          позиция.unit,
+        ),
+        state: признак.state,
+        now: признак.state === "removed" ? null : признак.now.toString(),
+        drift: measureDriftNote(признак, value, позиция.unit),
+      };
+    }
+    позиция.surface = {
+      kind: адрес.surfaceKind,
+      wall: стена === undefined ? null : { id: стена.wall.id, name: стена.name },
+      source,
+    };
+  }
+}
+
+/**
+ * Адрес и источник после правки позиции — правила `адресПозиции` сервера:
+ * вид без помещения — отказ, стена — только у «одной стены» и своего
+ * помещения; источник сверяется с обмером сейчас; правка количества,
+ * единицы или адреса без источника его снимает. Количество не трогается.
+ */
+function адресПослеПравки(
+  before: (АдресПозиции & { roomId: string | null; qty: bigint; unit: string }) | null,
+  input: {
+    roomId?: string | null | undefined;
+    surfaceKind?: SurfaceKind | null | undefined;
+    wallId?: string | null | undefined;
+    qtySource?: QtySource | null | undefined;
+  },
+  after: { roomId: string | null; qty: bigint; unit: string },
+): АдресПозиции {
+  let surfaceKind = input.surfaceKind !== undefined ? input.surfaceKind : before?.surfaceKind ?? null;
+  let wallId = input.wallId !== undefined ? input.wallId : before?.wallId ?? null;
+  if (after.roomId === null && input.surfaceKind === undefined) surfaceKind = null;
+  if (surfaceKind !== "WALL" && input.wallId === undefined) wallId = null;
+  const отказ = surfaceFault({ roomId: after.roomId, surface: surfaceKind, wallId });
+  if (отказ !== null) throw new Error(отказ);
+
+  const обмер = обмерСметы();
+  let стена = wallId === null ? undefined : обмер.walls.get(wallId);
+  if (wallId !== null && стена?.room.id !== after.roomId) {
+    if (input.wallId !== undefined) throw new Error("Такой стены нет у помещения позиции: выберите стену этого помещения.");
+    wallId = null;
+    стена = undefined;
+  }
+  const адресСменился = after.roomId !== (before?.roomId ?? null)
+    || surfaceKind !== (before?.surfaceKind ?? null)
+    || wallId !== (before?.wallId ?? null);
+
+  if (input.qtySource === null) return { surfaceKind, wallId, ...БЕЗ_ИСТОЧНИКА };
+  if (input.qtySource !== undefined) {
+    const источник = input.qtySource;
+    const отказИсточника = qtySourceFault(источник, { roomId: after.roomId, surface: surfaceKind, wallId, unit: after.unit });
+    if (отказИсточника !== null) throw new Error(отказИсточника);
+    const область = qtySourceScope(источник);
+    const roomId = область === "project" ? null : after.roomId;
+    const sourceWallId = область === "wall" ? wallId : null;
+    const сейчас = qtySourceValue(источник, {
+      room: roomId === null ? null : обмер.rooms.get(roomId)?.measure ?? null,
+      wall: sourceWallId === null || стена === undefined ? null : стенаДомена(стена.wall),
+      totals: обмер.totals,
+    });
+    const расхождение = qtySourceMismatch(milliunits(after.qty), сейчас, after.unit);
+    if (расхождение !== null) throw new Error(расхождение);
+    return {
+      surfaceKind, wallId,
+      qtySource: источник, qtySourceValue: milliunits(after.qty),
+      qtySourceRoomId: roomId, qtySourceWallId: sourceWallId,
+    };
+  }
+  const прежний = before?.qtySource == null
+    || after.qty !== before.qty || after.unit !== before.unit || адресСменился
+    ? БЕЗ_ИСТОЧНИКА
+    : {
+        qtySource: before.qtySource,
+        qtySourceValue: before.qtySourceValue,
+        qtySourceRoomId: before.qtySourceRoomId,
+        qtySourceWallId: before.qtySourceWallId,
+      };
+  return { surfaceKind, wallId, ...прежний };
+}
 
 /** Все позиции дерева одним списком: разделы вложены на два уровня. */
 const позицииСметы = (вид: EstimateView) =>
@@ -1927,6 +2413,22 @@ export async function updateEstimateItem(
   });
   if (fault !== null) throw new Error(fault);
 
+  /* Помещение и адрес поверхности — тем же правилом, что у сервера; отказ
+     адреса приходит раньше любой правки, позиция не меняется наполовину. */
+  const комнатаПосле = input.roomId === undefined
+    ? позиция.room
+    : input.roomId === null ? null : вид.rooms.find((комната) => комната.id === input.roomId) ?? позиция.room;
+  const адрес = адресПослеПравки(
+    {
+      ...(адресаПозиций.get(id) ?? { surfaceKind: null, wallId: null, ...БЕЗ_ИСТОЧНИКА }),
+      roomId: позиция.room?.id ?? null, qty: BigInt(позиция.qty), unit: позиция.unit,
+    },
+    input,
+    { roomId: комнатаПосле?.id ?? null, qty, unit: input.unit ?? позиция.unit },
+  );
+  адресаПозиций.set(id, адрес);
+  позиция.room = комнатаПосле;
+
   позиция.name = input.name ?? позиция.name;
   позиция.unit = input.unit ?? позиция.unit;
   позиция.qty = qty.toString();
@@ -1938,6 +2440,7 @@ export async function updateEstimateItem(
     позиция.profit = (kopecks(позиция.total) - kopecks(позиция.wageTotal)).toString();
   }
   пересчитатьСмету(вид);
+  приложитьАдреса(вид);
   return вид;
 }
 
@@ -2009,8 +2512,12 @@ export async function createEstimateItem(_code: string, input: CreateEstimateIte
   if (отказ !== null) throw new Error(отказ);
   const total = accrualAmount(unitPrice, qty);
   const wageTotal = accrualAmount(unitWage, qty);
+  const id = новыйId();
+  адресаПозиций.set(id, адресПослеПравки(null, input, {
+    roomId: input.roomId ?? null, qty, unit: input.unit,
+  }));
   раздел.items.push({
-    id: новыйId(),
+    id,
     order: 0,
     name: input.name,
     unit: input.unit,
@@ -2029,6 +2536,7 @@ export async function createEstimateItem(_code: string, input: CreateEstimateIte
     }),
   });
   пересчитатьСмету(вид);
+  приложитьАдреса(вид);
   return вид;
 }
 

@@ -17,6 +17,7 @@ import {
   type CloseTranche, type CreatePayment, type CreateTranche, type TrancheView,
   type AccountingView, type UpdateClient,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
+  type CreateWallOpening, type UpdateWallOpening,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type ClosedTranches, type EstimateView, type ImportRecord,
   type ActRow, type ActView, type CreateExpense, type ExpenseView,
@@ -222,6 +223,30 @@ export const updateRoom = (
 
 export const deleteRoom = (code: string, id: string): Promise<MeasureView> =>
   request(`/projects/${code}/measure/rooms/${id}`, measureViewSchema, { method: "DELETE" });
+
+/* Проёмы на стенах (этап Э11, шаг 2). Проём заводится со строки стены:
+   стена стороны А — в адресе, вид — в теле. Правка и удаление — по самому
+   проёму: запись одна на два помещения, и набор сервер берёт у его стены. */
+export const createOpening = (
+  code: string,
+  wallId: string,
+  opening: CreateWallOpening,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/walls/${wallId}/openings`, measureViewSchema, json(opening));
+
+export const updateOpening = (
+  code: string,
+  id: string,
+  opening: UpdateWallOpening,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/openings/${id}`, measureViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(opening),
+  });
+
+export const deleteOpening = (code: string, id: string): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/openings/${id}`, measureViewSchema, { method: "DELETE" });
 
 export function uploadPlan(code: string, set: MeasureSetKind, file: File): Promise<MeasureView> {
   const form = new FormData();
