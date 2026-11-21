@@ -185,6 +185,29 @@ export function EstimateTable({
       </span>
     );
 
+  /**
+   * Отметка позиции, чей источник разошёлся с обмером (этап Э11, шаг 2;
+   * решение Э11-2.7 «в»; норматив, раздел 55.8): пилюля рядом с
+   * наименованием, касание открывает лист позиции. Свода нет: отметка стоит
+   * там, где её исправляют. Адрес и признак сервер отдаёт уровню
+   * руководителя — у прораба и заказчика объекта ключа нет, и отметки тоже.
+   */
+  const отметкаОбмера = (item: EstimateItem): React.JSX.Element | null => {
+    const состояние = item.surface?.source?.state;
+    if (состояние !== "changed" && состояние !== "removed") return null;
+    const слово = состояние === "changed" ? "обмер изменился" : "источник удалён";
+    return editable ? (
+      <button
+        type="button"
+        className="pillbutton"
+        aria-label={`${слово}: открыть позицию «${item.name}»`}
+        onClick={() => { onEditItem(item); }}
+      >
+        <span className="pill pill--warn">{слово}</span>
+      </button>
+    ) : <span className="pill pill--warn">{слово}</span>;
+  };
+
   const строкаПозиции = (item: EstimateItem, level: number): React.JSX.Element => {
     const отстало = estimate.replanned && item.room !== null && item.room.set === "INITIAL";
     /* Принятая позиция раздела не меняет, но внутри своего переставляется:
@@ -234,6 +257,7 @@ export function EstimateTable({
                 {отстало ? `${item.room.name} · из начального обмера` : item.room.name}
               </span>
             )}
+            {отметкаОбмера(item)}
           </span>
         </td>
         <td>{item.unit}</td>
@@ -475,6 +499,8 @@ export function EstimateTable({
         <span className="t-muted num">{item.order}.</span> {item.name}
         {item.room !== null && <span className="t-sm t-muted"> · {item.room.name}</span>}
       </p>
+      {/* На телефоне отметка — под наименованием (норматив, раздел 55.8). */}
+      {отметкаОбмера(item)}
       <p className="estcard__calc">
         {/* Знаки — текст формулы, а не значки: «2 м² × 500,00 ₽ = 1 000,00 ₽»
             читается вслух так же, как глазами. */}

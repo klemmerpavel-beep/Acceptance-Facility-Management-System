@@ -1,5 +1,5 @@
 import type {
-  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, InviteUser, IssuedDocument, PersonRow,
+  CurrentUser, DocumentTemplate, Inbox, InboxSeen, InviteIssued, OrganizationContacts, InviteUser, IssuedDocument, PersonRow,
   ProjectSummary, SaveTemplate, TemplateRow,
 } from "@priyomka/contracts";
 import {
@@ -9,7 +9,7 @@ import {
   actListSchema, actViewSchema,
   blueprintRowSchema, blueprintViewSchema,
   documentTemplateSchema, issuedDocumentSchema, templateRowSchema,
-  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema,
+  inviteIssuedSchema, personRowSchema, inboxSchema, inboxSeenSchema, organizationContactsSchema,
   leadCardSchema, measureViewSchema, repairTypeSchema,
   organizationSchema, projectFactsSchema, projectSummarySchema, smsCodeIssuedSchema, unitSchema, workerRowSchema,
   workStageSchema, acceptanceViewSchema, trancheViewSchema, accountingViewSchema,
@@ -17,6 +17,7 @@ import {
   type CloseTranche, type CreatePayment, type CreateTranche, type TrancheView,
   type AccountingView, type UpdateClient,
   type ClientRow, type CreateClient, type CreateMeasureRoom, type CreateProject,
+  type CreateWallOpening, type UpdateWallOpening,
   type CreateWorker, type CreateWorkStage, type Dashboard, type DisplacedByImport,
   type ClosedTranches, type EstimateView, type ImportRecord,
   type ActRow, type ActView, type CreateExpense, type ExpenseView,
@@ -122,8 +123,19 @@ export const requestSmsCode = (phone: string): Promise<SmsCodeIssued> =>
 export const confirmSmsCode = (phone: string, code: string): Promise<{ ok: true }> =>
   request("/auth/phone/confirm", z.object({ ok: z.literal(true) }), json({ phone, code }));
 
+/**
+ * Обмен ссылки входа на сессию: токен — в теле, а не в адресе запроса
+ * (ADR-0008, п. 2; П-61). Кука ставится сервером.
+ */
+export const consumeLink = (token: string): Promise<{ ok: true }> =>
+  request("/auth/consume", z.object({ ok: z.literal(true) }), json({ token }));
+
 export const fetchOrganization = (): Promise<Organization> =>
   request("/organization", organizationSchema);
+
+/** Как связаться с организацией — экран первого входа заказчика (ДР-11). */
+export const fetchOrganizationContacts = (): Promise<OrganizationContacts> =>
+  request("/organization/contacts", organizationContactsSchema);
 
 export const saveOrganization = (patch: UpdateOrganization): Promise<Organization> =>
   request("/organization", organizationSchema, { ...json(patch), method: "PATCH" });
@@ -212,6 +224,30 @@ export const updateRoom = (
 export const deleteRoom = (code: string, id: string): Promise<MeasureView> =>
   request(`/projects/${code}/measure/rooms/${id}`, measureViewSchema, { method: "DELETE" });
 
+/* Проёмы на стенах (этап Э11, шаг 2). Проём заводится со строки стены:
+   стена стороны А — в адресе, вид — в теле. Правка и удаление — по самому
+   проёму: запись одна на два помещения, и набор сервер берёт у его стены. */
+export const createOpening = (
+  code: string,
+  wallId: string,
+  opening: CreateWallOpening,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/walls/${wallId}/openings`, measureViewSchema, json(opening));
+
+export const updateOpening = (
+  code: string,
+  id: string,
+  opening: UpdateWallOpening,
+): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/openings/${id}`, measureViewSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(opening),
+  });
+
+export const deleteOpening = (code: string, id: string): Promise<MeasureView> =>
+  request(`/projects/${code}/measure/openings/${id}`, measureViewSchema, { method: "DELETE" });
+
 export function uploadPlan(code: string, set: MeasureSetKind, file: File): Promise<MeasureView> {
   const form = new FormData();
   form.append("file", file);
@@ -294,6 +330,17 @@ export const fetchAct = (
 
 export const signAct = (code: string, trancheId: string, signedAt: string): Promise<ActRow[]> =>
   request(`/projects/${code}/acts/${trancheId}/signature`, actListSchema, json({ signedAt }));
+
+/**
+ * Поправка к строке подписанного акта (этап Э9, ДР-3): входит строкой в акт
+ * открытого транша. Подписанный акт не меняется.
+ */
+export const createActCorrection = (
+  code: string,
+  trancheId: string,
+  input: { lineId: string; qty: string; unitPrice: string; reason: string },
+): Promise<ActRow[]> =>
+  request(`/projects/${code}/acts/${trancheId}/corrections`, actListSchema, json(input));
 
 /** Скан подписанного экземпляра (план, пункт 4.10): снимок или PDF, тип — по содержимому. */
 export function attachActScan(code: string, trancheId: string, file: File): Promise<ActRow[]> {

@@ -3,9 +3,11 @@ import type {
   ClosedTranches, CreateEstimateItem, EstimateItem, EstimateItemRoom, MeasureView, UpdateEstimateItem,
 } from "@priyomka/contracts";
 import { formatKopecks, formatQty } from "@priyomka/ui";
+import type { MeasureRoom, MeasureWall, SurfaceKindDto } from "@priyomka/contracts";
 import {
-  estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateItemWarning, measureSourcesFor,
-  MEASURE_LABEL, kopecks, milliunits, multiplyByQuantity, type MeasureSource,
+  estimateItemFault, estimateItemMoveFault, estimateItemRemovalFault, estimateItemWarning,
+  kopecks, milliunits, multiplyByQuantity, projectSources, qtySourceFault, qtySourceNote, qtySourceScope,
+  surfaceSources, QTY_SOURCE_LABEL, SURFACE_KINDS, SURFACE_LABEL, type QtySource,
 } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { предупреждениеОЗакрытых } from "./closed-tranches.js";
@@ -44,12 +46,47 @@ export function количествоВТысячные(input: string): bigint | 
 }
 
 /** Тысячные в строку поля: 406910 → «406,91», незначащие нули отброшены. */
-const вПоле = (value: bigint, знаков: number): string => {
+export const вПоле = (value: bigint, знаков: number): string => {
   const делитель = 10n ** BigInt(знаков);
   const дробь = (value % делитель).toString().padStart(знаков, "0").replace(/0+$/, "");
   const целое = (value / делитель).toString();
   return дробь === "" ? целое : `${целое},${дробь}`;
 };
+
+/**
+ * Величина источника из ответа обмера (этап Э11, шаг 2): помещение, стена
+ * или итог набора — те же числа, что вкладка «Замер», без своего расчёта.
+ * `null` — посчитать не из чего: помещения или стены нет.
+ */
+function величинаИсточника(
+  source: QtySource,
+  комната: MeasureRoom | null,
+  стена: MeasureWall | null,
+  итоги: MeasureView["totals"] | null,
+): bigint | null {
+  const [область, величина] = source.split(":") as [string, string];
+  if (область === "project") {
+    if (итоги === null) return null;
+    const значение = (итоги as unknown as Record<string, string | undefined>)[величина];
+    return значение === undefined ? null : BigInt(значение);
+  }
+  if (область === "wall") {
+    if (стена === null) return null;
+    return BigInt(величина === "wallArea" ? стена.wallArea : стена.wallAreaNet);
+  }
+  if (комната === null) return null;
+  const значение = (комната as unknown as Record<string, string | undefined>)[величина];
+  return значение === undefined ? null : BigInt(значение);
+}
+
+/** Подпись вида поверхности в списке: «Одна стена». */
+const видСловом = (kind: SurfaceKindDto): string => {
+  const слово = SURFACE_LABEL[kind];
+  return `${слово.charAt(0).toUpperCase()}${слово.slice(1)}`;
+};
+
+/** Подпись величины на кнопке подстановки: «площадь стены нетто». */
+const подписьВеличины = (source: QtySource): string => QTY_SOURCE_LABEL[source];
 
 export function EstimateItemSheet({
   item,
@@ -58,7 +95,7 @@ export function EstimateItemSheet({
   replanned,
   sections,
   sectionId,
-  measure,
+  measures,
   closed,
   busy,
   error,
@@ -89,7 +126,12 @@ export function EstimateItemSheet({
   sections: readonly { id: string; name: string; level: number }[];
   /** Раздел, в котором позиция стоит сейчас. */
   sectionId: string;
-  measure: MeasureView | null;
+  /**
+   * Наборы обмера объекта; первый — действующий: его итог подставляется
+   * «из обмера объекта». Помещение позиции ищется во всех наборах — позиция
+   * могла остаться на помещении начального обмера. Пусто — обмера нет.
+   */
+  measures: readonly MeasureView[];
   /** Закрытые транши объекта: лист называет те, что изменит правка (П-27). */
   closed: ClosedTranches["tranches"];
   busy: boolean;
@@ -109,9 +151,22 @@ export function EstimateItemSheet({
   const [price, setPrice] = useState(item === null ? "" : вПоле(BigInt(item.unitPrice), 2));
   const [wage, setWage] = useState(item === null ? "0" : вПоле(BigInt(item.unitWage ?? "0"), 2));
   const [roomId, setRoomId] = useState(item?.room?.id ?? "");
+  /* Адрес поверхности (этап Э11, шаг 2; решение Э11-2.5 «а»): вид и стена
+     ставятся выбором, из величины не выводятся. */
+  const [поверхность, setПоверхность] = useState<SurfaceKindDto | "">(item?.surface?.kind ?? "");
+  const [стенаId, setСтенаId] = useState(item?.surface?.wall?.id ?? "");
   const [разделПозиции, setРазделПозиции] = useState(sectionId);
   const [удаляю, setУдаляю] = useState(false);
+  /* Источник подставленного количества: две площади стен рядом неотличимы
+     в поле количества, и лист называет, какую взяли. Живёт, пока в поле
+     стоит подставленное: правленое руками количество источника не имеет. */
+  const [подставлено, setПодставлено] = useState<{
+    поле: string; единица: string; адрес: string; источник: QtySource; текст: string;
+  } | null>(null);
   const принято = item === null ? "0" : item.qtyAccepted;
+  /* Адрес поверхности, источник и признак сервер отдаёт уровню
+     руководителя; новая позиция заводится тем же уровнем. */
+  const адресВиден = item === null || item.surface !== undefined;
 
   const предупреждение = item === null ? null : предупреждениеОЗакрытых(closed, { позиция: item.id });
   const тысячные = количествоВТысячные(qty);
@@ -141,10 +196,12 @@ export function EstimateItemSheet({
   const warning = правка === null ? null : estimateItemWarning(правка);
   const ready = разобрано && fault === null && отказПереноса === null && name.trim() !== "";
 
-  /* Величины обмера подставляются только те, что подходят единице позиции:
-     «м.п.» годится и плинтусу, и карнизу, а какая из двух длин нужна —
-     решает человек. Карта живёт в домене, экран своей не заводит. */
-  const источники = measureSourcesFor(unit);
+  /* Величины обмера подставляются только те, что подходят единице позиции
+     и выбранной поверхности: «м.п.» годится и плинтусу, и карнизу, а какая
+     из двух длин нужна — решает человек. Карта живёт в домене, экран своей
+     не заводит. Без выбранной поверхности — величины помещения, как на
+     шаге 1 (решение Э11-2.6 «а»). */
+  const вид = поверхность === "" ? null : поверхность;
 
   /* Подстановка идёт от помещения позиции, а не от объекта.
      Прежде здесь стоял `measure.totals`, то есть итог по всей квартире: на
@@ -152,21 +209,38 @@ export function EstimateItemSheet({
      Величины объекта остались рядом — работа вроде вывоза мусора и правда
      меряется объектом, — но подписаны своим источником, и перепутать их
      больше нельзя. */
-  const комната = measure?.rooms.find((строка) => строка.id === roomId) ?? null;
-  const поПомещению: readonly { source: MeasureSource; value: bigint }[] =
+  const measure = measures[0] ?? null;
+  const комната = measures.flatMap((набор) => набор.rooms).find((строка) => строка.id === roomId) ?? null;
+  const стена = вид !== "WALL" ? null : комната?.walls.find((строка) => строка.id === стенаId) ?? null;
+  const адрес = `${roomId}|${поверхность}|${вид === "WALL" ? стенаId : ""}`;
+  const поПомещению: readonly { source: QtySource; value: bigint }[] =
     комната === null
       ? []
-      : источники.map((source) => ({ source, value: BigInt(комната[source]) }));
-  const поОбъекту: readonly { source: MeasureSource; value: bigint }[] =
+      : surfaceSources(вид, unit).flatMap((source) => {
+        const value = величинаИсточника(source, комната, стена, null);
+        return value === null ? [] : [{ source, value }];
+      });
+  const поОбъекту: readonly { source: QtySource; value: bigint }[] =
     measure === null
       ? []
-      : источники.map((source) => ({ source, value: BigInt(measure.totals[source]) }));
+      : projectSources(unit).flatMap((source) => {
+        const value = величинаИсточника(source, null, null, measure.totals);
+        return value === null ? [] : [{ source, value }];
+      });
+  /* Вид выбран, а величин под единицу у него нет: откосы меряются длиной,
+     одна стена — площадью. Лист говорит это, а не молчит пустой строкой. */
+  const безВеличин = комната !== null && вид !== null && surfaceSources(вид, unit).length === 0 ? вид : null;
+  const безСтены = вид === "WALL" && стена === null;
 
   /* Помещение позиции осталось на начальном обмере, а объект перепланирован:
      одноимённого помещения в новом наборе не завели — кухня и гостиная стали
      кухней-гостиной. Молчать об этом нельзя: количество позиции считалось по
      площади, которой больше нет. */
-  const отсталоОтПерепланировки = replanned && item !== null && item.room !== null && item.room.set === "INITIAL";
+  const отсталоОтПерепланировки = replanned && item !== null && item.room !== null && item.room.set === "INITIAL"
+    /* Просьба выбрать помещение нового набора — о сохранённом помещении:
+       выбранное помещение нового набора её снимает, иначе лист просил бы
+       выбрать уже выбранное рядом с его же величинами. */
+    && roomId === item.room.id;
   /* Помещение позиции вне действующего набора показывается отдельной строкой
      списка — тем же приёмом, что единица измерения вне справочника: иначе
      выбор молча съехал бы на первое попавшееся. */
@@ -178,9 +252,77 @@ export function EstimateItemSheet({
   });
   const вСписке = своё !== null && rooms.some((строка) => строка.id === своё.id);
 
+  const подставить = (source: QtySource, value: bigint): void => {
+    const поле = вПоле(value, 3);
+    setQty(поле);
+    const область = qtySourceScope(source);
+    setПодставлено({
+      поле, единица: unit, адрес, источник: source,
+      текст: qtySourceNote(
+        source,
+        { room: область === "project" ? null : комната?.name ?? null, wall: область === "wall" ? стена?.name ?? null : null },
+        milliunits(value),
+        unit,
+      ),
+    });
+  };
+  /* Источник живёт, пока в поле стоит подставленное, единица и адрес те
+     же: правленое руками количество источника не имеет. */
+  const источник = подставлено !== null && подставлено.поле === qty && подставлено.единица === unit
+    && подставлено.адрес === адрес
+    ? подставлено
+    : null;
+
+  /* Хранимый источник (решение Э11-2.7 «в»): строка источника стоит и при
+     повторном открытии листа, а признак называет расхождение с обмером.
+     Правка количества или единицы его снимает — так же, как сервер.
+
+     Смена адреса снимает источник при сохранении, но не до него: заметка
+     признака и «Подставить заново» стоят, пока количество и единица прежние,
+     а «Подставить заново» считается по адресу, выбранному сейчас (норматив
+     55.7). Прежде заметка пропадала с первой же сменой адреса — и выбор
+     стены нового набора по подсказке 55.9 убирал её вместе с единственным
+     действием, а сохранение тихо снимало признак (П-83). Что сохранение с
+     новым адресом снимет источник, лист говорит до сохранения. */
+  const хранимый = item?.surface?.source ?? null;
+  const адресПозиции = item === null
+    ? ""
+    : `${item.room?.id ?? ""}|${item.surface?.kind ?? ""}|${item.surface?.kind === "WALL" ? item.surface.wall?.id ?? "" : ""}`;
+  const хранимыйПрежний = хранимый !== null && источник === null && item !== null
+    && qty === вПоле(BigInt(item.qty), 3) && unit === item.unit;
+  const хранимыйВСиле = хранимыйПрежний && адрес === адресПозиции;
+  const источникСнимется = хранимыйПрежний && адрес !== адресПозиции
+    ? "Адрес позиции изменён: сохранение без подстановки снимет источник количества."
+    : null;
+  /* «Подставить заново» — когда текущий адрес даёт ту же величину; иначе
+     подсказка называет, что выбрать (норматив, раздел 55.7). */
+  const заново = хранимый === null ? null : (() => {
+    const отказ = qtySourceFault(хранимый.key, {
+      roomId: roomId === "" ? null : roomId, surface: вид, wallId: стена?.id ?? null, unit,
+    });
+    if (отказ !== null) return { value: null, отказ };
+    const value = величинаИсточника(хранимый.key, комната, стена, measure?.totals ?? null);
+    return value === null
+      ? { value: null, отказ: "Величины источника в обмере нет: выберите помещение и поверхность заново." }
+      : { value, отказ: null };
+  })();
+  const значениеЗаново = заново?.value ?? null;
+  /* Стена снята переводом на перепланировку (решение Э11-2.8 «б»): вид
+     остался, стены нет, и выбор не съезжает молча на первую стену нового
+     набора. */
+  const стенаСнятаПереводом = item !== null && item.room?.set === "REPLANNED" && item.room.id === roomId
+    && item.surface?.kind === "WALL" && item.surface.wall === null && вид === "WALL" && стенаId === "";
+
   const submit: React.SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     if (!ready) return;
+    /* Адрес уходит, только если лист его показывает: уровень, которому
+       сервер адреса не отдал, его и не правит. */
+    const адресТело = !адресВиден ? {} : {
+      surfaceKind: roomId === "" ? null : вид,
+      wallId: roomId === "" || вид !== "WALL" || стенаId === "" ? null : стенаId,
+      ...(источник === null ? {} : { qtySource: источник.источник }),
+    };
     if (item === null) {
       onCreate?.({
         sectionId: разделПозиции,
@@ -190,6 +332,7 @@ export function EstimateItemSheet({
         unitPrice: цена.toString(),
         unitWage: ставка.toString(),
         roomId: roomId === "" ? null : roomId,
+        ...адресТело,
       });
       return;
     }
@@ -200,6 +343,7 @@ export function EstimateItemSheet({
       unitPrice: цена.toString(),
       unitWage: ставка.toString(),
       roomId: roomId === "" ? null : roomId,
+      ...адресТело,
     }, разделПозиции === sectionId ? null : разделПозиции);
   };
 
@@ -227,6 +371,7 @@ export function EstimateItemSheet({
             />
           </label>
 
+          <div className="openings">
           <div className="row">
             <label className="field" style={{ flex: "1 1 auto" }}>
               <span className="field__label">Количество</span>
@@ -249,8 +394,10 @@ export function EstimateItemSheet({
                   {units.includes(unit) ? null : <option value={unit}>{unit}</option>}
                   {units.map((code) => <option key={code} value={code}>{code}</option>)}
                 </select>
+                <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
               </span>
             </label>
+          </div>
           </div>
 
           <label className="field">
@@ -268,6 +415,7 @@ export function EstimateItemSheet({
                   </option>
                 ))}
               </select>
+              <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
             </span>
             {отказПереноса !== null && (
               <span className="field__error" role="alert">{отказПереноса}</span>
@@ -280,7 +428,7 @@ export function EstimateItemSheet({
               <select
                 className="input"
                 value={roomId}
-                onChange={(event) => { setRoomId(event.target.value); }}
+                onChange={(event) => { setRoomId(event.target.value); setСтенаId(""); }}
               >
                 <option value="">Не выбрано</option>
                 {своё !== null && !вСписке && (
@@ -290,6 +438,7 @@ export function EstimateItemSheet({
                   <option key={строка.id} value={строка.id}>{строка.name}</option>
                 ))}
               </select>
+              <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
             </span>
             {отсталоОтПерепланировки ? (
               <span className="field__hint">
@@ -306,6 +455,81 @@ export function EstimateItemSheet({
             )}
           </label>
 
+          {/* Поле «Поверхность» — под помещением, только когда оно выбрано:
+              адрес — помещение и вид (норматив, раздел 55.6). У помещения
+              без стен вида «Одна стена» нет — выбирать нечего. */}
+          {адресВиден && комната !== null && (
+            <div className="openings"><div className="row">
+              <label className="field">
+                <span className="field__label">Поверхность</span>
+                <span className="selectwrap">
+                  <select
+                    className="input"
+                    value={поверхность}
+                    onChange={(event) => {
+                      setПоверхность(event.target.value as SurfaceKindDto | "");
+                      setСтенаId("");
+                    }}
+                  >
+                    <option value="">Не выбрано</option>
+                    {SURFACE_KINDS
+                      .filter((kind) => kind !== "WALL" || комната.walls.length > 0 || поверхность === "WALL")
+                      .map((kind) => <option key={kind} value={kind}>{видСловом(kind)}</option>)}
+                  </select>
+                  <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
+                </span>
+              </label>
+              {вид === "WALL" && (
+                <label className="field">
+                  <span className="field__label">Стена</span>
+                  <span className="selectwrap">
+                    <select
+                      className="input"
+                      value={стенаId}
+                      onChange={(event) => { setСтенаId(event.target.value); }}
+                    >
+                      <option value="">Не выбрано</option>
+                      {комната.walls.map((строка) => (
+                        <option key={строка.id} value={строка.id}>{строка.name}</option>
+                      ))}
+                    </select>
+                    <svg className="icon selectwrap__chevron" aria-hidden="true"><use href="#i-chevron" /></svg>
+                  </span>
+                  {стенаСнятаПереводом && (
+                    <span className="field__hint">Стена из начального обмера — выберите стену нового набора.</span>
+                  )}
+                </label>
+              )}
+            </div></div>
+          )}
+
+          {/* Признак «обмер изменился» и «источник удалён» (норматив,
+              раздел 55.7): заметка с пилюлей и «Подставить заново».
+              Количество само не меняется — его меняет только человек. */}
+          {адресВиден && хранимыйПрежний && хранимый.state !== "same" && (
+            <div className="panel panel--sheet panel--pad stack stack--tight" role="status">
+              {/* Пилюля — в своей строке: прямой потомок стопки растянулся бы во всю ширину. */}
+              <p>
+                <span className="pill pill--warn">
+                  {хранимый.state === "changed" ? "обмер изменился" : "источник удалён"}
+                </span>
+              </p>
+              <p className="t-sm">{хранимый.drift}</p>
+              {источникСнимется !== null && <p className="field__hint">{источникСнимется}</p>}
+              {значениеЗаново !== null ? (
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => { подставить(хранимый.key, значениеЗаново); }}
+                >
+                  Подставить заново
+                </button>
+              ) : (
+                <p className="field__hint">{заново?.отказ}</p>
+              )}
+            </div>
+          )}
+
           {поПомещению.length > 0 && (
             <div className="estimate__from-measure">
               <span className="t-cap">из обмера помещения</span>
@@ -314,12 +538,20 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value); }}
                 >
-                  {MEASURE_LABEL[source]} {formatQty(value)}
+                  {подписьВеличины(source)} {formatQty(value)}
                 </button>
               ))}
             </div>
+          )}
+          {безСтены && комната !== null && комната.walls.length > 0 && !стенаСнятаПереводом && (
+            <p className="field__hint">Выберите стену: величины одной стены берутся с неё.</p>
+          )}
+          {безВеличин !== null && (
+            <p className="field__hint">
+              У поверхности «{SURFACE_LABEL[безВеличин]}» величин в «{unit}» в обмере нет.
+            </p>
           )}
 
           {поОбъекту.length > 0 && (
@@ -333,14 +565,30 @@ export function EstimateItemSheet({
                   key={source}
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => { setQty(вПоле(value, 3)); }}
+                  onClick={() => { подставить(source, value); }}
                 >
-                  {MEASURE_LABEL[source]} {formatQty(value)}
+                  {подписьВеличины(source)} {formatQty(value)}
                 </button>
               ))}
             </div>
           )}
 
+          {/* Строка источника: подставленное только что или хранимое — с
+              адресом и до тысячной (норматив, раздел 55.7). */}
+          {источник !== null && (
+            <p className="field__hint" role="status">{источник.текст}</p>
+          )}
+          {источник === null && адресВиден && хранимыйВСиле && хранимый.state === "same" && (
+            <p className="field__hint" role="status">{хранимый.note}</p>
+          )}
+          {адресВиден && источникСнимется !== null && хранимый?.state === "same" && (
+            <p className="field__hint" role="status">{источникСнимется}</p>
+          )}
+
+          {/* Ряд полей в обёртке `openings` — тем же приёмом, что ряды листа
+              помещения: поле сжимается ниже ширины своего ввода, и на 390 px
+              «Ставка оплаты труда» не уводит лист вбок (П-81). */}
+          <div className="openings">
           <div className="row">
             <label className="field" style={{ flex: "1 1 auto" }}>
               <span className="field__label">Цена единицы, ₽</span>
@@ -360,6 +608,7 @@ export function EstimateItemSheet({
                 onChange={(event) => { setWage(event.target.value); }}
               />
             </label>
+          </div>
           </div>
 
           {/* Сумма позиции — тем же умножением, что у сервера. Прежде здесь

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Пусто, пусто } from "./empty.js";
 import type {
-  ClosedTranches, CurrentUser, Inbox, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
+  ClientRow, ClosedTranches, CurrentUser, Inbox, EstimateItem, EstimateSectionNode, EstimateView, ImportRecord, MeasureView,
   ProjectEvent, ProjectFacts, ProjectStatus, ProjectSummary, Role, UpdateProject, Foreman, WorkStage,
 } from "@priyomka/contracts";
 import { sectionTitle, daysBetween, nextAction, ownerLevel, projectRange, sectionWeights,
@@ -14,8 +14,9 @@ import {
   setProjectStatus, updateEstimateItem, updateSupervision, errorMessage, fetchProject,
   acceptancePhotoUrl, updateProject, fetchForemen, fetchStages, planStages,
   createEstimateItem, removeEstimateItem, createEstimateSection, renameEstimateSection,
-  removeEstimateSection, fetchProjectFacts,
+  removeEstimateSection, fetchProjectFacts, fetchClients, invitePerson,
 } from "./api.js";
+import { InviteSheet, ВыданнаяСсылка, адресСсылки } from "./People.js";
 import { SectionSheet } from "./SectionSheet.js";
 import { PlanSheet } from "./PlanSheet.js";
 import { StageList } from "./StageList.js";
@@ -268,7 +269,14 @@ export function ProjectCard({
   const [заготовка, setЗаготовка] = useState<"save" | "apply" | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [measure, setMeasure] = useState<MeasureView | null>(null);
+  /* Наборы обмера для подстановки в смету; первый — действующий. После
+     перепланировки действующий — второй набор: его помещения стоят в списке
+     выбора позиции (`estimate.rooms`), и «из обмера объекта» — его итог.
+     Начальный набор остаётся позициям на помещениях, которых перепланировка
+     не оставила. Прежде лист получал только начальный набор: позиции на
+     помещении действующего набора не предлагалось ни одной величины
+     помещения, а итог объекта брался у набора, которого больше нет. */
+  const [обмеры, setОбмеры] = useState<readonly MeasureView[]>([]);
   /* Прорабы тянутся только тому, кто правит: роль, которой поля не
      принадлежат, органов правки не видит, и список ей незачем. */
   const [прорабы, setПрорабы] = useState<Foreman[]>([]);
@@ -305,7 +313,12 @@ export function ProjectCard({
        вкладке «Замер» и переносу в смету — ни того ни другого у заказчика
        нет. */
     if (user.role !== "CLIENT") {
-      void fetchMeasure(project.code).then(setMeasure).catch(() => { setMeasure(null); });
+      void fetchMeasure(project.code)
+        .then(async (начальный) => начальный.filled.includes("REPLANNED")
+          ? [await fetchMeasure(project.code, "REPLANNED"), начальный]
+          : [начальный])
+        .then(setОбмеры)
+        .catch(() => { setОбмеры([]); });
     }
     /* Отчёт импорта спрашивается отдельно от сметы и заказчиком не
        спрашивается вовсе: маршрут ему закрыт. Прежде отчёт ждали внутри
@@ -1058,7 +1071,7 @@ export function ProjectCard({
               ? ""
               : разделПозиции(estimate.sections, editing.id)?.id ?? ""
           }
-          measure={measure}
+          measures={обмеры}
           closed={закрытые}
           busy={editBusy}
           error={editError}
@@ -1085,7 +1098,7 @@ export function ProjectCard({
           replanned={estimate.replanned}
           sections={разделыСписком(estimate.sections)}
           sectionId={новаяВ}
-          measure={measure}
+          measures={обмеры}
           closed={[]}
           busy={editBusy}
           error={editError}
@@ -1204,6 +1217,25 @@ function Overview({
     fetchProjectFacts(project.code).then(setФакты).catch(() => { setФакты(null); });
   }, [project.code, заводитСмету]);
   const действие = факты === null ? null : nextAction(факты);
+  /* Вход заказчику выдаётся прямо отсюда (этап Э8, ДР-11): лист «Новый
+     человек» открывается с ролью «Заказчик» и заказчиком объекта. Строка
+     стоит, пока вход не выдан, в каком бы месте пути ни был объект: выдать
+     вход можно в любой день, и пункт очереди «заказчику не выдан вход»
+     ведёт сюда. */
+  const [выдача, setВыдача] = useState<{ клиенты: readonly ClientRow[]; заказчик: string } | null>(null);
+  const [выдачаИдёт, setВыдачаИдёт] = useState(false);
+  const [выдачаОтказ, setВыдачаОтказ] = useState<string | null>(null);
+  const [ссылкаЗаказчику, setСсылкаЗаказчику] = useState<{ имя: string; адрес: string } | null>(null);
+  const закрытьВыдачу = useCallback(() => { setВыдача(null); setВыдачаОтказ(null); }, []);
+  const открытьВыдачу = (): void => {
+    fetchClients()
+      .then((клиенты) => {
+        const свой = клиенты.find((клиент) => клиент.code === project.client.code);
+        setВыдача({ клиенты, заказчик: свой?.id ?? "" });
+      })
+      .catch((cause: unknown) => { setВыдачаОтказ(errorMessage(cause)); });
+  };
+  const выдатьВход = выдаётВход && факты !== null && !факты.clientAccess;
   /* Этапы графика читаются здесь, а не приходят со сводкой: в сводке нет
      принятой доли этапа (она стоит двух выборок на объект и на портфеле не
      нужна), а перечень без неё называл бы заявленное принятым. */
@@ -1265,6 +1297,10 @@ function Overview({
               </p>
               {действие.next.key === "clientAccess" && !выдаётВход ? (
                 <span className="t-sm t-muted">Вход выдаёт руководитель в настройках</span>
+              ) : действие.next.key === "clientAccess" ? (
+                <button type="button" className="btn btn--primary" onClick={открытьВыдачу}>
+                  Выдать вход заказчику
+                </button>
               ) : (
                 <button
                   type="button"
@@ -1276,7 +1312,51 @@ function Overview({
               )}
             </div>
           )}
+          {выдатьВход && действие.next?.key !== "clientAccess" && (
+            <div className="nextstep__step">
+              <p className="t-sm">
+                <span className="t-muted">Вход заказчику: </span>
+                <span className="nextstep__label">не выдан</span>
+              </p>
+              <button type="button" className="btn btn--secondary" onClick={открытьВыдачу}>
+                Выдать вход заказчику
+              </button>
+            </div>
+          )}
+          {выдачаОтказ !== null && выдача === null && <p className="field__error" role="alert">{выдачаОтказ}</p>}
+          {ссылкаЗаказчику !== null && (
+            <ВыданнаяСсылка
+              имя={ссылкаЗаказчику.имя}
+              адрес={ссылкаЗаказчику.адрес}
+              onHide={() => { setСсылкаЗаказчику(null); }}
+            />
+          )}
         </section>
+      )}
+      {выдача !== null && (
+        <>
+          <button type="button" className="scrim" aria-label="Закрыть" onClick={закрытьВыдачу} />
+          <InviteSheet
+            clients={выдача.клиенты}
+            busy={выдачаИдёт}
+            error={выдачаОтказ}
+            роль="CLIENT"
+            заказчик={выдача.заказчик}
+            onClose={закрытьВыдачу}
+            onSave={(input) => {
+              setВыдачаИдёт(true);
+              setВыдачаОтказ(null);
+              invitePerson(input)
+                .then((выдано) => {
+                  setСсылкаЗаказчику({ имя: input.name, адрес: адресСсылки(выдано.token) });
+                  setВыдача(null);
+                  return fetchProjectFacts(project.code).then(setФакты);
+                })
+                .catch((cause: unknown) => { setВыдачаОтказ(errorMessage(cause)); })
+                .finally(() => { setВыдачаИдёт(false); });
+            }}
+          />
+        </>
       )}
 
       {/* Обложка объекта первым блоком: карточку открывают, чтобы вспомнить,

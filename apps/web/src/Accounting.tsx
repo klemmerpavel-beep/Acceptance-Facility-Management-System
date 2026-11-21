@@ -393,13 +393,16 @@ export function Accounting({
  */
 function ПОДПИСЬ_СРОКА(row: AccountingRow): string {
   if (row.state === "оплачено") {
-    return row.paidAt === null ? "оплачено" : `оплачен ${formatDate(row.paidAt.slice(0, 10))}`;
+    /* Отметки оплаты и открытия — мгновения, и `formatDate` пишет их днём по
+       часам браузера, как `formatTime` пишет время; срез UTC до форматирования
+       датировал отметку в 00:30 по Москве вчерашним днём (П-74). */
+    return row.paidAt === null ? "оплачено" : `оплачен ${formatDate(row.paidAt)}`;
   }
   if (ЖДЁТ(row.state)) {
     const дней = row.awaitingDays ?? 0;
     return дней === 0 ? "закрыт сегодня" : `ждёт ${дней} ${plural(дней, "день", "дня", "дней")}`;
   }
-  return `открыт ${formatDate(row.openedAt.slice(0, 10))}`;
+  return `открыт ${formatDate(row.openedAt)}`;
 }
 
 /**

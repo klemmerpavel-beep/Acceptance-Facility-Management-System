@@ -119,6 +119,15 @@ export const organizationSchema = z.object({
 });
 export type Organization = z.infer<typeof organizationSchema>;
 
+/**
+ * Как связаться с организацией (этап Э8, ДР-11): название, телефон и почта —
+ * блок «Как связаться» на экране первого входа заказчика. Узкий ответ, а не
+ * карточка организации целиком: реквизиты, часовой пояс и знак заказчику
+ * на этом экране не нужны, а карточка открыта только внутренним ролям.
+ */
+export const organizationContactsSchema = organizationSchema.pick({ name: true, phone: true, email: true });
+export type OrganizationContacts = z.infer<typeof organizationContactsSchema>;
+
 /** Правка организации: пустая строка в необязательном поле означает «стереть». */
 export const updateOrganizationSchema = z.object({
   name: z.string().trim().min(1, "Название обязательно").max(200).optional(),
@@ -811,6 +820,53 @@ export const estimateItemRoomSchema = z.object({
 });
 export type EstimateItemRoom = z.infer<typeof estimateItemRoomSchema>;
 
+/**
+ * Вид поверхности — адрес работы позиции внутри помещения (этап Э11, шаг 2;
+ * решение Д4). Перечень повторяет `SURFACE_KINDS` домена и `SurfaceKind`
+ * схемы; расхождение ловит `apps/api/src/estimates/surface.test.ts`.
+ */
+export const surfaceKindSchema = z.enum(["FLOOR", "CEILING", "WALLS", "WALL", "REVEALS"]);
+export type SurfaceKindDto = z.infer<typeof surfaceKindSchema>;
+
+/**
+ * Источник подставленного количества: величина с областью — помещение,
+ * одна стена или итог объекта (решение Э11-2.7 «в»). Перечень повторяет
+ * `QTY_SOURCES` домена.
+ */
+export const qtySourceSchema = z.enum([
+  "room:floorArea", "room:wallArea", "room:wallAreaNet",
+  "room:floorPerimeter", "room:ceilingPerimeter", "room:revealLength",
+  "wall:wallArea", "wall:wallAreaNet",
+  "project:floorArea", "project:wallArea", "project:wallAreaNet",
+  "project:floorPerimeter", "project:ceilingPerimeter",
+]);
+export type QtySourceDto = z.infer<typeof qtySourceSchema>;
+
+/**
+ * Адрес поверхности позиции, источник количества и признак «обмер
+ * изменился». До ответа второй очереди допроса — только уровню
+ * руководителя: у прораба и заказчика объекта ключа нет вовсе.
+ */
+export const estimateItemSurfaceSchema = z.object({
+  kind: surfaceKindSchema.nullable(),
+  /** Стена «одной стены»; пусто — не выбрана или снята переводом на перепланировку. */
+  wall: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  source: z.object({
+    key: qtySourceSchema,
+    /** Подставленное число, тысячные доли единицы позиции. */
+    value: milliunitsString,
+    /** Строка источника словами. */
+    note: z.string(),
+    /** Признак: та же величина, другая или источника больше нет. */
+    state: z.enum(["same", "changed", "removed"]),
+    /** Величина источника сейчас; пусто — источника нет. */
+    now: milliunitsString.nullable(),
+    /** Признак словами: «Подставлено X, сейчас Y…»; пусто — расхождения нет. */
+    drift: z.string().nullable(),
+  }).nullable(),
+});
+export type EstimateItemSurface = z.infer<typeof estimateItemSurfaceSchema>;
+
 /** Позиция сметы в ответе. Внутренние поля приходят только роли OWNER. */
 export const estimateItemSchema = z.object({
   id: z.string().uuid(),
@@ -827,6 +883,8 @@ export const estimateItemSchema = z.object({
   wageTotal: kopecksString.optional(),
   profit: kopecksString.optional(),
   profitShare: z.number().int().optional(),
+  /** Адрес поверхности, источник и признак — уровню руководителя. */
+  surface: estimateItemSurfaceSchema.optional(),
 });
 export type EstimateItem = z.infer<typeof estimateItemSchema>;
 
@@ -919,6 +977,21 @@ export const updateEstimateItemSchema = z.object({
    * не должно читаться как «убрал».
    */
   roomId: z.string().uuid().nullable().optional(),
+  /**
+   * Адрес поверхности (этап Э11, шаг 2): вид и стена — только у вида «одна
+   * стена». `null` снимает, отсутствие поля не трогает. Смена помещения,
+   * вида или стены снимает источник количества: подставленное относилось к
+   * прежнему адресу.
+   */
+  surfaceKind: surfaceKindSchema.nullable().optional(),
+  wallId: z.string().uuid().nullable().optional(),
+  /**
+   * Источник подставленного количества: присылается вместе с подставленным
+   * числом в `qty`. Сервер сверяет число с величиной обмера сейчас.
+   * `null` снимает источник; правка количества без источника снимает его
+   * тоже — правленое руками количество источника не имеет.
+   */
+  qtySource: qtySourceSchema.nullable().optional(),
 });
 export type UpdateEstimateItem = z.infer<typeof updateEstimateItemSchema>;
 
@@ -963,6 +1036,10 @@ export const createEstimateItemSchema = z.object({
   unitWage: kopecksString,
   /** Помещение обмера; отсутствие поля и `null` — помещение не выбрано. */
   roomId: z.string().uuid().nullable().optional(),
+  /** Адрес поверхности и источник количества — как в правке. */
+  surfaceKind: surfaceKindSchema.nullable().optional(),
+  wallId: z.string().uuid().nullable().optional(),
+  qtySource: qtySourceSchema.nullable().optional(),
 });
 export type CreateEstimateItem = z.infer<typeof createEstimateItemSchema>;
 
@@ -1022,10 +1099,11 @@ export type UpdateSupervision = z.infer<typeof updateSupervisionSchema>;
 /**
  * Закрытые транши объекта и позиции, принятые в них.
  *
- * Акт следует за сметой: правка цены принятой позиции или надбавки меняет
- * суммы уже закрытых траншей и строки выпущенных актов (полный аудит
- * 30.09.2026, П-27). Решение заказчика от 01.10.2026 — оставить так и
- * предупреждать: листы правки позиции и надбавки называют, что изменится.
+ * Неподписанный акт следует за сметой: правка цены принятой позиции или
+ * надбавки меняет суммы закрытых траншей и строки актов (полный аудит
+ * 30.09.2026, П-27). Решение заказчика от 01.10.2026 — предупреждать: листы
+ * правки позиции и надбавки называют, что изменится. Подписанный акт с этапа
+ * Э9 (ДР-3) зафиксирован и правкой не меняется — лист называет и его.
  * Транш без принятых позиций (предоплата) правкой не задевается и сюда не
  * входит.
  */
@@ -1035,6 +1113,11 @@ export const closedTranchesSchema = z.object({
     paid: z.boolean(),
     /** День подписания акта заказчиком. `null` — акт не подписан. */
     signedAt: z.string().nullable(),
+    /**
+     * Акт зафиксирован (этап Э9, ДР-3): правка сметы его не меняет, сторно
+     * пакета запрещено — исправление идёт поправкой в текущем транше.
+     */
+    fixed: z.boolean(),
     /** Позиции сметы, принятые в этом транше, включая сторно. */
     items: z.array(z.string().uuid()),
   })),
@@ -1075,6 +1158,64 @@ export const measureOpeningSchema = z.object({
 });
 export type MeasureOpening = z.infer<typeof measureOpeningSchema>;
 
+/**
+ * Проём на стене в ответе (этап Э11, шаг 2). Проём — одна запись на два
+ * помещения, а в ответе он стоит у каждой стены, на которой стоит: сторона
+ * говорит, с какой стороны эта стена, откосы — этой стороны.
+ */
+export const measureWallOpeningSchema = z.object({
+  id: z.string().uuid(),
+  kind: openingKindSchema,
+  width: measureAmountSchema,
+  height: measureAmountSchema,
+  /** Площадь проёма — выводится доменом. */
+  area: measureAmountSchema,
+  /** «A» — стена, с которой проём заведён; «B» — стена соседа, привязанная к нему. */
+  side: z.enum(["A", "B"]),
+  /** Откосы этой стороны, тысячных м.п.; пусто — не измерены. */
+  reveal: measureAmountSchema.nullable(),
+  /** Другая сторона: помещение, стена и её откосы. Пусто — проём односторонний. */
+  other: z.object({
+    roomId: z.string().uuid(),
+    roomName: z.string(),
+    wallId: z.string().uuid(),
+    wallName: z.string(),
+    reveal: measureAmountSchema.nullable(),
+  }).nullable(),
+});
+export type MeasureWallOpening = z.infer<typeof measureWallOpeningSchema>;
+
+/** Стена помещения в ответе (этап Э11, шаг 2; ADR-0002, п. 1). */
+export const measureWallSchema = z.object({
+  id: z.string().uuid(),
+  /** Место стены в помещении, плотное 1..N. */
+  order: z.number().int().positive(),
+  label: z.string().nullable(),
+  /** «Стена 1 · у окна» — имя строки и журнала. */
+  name: z.string(),
+  length: measureAmountSchema,
+  /** Своя высота стены; пусто — высота помещения. */
+  height: measureAmountSchema.nullable(),
+  /** Площадь стены брутто и нетто — выводятся доменом, не хранятся. */
+  wallArea: measureAmountSchema,
+  wallAreaNet: measureAmountSchema,
+  /** Проёмы на стене больше её площади: нетто принята нулём. */
+  warning: z.string().nullable(),
+  openings: z.array(measureWallOpeningSchema),
+  /**
+   * Позиции сметы с адресом «одна стена» на этой стене — действующей
+   * редакции и прежних. Лист помещения показывает по ним отказ удалить
+   * стену вместо кнопки подтверждения (норматив 55.5; П-88). Число, а не
+   * перечень: сами позиции и их адрес видит уровень руководителя, а отказ
+   * сервера называет то же число и прорабу.
+   */
+  estimateItems: z.object({
+    current: z.number().int().nonnegative(),
+    previous: z.number().int().nonnegative(),
+  }),
+});
+export type MeasureWall = z.infer<typeof measureWallSchema>;
+
 export const measureRoomSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -1083,12 +1224,49 @@ export const measureRoomSchema = z.object({
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   height: measureAmountSchema,
-  /** Выводится сервером из четырёх величин выше. Клиент их не считает. */
+  /**
+   * Площадь стен брутто — без вычета проёмов. Выводится сервером из четырёх
+   * величин выше. Клиент их не считает.
+   */
   wallArea: measureAmountSchema,
+  /**
+   * Площадь стен нетто — брутто за вычетом площади проёмов помещения, не
+   * ниже нуля (этап Э11, шаг 1). Выводится сервером тем же доменом.
+   */
+  wallAreaNet: measureAmountSchema,
   volume: measureAmountSchema,
+  /** Итоги проёмов по виду. У помещения со стенами пусто: первая стена их снимает. */
   openings: z.array(measureOpeningSchema),
+  /**
+   * Стены помещения (этап Э11, шаг 2). Пусто — помещение считается по
+   * четырём величинам, как на шаге 1; есть — площади стен выше — суммы по
+   * стенам.
+   */
+  walls: z.array(measureWallSchema),
+  /** Сумма длин стен; пусто — стен нет. */
+  wallsLength: measureAmountSchema.nullable(),
+  /** Предупреждение Д15: сумма длин расходится с периметром потолка сверх допуска. */
+  wallsWarning: z.string().nullable(),
+  /** Длина откосов своей стороны помещения — величина подстановки «откосы». */
+  revealLength: measureAmountSchema,
 });
 export type MeasureRoom = z.infer<typeof measureRoomSchema>;
+
+/**
+ * Проём без второй стороны (решение Э11-2.2 «а»). Строка стены другого
+ * помещения того же набора предлагает привязать его одним касанием.
+ */
+export const unboundOpeningSchema = z.object({
+  id: z.string().uuid(),
+  kind: openingKindSchema,
+  width: measureAmountSchema,
+  height: measureAmountSchema,
+  roomId: z.string().uuid(),
+  roomName: z.string(),
+  wallId: z.string().uuid(),
+  wallName: z.string(),
+});
+export type UnboundOpening = z.infer<typeof unboundOpeningSchema>;
 
 /** Итог проёмов одного вида по объекту (план, пункт 7.4). */
 export const openingTotalsSchema = z.object({
@@ -1101,7 +1279,10 @@ export type OpeningTotals = z.infer<typeof openingTotalsSchema>;
 export const measureTotalsSchema = z.object({
   rooms: z.number().int().nonnegative(),
   floorArea: measureAmountSchema,
+  /** Брутто объекта — сумма брутто помещений. */
   wallArea: measureAmountSchema,
+  /** Нетто объекта — сумма нетто помещений, а не брутто минус проёмы объекта. */
+  wallAreaNet: measureAmountSchema,
   floorPerimeter: measureAmountSchema,
   ceilingPerimeter: measureAmountSchema,
   volume: measureAmountSchema,
@@ -1139,6 +1320,8 @@ export const measureViewSchema = z.object({
   rooms: z.array(measureRoomSchema),
   totals: measureTotalsSchema,
   plan: measurePlanSchema.nullable(),
+  /** Проёмы набора без второй стороны — для предложения привязки. */
+  unboundOpenings: z.array(unboundOpeningSchema),
 });
 export type MeasureView = z.infer<typeof measureViewSchema>;
 
@@ -1161,6 +1344,23 @@ const inRange = (schema: typeof measureAmountSchema, min: number, max: number, w
     return amount >= min && amount <= max;
   }, `${what} вне допустимых границ`);
 
+/**
+ * Стена в теле сохранения помещения (этап Э11, шаг 2). Перечень стен
+ * присылается целиком, в порядке строк: стена с опознавателем правится,
+ * без него — заводится, прежняя, которой в перечне нет, — удаляется. Так
+ * лист помещения сохраняется одним действием, и первая стена снимает итоги
+ * проёмов тем же сохранением (решение Э11-2.1 «а»).
+ */
+export const measureWallInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  /** Подпись необязательна: без неё стена называется «Стена N». */
+  label: z.string().trim().max(40, "Слишком длинная подпись стены").nullable().optional(),
+  length: inRange(measureAmountSchema, 1, LENGTH_MAX, "Длина стены"),
+  /** Пусто — высота помещения. */
+  height: inRange(measureAmountSchema, HEIGHT_MIN, HEIGHT_MAX, "Высота стены").nullable().optional(),
+});
+export type MeasureWallInput = z.infer<typeof measureWallInputSchema>;
+
 export const createMeasureRoomSchema = z.object({
   name: z.string().trim().min(1, "Назовите помещение").max(60, "Слишком длинное название"),
   floorArea: inRange(measureAmountSchema, 1, AREA_MAX, "Площадь пола"),
@@ -1177,11 +1377,51 @@ export const createMeasureRoomSchema = z.object({
       "Окна и двери вводятся одной строкой на вид: количество, площадь и откосы — общими.",
     )
     .optional(),
+  /** Стены помещения — перечнем целиком; отсутствие поля их не трогает. */
+  walls: z.array(measureWallInputSchema).max(40, "Стен в помещении не больше сорока")
+    .refine(
+      (стены) => {
+        const ids = стены.flatMap((стена) => (стена.id === undefined ? [] : [стена.id]));
+        return new Set(ids).size === ids.length;
+      },
+      "Одна стена встречается в перечне дважды.",
+    )
+    .optional(),
 });
 export type CreateMeasureRoom = z.infer<typeof createMeasureRoomSchema>;
 
 export const updateMeasureRoomSchema = createMeasureRoomSchema.partial();
 export type UpdateMeasureRoom = z.infer<typeof updateMeasureRoomSchema>;
+
+/**
+ * Заведение проёма со строки стены (этап Э11, шаг 2). Стена стороны А —
+ * из адреса запроса, вид — из тела: лист открывается кнопкой «Добавить
+ * окно» или «Добавить дверь» и их не переспрашивает.
+ *
+ * Сторона Б — стена соседнего помещения того же набора, необязательна:
+ * у соседа без стен проём сохраняется односторонним. Откосы второй стороны
+ * без её стены не вводятся.
+ */
+export const createWallOpeningSchema = z.object({
+  kind: openingKindSchema,
+  width: inRange(measureAmountSchema, 1, LENGTH_MAX, "Ширина проёма"),
+  height: inRange(measureAmountSchema, 1, HEIGHT_MAX, "Высота проёма"),
+  /* Откосы — измеренная длина, ноль законен (проём без откосов), предел —
+     тот же, что у длины: число сверх него не влезло бы в столбец базы и
+     вернулось бы ошибкой сервера вместо отказа. */
+  reveal: inRange(measureAmountSchema, 0, LENGTH_MAX, "Откосы проёма").nullable().optional(),
+  adjoiningWallId: z.string().uuid().nullable().optional(),
+  adjoiningReveal: inRange(measureAmountSchema, 0, LENGTH_MAX, "Откосы второй стороны").nullable().optional(),
+});
+export type CreateWallOpening = z.infer<typeof createWallOpeningSchema>;
+
+/**
+ * Правка проёма. `adjoiningWallId` — привязка второй стороны (предложение
+ * в строке стены соседа) или её снятие `null`; отсутствие поля её не
+ * трогает.
+ */
+export const updateWallOpeningSchema = createWallOpeningSchema.partial();
+export type UpdateWallOpening = z.infer<typeof updateWallOpeningSchema>;
 
 /* --- приёмка выполненных работ --------------------------------------------
    Внутренние величины (ставка, начисленное, свод по бригадам) объявлены
@@ -1378,6 +1618,11 @@ export type AcceptanceView = z.infer<typeof acceptanceViewSchema>;
  * Заведение пакета. Раздел, отмеченные позиции с количествами и
  * необязательный комментарий; фотография приходит тем же запросом отдельной
  * частью, поэтому в схеме её нет.
+ *
+ * Позиция отмечается в пакете один раз. Повтор проходил проверку остатка
+ * строкой за строкой: две строки одной позиции на весь остаток принимали
+ * вдвое больше сметы (фаза 0, дефект K2; БП-02). Экран повтора не
+ * формирует — отказ стоит для прямого запроса и называет строку повтора.
  */
 export const createAcceptanceSchema = z.object({
   sectionId: z.string().uuid(),
@@ -1385,7 +1630,19 @@ export const createAcceptanceSchema = z.object({
   positions: z.array(z.object({
     itemId: z.string().uuid(),
     qty: milliunitsString,
-  })).min(1, "Отметьте хотя бы одну позицию."),
+  })).min(1, "Отметьте хотя бы одну позицию.").superRefine((позиции, ctx) => {
+    const отмечены = new Set<string>();
+    позиции.forEach((позиция, номер) => {
+      if (отмечены.has(позиция.itemId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [номер, "itemId"],
+          message: "Позиция отмечена в пакете дважды. Отметьте её один раз с общим количеством.",
+        });
+      }
+      отмечены.add(позиция.itemId);
+    });
+  }),
 });
 export type CreateAcceptance = z.infer<typeof createAcceptanceSchema>;
 
@@ -1641,18 +1898,69 @@ export type AccountingRow = z.infer<typeof accountingRowSchema>;
    ------------------------------------------------------------------------ */
 
 export const actLineSchema = z.object({
+  /**
+   * Строка снимка подписанного акта (этап Э9, ДР-3): к ней пишется поправка.
+   * `null` — акт не зафиксирован, строка собрана из приёмок на лету.
+   */
+  id: z.string().uuid().nullable(),
   name: z.string(),
   unit: z.string(),
   qty: milliunitsString,
   unitPrice: kopecksString,
   total: kopecksString,
-  /** Только внутреннему виду. */
-  unitWage: kopecksString.optional(),
+  /**
+   * Только внутреннему виду. Ставка и начислено строки — из начислений её
+   * приёмок (П-60, решение заказчика В-1 от 07.11.2026), а не из сметы.
+   * `null` — ставку правили между приёмками строки, и ставок у неё
+   * несколько: «начислено» и тогда точная сумма начислений.
+   */
+  unitWage: kopecksString.nullable().optional(),
   wageTotal: kopecksString.optional(),
   profit: kopecksString.optional(),
   profitShare: z.number().int().optional(),
 });
 export type ActLine = z.infer<typeof actLineSchema>;
+
+/**
+ * Поправка к подписанному акту, вошедшая в этот акт (этап Э9, ДР-3).
+ *
+ * Подписанный акт не меняется; его ошибка исправляется строкой следующего
+ * акта: «было → стало» и разница суммой по работам, без надбавки, — надбавка
+ * начисляется на итог работ этого акта вместе со строками. Причина печатается
+ * в акте: заказчик подписывает и её. Внутренних величин у поправки нет —
+ * она меняет только сумму для заказчика.
+ */
+export const actCorrectionSchema = z.object({
+  id: z.string().uuid(),
+  /** Строка подписанного акта, которую поправка исправляет. */
+  lineId: z.string().uuid(),
+  /** Номер подписанного акта, который поправка исправляет. */
+  act: z.number().int().nonnegative(),
+  /** Номер акта, в который поправка входит: акт транша, открытого при записи. */
+  into: z.number().int().nonnegative(),
+  name: z.string(),
+  unit: z.string(),
+  qtyBefore: milliunitsString,
+  qtyAfter: milliunitsString,
+  priceBefore: kopecksString,
+  priceAfter: kopecksString,
+  /** Разница по работам: стало минус было. Отрицательная уменьшает акт. */
+  total: kopecksString,
+  reason: z.string(),
+  createdAt: z.string().date(),
+});
+export type ActCorrection = z.infer<typeof actCorrectionSchema>;
+
+/** Запись поправки к строке подписанного акта. */
+export const createActCorrectionSchema = z.object({
+  lineId: z.string().uuid(),
+  qty: milliunitsString,
+  unitPrice: kopecksString,
+  reason: z.string().trim()
+    .min(1, "Причина поправки обязательна: заказчик прочтёт её в акте.")
+    .max(280, "Причина длиннее 280 знаков"),
+});
+export type CreateActCorrection = z.infer<typeof createActCorrectionSchema>;
 
 export const actViewSchema = z.object({
   /** Вид: клиентский или внутренний. */
@@ -1663,6 +1971,11 @@ export const actViewSchema = z.object({
   /** Дата закрытия транша: ею акт и датируется. */
   closedAt: z.string().date(),
   signedAt: z.string().date().nullable(),
+  /**
+   * День фиксации (этап Э9, ДР-3): первая отметка подписания. С него строки
+   * акта — снимок и правкой сметы не меняются. `null` — акт следует за сметой.
+   */
+  fixedAt: z.string().date().nullable(),
   project: z.object({ code: z.string(), address: z.string() }),
   client: z.object({ name: z.string(), requisites: z.string().nullable() }),
   contractor: z.object({
@@ -1672,6 +1985,13 @@ export const actViewSchema = z.object({
     requisites: z.string().nullable(),
   }),
   lines: z.array(actLineSchema),
+  /** Поправки к подписанным актам, вошедшие в этот акт. Входят в «Работы». */
+  corrections: z.array(actCorrectionSchema),
+  /**
+   * Поправки к строкам этого акта, если он подписан: где и чем исправлен.
+   * В его суммы не входят — подписанный акт не меняется.
+   */
+  amendments: z.array(actCorrectionSchema),
   totals: z.object({
     works: kopecksString,
     supervisionShare: z.number().int().nonnegative(),
@@ -1695,8 +2015,12 @@ export const actRowSchema = z.object({
    */
   closedTime: z.string(),
   signedAt: z.string().date().nullable(),
+  /** День фиксации акта (этап Э9, ДР-3). `null` — акт следует за сметой. */
+  fixedAt: z.string().date().nullable(),
   paidAt: z.string().nullable(),
   positions: z.number().int().nonnegative(),
+  /** Поправок к подписанным актам, вошедших в этот акт. */
+  corrections: z.number().int().nonnegative(),
   total: kopecksString,
   /**
    * Скан подписанного экземпляра (план, пункт 4.10): тип файла и день

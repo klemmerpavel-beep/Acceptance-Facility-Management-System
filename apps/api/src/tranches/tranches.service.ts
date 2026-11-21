@@ -7,9 +7,11 @@ import {
   awaitingDays,
   basisPoints,
   clientAmount,
+  correctionTotal,
   formatKopecks,
   kopecks,
   milliunits,
+  multiplyByQuantity,
   negate,
   nextTrancheNumber,
   paymentFault,
@@ -69,6 +71,32 @@ interface BatchRow {
 }
 
 const iso = (date: Date | null): string | null => date?.toISOString() ?? null;
+
+interface ЗаписьФиксации {
+  fixedShare: number | null;
+  actLines: { qty: bigint; unitPrice: bigint }[];
+  corrections: { qtyBefore: bigint; qtyAfter: bigint; priceBefore: bigint; priceAfter: bigint }[];
+}
+
+/**
+ * Выработка транша с учётом фиксации (этап Э9, ДР-3).
+ *
+ * Зафиксированный транш считается по снимку строк своего акта, а не по
+ * приёмкам и текущим ценам: иначе правка сметы сдвинула бы сумму, которую
+ * заказчик уже подписал, — на вкладке «Транши», хотя в акте она стоит.
+ * Поправки к подписанным актам, вошедшие в этот транш, входят в его
+ * выработку тем же числом, что в его акте.
+ */
+function выработкаТранша(запись: ЗаписьФиксации & { fixedAt: Date | null }, пакеты: readonly BatchRow[]): Kopecks {
+  const основа = запись.fixedAt !== null
+    ? sum(запись.actLines.map((строка) => multiplyByQuantity(kopecks(строка.unitPrice), milliunits(строка.qty))))
+    : produced(пакеты);
+  const поправки = sum(запись.corrections.map((поправка) => correctionTotal({
+    было: { qty: milliunits(поправка.qtyBefore), unitPrice: kopecks(поправка.priceBefore) },
+    стало: { qty: milliunits(поправка.qtyAfter), unitPrice: kopecks(поправка.priceAfter) },
+  })));
+  return (основа + поправки) as Kopecks;
+}
 
 /** Выработка по набору пакетов: Σ принятое × цена единицы, без надбавки. */
 function produced(batches: readonly BatchRow[]): Kopecks {
@@ -135,6 +163,9 @@ export class TranchesService {
         select: {
           id: true, number: true, amount: true, status: true,
           openedAt: true, closedAt: true, paidAt: true, signedAt: true, comment: true,
+          fixedAt: true, fixedShare: true,
+          actLines: { select: { qty: true, unitPrice: true } },
+          corrections: { select: { qtyBefore: true, qtyAfter: true, priceBefore: true, priceAfter: true } },
           payments: {
             orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
             select: {
@@ -167,8 +198,11 @@ export class TranchesService {
       поТраншам.set(пакет.trancheId, [...(поТраншам.get(пакет.trancheId) ?? []), пакет]);
     }
 
+    /* Зафиксированный транш несёт свою надбавку — ту, по которой подписан
+       его акт (ДР-3); прочие — надбавку действующей сметы. */
     const tranches = строки.map((строка) =>
-      this.toTranche(строка, produced(поТраншам.get(строка.id) ?? []), share, день,
+      this.toTranche(строка, выработкаТранша(строка, поТраншам.get(строка.id) ?? []),
+        строка.fixedShare === null ? share : basisPoints(строка.fixedShare), день,
         project.client.paymentGraceDays));
     const внеВыработка = produced(вне);
 
@@ -413,19 +447,26 @@ export class TranchesService {
    * `PAID` здесь, когда платежи покрыли сумму, велик и потому назван:
    * поддавшись ему, продукт завёл бы два способа назначить одно состояние,
    * а они расходятся на первой переплате и на первом сторно.
+   *
+   * «Сегодня» и день открытия транша — дни организации по её часовому поясу
+   * (фаза 0, дефект K10). По UTC в Воронеже с полуночи до трёх ночи платёж,
+   * датированный формой сегодняшним днём, отклонялся как платёж будущим
+   * днём, а транш, открытый в эти часы, числился открытым вчера. Мгновение
+   * передаётся доводом: граница суток иначе не испытывается.
    */
   async addPayment(
-    user: RequestUser, code: string, id: string, input: CreatePayment, today: string,
+    user: RequestUser, code: string, id: string, input: CreatePayment, now = new Date(),
   ): Promise<TrancheView> {
     const project = await this.projectOf(user, code);
     const транш = await this.trancheOf(project.id, id);
+    const день = await orgDay(this.prisma, user.orgId, now);
 
     const отказ = paymentFault({
       amount: kopecks(input.amount),
       paidOn: input.paidOn,
-      today,
+      today: день.today,
       status: транш.status,
-      openedOn: транш.openedAt.toISOString().slice(0, 10),
+      openedOn: день.day(транш.openedAt),
     });
     if (отказ !== null) throw new BadRequestException({ message: отказ });
 
@@ -449,7 +490,7 @@ export class TranchesService {
       }, tx);
     });
 
-    return this.build(project, await orgDay(this.prisma, user.orgId));
+    return this.build(project, день);
   }
 
   /**

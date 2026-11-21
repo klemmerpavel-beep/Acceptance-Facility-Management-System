@@ -36,6 +36,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:?задайте строку подключения в .env}
       NODE_ENV: ${NODE_ENV:-production}
       AUTH_ECHO: ${AUTH_ECHO:-}
+      # Пределы частоты входа (ADR-0008): пусто — умолчания сервера, см. `.env.example`.
+      AUTH_SMS_RESEND_SECONDS: ${AUTH_SMS_RESEND_SECONDS:-}
+      AUTH_SMS_PER_HOUR: ${AUTH_SMS_PER_HOUR:-}
+      AUTH_SMS_PER_DAY: ${AUTH_SMS_PER_DAY:-}
+      AUTH_LINKS_PER_HOUR: ${AUTH_LINKS_PER_HOUR:-}
       PORT: 3000
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       # Каталог хранилища файлов. Реализация порта FileStorage сейчас одна —

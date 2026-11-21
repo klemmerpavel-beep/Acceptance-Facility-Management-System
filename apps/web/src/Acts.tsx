@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { formatPhone, isPhoneNumber, ownerLevel, актБезПодписи, новоеПосле } from "@priyomka/domain";
 import { formatKopecks, formatMeasure, formatPercent } from "@priyomka/ui";
 import type { ActRow, ActView, Role } from "@priyomka/contracts";
-import { actScanUrl, attachActScan, errorMessage, fetchAct, fetchActs, signAct } from "./api.js";
+import {
+  actScanUrl, attachActScan, createActCorrection, errorMessage, fetchAct, fetchActs, fetchTranches, signAct,
+} from "./api.js";
+import { CorrectionSheet } from "./CorrectionSheet.js";
 import { actTurn } from "./turn.js";
 import { Announce } from "./Announce.js";
 import { имяЛиста, печать } from "./print.js";
@@ -35,6 +38,11 @@ import { отобрать, type СОтбором } from "./FilterBar.js";
  * печатать её вправе тот, кому она открыта. Переключатель видов рядом остаётся
  * органом руководителя.
  *
+ * Подписанный акт зафиксирован (этап Э9, ДР-3): первая отметка подписания
+ * пишет его строки снимком, и правка сметы их больше не меняет. Ошибку в нём
+ * исправляет поправка — строкой акта текущего транша; лист поправки
+ * открывает руководитель из подписанного акта.
+ *
  * Скан подписанного экземпляра (план, пункт 4.10) прикладывает руководитель и
  * только к акту с датой подписания: скан без отметки ничего не подтверждает.
  * Открывают скан руководитель, бухгалтер и заказчик; прорабу ссылки нет —
@@ -58,6 +66,10 @@ export function Acts({
   const [вид, setВид] = useState<"client" | "internal">("client");
   const [busy, setBusy] = useState(false);
   const [объявление, setОбъявление] = useState<string | null>(null);
+  /* Лист поправки (ДР-3): номер открытого транша, в акт которого она войдёт,
+     берётся при открытии листа — `undefined`, пока лист закрыт. */
+  const [поправка, setПоправка] = useState<{ current: number | null } | undefined>(undefined);
+  const [ошибкаПоправки, setОшибкаПоправки] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchActs(code)
@@ -95,6 +107,31 @@ export function Acts({
         setОбъявление(`${row.scan === null ? "Скан приложен" : "Скан заменён"} к акту № ${String(row.number)}`);
       })
       .catch((cause: unknown) => { setError(errorMessage(cause)); })
+      .finally(() => { setBusy(false); });
+  };
+
+  const открытьПоправку = (): void => {
+    setОшибкаПоправки(null);
+    void fetchTranches(code)
+      .then((view) => { setПоправка({ current: view.current?.number ?? null }); })
+      .catch((cause: unknown) => { setError(errorMessage(cause)); });
+  };
+
+  const записатьПоправку = (
+    trancheId: string,
+    input: { lineId: string; qty: string; unitPrice: string; reason: string },
+  ): void => {
+    setBusy(true);
+    void createActCorrection(code, trancheId, input)
+      .then((next) => {
+        setRows(next);
+        setПоправка(undefined);
+        setОшибкаПоправки(null);
+        setОбъявление("Поправка записана: войдёт в акт текущего транша");
+        /* Подписанный акт перечитывается: его перечень поправок пополнился. */
+        return fetchAct(code, trancheId, вид).then(setAct);
+      })
+      .catch((cause: unknown) => { setОшибкаПоправки(errorMessage(cause)); })
       .finally(() => { setBusy(false); });
   };
 
@@ -144,6 +181,7 @@ export function Acts({
                 </p>
                 <p className="t-sm t-muted">
                   закрыт {дата(row.closedAt)} · позиций {row.positions}
+                  {row.corrections > 0 && ` · поправок к подписанным актам ${String(row.corrections)}`}
                   {row.scan !== null && ` · скан приложен ${дата(row.scan.uploadedAt)}`}
                 </p>
               </div>
@@ -234,6 +272,11 @@ export function Acts({
             {/* Вид берётся из ответа сервера, а не из состояния переключателя:
                 состояние меняется до того, как придёт новый вид, и лист,
                 названный внутренним, успел бы уйти клиентским. */}
+            {ownerLevel(role) && act.fixedAt !== null && act.lines.some((line) => line.id !== null) && (
+              <button type="button" className="btn btn--secondary" onClick={открытьПоправку}>
+                Оформить поправку
+              </button>
+            )}
             <button
               type="button"
               className="btn btn--secondary"
@@ -252,9 +295,42 @@ export function Acts({
             </p>
           </div>
         )}
+
+        {/* Фиксация и история поправок — на экране, не на бумаге: подписанный
+            акт печатается тем, что подписано (ДР-3). */}
+        {act?.fixedAt != null && (
+          <div className="panel panel--pad stack stack--tight" role="note">
+            <p className="t-sm">
+              Акт № {act.number} зафиксирован {дата(act.fixedAt)}: правка сметы его не меняет.
+              Ошибку исправляет поправка — строкой в акте текущего транша.
+            </p>
+            {act.amendments.length > 0 && (
+              <ul className="stack stack--tight">
+                {act.amendments.map((правка) => (
+                  <li className="t-sm" key={правка.id}>
+                    «{правка.name}»: {formatMeasure(BigInt(правка.qtyBefore), правка.unit)} ×{" "}
+                    {formatKopecks(BigInt(правка.priceBefore))} → {formatMeasure(BigInt(правка.qtyAfter), правка.unit)} ×{" "}
+                    {formatKopecks(BigInt(правка.priceAfter))} — в акт № {правка.into}, {дата(правка.createdAt)}.
+                    Причина: {правка.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {act !== null && <ActSheet act={act} />}
+      {act !== null && поправка !== undefined && (
+        <CorrectionSheet
+          act={act}
+          current={поправка.current}
+          busy={busy}
+          error={ошибкаПоправки}
+          onSubmit={(input) => { записатьПоправку(act.trancheId, input); }}
+          onClose={() => { setПоправка(undefined); }}
+        />
+      )}
     </div>
   );
 }
@@ -332,6 +408,30 @@ function ActSheet({ act }: { act: ActView }): React.JSX.Element {
               </tr>
             ))}
           </tbody>
+          {/* Поправки к подписанным актам (ДР-3) — строками этого акта:
+              было → стало и разница. Входят в «Работы», надбавка начисляется
+              на итог вместе со строками. */}
+          {act.corrections.length > 0 && (
+            <tbody className="act__corrections">
+              <tr>
+                <th scope="colgroup" colSpan={внутренний ? 7 : 5}>Поправки к подписанным актам</th>
+              </tr>
+              {act.corrections.map((поправка) => (
+                <tr key={поправка.id}>
+                  <td colSpan={4}>
+                    Поправка к акту № {поправка.act}: {поправка.name} —{" "}
+                    {formatMeasure(BigInt(поправка.qtyBefore), поправка.unit)} ×{" "}
+                    {formatKopecks(BigInt(поправка.priceBefore))} →{" "}
+                    {formatMeasure(BigInt(поправка.qtyAfter), поправка.unit)} ×{" "}
+                    {formatKopecks(BigInt(поправка.priceAfter))}.{" "}
+                    <span className="t-muted">Причина: {поправка.reason}</span>
+                  </td>
+                  <td className="estimate__num">{formatKopecks(BigInt(поправка.total))}</td>
+                  {внутренний && <td colSpan={2} />}
+                </tr>
+              ))}
+            </tbody>
+          )}
           <tfoot>
             <tr>
               <th scope="row" colSpan={4}>Работы</th>

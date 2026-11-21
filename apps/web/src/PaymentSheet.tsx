@@ -4,6 +4,7 @@ import { formatKopecks } from "@priyomka/ui";
 import { kopecks, paymentFault, subtract } from "@priyomka/domain";
 import { useModalDialog } from "./modal.js";
 import { toKopecks } from "./TrancheSheet.js";
+import { местныйДень } from "./today.js";
 
 /**
  * Запись платежа заказчика.
@@ -15,15 +16,11 @@ import { toKopecks } from "./TrancheSheet.js";
  * два способа назначить одно состояние расходятся на первом же сторно.
  *
  * Отказ показывается до обращения к сети тем же `paymentFault`, что применит
- * сервер, — приём общий с `TrancheSheet`.
+ * сервер, — приём общий с `TrancheSheet`. Сегодняшний день и день открытия
+ * транша — местные, одним помощником с формой чека: сервер считает оба днём
+ * организации, а день открытия здесь брался по UTC, и транш, открытый до
+ * трёх ночи, лист считал открытым вчера (фаза 0, дефект K10).
  */
-
-/** Сегодняшний день в виде ГГГГ-ММ-ДД по часам браузера. */
-const сегодня = (): string => {
-  const now = new Date();
-  const двумя = (число: number): string => String(число).padStart(2, "0");
-  return `${String(now.getFullYear())}-${двумя(now.getMonth() + 1)}-${двумя(now.getDate())}`;
-};
 
 export function PaymentSheet({
   tranche,
@@ -39,7 +36,7 @@ export function PaymentSheet({
   onClose: () => void;
 }): React.JSX.Element {
   const { dialog, first } = useModalDialog<HTMLInputElement>(onClose);
-  const день = сегодня();
+  const день = местныйДень();
   const [amount, setAmount] = useState("");
   const [paidOn, setPaidOn] = useState(день);
   const [comment, setComment] = useState("");
@@ -53,7 +50,7 @@ export function PaymentSheet({
       paidOn,
       today: день,
       status: tranche.status,
-      openedOn: tranche.openedAt.slice(0, 10),
+      openedOn: местныйДень(new Date(tranche.openedAt)),
     });
   const ready = копейки !== null && fault === null;
 

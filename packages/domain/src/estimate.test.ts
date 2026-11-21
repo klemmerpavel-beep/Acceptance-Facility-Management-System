@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { basisPoints, parseQuantity, parseRubles } from "./money.js";
+import { basisPoints, milliunits, parseQuantity, parseRubles } from "./money.js";
 import {
   buildEstimateView, estimateItemFault, estimateItemMoveFault, estimateItemWarning,
   groupByStageRoom,
   measureSourcesFor, sectionWeights, БЕЗ_ПОМЕЩЕНИЯ, ВНЕ_ГРАФИКА,
-  MEASURE_LABEL, MEASURE_SOURCES,
+  MEASURE_LABEL, MEASURE_SOURCES, measureSourceNote,
   type BuildEstimateInput, type GroupNode, type SectionNode,
   estimateItemRemovalFault,
   estimateSectionRemovalFault,
   estimateSectionNestingFault,
+  isQtySource, measureDrift, measureDriftNote, projectSources, QTY_SOURCE_LABEL, QTY_SOURCES, qtySourceFault,
+  qtySourceMismatch, qtySourceNote, qtySourceScope, qtySourceValue, surfaceFault, surfaceSources, SURFACE_KINDS,
+  SURFACE_LABEL, type QtySourceRecord,
 } from "./estimate.js";
+import { measureTotals, type RoomMeasure, type WallMeasure } from "./measure.js";
 import { findInternalFields, INTERNAL_FIELDS } from "./projection.js";
 
 /**
@@ -219,8 +223,39 @@ describe("предупреждение при правке позиции", () =
 });
 
 describe("перенос величин обмера", () => {
-  it("позиции в квадратных метрах предлагаются две площади", () => {
-    expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea"]);
+  it("позиции в квадратных метрах предлагаются площадь пола и обе площади стен", () => {
+    // Прежняя «площадь стен» — брутто — остаётся на месте; нетто встаёт рядом
+    // третьей строкой (этап Э11, шаг 1), а не вместо неё.
+    expect(measureSourcesFor("м²")).toEqual(["floorArea", "wallArea", "wallAreaNet"]);
+    expect(MEASURE_LABEL.wallArea).toBe("площадь стен");
+    expect(MEASURE_LABEL.wallAreaNet).toBe("площадь стен нетто");
+  });
+
+  it("источник подстановки называет помещение, величину и число", () => {
+    expect(measureSourceNote("wallAreaNet", "Спальня", milliunits(43_740), "м²")).toBe(
+      "Подставлено из обмера помещения «Спальня»: площадь стен нетто, 43,74\u00A0м²."
+      + " Это копия: правка обмера количество не изменит.",
+    );
+    expect(measureSourceNote("wallArea", null, milliunits(262_953), "м²")).toBe(
+      "Подставлено из обмера объекта: площадь стен, 262,953\u00A0м²."
+      + " Это копия: правка обмера количество не изменит.",
+    );
+  });
+
+  it("источник называет ровно подставленное число — до тысячной, а не округлённое", () => {
+    // Санузел контрольной квартиры (measure.test.ts): 16,868 м² за вычетом
+    // проёмов. В поле количества ложится «16,868»; «16,87» в строке
+    // источника назвало бы не то число, что подставлено.
+    expect(measureSourceNote("wallAreaNet", "Санузел", milliunits(16_868), "м²")).toContain(", 16,868\u00A0м².");
+    expect(measureSourceNote("floorArea", "Санузел", milliunits(4_000), "м²")).toContain(", 4\u00A0м².");
+  });
+
+  it("число в погонных метрах кончает предложение одной точкой (П-78)", () => {
+    // «м.п.» уже с точкой: прежде строка печаталась «17,6 м.п.. Это копия».
+    expect(measureSourceNote("floorPerimeter", "Спальня", milliunits(17_600), "м.п.")).toBe(
+      "Подставлено из обмера помещения «Спальня»: периметр пола, 17,6\u00A0м.п."
+      + " Это копия: правка обмера количество не изменит.",
+    );
   });
 
   it("позиции в погонных метрах предлагаются два периметра", () => {
@@ -431,5 +466,209 @@ describe("удаление позиции и раздела (план, пунк�
   it("раздел вкладывается только в раздел верхнего уровня", () => {
     expect(estimateSectionNestingFault(false)).toBeNull();
     expect(estimateSectionNestingFault(true)).toContain("верхнего уровня");
+  });
+});
+
+/**
+ * Адрес поверхности, источник подстановки и признак «обмер изменился»
+ * (этап Э11, шаг 2; решения Э11-2.5 — Э11-2.7).
+ *
+ * Помещение — комната вымышленной квартиры шага 2 (`measure.test.ts`, Д6);
+ * величины посчитаны там вручную: пол 12,000 м², периметры 13,200 и
+ * 14,050 м.п., стены брутто 37,800 и нетто 34,020 м², откосы своей стороны
+ * 9,300 м.п. (окно 4,300 + сторона А двери 5,000); стена 1 «у окна» —
+ * 3,200 × 2,700 = 8,640 брутто, за вычетом окна 2,100 — 6,540 нетто.
+ */
+const ст = (id: string, length: number, label: string | null = null): WallMeasure =>
+  ({ id, label, length: milliunits(length), height: null });
+const СТЕНА_1 = ст("С1", 3_200, "у окна");
+const КОМНАТА: RoomMeasure = {
+  floorArea: milliunits(12_000), floorPerimeter: milliunits(13_200),
+  ceilingPerimeter: milliunits(14_050), height: milliunits(2_700),
+  walls: [СТЕНА_1, ст("С2", 3_800), ст("С3", 3_200), ст("С4", 3_800)],
+  wallOpenings: [
+    { id: "О1", kind: "WINDOW", width: milliunits(1_500), height: milliunits(1_400), wallId: "С1",
+      adjoiningWallId: null, reveal: milliunits(4_300), adjoiningReveal: null },
+    { id: "Д1", kind: "DOOR", width: milliunits(800), height: milliunits(2_100), wallId: "С3",
+      adjoiningWallId: "Кр-С2", reveal: milliunits(5_000), adjoiningReveal: milliunits(4_200) },
+  ],
+};
+const ИТОГИ = measureTotals([КОМНАТА]);
+const контекст = { room: КОМНАТА, wall: СТЕНА_1, totals: ИТОГИ };
+
+describe("адрес поверхности и подстановка по нему (Э11-2.5, Э11-2.6)", () => {
+  it("пять видов поверхности, подписи — словами листа", () => {
+    expect(SURFACE_KINDS).toEqual(["FLOOR", "CEILING", "WALLS", "WALL", "REVEALS"]);
+    expect(SURFACE_KINDS.map((kind) => SURFACE_LABEL[kind])).toEqual(
+      ["пол", "потолок", "все стены", "одна стена", "откосы"],
+    );
+  });
+
+  it("без выбора поверхности — величины помещения шага 1", () => {
+    expect(surfaceSources(null, "м²")).toEqual(["room:floorArea", "room:wallArea", "room:wallAreaNet"]);
+    expect(surfaceSources(null, "м.п.")).toEqual(["room:floorPerimeter", "room:ceilingPerimeter"]);
+  });
+
+  it("величины выбранной поверхности по единице позиции", () => {
+    expect(surfaceSources("FLOOR", "м²")).toEqual(["room:floorArea"]);
+    expect(surfaceSources("FLOOR", "м.п.")).toEqual(["room:floorPerimeter"]);
+    // Площади потолка обмер не знает: у потолка — площадь пола под своим именем.
+    expect(surfaceSources("CEILING", "м²")).toEqual(["room:floorArea"]);
+    expect(QTY_SOURCE_LABEL["room:floorArea"]).toBe("площадь пола");
+    expect(surfaceSources("CEILING", "м.п.")).toEqual(["room:ceilingPerimeter"]);
+    expect(surfaceSources("WALLS", "м²")).toEqual(["room:wallArea", "room:wallAreaNet"]);
+    expect(surfaceSources("WALL", "м²")).toEqual(["wall:wallArea", "wall:wallAreaNet"]);
+    expect(surfaceSources("REVEALS", "м.п.")).toEqual(["room:revealLength"]);
+  });
+
+  it("единице, которой поверхность не мерится, не предлагается ничего; штук нет", () => {
+    expect(surfaceSources("WALL", "м.п.")).toEqual([]);
+    expect(surfaceSources("REVEALS", "м²")).toEqual([]);
+    for (const kind of SURFACE_KINDS) expect(surfaceSources(kind, "шт")).toEqual([]);
+  });
+
+  it("«из обмера объекта» — перечень шага 1, без откосов", () => {
+    expect(projectSources("м²")).toEqual(["project:floorArea", "project:wallArea", "project:wallAreaNet"]);
+    expect(projectSources("м.п.")).toEqual(["project:floorPerimeter", "project:ceilingPerimeter"]);
+  });
+
+  it("каждая строка перечня — с областью и подписью", () => {
+    expect(QTY_SOURCES).toHaveLength(13);
+    for (const source of QTY_SOURCES) expect(QTY_SOURCE_LABEL[source]).toBeTruthy();
+    expect(qtySourceScope("wall:wallAreaNet")).toBe("wall");
+    expect(qtySourceScope("room:revealLength")).toBe("room");
+    expect(qtySourceScope("project:floorArea")).toBe("project");
+    expect(isQtySource("room:wallAreaNet")).toBe(true);
+    expect(isQtySource("wallAreaNet")).toBe(false);
+    expect(isQtySource("project:revealLength")).toBe(false);
+  });
+
+  it("величина источника — тем же доменом, что экран обмера", () => {
+    const величины = Object.fromEntries(QTY_SOURCES.map((source) => [source, qtySourceValue(source, контекст)]));
+    expect(величины).toEqual({
+      "room:floorArea": 12_000n, "room:wallArea": 37_800n, "room:wallAreaNet": 34_020n,
+      "room:floorPerimeter": 13_200n, "room:ceilingPerimeter": 14_050n, "room:revealLength": 9_300n,
+      "wall:wallArea": 8_640n, "wall:wallAreaNet": 6_540n,
+      "project:floorArea": 12_000n, "project:wallArea": 37_800n, "project:wallAreaNet": 34_020n,
+      "project:floorPerimeter": 13_200n, "project:ceilingPerimeter": 14_050n,
+    });
+    expect(qtySourceValue("wall:wallArea", { ...контекст, wall: null })).toBeNull();
+    expect(qtySourceValue("room:floorArea", { ...контекст, room: null })).toBeNull();
+    expect(qtySourceValue("project:floorArea", { ...контекст, totals: null })).toBeNull();
+  });
+
+  it("адрес: вид — только у помещения, стена — только у «одной стены»", () => {
+    expect(surfaceFault({ roomId: "к", surface: "WALL", wallId: "С1" })).toBeNull();
+    // Стена снята переводом на перепланировку — адрес законен, стену выберут заново.
+    expect(surfaceFault({ roomId: "к", surface: "WALL", wallId: null })).toBeNull();
+    expect(surfaceFault({ roomId: null, surface: null, wallId: null })).toBeNull();
+    expect(surfaceFault({ roomId: null, surface: "FLOOR", wallId: null })).toBe(
+      "Поверхность выбирается у помещения: сначала выберите помещение позиции.",
+    );
+    expect(surfaceFault({ roomId: "к", surface: "WALLS", wallId: "С1" })).toBe(
+      "Стена выбирается только у поверхности «одна стена».",
+    );
+  });
+
+  it("источник — только из того, что лист предложил бы этому адресу и единице", () => {
+    const адрес = { roomId: "к", surface: "WALL" as const, wallId: "С1", unit: "м²" };
+    expect(qtySourceFault("wall:wallAreaNet", адрес)).toBeNull();
+    expect(qtySourceFault("project:wallAreaNet", адрес)).toBeNull();
+    expect(qtySourceFault("room:wallAreaNet", адрес)).toBe(
+      "Величина «площадь стен нетто» не относится к поверхности «одна стена» позиции в «м²».",
+    );
+    expect(qtySourceFault("wall:wallArea", { ...адрес, wallId: null })).toBe(
+      "Величина «площадь стены» берётся со стены: выберите стену.",
+    );
+    expect(qtySourceFault("room:floorArea", { ...адрес, roomId: null, surface: null, wallId: null })).toBe(
+      "Величина «площадь пола» берётся из обмера помещения: выберите помещение позиции.",
+    );
+    expect(qtySourceFault("project:floorPerimeter", адрес)).toBe(
+      "Величина «периметр пола» объекта не подставляется позиции в «м²».",
+    );
+    expect(qtySourceFault("room:revealLength", { roomId: "к", surface: "REVEALS", wallId: null, unit: "м.п." }))
+      .toBeNull();
+  });
+
+  it("подставляемое число обязано совпасть с величиной обмера сейчас", () => {
+    expect(qtySourceMismatch(milliunits(6_540), milliunits(6_540), "м²")).toBeNull();
+    expect(qtySourceMismatch(milliunits(6_540), milliunits(6_240), "м²")).toBe(
+      "Подставлено 6,54\u00A0м², а в обмере сейчас 6,24\u00A0м²: обмер изменился, пока лист был открыт."
+      + " Подставьте заново.",
+    );
+    expect(qtySourceMismatch(milliunits(6_540), null, "м²")).toContain("больше нет");
+  });
+
+  it("строка источника называет помещение, стену, величину и ровно подставленное число", () => {
+    expect(qtySourceNote("wall:wallAreaNet", { room: "Комната", wall: "Стена 1 · у окна" }, milliunits(6_540), "м²"))
+      .toBe("Подставлено из обмера помещения «Комната», стена «Стена 1 · у окна»: площадь стены нетто,"
+        + " 6,54\u00A0м². Это копия: правка обмера количество не изменит.");
+    expect(qtySourceNote("room:revealLength", { room: "Комната", wall: null }, milliunits(9_300), "м.п."))
+      .toBe("Подставлено из обмера помещения «Комната»: длина откосов, 9,3\u00A0м.п."
+        + " Это копия: правка обмера количество не изменит.");
+    // Удалённые помещение и стена так и названы, а не выданы за итог объекта.
+    expect(qtySourceNote("room:wallArea", { room: null, wall: null }, milliunits(37_800), "м²"))
+      .toContain("Подставлено из обмера удалённого помещения: площадь стен, 37,8\u00A0м².");
+    expect(qtySourceNote("wall:wallArea", { room: "Комната", wall: null }, milliunits(8_640), "м²"))
+      .toContain("из обмера помещения «Комната», стена удалена: площадь стены, 8,64\u00A0м².");
+    expect(qtySourceNote("project:wallAreaNet", { room: "Комната", wall: null }, milliunits(34_020), "м²"))
+      .toBe("Подставлено из обмера объекта: площадь стен нетто, 34,02\u00A0м²."
+        + " Это копия: правка обмера количество не изменит.");
+  });
+});
+
+describe("признак «обмер изменился» (Э11-2.7)", () => {
+  const источник: QtySourceRecord = { source: "wall:wallAreaNet", value: milliunits(6_540), roomId: "к", wallId: "С1" };
+
+  it("величина та же — расхождения нет", () => {
+    const признак = measureDrift(источник, "к", контекст);
+    expect(признак).toEqual({ state: "same", now: 6_540n });
+    expect(measureDriftNote(признак, источник.value, "м²")).toBeNull();
+  });
+
+  it("признак в погонных метрах — одной точкой", () => {
+    const откосы: QtySourceRecord = { source: "room:revealLength", value: milliunits(9_000), roomId: "к", wallId: null };
+    expect(measureDriftNote(measureDrift(откосы, "к", контекст), откосы.value, "м.п.")).toBe(
+      "Подставлено 9\u00A0м.п., сейчас 9,3\u00A0м.п. Количество само не меняется.",
+    );
+  });
+
+  it("окно стены 1 расширили до 1,500 × 1,600 = 2,400: подставлено 6,54, сейчас 6,24", () => {
+    // 8,640 − 2,400 = 6,240. Количество позиции признак не трогает.
+    const расширено: RoomMeasure = {
+      ...КОМНАТА,
+      wallOpenings: (КОМНАТА.wallOpenings ?? []).map((o) => (o.id === "О1" ? { ...o, height: milliunits(1_600) } : o)),
+    };
+    const признак = measureDrift(источник, "к", { ...контекст, room: расширено });
+    expect(признак).toEqual({ state: "changed", now: 6_240n });
+    expect(measureDriftNote(признак, источник.value, "м²")).toBe(
+      "Подставлено 6,54\u00A0м², сейчас 6,24\u00A0м². Количество само не меняется.",
+    );
+  });
+
+  it("помещение источника удалено — «источник удалён»", () => {
+    const признак = measureDrift({ ...источник, roomId: null }, "к", { ...контекст, room: null });
+    expect(признак).toEqual({ state: "removed", reason: "Помещения источника больше нет в обмере." });
+    expect(measureDriftNote(признак, источник.value, "м²")).toBe(
+      "Помещения источника больше нет в обмере. Количество само не меняется.",
+    );
+  });
+
+  it("стена источника удалена — «источник удалён»", () => {
+    expect(measureDrift({ ...источник, wallId: null }, "к", { ...контекст, wall: null })).toEqual(
+      { state: "removed", reason: "Стены источника больше нет в обмере." },
+    );
+  });
+
+  it("позицию перевели на помещение перепланировки — «источник удалён», хотя величина цела", () => {
+    expect(measureDrift(источник, "к-после", контекст)).toEqual({
+      state: "removed",
+      reason: "Позицию перевели на обмер после перепланировки: источник остался в прежнем наборе.",
+    });
+  });
+
+  it("итог объекта не удаляется: сравнивается с итогом действующего набора", () => {
+    const объект: QtySourceRecord = { source: "project:floorArea", value: milliunits(80_530), roomId: null, wallId: null };
+    expect(measureDrift(объект, null, контекст)).toEqual({ state: "changed", now: 12_000n });
   });
 });

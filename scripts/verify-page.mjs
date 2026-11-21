@@ -10,6 +10,15 @@ import { chromium } from "playwright-core";
 import { launchOptions, browserSource } from "./browser.mjs";
 import { mkdirSync, readFileSync } from "node:fs";
 
+/* Пояс организации стенда (`apps/api/prisma/seed.mjs`, поле timeZone). Сервер
+   считает «сегодня» днём организации, формы — местным днём браузера (K10), а
+   человек, который ведёт объект, работает в поясе организации. Браузер стенда
+   без пояса живёт в UTC, и с 21:00 до 24:00 UTC форма платежа подставляла
+   вчерашний по Москве день: сервер отказывал «Платёж раньше открытия транша»,
+   и обход падал, не найдя дефекта продукта. Пояс задаётся процессу целиком —
+   браузер наследует его окружение, и ожидания обхода считаются в том же дне. */
+process.env.TZ = "Europe/Moscow";
+
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173";
 /* Сервер спрашивается напрямую там, где нужна ссылка входа: выдаёт её он,
    и класть этот путь через клиента значило бы проверять заодно проксирование. */
@@ -2099,8 +2108,12 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
     const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
     const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" })
       .then((r) => r.json());
+    /* Позиция без адреса поверхности: величины помещения лист предлагает
+       без выбранной поверхности (этап Э11, шаг 2). После `verify-api` у
+       позиций повторного импорта есть адреса — «одна стена» лоджии и «пол»
+       спальни, — и лист честно предлагает величины их поверхности. */
     const позиция = собрать(вид.sections)
-      .find((строка) => строка.room !== null && строка.unit === "м²");
+      .find((строка) => строка.room !== null && строка.unit === "м²" && (строка.surface?.kind ?? null) === null);
     if (позиция === undefined) return null;
     const обмер = await fetch(`/api/projects/R-99/measure?set=${позиция.room.set}`,
       { credentials: "include" }).then((r) => r.json());
@@ -2109,6 +2122,8 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
       name: позиция.name,
       room: позиция.room.name,
       floorArea: комната?.floorArea ?? null,
+      wallArea: комната?.wallArea ?? null,
+      wallAreaNet: комната?.wallAreaNet ?? null,
       объект: обмер.totals?.floorArea ?? null,
     };
   });
@@ -2151,6 +2166,47 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
             `подстановка помещения «${позицияСПомещением.room}» предложила «${площадь?.trim()}»`
             + ` вместо ${ожидалось} м²: берётся итог по объекту, а не величина помещения`);
         }
+
+        /* Этап Э11, шаг 1: третья строка «площадь стен нетто» — слово
+           решения заказчика 07.11.2026 — рядом с прежней «площадью стен»,
+           брутто. Нажатие подставляет величину помещения и называет
+           источник словами и тем же числом, что легло в поле. */
+        const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+          .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+        const нетто = подписи.find((подпись) => подпись.toLowerCase().includes("площадь стен нетто"));
+        const брутто = подписи.find((подпись) => подпись.trim().toLowerCase().startsWith("площадь стен")
+          && !подпись.includes("нетто"));
+        if (нетто === undefined) {
+          note("стены за вычетом проёмов", `позиции в м² не предложена «площадь стен нетто»: ${подписи.join(" | ")}`);
+        } else if (!нетто.replace(/\s|\u00A0/g, "").includes(вЧисло(позицияСПомещением.wallAreaNet))) {
+          note("стены за вычетом проёмов",
+            `подстановка «${нетто.trim()}» вместо ${вЧисло(позицияСПомещением.wallAreaNet)} у помещения «${позицияСПомещением.room}»`);
+        }
+        if (брутто === undefined || !брутто.replace(/\s|\u00A0/g, "").includes(вЧисло(позицияСПомещением.wallArea))) {
+          note("стены за вычетом проёмов", `прежняя «площадь стен» без вычета проёмов пропала или изменилась: «${брутто?.trim()}»`);
+        }
+        if (нетто !== undefined) {
+          await поПомещению.locator(".btn").filter({ hasText: "площадь стен нетто" }).first().click();
+          await page.waitForTimeout(200);
+          const количество = await page.locator('.sheet input[inputmode="decimal"]').first().inputValue();
+          const источник = (await page.locator('.sheet [role="status"]').allTextContents())
+            .find((текст) => текст.startsWith("Подставлено"));
+          if (количество !== вЧисло(позицияСПомещением.wallAreaNet)) {
+            note("стены за вычетом проёмов", `подстановка дала количество «${количество}»`);
+          }
+          if (источник === undefined
+            || !источник.includes(`помещения «${позицияСПомещением.room}»`)
+            || !источник.includes(`площадь стен нетто, ${количество}\u00A0м²`)) {
+            note("стены за вычетом проёмов", `лист не назвал источник подстановки: «${источник ?? "—"}»`);
+          }
+          await step("правка сметы, подстановка стен за вычетом проёмов", "39a-smeta-steny-netto.png");
+          /* Правленое руками количество источника не имеет. */
+          await page.locator('.sheet input[inputmode="decimal"]').first().fill("1");
+          await page.waitForTimeout(150);
+          if ((await page.locator('.sheet [role="status"]').allTextContents()).some((т) => т.startsWith("Подставлено"))) {
+            note("стены за вычетом проёмов", "источник подстановки остался после ручной правки количества");
+          }
+        }
       }
       /* Выбор помещения — в том же листе: путь без указателя обязан быть. */
       if ((await page.locator('.sheet select[class~="input"]').count()) === 0) {
@@ -2161,6 +2217,435 @@ if ((await page.locator(".estimate__act .btn--text").count()) === 0) {
       console.log(`  правка сметы: помещение «${позицияСПомещением.room}»,`
         + ` площадь ${позицияСПомещением.floorArea} против ${позицияСПомещением.объект} у объекта`);
     }
+  }
+}
+
+/* Подстановка на перепланированном объекте (этап Э11, шаг 1). R-99 на
+   стенде перепланирован: список помещений позиции — действующий набор, и
+   лист обязан брать из него и величины помещения, и итог «из обмера
+   объекта». Прежде лист получал только начальный набор: позиции на
+   помещении действующего набора не предлагалось ни одной величины
+   помещения — площадь стен нетто туда было не подставить, — а итог объекта
+   был итогом набора, которого больше нет. Числа — у API той же сессией. */
+{
+  const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+    .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  const действующая = await page.evaluate(async () => {
+    const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+    const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((r) => r.json());
+    if (!вид.replanned) return { replanned: false, позиция: null };
+    /* Без адреса поверхности — по доводу выше. */
+    const позиция = собрать(вид.sections)
+      .find((строка) => строка.unit === "м²" && строка.room?.set === "REPLANNED" && (строка.surface?.kind ?? null) === null);
+    if (позиция === undefined) return { replanned: true, позиция: null };
+    const обмер = await fetch("/api/projects/R-99/measure?set=REPLANNED", { credentials: "include" })
+      .then((r) => r.json());
+    const комната = (обмер.rooms ?? []).find((строка) => строка.id === позиция.room.id);
+    return {
+      replanned: true,
+      позиция: { name: позиция.name, room: позиция.room.name },
+      помещение: комната?.wallAreaNet ?? null,
+      объект: обмер.totals?.wallAreaNet ?? null,
+    };
+  });
+  if (!действующая.replanned || действующая.позиция === null) {
+    note("стены за вычетом проёмов",
+      "на стенде нет позиции в м² на помещении действующего набора перепланированного R-99: подстановку не на чем проверить");
+  } else {
+    const раскрыть = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+    if ((await раскрыть.count()) > 0) {
+      await раскрыть.click();
+      await page.waitForTimeout(300);
+    }
+    const строка = page.locator("table.estimate tbody tr")
+      .filter({ hasText: действующая.позиция.name }).filter({ hasText: действующая.позиция.room }).first();
+    await строка.locator('.btn--text:has-text("Править")').click();
+    await page.waitForTimeout(400);
+    const нетто = async (группа) => ((await page.locator(".estimate__from-measure").filter({ hasText: группа })
+      .locator(".btn").filter({ hasText: "площадь стен нетто" }).allTextContents())[0] ?? "")
+      .replace(/\s|\u00A0/g, "");
+    const уПомещения = await нетто("из обмера помещения");
+    if (!уПомещения.includes(вЧисло(действующая.помещение))) {
+      note("стены за вычетом проёмов",
+        `позиции на помещении «${действующая.позиция.room}» действующего набора не предложена его площадь стен нетто`
+        + ` ${вЧисло(действующая.помещение)}: «${уПомещения || "группы «из обмера помещения» нет"}»`);
+    }
+    const уОбъекта = await нетто("из обмера объекта");
+    if (!уОбъекта.includes(вЧисло(действующая.объект))) {
+      note("стены за вычетом проёмов",
+        `«из обмера объекта» предложено «${уОбъекта}» вместо итога действующего набора ${вЧисло(действующая.объект)}`);
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+    console.log(`  подстановка после перепланировки: «${действующая.позиция.room}» ${действующая.помещение},`
+      + ` объект ${действующая.объект} тысячных м²`);
+
+    /* Позиция на помещении начального обмера, которому перепланировка не
+       оставила одноимённого: лист просит выбрать помещение нового набора.
+       Выбранное помещение обязано дать свои величины, а просьба — сняться:
+       она о сохранённом помещении, а не о выбранном. */
+    const отставшая = await page.evaluate(async () => {
+      const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+      const вид = await fetch("/api/projects/R-99/estimate", { credentials: "include" }).then((r) => r.json());
+      const позиция = собрать(вид.sections)
+        .find((строка) => строка.unit === "м²" && строка.room?.set === "INITIAL" && (строка.surface?.kind ?? null) === null);
+      const обмер = await fetch("/api/projects/R-99/measure?set=REPLANNED", { credentials: "include" })
+        .then((r) => r.json());
+      const новое = (обмер.rooms ?? []).find((строка) => (строка.openings ?? []).length > 0) ?? null;
+      return позиция === undefined || новое === null ? null
+        : { name: позиция.name, room: позиция.room.name, новое: новое.name, нетто: новое.wallAreaNet };
+    });
+    if (отставшая === null) {
+      note("стены за вычетом проёмов", "на стенде нет позиции в м² на помещении начального обмера R-99");
+    } else {
+      await page.locator("table.estimate tbody tr")
+        .filter({ hasText: отставшая.name }).filter({ hasText: `${отставшая.room} · из начального обмера` }).first()
+        .locator('.btn--text:has-text("Править")').click();
+      await page.waitForTimeout(400);
+      await page.locator('.sheet label.field:has(.field__label:text-is("Помещение")) select')
+        .selectOption({ label: отставшая.новое });
+      await page.waitForTimeout(200);
+      if ((await page.locator(".sheet").innerText()).includes("Выберите помещение нового набора")) {
+        note("стены за вычетом проёмов",
+          `после выбора «${отставшая.новое}» лист по-прежнему просит выбрать помещение нового набора`);
+      }
+      const выбранное = await нетто("из обмера помещения");
+      if (!выбранное.includes(вЧисло(отставшая.нетто))) {
+        note("стены за вычетом проёмов",
+          `выбранное помещение «${отставшая.новое}» не дало свою площадь стен нетто ${вЧисло(отставшая.нетто)}:`
+          + ` «${выбранное || "группы «из обмера помещения» нет"}»`);
+      }
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
+  }
+}
+
+/* Адрес поверхности, источник и признак «обмер изменился» (этап Э11, шаг 2;
+   решения Э11-2.5 — Э11-2.7; норматив, разделы 55.6 — 55.8). Позиция в м²
+   на помещении действующего набора со стенами — кухня-гостиная наполнения
+   стенда: поле «Поверхность», «Одна стена» с выбором стены, величины стены
+   брутто и нетто, подстановка с адресом в строке источника; источник стоит и
+   при повторном открытии; правка обмера даёт пилюлю «обмер изменился» в
+   смете и заметку в листе, «Подставить заново» её снимает. Количество само
+   не меняется. Числа — у API той же сессией; стенд возвращается: стена — к
+   прежней длине, позиция — к прежним количеству и адресу. */
+{
+  const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+    .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  const api = (путь, init) => page.evaluate(async ([п, и]) => {
+    const ответ = await fetch(`/api${п}`, { credentials: "include", ...и });
+    return { ok: ответ.ok, status: ответ.status, body: await ответ.json().catch(() => null) };
+  }, [путь, init ?? {}]);
+  const патч = (путь, тело) => api(путь, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+  const смета = (await api("/projects/R-99/estimate")).body;
+  const обмер = (await api("/projects/R-99/measure?set=REPLANNED")).body;
+  let найдено = null;
+  for (const комната of (обмер?.rooms ?? []).filter((строка) => (строка.walls ?? []).length > 0)) {
+    const позиция = собрать(смета?.sections ?? [])
+      .find((строка) => строка.unit === "м²" && строка.qtyAccepted === "0" && строка.room?.id === комната.id
+        && (строка.surface?.kind ?? null) === null);
+    if (позиция !== undefined) { найдено = { позиция, комната, стена: комната.walls[0] }; break; }
+  }
+  if (найдено === null) {
+    note("адрес поверхности", "на стенде нет позиции в м² без приёмки на помещении со стенами: адрес не на чем проверить");
+  } else {
+    const { позиция, комната, стена } = найдено;
+    const раскрыть = async () => {
+      const кнопка = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+      if ((await кнопка.count()) > 0) { await кнопка.click(); await page.waitForTimeout(300); }
+    };
+    const строкаПозиции = () => page.locator("table.estimate tbody tr")
+      .filter({ hasText: позиция.name }).filter({ hasText: комната.name }).first();
+    const поле = (подпись) => page.locator(`.sheet label.field:has(> .field__label:text-is("${подпись}")) select`);
+    /* Нетто стены после правки обмера — для сводки в конце блока. */
+    let сейчас = null;
+    /* Длина стены до проверки — уборка возвращает её и при сорванном шаге. */
+    const стены = (длина) => комната.walls.map((с) => ({
+      id: с.id, label: с.label, length: с.id === стена.id ? длина : с.length, height: с.height,
+    }));
+    try {
+      await раскрыть();
+      await строкаПозиции().locator('.btn--text:has-text("Править")').click();
+      await page.waitForTimeout(400);
+      if ((await поле("Поверхность").count()) === 0) {
+        note("адрес поверхности", `в листе позиции на помещении «${комната.name}» нет поля «Поверхность»`);
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+      } else {
+        await поле("Поверхность").selectOption({ label: "Одна стена" });
+        await page.waitForTimeout(150);
+        if ((await поле("Стена").count()) === 0) {
+          note("адрес поверхности", "у вида «Одна стена» нет выбора стены");
+        } else {
+          await поле("Стена").selectOption({ label: стена.name });
+          await page.waitForTimeout(150);
+        }
+        const величины = (await page.locator(".estimate__from-measure").filter({ hasText: "из обмера помещения" })
+          .locator(".btn").allTextContents()).map((т) => т.replace(/\s|\u00A0/g, ""));
+        const брутто = `площадьстены${вЧисло(стена.wallArea)}`;
+        const нетто = `площадьстенынетто${вЧисло(стена.wallAreaNet)}`;
+        if (!величины.includes(брутто) || !величины.includes(нетто)) {
+          note("адрес поверхности",
+            `«${стена.name}» предложила «${величины.join(" | ")}» вместо площади стены ${вЧисло(стена.wallArea)}`
+            + ` и нетто ${вЧисло(стена.wallAreaNet)}: величины выбранной поверхности не те`);
+        }
+        await page.locator(".estimate__from-measure").filter({ hasText: "из обмера помещения" })
+          .locator(".btn").filter({ hasText: "площадь стены нетто" }).first().click();
+        await page.waitForTimeout(150);
+        const источник = await page.locator('.sheet .field__hint[role="status"]').allInnerTexts();
+        if (!источник.some((т) => т.includes(`стена «${стена.name}»: площадь стены нетто, ${вЧисло(стена.wallAreaNet)}`))) {
+          note("адрес поверхности", `строка источника не называет стену и величину: «${источник.join(" | ")}»`);
+        }
+        await page.click('.sheet button[type="submit"]');
+        await page.waitForTimeout(900);
+
+        /* Источник хранится: строка стоит и при повторном открытии листа. */
+        await раскрыть();
+        await строкаПозиции().locator('.btn--text:has-text("Править")').click();
+        await page.waitForTimeout(400);
+        const повторно = await page.locator('.sheet .field__hint[role="status"]').allInnerTexts();
+        if (!повторно.some((т) => т.includes(`стена «${стена.name}»`))) {
+          note("источник количества", `при повторном открытии листа строки источника нет: «${повторно.join(" | ")}»`);
+        }
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+        await page.waitForTimeout(200);
+
+        /* Обмер изменился: стену удлинили на 10 см — смета отмечает позицию,
+           лист называет «подставлено X, сейчас Y», количество то же. */
+        const длиннее = String(BigInt(стена.length) + 100n);
+        const правкаОбмера = await патч(`/projects/R-99/measure/rooms/${комната.id}`, { walls: стены(длиннее) });
+        сейчас = правкаОбмера.body?.rooms?.find((с) => с.id === комната.id)?.walls
+          ?.find((с) => с.id === стена.id)?.wallAreaNet ?? null;
+        await page.reload({ waitUntil: "networkidle" });
+        await page.click('.tabs__item:has-text("Смета")');
+        await page.waitForSelector("table.estimate");
+        await раскрыть();
+        const пилюля = строкаПозиции().locator('.pillbutton:has-text("обмер изменился")');
+        if ((await пилюля.count()) === 0) {
+          note("признак обмера", `после правки стены у позиции «${позиция.name}» в смете нет пилюли «обмер изменился»`);
+        } else {
+          await пилюля.click();
+          await page.waitForTimeout(400);
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page.waitForTimeout(300);
+          const заметка = (await page.locator('.sheet [role="status"]').allInnerTexts()).join(" | ");
+          if (!заметка.includes(`Подставлено ${вЧисло(стена.wallAreaNet)}\u00A0м², сейчас ${вЧисло(сейчас ?? "0")}\u00A0м²`)) {
+            note("признак обмера", `лист позиции не назвал «подставлено ${вЧисло(стена.wallAreaNet)}, сейчас`
+              + ` ${вЧисло(сейчас ?? "0")}»: «${заметка}»`);
+          }
+          const ширина = await page.evaluate(() => {
+            const лист = document.querySelector(".sheet");
+            return лист === null ? null : { полотно: лист.scrollWidth, окно: лист.clientWidth };
+          });
+          if (ширина !== null && ширина.полотно > ширина.окно + 1) {
+            note("горизонтальное переполнение", `лист позиции на 390 px: ${ширина.полотно} при ${ширина.окно} (П-81)`);
+          }
+          await page.screenshot({ path: `${SHOTS}/56-priznak-obmera-390.png` });
+          console.log("  снято: смета: признак «обмер изменился» в листе позиции, 390 px → 56-priznak-obmera-390.png");
+          const заново = page.locator('.sheet button:has-text("Подставить заново")');
+          if ((await заново.count()) === 0) {
+            note("признак обмера", "в заметке «обмер изменился» нет действия «Подставить заново»");
+            await page.click('.sheet .btn--text:has-text("Отмена")');
+          } else {
+            await заново.click();
+            await page.waitForTimeout(150);
+            await page.click('.sheet button[type="submit"]');
+            await page.waitForTimeout(900);
+          }
+          await page.setViewportSize({ width: 1440, height: 900 });
+          await page.waitForTimeout(300);
+          await раскрыть();
+          if ((await строкаПозиции().locator('.pillbutton:has-text("обмер изменился")').count()) > 0) {
+            note("признак обмера", "«Подставить заново» не сняло пилюлю «обмер изменился»");
+          }
+          const после = собрать((await api("/projects/R-99/estimate")).body?.sections ?? [])
+            .find((с) => с.id === позиция.id);
+          if (после?.qty !== сейчас || после?.surface?.source?.state !== "same") {
+            note("признак обмера", `после «Подставить заново» количество ${после?.qty} вместо ${сейчас},`
+              + ` признак «${после?.surface?.source?.state}»`);
+          }
+        }
+
+        /* П-88: на стену ссылается позиция сметы — лист помещения показывает
+           отказ вместо кнопки удаления (норматив 55.5), а «Не удалять»
+           снимает его и не оставляет под формой. */
+        await page.click('.tabs__item:has-text("Замер")');
+        await page.waitForSelector(".measure__item");
+        await page.locator('[aria-label="Набор обмера"] button:has-text("После перепланировки")').click();
+        await page.waitForTimeout(400);
+        await page.locator(".measure__item", { hasText: комната.name }).first().click();
+        await page.click('button:has-text("Править помещение")');
+        await page.waitForSelector(".sheet input");
+        await page.click(`.sheet button[aria-label="Удалить стену: ${стена.name}"]`);
+        await page.waitForTimeout(200);
+        const удаление = page.locator(`.sheet [role="group"][aria-label="Удаление: ${стена.name}"]`);
+        const отказ = (await удаление.locator(".field__error").allTextContents()).join(" ");
+        if (!отказ.includes("1 позиция") || (await удаление.locator(".btn--danger").count()) > 0) {
+          note("удаление стены с позициями",
+            `лист предложил удалить «${стена.name}», на которую ссылается позиция сметы, вместо отказа: «${отказ}»`);
+        }
+        await удаление.locator('button:has-text("Не удалять")').click();
+        await page.waitForTimeout(150);
+        if ((await page.locator(".sheet .field__error").count()) > 0) {
+          note("удаление стены с позициями", "после «Не удалять» отказ остался в листе под формой");
+        }
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+        await page.waitForTimeout(200);
+      }
+    } catch (ошибка) {
+      note("адрес поверхности", `обход адреса прерван: ${String(ошибка).split("\n")[0].slice(0, 200)}`);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    {
+      /* Уборка: стена — к прежней длине, позиция — к прежним количеству и
+         адресу; источник снимается правкой количества. */
+      await патч(`/projects/R-99/measure/rooms/${комната.id}`, { walls: стены(стена.length) });
+      const возврат = await патч(`/projects/R-99/estimate/items/${позиция.id}`, {
+        qty: позиция.qty, surfaceKind: null, wallId: null,
+      });
+      if (!возврат.ok) note("адрес поверхности", `позиция не вернулась к прежнему виду: код ${возврат.status}`);
+      await page.reload({ waitUntil: "networkidle" });
+      await page.click('.tabs__item:has-text("Смета")');
+      await page.waitForSelector("table.estimate");
+      console.log(`  адрес поверхности: «${позиция.name}» → ${стена.name}, нетто ${вЧисло(стена.wallAreaNet)};`
+        + ` признак после правки стены — ${вЧисло(сейчас ?? "0")}`);
+    }
+  }
+}
+
+/* Перевод на перепланировку снимает стену, источник удалён (решения
+   Э11-2.7 «в» и Э11-2.8 «б»; норматив, разделы 55.7 — 55.9; П-83, П-94).
+   Временное помещение начального обмера со стеной, позиция с адресом «одна
+   стена» и источником с неё; одноимённое помещение перепланировки
+   переводит позицию. Смета показывает «источник удалён» и в строке на
+   1440 px, и в карточке на 390 px; лист — подсказку 55.9 под пустым
+   списком «Стена». Выбор стены нового набора оставляет заметку признака, и
+   «Подставить заново» берёт величину новой стены — прежде заметка
+   пропадала с выбором стены вместе с действием. Стенд возвращается:
+   позиция — к прежним помещению и количеству без адреса, временные
+   помещения сняты. */
+{
+  const вЧисло = (тысячные) => (Number(тысячные) / 1000)
+    .toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  const api = (путь, init) => page.evaluate(async ([п, и]) => {
+    const ответ = await fetch(`/api${п}`, { credentials: "include", ...и });
+    return { ok: ответ.ok, status: ответ.status, body: await ответ.json().catch(() => null) };
+  }, [путь, init ?? {}]);
+  const послать = (метод, путь, тело) => api(путь, {
+    method: метод, headers: { "content-type": "application/json" }, body: JSON.stringify(тело),
+  });
+  const собрать = (узлы) => узлы.flatMap((узел) => [...узел.items, ...собрать(узел.children)]);
+  const ИМЯ = "Обход страницы: перевод";
+  const раскрыть = async () => {
+    const кнопка = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+    if ((await кнопка.count()) > 0) { await кнопка.click(); await page.waitForTimeout(300); }
+  };
+  const позиция = собрать((await api("/projects/R-99/estimate")).body?.sections ?? [])
+    .find((строка) => строка.unit === "м²" && строка.qtyAccepted === "0" && строка.room !== null
+      && (строка.surface?.kind ?? null) === null);
+  let начальное = null;
+  let новое = null;
+  if (позиция === undefined) {
+    note("перевод на перепланировку", "на стенде нет позиции в м² без приёмки и адреса: перевод не на чем проверить");
+  } else {
+    try {
+      начальное = (await послать("POST", "/projects/R-99/measure/rooms?set=INITIAL", {
+        name: ИМЯ, floorArea: "12000", floorPerimeter: "14000", ceilingPerimeter: "14000", height: "2700",
+        walls: [{ length: "4000" }],
+      })).body?.rooms?.find((к) => к.name === ИМЯ) ?? null;
+      const стенаНачальная = начальное?.walls?.[0];
+      const адрес = await послать("PATCH", `/projects/R-99/estimate/items/${позиция.id}`, {
+        roomId: начальное?.id, surfaceKind: "WALL", wallId: стенаНачальная?.id,
+        qty: стенаНачальная?.wallAreaNet, qtySource: "wall:wallAreaNet",
+      });
+      if (!адрес.ok) throw new Error(`адрес позиции не поставлен: код ${адрес.status}`);
+      /* 5,00 × 2,70 = 13,50 — у стены нового набора другое нетто. */
+      новое = (await послать("POST", "/projects/R-99/measure/rooms?set=REPLANNED", {
+        name: ИМЯ, floorArea: "12000", floorPerimeter: "14000", ceilingPerimeter: "14000", height: "2700",
+        walls: [{ length: "5000" }],
+      })).body?.rooms?.find((к) => к.name === ИМЯ) ?? null;
+      const стенаНовая = новое?.walls?.[0];
+      if (стенаНовая === undefined) throw new Error("помещение перепланировки со стеной не заведено");
+
+      await page.reload({ waitUntil: "networkidle" });
+      await page.click('.tabs__item:has-text("Смета")');
+      await page.waitForSelector("table.estimate");
+      await раскрыть();
+      const строка = () => page.locator("table.estimate tbody tr").filter({ hasText: позиция.name }).filter({ hasText: ИМЯ }).first();
+      if ((await строка().locator('.pillbutton:has-text("источник удалён")').count()) === 0) {
+        note("перевод на перепланировку", `в строке сметы у переведённой позиции «${позиция.name}» нет пилюли «источник удалён»`);
+      }
+      /* Карточка позиции на телефоне — пилюля под наименованием (55.8). */
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(400);
+      await раскрыть();
+      const карточка = page.locator(".estcard").filter({ hasText: позиция.name }).filter({ hasText: ИМЯ }).first();
+      if ((await карточка.locator('.pillbutton:has-text("источник удалён")').count()) === 0) {
+        note("перевод на перепланировку", "в карточке позиции на 390 px нет пилюли «источник удалён»");
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(400);
+      await раскрыть();
+
+      await строка().locator('.btn--text:has-text("Править")').click();
+      await page.waitForTimeout(400);
+      const заметка = async () => (await page.locator('.sheet [role="status"]').allInnerTexts()).join(" | ");
+      if (!(await заметка()).includes("источник удалён")) {
+        note("перевод на перепланировку", `лист позиции не назвал «источник удалён»: «${await заметка()}»`);
+      }
+      const подсказка = await page.locator('.sheet label.field:has(> .field__label:text-is("Стена")) .field__hint')
+        .allTextContents();
+      if (!подсказка.some((т) => т.includes("Стена из начального обмера — выберите стену нового набора"))) {
+        note("перевод на перепланировку", `под списком «Стена» нет подсказки 55.9: «${подсказка.join(" | ")}»`);
+      }
+      await page.locator('.sheet label.field:has(> .field__label:text-is("Стена")) select')
+        .selectOption({ label: стенаНовая.name });
+      await page.waitForTimeout(150);
+      const заново = page.locator('.sheet button:has-text("Подставить заново")');
+      if ((await заново.count()) === 0) {
+        note("перевод на перепланировку",
+          `после выбора стены нового набора нет «Подставить заново»: «${await заметка()}» (П-83)`);
+        await page.click('.sheet .btn--text:has-text("Отмена")');
+      } else {
+        await заново.click();
+        await page.waitForTimeout(150);
+        const источник = await заметка();
+        if (!источник.includes(`стена «${стенаНовая.name}»: площадь стены нетто, ${вЧисло(стенаНовая.wallAreaNet)}`)) {
+          note("перевод на перепланировку", `строка источника после «Подставить заново» не та: «${источник}»`);
+        }
+        await page.click('.sheet button[type="submit"]');
+        await page.waitForTimeout(900);
+        const после = собрать((await api("/projects/R-99/estimate")).body?.sections ?? []).find((с) => с.id === позиция.id);
+        if (после?.qty !== стенаНовая.wallAreaNet || после?.surface?.wall?.id !== стенаНовая.id
+          || после?.surface?.source?.state !== "same") {
+          note("перевод на перепланировку", `после «Подставить заново» позиция: количество ${после?.qty},`
+            + ` ${JSON.stringify(после?.surface)}`);
+        }
+      }
+    } catch (ошибка) {
+      note("перевод на перепланировку", `обход перевода прерван: ${String(ошибка).split("\n")[0].slice(0, 200)}`);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    /* Уборка: позиция — к прежним помещению и количеству без адреса, затем
+       временные помещения обоих наборов. */
+    const возврат = await послать("PATCH", `/projects/R-99/estimate/items/${позиция.id}`, {
+      roomId: позиция.room?.id ?? null, surfaceKind: null, wallId: null, qty: позиция.qty,
+    });
+    if (!возврат.ok) note("перевод на перепланировку", `позиция не вернулась: код ${возврат.status}`);
+    for (const комната of [новое, начальное]) {
+      if (комната === null) continue;
+      const снято = await api(`/projects/R-99/measure/rooms/${комната.id}`, { method: "DELETE" });
+      if (!снято.ok) note("перевод на перепланировку", `временное помещение не удалено: код ${снято.status}`);
+    }
+    await page.reload({ waitUntil: "networkidle" });
+    await page.click('.tabs__item:has-text("Смета")');
+    await page.waitForSelector("table.estimate");
+    console.log(`  перевод на перепланировку: «${позиция.name}» — источник удалён, подсказка 55.9, подставлено заново`);
   }
 }
 
@@ -2306,13 +2791,24 @@ if ((await page.locator('.btn--text:has-text("Изменить надбавку"
     const ПУТЬ = "**/api/projects/R-99/estimate/closed-tranches";
     await page.route(ПУТЬ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: 7, paid: true, signedAt: "2026-09-12", items: [перваяПозиция.id] }] }),
+      body: JSON.stringify({ tranches: [
+        { number: 7, paid: true, signedAt: "2026-09-12", fixed: true, items: [перваяПозиция.id] },
+        { number: 8, paid: true, signedAt: null, fixed: false, items: [перваяПозиция.id] },
+      ] }),
     }));
     await строка.locator('.btn--text:has-text("Править")').click();
     await page.waitForTimeout(600);
     const текст = (await заметка()) ?? "";
-    for (const нужно of ["закрытом транше № 7", "Подписан акт № 7 (12.09.2026)", "Оплачен транш № 7"]) {
+    for (const нужно of ["закрытом транше № 8", "Оплачен транш № 8"]) {
       if (!текст.includes(нужно)) note("правка сметы", `лист позиции не называет «${нужно}»: «${текст || "молча"}»`);
+    }
+    /* Подписанный акт зафиксирован (этап Э9, ДР-3): лист называет его тем,
+       что правка не изменит, а не тем, что изменится. */
+    if (!текст.includes("Акт № 7 (12.09.2026) подписан и зафиксирован")) {
+      note("ДР-3", `лист позиции не называет подписанный акт № 7 зафиксированным: «${текст || "молча"}»`);
+    }
+    if (текст.includes("закрытых траншах № 7") || текст.includes("закрытом транше № 7")) {
+      note("ДР-3", "лист позиции обещает изменить подписанный акт № 7");
     }
     await page.click('.sheet .btn--text:has-text("Отмена")');
     await page.waitForTimeout(300);
@@ -3530,8 +4026,15 @@ if ((await page.locator(".invite__link").count()) === 0) {
   note("люди", "ссылка выдана, но не показана: руководителю нечего передать");
 } else {
   const адрес = ((await page.locator(".invite__link").first().textContent()) ?? "").trim();
-  if (!/\/auth\/consume\?token=.+/u.test(адрес)) {
-    note("люди", `выданная ссылка не ведёт на обмен входа: «${адрес.slice(0, 60)}»`);
+  /* Токен — только во фрагменте адреса приложения (ADR-0008, п. 2; K5,
+     П-61): фрагмент на сервер не уходит и в журнал доступа nginx не
+     попадает. Прежде ссылка вела на `/api/auth/consume?token=…`, и токен
+     оседал в журнале — кто его читал, входил под чужой учётной записью. */
+  let разбор = null;
+  try { разбор = new URL(адрес); } catch { /* ниже — замечание */ }
+  if (разбор === null || разбор.search !== "" || разбор.pathname.includes("/api/")
+      || !/^#login\/[A-Za-z0-9_-]{32,}$/u.test(разбор.hash)) {
+    note("люди", `K5: выданная ссылка несёт токен не во фрагменте «#login/…»: «${адрес.slice(0, 70)}»`);
   }
 }
 await разметка("люди организации");
@@ -3796,6 +4299,93 @@ const размерЛиста = async (кто) => {
 await overflow("документы, 1440");
 await step("документы", "45-dokumenty.png");
 
+/*
+ * Фиксация подписанного акта и поправка (этап Э9, ДР-3). Проверка API идёт
+ * раньше: она подписывает акт № 1, пишет к нему две поправки в открытый
+ * тогда транш № 2 и закрывает его. Экран обязан показать поправки строками
+ * акта № 2, у акта № 1 — фиксацию и историю поправок, а лист поправки —
+ * не отправляться без причины.
+ */
+{
+  const строкаАкта = (номер) => page.locator(".acts-screen .record").filter({ hasText: `Акт № ${String(номер)} по объекту` });
+  const открыть = async (номер) => {
+    const кнопка = строкаАкта(номер).locator('button:has-text("Открыть акт")');
+    if ((await кнопка.count()) > 0) await кнопка.first().click();
+    await page.waitForTimeout(700);
+  };
+
+  if ((await строкаАкта(2).count()) === 0) {
+    note("ДР-3", "в перечне нет акта № 2, в который вошли поправки к акту № 1");
+  } else {
+    if (!(((await строкаАкта(2).innerText()) ?? "").includes("поправок к подписанным актам"))) {
+      note("ДР-3", "строка акта № 2 не называет вошедшие в него поправки");
+    }
+    await открыть(2);
+    const поправки = page.locator(".act .act__corrections");
+    if ((await поправки.count()) === 0) {
+      note("ДР-3", "в акте № 2 нет раздела «Поправки к подписанным актам»");
+    } else {
+      const текст = await поправки.innerText();
+      for (const нужно of ["Поправки к подписанным актам", "Поправка к акту № 1", "Причина:"]) {
+        if (!текст.includes(нужно)) note("ДР-3", `раздел поправок акта № 2 не называет «${нужно}»`);
+      }
+    }
+  }
+
+  await открыть(1);
+  const заметкаФиксации = page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" });
+  if ((await заметкаФиксации.count()) === 0) {
+    note("ДР-3", "у подписанного акта № 1 нет заметки о фиксации");
+  } else if (!(await заметкаФиксации.innerText()).includes("в акт № 2")) {
+    note("ДР-3", "заметка акта № 1 не называет поправки и акт, в который они вошли");
+  }
+  if ((await page.locator(".act .act__corrections").count()) > 0) {
+    note("ДР-3", "подписанный акт № 1 несёт раздел поправок — он обязан печататься тем, что подписан");
+  }
+
+  const органПоправки = page.locator('.acts-screen button:has-text("Оформить поправку")');
+  if ((await органПоправки.count()) === 0) {
+    note("ДР-3", "у подписанного акта нет органа «Оформить поправку»");
+  } else {
+    await органПоправки.first().click();
+    const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "лист поправки не открылся"));
+    if ((await лист.count()) > 0) {
+      if (!(await лист.innerText()).includes("подписан и не меняется")) {
+        note("ДР-3", "лист поправки не говорит, что подписанный акт не меняется");
+      }
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if (await записать.isEnabled()) note("ДР-3", "поправка доступна без причины");
+      const текущий = await page.evaluate(async () => (await fetch("/api/projects/R-99/tranches",
+        { credentials: "include" }).then((ответ) => ответ.json())).current?.number ?? null);
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue();
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1)));
+      await лист.locator('label:has-text("Причина") input').fill("Проверка страницы: цена по договору");
+      await page.waitForTimeout(200);
+      await step("ДР-3, лист поправки", "45b-dokumenty-popravka.png");
+      if (текущий === null) {
+        if (await записать.isEnabled()) note("ДР-3", "поправка доступна без открытого транша");
+        await лист.locator('.btn--text:has-text("Отмена")').click();
+      } else {
+        const поправокДо = await page.locator('.acts-screen [role="note"] li').count();
+        await записать.click();
+        await page.waitForTimeout(1200);
+        if ((await лист.count()) > 0) note("ДР-3", "лист поправки не закрылся после записи");
+        const поправокПосле = await page.locator('.acts-screen [role="note"] li').count();
+        if (поправокПосле !== поправокДо + 1) {
+          note("ДР-3", `после записи поправок у акта № 1 ${String(поправокПосле)} вместо ${String(поправокДо + 1)}`);
+        }
+        const объявлено = await page.locator(".visually-hidden[aria-live], [role='status']").allInnerTexts();
+        if (!объявлено.some((текст) => текст.includes("Поправка записана"))) {
+          note("ДР-3", "запись поправки не объявлена");
+        }
+      }
+    }
+  }
+  await overflow("ДР-3, документы, 1440");
+}
+
 await page.click('.tabs__item:has-text("Обзор")');
 await step("вкладки карточки", "20-vkladki.png");
 
@@ -3831,6 +4421,10 @@ const wanted = [
   ["Помещений", "7"],
   ["Площадь", "80,53\u00A0м²"],
   ["Площадь стен", "262,95\u00A0м²"],
+  /* Этап Э11, шаг 1: площадь стен нетто — 262,953 − окна 15,480 −
+     двери 19,950 = 227,523 м². Ожидание выведено из проёмов наполнения
+     стенда, а не снято с экрана. */
+  ["Площадь стен нетто", "227,52\u00A0м²"],
   ["Периметр потолка", "97,39\u00A0м.п."],
   ["Периметр пола", "86,07\u00A0м.п."],
   ["Объём", "217,43\u00A0м³"],
@@ -3906,6 +4500,14 @@ const bedroom = await page.locator(".measure .spec--inv").first().innerText();
 for (const value of ["18,40\u00A0м²", "47,52\u00A0м²", "2,70\u00A0м", "49,68\u00A0м³"]) {
   if (!bedroom.includes(value)) note("замер", `у спальни нет величины «${value}»`);
 }
+/* Обе площади стен — с подписью: 47,52 без вычета и 43,74 = 47,52 − окно
+   2,10 − дверь 1,68 за вычетом проёмов (этап Э11, шаг 1). */
+if (!/Площадь стен нетто\s*43,74\u00A0м²/u.test(bedroom)) {
+  note("стены за вычетом проёмов", `у спальни нет строки «Площадь стен нетто 43,74 м²»: «${bedroom.replace(/\n/g, " · ")}»`);
+}
+if (!/Площадь стен\s*47,52\u00A0м²/u.test(bedroom)) {
+  note("стены за вычетом проёмов", "у спальни площадь стен без вычета проёмов потеряла подпись или число 47,52");
+}
 
 /* Тумблер подробного вида раскрывает периметры и откосы. */
 const beforeToggle = await page.locator(".measure").innerText();
@@ -3946,12 +4548,42 @@ if (полейПроёмов !== 6) {
   await окна.nth(0).fill("2");
   await окна.nth(1).fill("3,6");
   await окна.nth(2).fill("9,8");
+
+  /* Лист помещения считает обе площади стен по мере ввода (этап Э11, шаг 1):
+     14,00 × 2,70 = 37,80 м² без вычета; два окна 3,60 — 34,20 за вычетом. */
+  const листСтены = await page.locator(".sheet").innerText();
+  if (!/Площадь стен\s*37,80\u00A0м²/u.test(листСтены) || !/Площадь стен нетто\s*34,20\u00A0м²/u.test(листСтены)) {
+    note("стены за вычетом проёмов", "лист помещения не показал 37,80 м² без вычета и 34,20 м² за вычетом проёмов");
+  }
+  /* Крайний случай: проёмы больше стен — ноль и предупреждение, а не минус
+     и не отказ. Кнопка внесения остаётся доступной. */
+  await окна.nth(1).fill("40");
+  await page.waitForTimeout(150);
+  const листКрай = await page.locator(".sheet").innerText();
+  if (!/Площадь стен нетто\s*0,00\u00A0м²/u.test(листКрай)) {
+    note("стены за вычетом проёмов", "при проёмах больше стен лист показал не ноль");
+  }
+  if (!листКрай.includes("больше площади его стен")) {
+    note("стены за вычетом проёмов", "при проёмах больше стен лист помещения не предупредил");
+  }
+  if (await page.locator('.sheet button:has-text("Добавить помещение")').isDisabled()) {
+    note("стены за вычетом проёмов", "проёмы больше стен заперли внесение помещения: ждали предупреждение, а не отказ");
+  }
+  await окна.nth(1).fill("3,6");
+  await page.waitForTimeout(150);
+  if ((await page.locator(".sheet").innerText()).includes("больше площади его стен")) {
+    note("стены за вычетом проёмов", "предупреждение о проёмах не снялось после исправления площади окон");
+  }
 }
 await step("замер, форма помещения", "22-zamer-forma.png");
 await page.click('.sheet button:has-text("Добавить помещение")');
 await page.waitForTimeout(700);
 const grown = await page.locator(".spec").first().innerText();
 if (!grown.includes("90,53\u00A0м²")) note("замер", `после внесения площадь «${grown.replace(/\n/g, " ")}»`);
+/* Итог стен за вычетом проёмов вырос на 34,20 помещения: 227,52 + 34,20. */
+if (полейПроёмов === 6 && !/Площадь стен нетто\s*261,72\u00A0м²/u.test(grown)) {
+  note("стены за вычетом проёмов", `после внесения помещения итог за вычетом проёмов не 261,72: «${grown.replace(/\n/g, " ")}»`);
+}
 if (оконДо !== null && (await окнаВОбщем()) !== оконДо + 2) {
   note("7.4 окна и двери", `после внесения помещения с двумя окнами в «Общем» окон ${String(await окнаВОбщем())} вместо ${String(оконДо + 2)}`);
 }
@@ -3981,6 +4613,14 @@ await page.emulateMedia({ media: "print" });
 await page.waitForTimeout(200);
 const printRows = await page.locator(".measure-print tbody tr").count();
 if (printRows !== 7) note("замер", `в печатной ведомости ${printRows} строк вместо семи`);
+{
+  /* Ведомость несёт обе площади стен: колонку за вычетом проёмов и её итог. */
+  const шапка = await page.locator(".measure-print thead").innerText();
+  const итог = await page.locator(".measure-print tfoot").innerText();
+  if (!шапка.includes("Площадь стен нетто") || !итог.includes("227,52")) {
+    note("стены за вычетом проёмов", "в печатной ведомости нет колонки стен за вычетом проёмов или её итога 227,52");
+  }
+}
 if (await page.locator(".appbar").isVisible()) note("замер", "шапка попадает в печать");
 if (await page.locator(".measure").isVisible()) note("замер", "инвертированная плашка попадает в печать");
 /* Обратная сторона правила ориентации: ведомость помещений остаётся
@@ -4020,6 +4660,349 @@ await разметка("замер, 360 px");
 await step("замер на телефоне", "25-zamer-360.png");
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.waitForTimeout(300);
+
+/*
+ * Стены и проёмы двух помещений на телефоне (этап Э11, шаг 2; решения
+ * Э11-2.1 — Э11-2.4, Д15; норматив, разделы 55.1 — 55.5). Главный сценарий
+ * прораба — 390 px: «Добавить стену» ставит фокус в длину новой строки;
+ * до сохранения первой стены лист называет, что снимется из итогов
+ * проёмов; сумма длин против периметра потолка — предупреждение Д15, а не
+ * отказ; проём открывается со строки стены, стена и вид приходят из строки;
+ * у соседа без стен — односторонний проём словами; когда соседу заводят
+ * стены, его строка предлагает привязать дверь одним касанием; удаление
+ * стены стороны А называет переход проёма к соседу. Итоги «Замера» и печать
+ * — по стенам.
+ *
+ * Обход идёт на R-72, а не на показательном R-99, по доводу смены статуса и
+ * `verify-api`: каждая стена и каждый проём пишут журнал, и лента объекта,
+ * который идёт в демонстрацию, заполнялась бы следами проверок. Помещения
+ * обхода снимаются в конце — замер R-72 возвращается пустым.
+ */
+{
+  const api = (путь, init) => page.evaluate(async ([п, и]) => {
+    const ответ = await fetch(`/api${п}`, { credentials: "include", ...и });
+    return { ok: ответ.ok, status: ответ.status, body: await ответ.json().catch(() => null) };
+  }, [путь, init ?? {}]);
+  /* Печать — двумя знаками, как `formatMeasure`: ведомость читается столбцом. */
+  const вЧислоПечати = (тысячные) => (Number(тысячные) / 1000).toFixed(2).replace(".", ",");
+  const КОМНАТА = "Стены страницы";
+  const СОСЕД = "Стены страницы: сосед";
+  const ТРЕТЬЕ = "Стены страницы: третье";
+  const лист = () => page.locator(".sheet").first();
+  const текстЛиста = async () => (await лист().innerText()).replace(/\n+/g, " · ");
+  const поле = (подпись) => page.locator(`.sheet label.field:has(> .field__label:text-is("${подпись}")) input`);
+  const строкаСтены = (имя) => page.locator(`.sheet fieldset[aria-label="${имя}"]`);
+  /* Фокус проверяется, но ввод от него не зависит: без фокуса в длине
+     обход вписал бы цифры не туда и дальше падал бы по таймауту вместо
+     именного замечания. */
+  const вФокусе = () => page.evaluate(() =>
+    document.activeElement?.closest("label")?.querySelector(".field__label")?.textContent ?? "");
+  const ввестиДлину = async (длина) => {
+    if ((await вФокусе()) === "Длина, м") { await page.keyboard.type(длина); return true; }
+    await page.locator(".sheet fieldset.openings[aria-label^=\"Стена\"]").last()
+      .locator('label:has(> .field__label:text-is("Длина, м")) input').fill(длина);
+    return false;
+  };
+  const ширинаЛиста = async (где) => {
+    const ш = await page.evaluate(() => {
+      const узел = document.querySelector(".sheet");
+      return узел === null ? null : { полотно: узел.scrollWidth, окно: узел.clientWidth };
+    });
+    if (ш !== null && ш.полотно > ш.окно + 1) {
+      note("горизонтальное переполнение", `${где}: лист ${ш.полотно} при ${ш.окно}`);
+    }
+  };
+  const внести = async (имя, окна) => {
+    await page.click('button:has-text("Добавить помещение")');
+    await page.waitForSelector(".sheet input");
+    await поле("Название").fill(имя);
+    await поле("Площадь пола, м²").fill("12");
+    await поле("Периметр пола, м.п.").fill("14");
+    await поле("Периметр потолка, м.п.").fill("14");
+    await поле("Высота, м").fill("2,7");
+    if (окна) {
+      const итоги = page.locator('.sheet fieldset.openings:has(legend:text-is("Окна")) input');
+      await итоги.nth(0).fill("1");
+      await итоги.nth(1).fill("2,1");
+      await итоги.nth(2).fill("5,8");
+    }
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(800);
+  };
+  const открыть = async (имя) => {
+    await page.locator(".measure__item", { hasText: имя }).first().click();
+    await page.click('button:has-text("Править помещение")');
+    await page.waitForSelector(".sheet input");
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/#R-72/measure`, { waitUntil: "networkidle" });
+  await page.waitForSelector('button:has-text("Добавить помещение")');
+  /* Обход обёрнут: сорванный шаг даёт именное замечание и уборку, а не
+     падение по таймауту, которое спрятало бы остаток проверки страницы. */
+  try {
+    await внести(КОМНАТА, true);
+    await внести(СОСЕД, false);
+
+    /* Строки стен: фокус в длину, пустая высота — заполнитель высоты
+       помещения, сумма 12,00 против периметра 14,00 — больше допуска 0,28. */
+    await открыть(КОМНАТА);
+    let фокусВДлине = 0;
+    /* Органы строки заперты, пока лист не готов: касание запертого — замечание, а не ожидание. */
+    const нажать = async (выбор, что) => {
+      const орган = page.locator(выбор).first();
+      if ((await орган.count()) === 0 || await орган.isDisabled()) throw new Error(`${что}: органа нет или он заперт`);
+      await орган.click();
+    };
+    const отказыСтен = page.locator('.sheet [role="group"][aria-label="Стены"] [role="alert"]');
+    for (const [номер, длина] of ["3", "3", "3", "3"].entries()) {
+      await page.click('.sheet button:has-text("Добавить стену")');
+      await page.waitForTimeout(120);
+      /* П-91: пустая длина новой строки — не ошибка: отказ с role="alert"
+         зачитывался бы до первой цифры. */
+      if (номер === 0 && (await отказыСтен.count()) > 0) {
+        note("стены", "«Добавить стену» сразу выводит отказ с role=\"alert\" о длине, которую ещё не вводили (П-91)");
+      }
+      if (await ввестиДлину(длина)) фокусВДлине += 1;
+    }
+    if (фокусВДлине !== 4) {
+      note("стены", `«Добавить стену» поставило фокус в поле длины ${фокусВДлине} раз из четырёх`);
+    }
+    /* Набранная неверная длина — отказ, связанный с полем: aria-invalid и
+       aria-describedby на отказ (норматив, раздел о полях). */
+    const длина4 = строкаСтены("Стена 4").locator('label:has(> .field__label:text-is("Длина, м")) input');
+    await длина4.fill("3,5,5");
+    await page.waitForTimeout(120);
+    const связь = await длина4.evaluate((поле) => ({
+      invalid: поле.getAttribute("aria-invalid"),
+      текст: document.getElementById(поле.getAttribute("aria-describedby") ?? "")?.textContent ?? "",
+    }));
+    if (связь.invalid !== "true" || !связь.текст.includes("Длина стены обязательна")) {
+      note("стены", `неверная длина не связана с отказом: aria-invalid ${связь.invalid}, «${связь.текст}» (П-91)`);
+    }
+    await длина4.fill("3");
+    await page.waitForTimeout(120);
+    const высота = await строкаСтены("Стена 1").locator('label:has(> .field__label:text-is("Высота, м")) input')
+      .getAttribute("placeholder").catch(() => null);
+    if (высота !== "2,70") note("стены", `пустая высота стены не показывает высоту помещения: заполнитель «${высота}»`);
+    const доСохранения = await текстЛиста();
+    if (await page.locator('.sheet fieldset.openings:has(legend:text-is("Окна"))').count() > 0) {
+      note("снятие итогов проёмов", "с первой строкой стены поля итогов проёмов остались в листе");
+    }
+    if (!доСохранения.includes("При сохранении снимутся итоги проёмов: окна — 1 шт, 2,10\u00A0м²")) {
+      note("снятие итогов проёмов", `до сохранения первой стены лист не назвал, что снимется: «${доСохранения.slice(0, 200)}»`);
+    }
+    if (!доСохранения.includes("Сумма длин стен 12,00\u00A0м меньше периметра потолка 14,00\u00A0м")) {
+      note("допуск Д15", "сумма длин стен 12,00 против периметра 14,00 не названа предупреждением");
+    }
+    if (await page.locator('.sheet button[type="submit"]').isDisabled()) {
+      note("допуск Д15", "расхождение суммы длин с периметром заперло сохранение: ждали предупреждение, а не отказ");
+    }
+    const орган = await строкаСтены("Стена 1").locator('button:has-text("Добавить окно")').boundingBox();
+    if (орган !== null && орган.height < 48) {
+      note("стены", `орган строки стены на 390 px — ${Math.round(орган.height)} px вместо 48`);
+    }
+    await ширинаЛиста("лист помещения со стенами, 390 px");
+    await page.screenshot({ path: `${SHOTS}/57-steny-390.png` });
+    console.log("  снято: замер: строки стен на телефоне, 390 px → 57-steny-390.png");
+
+    /* Проём со строки стены: касание сохраняет лист, лист проёма открыт на
+       той стене и с тем видом. 3,00 × 2,70 = 8,10 − окно 2,10 = 6,00. */
+    await нажать('.sheet button[aria-label="Добавить окно: Стена 1"]', "«Добавить окно» строки «Стена 1»");
+    await page.waitForSelector('.sheet[aria-label="Окно: новый проём"]', { timeout: 8000 }).catch(() => undefined);
+    const заголовок = (await page.locator(".sheet .t-h3").first().textContent().catch(() => "")) ?? "";
+    if (заголовок.trim() !== `Окно · ${КОМНАТА}, Стена 1`) {
+      note("проём со строки стены", `лист проёма открыт не со стены и вида строки: «${заголовок.trim()}»`);
+    }
+    const сохранено = (await api("/projects/R-72/measure")).body?.rooms?.find((к) => к.name === КОМНАТА);
+    if (сохранено?.walls?.length !== 4 || сохранено?.openings?.length !== 0) {
+      note("снятие итогов проёмов",
+        `первая стена не сняла итоги проёмов: стен ${сохранено?.walls?.length}, строк итогов ${сохранено?.openings?.length}`);
+    }
+    await поле("Ширина, м").fill("1,5");
+    await поле("Высота, м").fill("1,4");
+    await поле("Откосы этой стороны, м.п.").fill("5,8");
+    await page.waitForTimeout(150);
+    if (!(await текстЛиста()).includes("8,10\u00A0→ 6,00\u00A0м²")) {
+      note("проём со строки стены", "лист проёма не назвал нетто стены «8,10 → 6,00 м²»");
+    }
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(900);
+    if (!((await строкаСтены("Стена 1").locator("legend").textContent().catch(() => "")) ?? "").includes("нетто 6,00")) {
+      note("проём со строки стены", "после окна строка «Стена 1» не показала нетто 6,00 м²");
+    }
+
+    /* Дверь к соседу без стен — односторонняя, словами. */
+    await нажать('.sheet button[aria-label="Добавить дверь: Стена 3"]', "«Добавить дверь» строки «Стена 3»");
+    await page.waitForSelector('.sheet[aria-label="Дверь: новый проём"]', { timeout: 8000 }).catch(() => undefined);
+    await поле("Ширина, м").fill("0,8");
+    await поле("Высота, м").fill("2,1");
+    await поле("Откосы этой стороны, м.п.").fill("5");
+    await page.locator('.sheet label.field:has(> .field__label:text-is("Смежное помещение")) select')
+      .selectOption({ label: СОСЕД });
+    await page.waitForTimeout(150);
+    if (!(await текстЛиста()).includes(`В помещении «${СОСЕД}» стен нет — вторая сторона не привязана`)) {
+      note("односторонний проём", "у соседа без стен лист проёма не сказал словами, что вторая сторона не привязана");
+    }
+    await ширинаЛиста("лист проёма, 390 px");
+    await page.screenshot({ path: `${SHOTS}/58-proyom-390.png` });
+    console.log("  снято: замер: лист проёма, сосед без стен, 390 px → 58-proyom-390.png");
+    await page.click('.sheet button[type="submit"]');
+    await page.waitForTimeout(900);
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+
+    /* П-89: «Привязать к этой стене» в строке нового помещения — два
+       запроса: заведение помещения и привязка. Привязка отказала (проём
+       удалили в другой сессии — здесь ответ 404 подменён перехватом) — лист
+       стоит на сохранённом помещении с отказом, а не на «Новом помещении». */
+    await page.click('button:has-text("Добавить помещение")');
+    await page.waitForSelector(".sheet input");
+    await поле("Название").fill(ТРЕТЬЕ);
+    await поле("Площадь пола, м²").fill("6");
+    await поле("Периметр пола, м.п.").fill("10");
+    await поле("Периметр потолка, м.п.").fill("10");
+    await поле("Высота, м").fill("2,7");
+    await page.click('.sheet button:has-text("Добавить стену")');
+    await page.waitForTimeout(120);
+    await ввестиДлину("3");
+    const ПРИВЯЗКА = "**/api/projects/R-72/measure/openings/**";
+    await page.route(ПРИВЯЗКА, (запрос) => (запрос.request().method() === "PATCH"
+      ? запрос.fulfill({
+        status: 404, contentType: "application/json",
+        body: JSON.stringify({ message: "Проём не найден или недоступен." }),
+      })
+      : запрос.continue()));
+    /* Отказ вызывает сама проверка — на один шаг, как у ДР-4. */
+    ожидаемыйОтказ = "/projects/R-72/measure/openings/";
+    await нажать('.sheet fieldset[aria-label="Стена 1"] button:has-text("Привязать к этой стене")',
+      "«Привязать к этой стене» в строке нового помещения");
+    await page.waitForTimeout(1200);
+    ожидаемыйОтказ = null;
+    await page.unroute(ПРИВЯЗКА);
+    const послеОтказа = ((await page.locator(".sheet .t-h3").first().textContent().catch(() => "")) ?? "").trim();
+    if (послеОтказа !== ТРЕТЬЕ) {
+      note("привязка второй стороны",
+        `после отказа привязки лист нового помещения не встал на сохранённое: «${послеОтказа}» (П-89)`);
+    }
+    if (!(await текстЛиста()).includes("Проём не найден или недоступен")) {
+      note("привязка второй стороны", "отказ привязки не показан в листе помещения");
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(300);
+
+    /* Соседу заводят стену — его строка предлагает привязать дверь одним
+       касанием; лист проёма открыт со стороны Б, фокус в откосах этой стороны. */
+    await открыть(СОСЕД);
+    await page.click('.sheet button:has-text("Добавить стену")');
+    await page.waitForTimeout(120);
+    await ввестиДлину("4");
+    const предложение = строкаСтены("Стена 1").locator('button:has-text("Привязать к этой стене")');
+    if ((await предложение.count()) === 0) {
+      note("привязка второй стороны", `строка стены соседа не предложила дверь «${КОМНАТА}» без второй стороны`);
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+    } else {
+      await предложение.first().click();
+      await page.waitForTimeout(1200);
+      const фокус = await вФокусе();
+      if (фокус !== "Откосы этой стороны, м.п.") {
+        note("привязка второй стороны", `после привязки фокус в «${фокус}», а не в откосах этой стороны`);
+      }
+      if (!(await текстЛиста()).includes(`Первая сторона — помещение «${КОМНАТА}», Стена 3`)) {
+        note("привязка второй стороны", "лист проёма со стороны Б не назвал первую сторону");
+      }
+      await поле("Откосы этой стороны, м.п.").fill("4,2");
+      await page.click('.sheet button[type="submit"]');
+      await page.waitForTimeout(900);
+      /* 4,00 × 2,70 = 10,80 − дверь 1,68 = 9,12 — у соседа дверь вычтена. */
+      if (!((await строкаСтены("Стена 1").locator("legend").textContent().catch(() => "")) ?? "").includes("нетто 9,12")) {
+        note("привязка второй стороны", "у стены соседа после привязки нетто не 9,12 м²: дверь не вычтена со стороны Б");
+      }
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
+
+    /* Плашка «Замера» и печать — по стенам: окна помещения — проёмы на его
+       стенах, площадь стен нетто ведомости — число сервера по стенам. */
+    await page.locator(".measure__item", { hasText: КОМНАТА }).first().click();
+    await page.waitForTimeout(200);
+    const плашка = (await page.locator(".measure").innerText()).replace(/\n+/g, " · ");
+    if (!/Стен · 4/u.test(плашка) || !/ОКНА · Количество · 1/iu.test(плашка)) {
+      note("итоги замера по стенам", `плашка помещения со стенами: «${плашка.slice(0, 240)}»`);
+    }
+    const поСерверу = (await api("/projects/R-72/measure")).body?.rooms?.find((к) => к.name === КОМНАТА);
+    await page.emulateMedia({ media: "print" });
+    const строкаПечати = (await page.locator(".measure-print tbody tr", { hasText: КОМНАТА }).first().innerText()
+      .catch(() => "")).replace(/\s|\u00A0/g, "");
+    await page.emulateMedia({ media: "screen" });
+    if (поСерверу === undefined || !строкаПечати.includes(вЧислоПечати(поСерверу.wallAreaNet))) {
+      note("итоги замера по стенам", `печать не несёт нетто по стенам ${поСерверу?.wallAreaNet}: «${строкаПечати}»`);
+    }
+
+    /* Удаление стены стороны А: подтверждение называет переход двери к
+       соседу; после — дверь у соседа стороной А, откосы поменялись местами. */
+    await открыть(КОМНАТА);
+    await page.click('.sheet button[aria-label="Удалить стену: Стена 3"]');
+    await page.waitForTimeout(150);
+    const подтверждение = ((await page.locator('.sheet [role="group"][aria-label="Удаление: Стена 3"]').innerText()
+      .catch(() => "")) ?? "").replace(/\n+/g, " ");
+    if (!подтверждение.includes(`Дверь 0,80 × 2,10\u00A0м перейдёт помещению «${СОСЕД}»`)) {
+      note("удаление стены", `подтверждение не назвало переход двери к соседу: «${подтверждение}»`);
+    }
+    await page.screenshot({ path: `${SHOTS}/59-udalenie-steny-390.png` });
+    console.log("  снято: замер: подтверждение удаления стены, 390 px → 59-udalenie-steny-390.png");
+    await page.click('.sheet [role="group"][aria-label="Удаление: Стена 3"] .btn--danger');
+    await page.waitForTimeout(900);
+    const послеУдаления = (await api("/projects/R-72/measure")).body;
+    const перешла = послеУдаления?.rooms?.find((к) => к.name === СОСЕД)?.walls?.[0]?.openings?.[0];
+    if (перешла?.side !== "A" || перешла?.reveal !== "4200" || перешла?.other !== null) {
+      note("удаление стены", `дверь не перешла к соседу стороной А с его откосами: ${JSON.stringify(перешла)}`);
+    }
+    if ((await page.locator(".sheet").count()) === 0) {
+      note("удаление стены", "после удаления стены лист помещения закрылся: прораб теряет место");
+    } else {
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+    }
+
+    /* П-90: подтверждение удаления помещения со стенами называет судьбу
+       каждого проёма и не говорит «удалено вместе с проёмами» над строкой
+       о переходе проёма к соседу. Окно стены 1 одностороннее — удалится. */
+    await открыть(КОМНАТА);
+    await page.click('.sheet button:has-text("Удалить помещение")');
+    await page.waitForTimeout(200);
+    const удалениеПомещения = await текстЛиста();
+    if (!удалениеПомещения.includes("Окно 1,50 × 1,40\u00A0м удалится — второй стороны у него нет")) {
+      note("удаление помещения", `подтверждение не назвало судьбу окна на стене: «${удалениеПомещения.slice(0, 300)}»`);
+    }
+    if (удалениеПомещения.includes("вместе с его величинами и проёмами")) {
+      note("удаление помещения", "подтверждение у помещения со стенами говорит «вместе с проёмами» рядом с судьбой проёмов (П-90)");
+    }
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+    await page.waitForTimeout(150);
+    await page.click('.sheet .btn--text:has-text("Отмена")');
+  } catch (ошибка) {
+    note("стены", `обход стен прерван: ${String(ошибка).split("\n")[0].slice(0, 200)}`);
+    for (let i = 0; i < 3 && (await page.locator(".sheet").count()) > 0; i += 1) {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(200);
+    }
+  }
+
+  /* Уборка: помещения обхода снимаются, замер R-72 возвращается пустым. */
+  for (const комната of (await api("/projects/R-72/measure")).body?.rooms ?? []) {
+    if (комната.name === КОМНАТА || комната.name === СОСЕД || комната.name === ТРЕТЬЕ) {
+      await api(`/projects/R-72/measure/rooms/${комната.id}`, { method: "DELETE" });
+    }
+  }
+  const пусто = (await api("/projects/R-72/measure")).body;
+  if ((пусто?.rooms ?? []).length !== 0) note("стены", `замер R-72 не вернулся пустым: помещений ${пусто?.rooms?.length}`);
+  console.log("  стены на 390 px: фокус в длину, итоги сняты, проём со строки, привязка второй стороны,"
+    + " переход к соседу при удалении стены");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-99/measure`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".measure__item");
+}
+
 
 /*
  * График производства работ. Проверяется то, чего не видно на снимке:
@@ -4092,11 +5075,16 @@ if ((await изСметы.count()) === 0) {
 /* График открывается там, где работа есть. Работы R-99 идут по 15 августа,
    а «сегодня» — позже: открытие на текущем месяце дало бы пустое полотно.
 
-   «Сегодня» графика — настоящая дата сервера, а не дата стенда. Проверка,
+   «Сегодня» графика — настоящая дата, а не дата стенда. Проверка,
    записанная под «сегодня сентябрь», покраснела 01.10.2026 без единой правки
-   продукта (полный аудит, П-54). Месяц сегодняшнего дня выводится из тех же
-   часов, что у сервера, и отметка ищется в нём. */
-const сегодняГрафика = new Date().toISOString().slice(0, 10);
+   продукта (полный аудит, П-54). Оболочка берёт «сегодня» местным днём
+   браузера (П-74), браузер обхода живёт в поясе процесса — поясе организации
+   стенда (начало файла), и месяц отметки выводится из того же местного дня:
+   срез UTC здесь в последний день месяца с 21:00 до 24:00 UTC искал бы
+   отметку в прошлом месяце. */
+const сегодняГрафика = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric", month: "2-digit", day: "2-digit",
+}).format(new Date());
 const месяцОткрытия = (await page.locator(".segmented__label").first().textContent())?.trim() ?? "";
 if (месяцОткрытия !== "Август 2026") {
   note("график", `открылся месяц «${месяцОткрытия}» вместо августа, где стоят этапы`);
@@ -4684,9 +5672,32 @@ if ((await сторнируемая.count()) === 0) {
   if (траншПакета === null) {
     note("приёмка", "пакет обхода лёг вне транша — предупреждение сторно о закрытом транше не проверить");
   } else {
+    /* Пакет подписанного акта (этап Э9, ДР-3): лист называет запрет до
+       отправки и не даёт отправить даже с причиной — подписанный акт не
+       меняется. */
     await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", items: [] }] }),
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: true, items: [] }] }),
+    }));
+    await сторнируемая.click();
+    await page.waitForSelector(".sheet .btn--danger", { timeout: 10_000 }).catch(() => undefined);
+    await page.waitForTimeout(500);
+    const текстЗапрета = (await page.locator(".sheet").count()) === 0 ? "" : await page.locator(".sheet").innerText();
+    if (!текстЗапрета.includes("сторно запрещено")) {
+      note("ДР-3", `лист сторно не называет запрет для пакета подписанного акта: «${текстЗапрета.slice(0, 200)}»`);
+    }
+    if ((await page.locator(".sheet .input").count()) > 0) await page.fill(".sheet .input", "Проверка страницы");
+    if ((await page.locator(".sheet .btn--danger").count()) > 0 && await page.locator(".sheet .btn--danger").isEnabled()) {
+      note("ДР-3", "сторно пакета подписанного акта доступно с причиной");
+    }
+    if ((await page.locator('.sheet .btn--text:has-text("Отмена")').count()) > 0) {
+      await page.click('.sheet .btn--text:has-text("Отмена")');
+      await page.waitForTimeout(300);
+    }
+    await page.unroute(ПУТЬ_ЗАКРЫТЫХ);
+    await page.route(ПУТЬ_ЗАКРЫТЫХ, (запрос) => запрос.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ tranches: [{ number: траншПакета, paid: false, signedAt: "2026-09-12", fixed: false, items: [] }] }),
     }));
   }
   await сторнируемая.click();
@@ -5161,6 +6172,13 @@ await overflow("контрагенты, 360");
 await усечение(page, "контрагенты, 360");
 const tabbar = await page.locator(".tabbar__item").count();
 if (tabbar === 0) note("мобильная навигация", "нижняя таб-панель не показана на ширине 360");
+/* У руководителя в таб-панели все пять разделов: «Заявки» и «Бухгалтерию»
+   прячут только прорабу и заказчику (K9, П-65), и отбор, задевший
+   руководителя, отнял бы у него два раздела на телефоне. */
+const разделыТаба = (await page.locator(".tabbar > a.tabbar__item").allTextContents()).map((text) => text.trim());
+if (разделыТаба.join("|") !== navWanted.join("|")) {
+  note("мобильная навигация", `руководитель, 360: в таб-панели «${разделыТаба.join(", ")}» вместо «${navWanted.join(", ")}»`);
+}
 
 /* Выход с телефона. Полоса разделов ниже 768 px скрыта целиком, а список
    «Ещё» лежал внутри неё: «Выйти» и «Что дальше» не были достижимы ничем —
@@ -5689,10 +6707,14 @@ if (выборы.size === ОЖИДАЕМЫЕ_ВЫБОРЫ.length) {
  * выдаёт доступ в продукте. Второго способа входа ради проверки не заводится.
  * -------------------------------------------------------------------------- */
 const РОЛИ_ВХОДА = [
+  /* Прорабу «Заявки» и «Бухгалтерия» не показываются — тем же отбором,
+     что заказчику объекта (ответ 20 «б» раунда 1 фазы 0; K9, П-65): оба
+     раздела ему закрыты стражем ролей и прежде открывались заглушкой. */
   {
     имя: "прораб",
     почта: "foreman@dolgiy.studio",
-    разделы: ["Главная", "Заявки", "Проекты", "Контакты", "Бухгалтерия"],
+    разделы: ["Главная", "Проекты", "Контакты"],
+    закрытые: ["requests", "accounting"],
     вкладки: "Обзор|Замер|Смета|Работа|Приёмка|Чеки|Отчёт|Транши|Документы",
     снимок: "48-vhod-prorab.png",
   },
@@ -5966,6 +6988,160 @@ const РОЛИ_ВХОДА = [
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/* Этап Э8, ДР-11: вход заказчику с «Обзора» и первый вход заказчика.
+   Руководитель на «Обзоре» R-64 (входа у заказчика нет) нажимает «Выдать
+   вход заказчику»: лист «Новый человек» открывается с ролью «Заказчик» и
+   заказчиком объекта. Выданная ссылка открывается в чистом окне — заказчик
+   видит экран первого входа из трёх блоков; «Перейти к …» уводит к его
+   объектам; повторный заход экрана не показывает, а «Ещё → Как
+   пользоваться» открывает его снова. Выданный вход затем снимается. */
+{
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/#R-64`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const сводка = await page.request.get(`${BASE}/api/projects/R-64`).then((r) => r.json()).catch(() => ({}));
+  const выдать = page.locator('#panel-overview button:has-text("Выдать вход заказчику")');
+  if ((await выдать.count()) === 0) {
+    note("ДР-11 вход заказчику", "R-64: на «Обзоре» нет кнопки «Выдать вход заказчику», хотя входа у заказчика нет");
+  } else {
+    await выдать.first().click();
+    const лист = page.locator('[role="dialog"][aria-label="Новый человек"]');
+    await лист.waitFor({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+    if ((await лист.count()) === 0) {
+      note("ДР-11 вход заказчику", "кнопка не открыла лист «Новый человек»");
+    } else {
+      const [роль, заказчик] = await лист.locator("select").evaluateAll((списки) => списки.map((список) =>
+        список.selectedOptions[0]?.textContent?.trim() ?? ""));
+      if (роль !== "Заказчик") note("ДР-11 вход заказчику", `лист открылся с ролью «${роль ?? ""}», а не «Заказчик»`);
+      if (заказчик !== сводка.client?.name) {
+        note("ДР-11 вход заказчику", `лист открылся с заказчиком «${заказчик ?? ""}», а у объекта — «${String(сводка.client?.name)}»`);
+      }
+      await лист.locator("label.field", { hasText: "Имя" }).locator("input").fill("Обход ДР-11: заказчик");
+      await лист.locator('input[type="email"]').fill(`obhod-dr11-${String(Date.now())}@dolgiy.studio`);
+      await лист.locator(".btn--primary").click();
+      await page.waitForSelector("#panel-overview .invite__link", { timeout: 6000 })
+        .catch(() => { note("ДР-11 вход заказчику", "после выдачи ссылка на «Обзоре» не показана"); });
+      const ссылка = ((await page.locator("#panel-overview .invite__link").textContent().catch(() => "")) ?? "").trim();
+      await page.waitForTimeout(600);
+      if ((await выдать.count()) > 0) note("ДР-11 вход заказчику", "вход выдан, а строка «Вход заказчику: не выдан» осталась");
+
+      if (ссылка !== "") {
+        const окно = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
+        const лист2 = await окно.newPage();
+        /* Ссылка — приложение с токеном во фрагменте (`/#login/<токен>`,
+           ADR-0008, п. 2): экран входа по ссылке обменивает его на своём
+           узле и открывает первый раздел — это и есть первый заход. Узел
+           ссылки заменяется своим: выдана она на тот адрес, с которого
+           открыта страница руководителя. Ветка «не на своём узле» осталась
+           для прежней переадресации и с новой ссылкой не срабатывает. */
+        await лист2.goto(ссылка.replace(/^https?:\/\/[^/]+/u, BASE), { waitUntil: "networkidle" }).catch(() => { /* переадресация */ });
+        const наСвоём = лист2.url().startsWith(BASE);
+        if (!наСвоём) await лист2.goto(BASE, { waitUntil: "networkidle" });
+        await лист2.waitForSelector(".guide", { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+        const заголовок = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (заголовок !== "Добро пожаловать в «Приёмку»") note("ДР-11 первый вход", `первый вход заказчика: «${заголовок || "экрана нет"}»`);
+        const блоки = (await лист2.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+        if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `блоки экрана: «${блоки}»`);
+        const связь = ((await лист2.locator('.guide section[aria-labelledby="guide-contact"]').textContent().catch(() => "")) ?? "");
+        const организация = await page.request.get(`${BASE}/api/organization`).then((r) => r.json()).catch(() => ({}));
+        if (!связь.includes(String(организация.name))) note("ДР-11 первый вход", `«Как связаться» не называет организацию «${String(организация.name)}»`);
+        if (!/Прораб объекта R-64: /u.test(связь)) note("ДР-11 первый вход", "«Как связаться» не называет прораба объекта R-64");
+        await лист2.screenshot({ path: `${SHOTS}/53-pervyy-vhod.png`, fullPage: true });
+        console.log("  снято: ДР-11: первый вход заказчика → 53-pervyy-vhod.png");
+        await лист2.locator(".guide .btn--primary").click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "на экране первого входа нет кнопки «Перейти к …»"); });
+        await лист2.waitForTimeout(900);
+        const после = ((await лист2.locator("h1").first().textContent().catch(() => "")) ?? "").trim();
+        if (после.includes("Добро пожаловать") || после === "") note("ДР-11 первый вход", `«Перейти к …» не увёл с экрана первого входа: «${после}»`);
+        await лист2.reload({ waitUntil: "networkidle" });
+        await лист2.waitForSelector(".appbar", { timeout: 8000 }).catch(() => { /* ниже */ });
+        await лист2.waitForTimeout(900);
+        if ((await лист2.locator(".guide").count()) > 0) note("ДР-11 первый вход", "экран первого входа показан и при втором заходе");
+        await лист2.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+        await лист2.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+          .catch(() => { note("ДР-11 первый вход", "в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+        await лист2.waitForTimeout(500);
+        const повтор = ((await лист2.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+        if (повтор !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `«Ещё → Как пользоваться»: «${повтор || "экрана нет"}»`);
+        await лист2.setViewportSize({ width: 390, height: 844 });
+        await лист2.waitForTimeout(400);
+        const ширина = await лист2.evaluate(() => ({ полотно: document.documentElement.scrollWidth, окно: window.innerWidth }));
+        if (ширина.полотно > ширина.окно + 1) note("ДР-11 первый вход", `390 px: полотно ${ширина.полотно} при окне ${ширина.окно}`);
+        await окно.close();
+      }
+      const люди = await page.request.get(`${BASE}/api/people`).then((r) => r.json()).catch(() => []);
+      const заведён = (Array.isArray(люди) ? люди : []).find((человек) => человек.name === "Обход ДР-11: заказчик");
+      if (заведён !== undefined) await page.request.delete(`${BASE}/api/people/${заведён.id}`);
+    }
+  }
+}
+
+/* Этап Э8, ДР-12: телефон. До 480 px главная начинается с очереди, четыре
+   числа стоят сеткой 2 × 2 без бокового переполнения. Манифест объявлен:
+   имя «Приёмка», отдельное окно, цвет темы — токен полосы шапки, фон —
+   токен полотна, значки отвечают; сервис-воркера нет. */
+{
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".statrow--home .statcard", { timeout: 8000 })
+    .catch(() => { note("ДР-12 телефон", "390 px: числовых карточек главной нет"); });
+  await page.waitForTimeout(500);
+  const первый = await page.evaluate(() => document.querySelector("main.container")?.firstElementChild?.className ?? "");
+  if (!первый.split(" ").includes("queue")) note("ДР-12 телефон", `390 px: первый блок главной «${первый}», а не очередь`);
+  const карточки = await page.locator(".statrow--home .statcard").evaluateAll((узлы) => узлы.map((узел) => {
+    const место = узел.getBoundingClientRect();
+    return { x: Math.round(место.left), y: Math.round(место.top) };
+  }));
+  const [а, б, в, г] = карточки;
+  if (карточки.length !== 4 || а === undefined || б === undefined || в === undefined || г === undefined) {
+    note("ДР-12 телефон", `390 px: числовых карточек ${карточки.length} вместо четырёх`);
+  } else if (!(а.y === б.y && в.y === г.y && в.y > а.y && а.x === в.x && б.x > а.x)) {
+    note("ДР-12 телефон", `390 px: четыре числа не сеткой 2 × 2 — ${JSON.stringify(карточки)}`);
+  }
+  await overflow("ДР-12: главная на 390 px");
+  await step("ДР-12: главная на телефоне, 2 × 2", "54-glavnaya-2x2.png");
+
+  const сведения = await page.evaluate(async () => {
+    const корень = getComputedStyle(document.documentElement);
+    const воркеры = "serviceWorker" in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0;
+    return {
+      манифест: document.querySelector('link[rel="manifest"]')?.href ?? null,
+      тема: document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null,
+      полоса: корень.getPropertyValue("--band").trim().toUpperCase(),
+      полотно: корень.getPropertyValue("--bg").trim().toUpperCase(),
+      воркеры,
+    };
+  });
+  if (сведения.манифест === null) {
+    note("ДР-12 манифест", "страница не объявляет манифест");
+  } else {
+    const ответ = await page.request.get(сведения.манифест);
+    const манифест = ответ.ok() ? await ответ.json().catch(() => ({})) : {};
+    if (манифест.name !== "Приёмка") note("ДР-12 манифест", `имя «${String(манифест.name)}» вместо «Приёмка»`);
+    if (манифест.display !== "standalone") note("ДР-12 манифест", `вид окна «${String(манифест.display)}» вместо standalone`);
+    if (String(манифест.theme_color).toUpperCase() !== сведения.полоса) {
+      note("ДР-12 манифест", `цвет темы ${String(манифест.theme_color)}, а токен полосы ${сведения.полоса}`);
+    }
+    if (String(манифест.background_color).toUpperCase() !== сведения.полотно) {
+      note("ДР-12 манифест", `фон заставки ${String(манифест.background_color)}, а токен полотна ${сведения.полотно}`);
+    }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      const адрес = new URL(значок.src, сведения.манифест).href;
+      const файл = await page.request.get(адрес);
+      if (!файл.ok() || !(файл.headers()["content-type"] ?? "").startsWith("image/")) {
+        note("ДР-12 манифест", `значок ${значок.src} не отвечает картинкой: код ${файл.status()}`);
+      }
+    }
+    if (!Array.isArray(манифест.icons) || манифест.icons.length < 2) note("ДР-12 манифест", "в манифесте меньше двух значков");
+  }
+  if ((сведения.тема ?? "").toUpperCase() !== сведения.полоса) {
+    note("ДР-12 манифест", `theme-color страницы «${String(сведения.тема)}», а токен полосы ${сведения.полоса}`);
+  }
+  if (сведения.воркеры !== 0) note("ДР-12 манифест", `зарегистрировано сервис-воркеров: ${String(сведения.воркеры)}`);
+  console.log("  ДР-12: главная 2 × 2 на 390 px, манифест и значки проверены");
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
 /* Гейт снятия плана. Стоит после сверки журнала: две записи о плане
    сдвинули бы окно ленты. План заводится снимком проверки и снимается
    подтверждением — стенд возвращается к «плана нет», а путь снятия
@@ -6082,23 +7258,19 @@ for (const роль of РОЛИ_ВХОДА) {
     viewport: { width: 1440, height: 900 }, locale: "ru-RU",
   });
   const лист = await свой.newPage();
-  /* Обмен идёт через тот же узел, что и весь обход, и возврат — на него же.
-     Сервер переадресует на `WEB_ORIGIN`, а это другое имя того же места:
-     кука сессии ставится на узле обмена и на узле переадресации не видна.
-     Возврат на свой узел — не обход правила, а возврат туда, где кука есть. */
-  await лист.goto(`${BASE}/api/auth/consume?token=${ссылка.token}`, { waitUntil: "networkidle" })
-    .catch(() => { /* переадресация на чужой узел — ожидаемо */ });
-  /* Счёт отказов начинается здесь, после обмена: заход на узел
-     переадресации идёт без куки и отвечает отказом по устройству двух имён
-     одного места, а не по вине продукта. Считать его значило бы стеречь
-     настройку стенда вместо поведения роли. */
+  /* Вход — ссылкой вида, который выдаёт продукт: приложение с токеном во
+     фрагменте, `/#login/<токен>` (ADR-0008, п. 2; K5, П-61). Экран входа по
+     ссылке обменивает токен телом `POST /auth/consume` на своём узле — кука
+     ставится там же, где открыт продукт, — и стирает фрагмент из адреса.
+     Счёт отказов идёт с первого запроса: обмен по ссылке не тратит ни
+     одного отказа, в отличие от прежней переадресации на другое имя узла. */
   const отказано = [];
   лист.on("response", (отклик) => {
     if (отклик.status() === 403 || отклик.status() === 401) {
       отказано.push(new URL(отклик.url()).pathname);
     }
   });
-  await лист.goto(BASE, { waitUntil: "networkidle" });
+  await лист.goto(`${BASE}/#login/${ссылка.token}`, { waitUntil: "networkidle" });
 
   /* Ожидание ограничено и оканчивается замечанием, а не падением. Именно
      этот исход и стерегут: заказчик не входил вовсе — его выбрасывало
@@ -6115,10 +7287,40 @@ for (const роль of РОЛИ_ВХОДА) {
   }
   await лист.waitForTimeout(600);
 
+  /* Фрагмент с токеном стёрт: адрес после входа — раздел роли, а не ссылка. */
+  const адресПослеВхода = лист.url();
+  if (адресПослеВхода.includes(ссылка.token) || адресПослеВхода.includes("#login")) {
+    note("K5 вход по ссылке", `${роль.имя}: после входа в адресе остался фрагмент ссылки: «${адресПослеВхода.slice(0, 80)}»`);
+  }
+
   const разделы = (await лист.locator(".appbar__nav-scroll .appbar__link").allTextContents())
     .map((текст) => текст.trim());
   if (разделы.join("|") !== роль.разделы.join("|")) {
     note("вход по ролям", `${роль.имя}: разделы «${разделы.join(", ")}»`);
+  }
+  /* Те же разделы — в таб-панели телефона (K9, П-65): на 390 px полоса
+     шапки скрыта, и пункт, убранный из одной полосы, жил бы в другой. */
+  await лист.setViewportSize({ width: 390, height: 844 });
+  await лист.waitForTimeout(300);
+  const разделыТелефона = (await лист.locator(".tabbar > a.tabbar__item").allTextContents())
+    .map((текст) => текст.trim());
+  if (разделыТелефона.join("|") !== роль.разделы.join("|")) {
+    note("вход по ролям", `${роль.имя}, 390: в таб-панели разделы «${разделыТелефона.join(", ")}»`);
+  }
+  await лист.setViewportSize({ width: 1440, height: 900 });
+  await лист.waitForTimeout(300);
+  /* Адрес закрытого раздела экрана не открывает: оболочка остаётся на своём. */
+  for (const ключ of роль.закрытые ?? []) {
+    await лист.evaluate((адрес) => { window.location.hash = адрес; }, `#${ключ}`);
+    await лист.waitForTimeout(500);
+    const обложка = ((await лист.locator(".cover h1").first().textContent().catch(() => "")) ?? "").trim();
+    if (["Заявки", "Бухгалтерия"].includes(обложка)) {
+      note("вход по ролям", `${роль.имя}: адрес «#${ключ}» открыл закрытый раздел «${обложка}»`);
+    }
+  }
+  if ((роль.закрытые ?? []).length > 0) {
+    await лист.click('.appbar__link:has-text("Главная")').catch(() => { /* ниже — замечание о заголовке */ });
+    await лист.waitForTimeout(500);
   }
 
   const заголовок = ((await лист.locator(".cover h1").first().textContent().catch(() => "")) ?? "")
@@ -6302,6 +7504,103 @@ for (const роль of РОЛИ_ВХОДА) {
     note("вход по ролям", `${роль.имя} тратит отказы на входе: ${лишние.join(", ")}`);
   }
   await свой.close();
+}
+
+/*
+ * Ссылка входа, которая не сработала (ADR-0008, п. 2; K5, П-61).
+ *
+ * Экран входа по ссылке стирает фрагмент с токеном из адреса до обмена, а
+ * не после: токен не должен пережить ни отказ, ни «Назад», ни закладку. При
+ * удачном входе адрес и так становится адресом раздела — поэтому стирание
+ * проверяется на отказе: ссылка с неизвестным токеном показывает причину
+ * словами сервера и путь к входу по номеру, а в адресе фрагмента уже нет.
+ * Отказ обмена здесь вызван нарочно — своим окном, мимо общего счёта ошибок.
+ */
+{
+  const ЧУЖОЙ_ТОКЕН = "proverka-K5-takogo-tokena-net-0123456789abcdef";
+  const окно = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU" });
+  const лист = await окно.newPage();
+  await лист.goto(`${BASE}/#login/${ЧУЖОЙ_ТОКЕН}`, { waitUntil: "networkidle" });
+  await лист.waitForSelector('.signin [role="alert"]', { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+  const заголовок = ((await лист.locator(".signin h1").textContent().catch(() => "")) ?? "").trim();
+  const причина = ((await лист.locator('.signin [role="alert"]').textContent().catch(() => "")) ?? "").trim();
+  if (заголовок !== "Вход по ссылке" || !/недействительна или истекла/u.test(причина)) {
+    note("K5 вход по ссылке", `чужая ссылка: экран «${заголовок || "нет"}», причина «${причина || "не названа"}»`);
+  }
+  const адресОтказа = лист.url();
+  if (адресОтказа.includes(ЧУЖОЙ_ТОКЕН) || адресОтказа.includes("#login")) {
+    note("K5 вход по ссылке", `после отказа фрагмент с токеном остался в адресе: «${адресОтказа.slice(0, 80)}»`);
+  }
+  const лишнее = await лист.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (лишнее > 1) note("горизонтальное переполнение", `вход по ссылке, отказ, 390: полотно шире окна на ${лишнее} px`);
+  await лист.screenshot({ path: `${SHOTS}/55-vhod-po-ssylke-otkaz.png`, fullPage: true });
+  console.log("  снято: K5: вход по ссылке, отказ → 55-vhod-po-ssylke-otkaz.png");
+  await лист.locator('.signin button:has-text("Войти по номеру телефона")').click({ timeout: 4000 })
+    .catch(() => { note("K5 вход по ссылке", "у отказа нет пути к входу по номеру телефона"); });
+  await лист.waitForTimeout(400);
+  if ((await лист.locator('.signin input[type="tel"]').count()) === 0) {
+    note("K5 вход по ссылке", "«Войти по номеру телефона» не открыл форму номера");
+  }
+  await окно.close();
+}
+
+/*
+ * Ссылка, открытая в уже загруженной вкладке (П-71; ADR-0008, п. 2).
+ *
+ * Ссылку вставляют в адресную строку вкладки, где продукт уже открыт:
+ * браузер переходит по одному фрагменту, без загрузки страницы. Прежде токен
+ * читался только при первой отрисовке: форма входа оставалась формой номера
+ * с токеном в адресе, а вошедший оставался прежним — ссылка выбрасывалась.
+ * Два случая одной вкладкой: форма входа, затем вход прорабом, затем ссылка
+ * бухгалтера поверх вошедшего прораба.
+ */
+{
+  const выдатьСсылку = (почта) => fetch(`${API}/auth/magic-link`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: почта }),
+  }).then((отклик) => отклик.json()).then((тело) => тело.token).catch(() => undefined);
+  const разделыШапки = async (лист) => (await лист.locator(".appbar__nav-scroll .appbar__link").allTextContents())
+    .map((текст) => текст.trim()).join("|");
+  const дождатьсяРазделов = async (лист, разделы) => {
+    for (let попытка = 0; попытка < 40; попытка += 1) {
+      if ((await разделыШапки(лист).catch(() => "")) === разделы) return true;
+      await лист.waitForTimeout(300);
+    }
+    return false;
+  };
+  const окно = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
+  const лист = await окно.newPage();
+  await лист.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await лист.waitForSelector('.signin input[type="tel"]', { timeout: 8000 }).catch(() => { /* ниже — замечание */ });
+  const токенПрораба = await выдатьСсылку("foreman@dolgiy.studio");
+  const токенБухгалтера = await выдатьСсылку("buh@dolgiy.studio");
+  if (typeof токенПрораба !== "string" || typeof токенБухгалтера !== "string") {
+    note("П-71 ссылка в открытой вкладке", "сервер не выдал ссылок входа прорабу и бухгалтеру");
+  } else {
+    await лист.evaluate((токен) => { window.location.hash = `#login/${токен}`; }, токенПрораба);
+    if (!(await дождатьсяРазделов(лист, "Главная|Проекты|Контакты"))) {
+      /* Шапка есть, а разделы не прораба — вход состоялся, и дефект в
+         составе шапки (K9), а не в обмене: замечание называет, что видно. */
+      const шапка = await разделыШапки(лист).catch(() => "");
+      const наЭкране = ((await лист.locator("h1").first().textContent().catch(() => "")) ?? "").trim();
+      note("П-71 ссылка в открытой вкладке", шапка === ""
+        ? `ссылка прораба, вставленная в открытую форму входа, не обменялась: на экране «${наЭкране || "—"}», адрес «${лист.url().slice(0, 80)}»`
+        : `после ссылки прораба, вставленной в форму входа, в шапке разделы «${шапка.replaceAll("|", ", ")}», а не прораба`);
+    }
+    await лист.waitForTimeout(600);
+    if (лист.url().includes(токенПрораба) || лист.url().includes("#login")) {
+      note("П-71 ссылка в открытой вкладке", `после входа прораба токен остался в адресе: «${лист.url().slice(0, 80)}»`);
+    }
+    await лист.evaluate((токен) => { window.location.hash = `#login/${токен}`; }, токенБухгалтера);
+    if (!(await дождатьсяРазделов(лист, "Главная|Заявки|Проекты|Контакты|Бухгалтерия"))) {
+      note("П-71 ссылка в открытой вкладке",
+        `ссылка бухгалтера во вкладке вошедшего прораба не обменялась: разделы «${await разделыШапки(лист).catch(() => "—")}», адрес «${лист.url().slice(0, 80)}»`);
+    }
+    await лист.waitForTimeout(600);
+    if (лист.url().includes(токенБухгалтера) || лист.url().includes("#login")) {
+      note("П-71 ссылка в открытой вкладке", `после входа бухгалтера токен остался в адресе: «${лист.url().slice(0, 80)}»`);
+    }
+  }
+  await окно.close();
 }
 
 /*

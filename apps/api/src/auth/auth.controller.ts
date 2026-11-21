@@ -52,14 +52,7 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ ok: true }> {
     const { phone, code } = confirmSmsCodeSchema.parse(body);
-    const { sessionToken, expiresAt } = await this.auth.confirmSmsCode(phone, code);
-    reply.setCookie(SESSION_COOKIE, sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      expires: expiresAt,
-    });
+    поставитьСессию(reply, await this.auth.confirmSmsCode(phone, code));
     return { ok: true };
   }
 
@@ -70,21 +63,37 @@ export class AuthController {
      организации. */
 
   /**
-   * Обмен ссылки на сессию. Отвечает переадресацией в приложение, а не
-   * телом: по ссылке из письма человек переходит браузером, и ответ
-   * с JSON оставил бы его на странице со служебным текстом.
+   * Обмен ссылки на сессию: токен — в теле запроса (ADR-0008, п. 2; K5 фазы
+   * 0, П-61). Ссылка выдаётся фрагментом адреса приложения — `/#login/<токен>`:
+   * фрагмент на сервер не уходит и в журналы доступа не попадает. Экран
+   * входа по ссылке берёт токен из фрагмента, стирает его из истории и
+   * отправляет сюда; кука ставится так же, как при входе по коду.
+   */
+  @Post("consume")
+  async consumeLink(
+    @Body() body: unknown,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ ok: true }> {
+    const { token } = consumeTokenSchema.parse(body);
+    поставитьСессию(reply, await this.auth.consume(token));
+    return { ok: true };
+  }
+
+  /**
+   * Переходный обмен по строке запроса — для ссылок, выданных до 07.11.2026
+   * (ADR-0008, п. 3). Токен здесь в адресе запроса, поэтому журнал доступа
+   * этого адреса в nginx отключён (`apps/web/nginx.conf`). Маршрут снимается
+   * отдельным запросом после перевыпуска ссылок или по истечении их срока;
+   * дата снятия — решение заказчика при приёмке работы.
+   *
+   * Отвечает переадресацией в приложение, а не телом: по такой ссылке
+   * человек переходит браузером, и ответ с JSON оставил бы его на странице
+   * со служебным текстом.
    */
   @Get("consume")
   async consume(@Query() query: unknown, @Res() reply: FastifyReply): Promise<void> {
     const { token } = consumeTokenSchema.parse(query);
-    const { sessionToken, expiresAt } = await this.auth.consume(token);
-    reply.setCookie(SESSION_COOKIE, sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      expires: expiresAt,
-    });
+    поставитьСессию(reply, await this.auth.consume(token));
     await reply.redirect(process.env.WEB_ORIGIN ?? "/", 302);
   }
 
@@ -112,4 +121,15 @@ export class AuthController {
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
     return { ok: true };
   }
+}
+
+/** Кука сессии — одна на все способы входа: код, ссылка телом и переходный обмен. */
+function поставитьСессию(reply: FastifyReply, { sessionToken, expiresAt }: { sessionToken: string; expiresAt: Date }): void {
+  reply.setCookie(SESSION_COOKIE, sessionToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiresAt,
+  });
 }

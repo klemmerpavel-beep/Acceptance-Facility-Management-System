@@ -320,6 +320,13 @@ await page.waitForTimeout(800);
     if (заказчику.split("|").length > 1) {
       note("роли", `у заказчика в шапке разделы «${заказчику.replace(/\|/gu, ", ")}»`);
     }
+    /* Прорабу «Заявки» и «Бухгалтерия» не показываются тем же отбором, что
+       заказчику (ответ 20 «б» раунда 1 фазы 0; K9, П-65). Шапка
+       демонстрации — та же оболочка, что у продукта. */
+    const прорабу = составы.get("Прораб") ?? "";
+    if (прорабу !== "Главная|Проекты|Контакты") {
+      note("роли", `у прораба в шапке разделы «${прорабу.replace(/\|/gu, ", ")}» вместо «Главная, Проекты, Контакты»`);
+    }
     /* Бухгалтер: разделы те же, служебные экраны — нет. Проверяется вторая
        половина решения, потому что первая половина у него неотличима от
        руководителя по построению. */
@@ -640,6 +647,65 @@ await page.waitForTimeout(800);
   }
 }
 
+/* --- Фиксация подписанного акта и поправка (этап Э9, ДР-3) ------------------
+   Двойник держит подпись и поправку в памяти вкладки, как сервер — в базе:
+   отметка подписания фиксирует акт, лист поправки не отправляется без
+   причины, записанная поправка встаёт в историю подписанного акта. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  await page.goto(`${BASE}/#R-99/documents`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const дата = page.locator('.acts-screen .record input[type="date"]').first();
+  if ((await дата.count()) === 0) {
+    note("ДР-3", "демонстрация: у неподписанного акта нет поля даты подписания");
+  } else {
+    await дата.fill("2026-09-12");
+    await page.waitForTimeout(600);
+    await page.locator('.acts-screen .record button:has-text("Открыть акт")').first().click();
+    await page.waitForTimeout(700);
+    if ((await page.locator('.acts-screen [role="note"]').filter({ hasText: "зафиксирован" }).count()) === 0) {
+      note("ДР-3", "демонстрация: подписанный акт не назван зафиксированным");
+    }
+    const орган = page.locator('.acts-screen button:has-text("Оформить поправку")');
+    if ((await орган.count()) === 0) {
+      note("ДР-3", "демонстрация: у подписанного акта нет органа «Оформить поправку»");
+    } else {
+      await орган.first().click();
+      const лист = page.locator('.sheet[aria-label="Поправка к акту"]');
+      await лист.waitFor({ timeout: 5000 }).catch(() => note("ДР-3", "демонстрация: лист поправки не открылся"));
+      const записать = лист.locator('button:has-text("Записать поправку")');
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        note("ДР-3", "демонстрация: поправка доступна без причины");
+      }
+      const цена = лист.locator('label:has-text("Цена") input');
+      const было = await цена.inputValue().catch(() => "1");
+      await цена.fill(String(Math.max(1, Number.parseInt(было, 10) - 1))).catch(() => undefined);
+      await лист.locator('label:has-text("Причина") input').fill("Демонстрация: цена по договору").catch(() => undefined);
+      await page.waitForTimeout(200);
+      if ((await записать.count()) > 0 && await записать.isEnabled()) {
+        await записать.click();
+        await page.waitForTimeout(800);
+        const история = await page.locator('.acts-screen [role="note"] li').allTextContents();
+        if (!история.some((строка) => строка.includes("Демонстрация: цена по договору"))) {
+          note("ДР-3", "демонстрация: записанная поправка не встала в историю подписанного акта");
+        }
+      } else {
+        const текст = (await лист.innerText().catch(() => "")) ?? "";
+        if (!текст.includes("открытого транша у объекта нет")) {
+          note("ДР-3", "демонстрация: поправка с причиной недоступна, и лист не называет причину");
+        }
+        await лист.locator('.btn--text:has-text("Отмена")').click().catch(() => undefined);
+      }
+    }
+  }
+  /* Подпись и поправка живут в памяти вкладки: перезагрузка возвращает
+     двойник к слепку, и следующие проверки видят акт неподписанным. */
+  await page.reload({ waitUntil: "networkidle" });
+}
+
 /* --- Значки доказательности (этап Э8, ДР-7) ---------------------------------
    Пакеты приёмки и чеки R-99 в слепке — со снимками: значок у каждой строки. */
 {
@@ -757,6 +823,250 @@ await page.waitForTimeout(800);
     }
   }
   console.log(`ДР-1: очередь демонстрации — пунктов ${сверено.join(", ")}; числа сверены с полосой отбора и экраном`);
+}
+
+/* --- Площадь стен за вычетом проёмов (этап Э11, шаг 1) ----------------------
+   Двойник считает обмер тем же доменом, что сервер: 262,95 без вычета и
+   227,52 за вычетом проёмов по объекту, 47,52 и 43,74 у спальни. Внесённое
+   в демонстрации помещение с проёмами больше стен даёт ноль и предупреждение,
+   а не минус и не отказ. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  await page.goto(`${BASE}/#R-99/measure`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".measure__item", { timeout: 8000 }).catch(() => undefined);
+  const общее = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
+  if (!/Площадь стен\s*262,95\u00A0м²/u.test(общее) || !/Площадь стен нетто\s*227,52\u00A0м²/u.test(общее)) {
+    note("Э11 стены", `демонстрация: в «Общем» нет обеих площадей стен — «${общее.replace(/\n/g, " · ")}»`);
+  }
+  await page.locator('.measure__item:has-text("Спальня")').first().click().catch(() => undefined);
+  await page.waitForTimeout(200);
+  const спальня = (await page.locator(".measure .spec--inv").first().innerText().catch(() => "")) ?? "";
+  if (!/Площадь стен нетто\s*43,74\u00A0м²/u.test(спальня)) {
+    note("Э11 стены", `демонстрация: у спальни нет «Площадь стен нетто 43,74 м²» — «${спальня.replace(/\n/g, " · ")}»`);
+  }
+  const внести = page.locator('button:has-text("Добавить помещение")').first();
+  if ((await внести.count()) > 0) {
+    await внести.click();
+    await page.waitForSelector(".sheet input", { timeout: 5000 }).catch(() => undefined);
+    const поля = page.locator(".sheet input");
+    await поля.nth(0).fill("Тамбур демонстрации");
+    await поля.nth(1).fill("1");
+    await поля.nth(2).fill("1,2");
+    await поля.nth(3).fill("1,2");
+    await поля.nth(4).fill("2,5");
+    const двери = page.locator('.sheet fieldset.openings:has(legend:text-is("Двери")) input');
+    await двери.nth(0).fill("2");
+    await двери.nth(1).fill("3,2");
+    await page.waitForTimeout(200);
+    const лист = (await page.locator(".sheet").innerText().catch(() => "")) ?? "";
+    if (!лист.includes("больше площади его стен") || !/Площадь стен нетто\s*0,00\u00A0м²/u.test(лист)) {
+      note("Э11 стены", "демонстрация: при проёмах больше стен лист помещения не показал ноль и предупреждение");
+    }
+    await page.locator('.sheet button:has-text("Добавить помещение")').click().catch(() => undefined);
+    await page.waitForTimeout(600);
+    const послеВнесения = (await page.locator(".spec").first().innerText().catch(() => "")) ?? "";
+    if (!/Площадь стен\s*265,95\u00A0м²/u.test(послеВнесения) || !/Площадь стен нетто\s*227,52\u00A0м²/u.test(послеВнесения)) {
+      note("Э11 стены", `демонстрация: после тамбура итоги «${послеВнесения.replace(/\n/g, " · ")}» вместо 265,95 и 227,52`);
+    }
+    await page.locator('.measure__item:has-text("Тамбур демонстрации")').first().click().catch(() => undefined);
+    await page.waitForTimeout(200);
+    if ((await page.locator('[role="note"]').filter({ hasText: "больше площади его стен" }).count()) === 0) {
+      note("Э11 стены", "демонстрация: под карточкой тамбура нет предупреждения о проёмах больше стен");
+    }
+  }
+  /* Внесённое живёт в памяти вкладки: перезагрузка возвращает двойник к слепку. */
+  await page.reload({ waitUntil: "networkidle" });
+  console.log("Э11: площадь стен за вычетом проёмов в демонстрации проверена");
+}
+
+/* --- Стены, общий проём и адрес поверхности (этап Э11, шаг 2) ---------------
+   Слепок несёт перепланировку R-99 со стенами: у кухни-гостиной и лоджии —
+   стены, окно между ними — общий проём, видный с обеих сторон. Двойник
+   держит правила сервера тем же доменом: новая стена снимает итоги проёмов,
+   проём со строки стены привязывается к стене соседа; позиция сметы получает
+   поверхность «одна стена», подстановку с источником, а правка стены в
+   демонстрации ставит в смете пилюлю «обмер изменился», которую снимает
+   «Подставить заново». Числа — наполнение стенда (`apps/api/prisma/seed.mjs`):
+   стена 1 кухни-гостиной 11,15 × 2,70 = 30,105 − два окна 5,40 = 24,705; та же
+   стена в 11,30 — 30,51 − 5,40 = 25,11. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Руководитель")');
+  await page.waitForTimeout(600);
+  const набор = async (подпись) => {
+    await page.locator('[aria-label="Набор обмера"] button', { hasText: подпись }).click().catch(() => undefined);
+    await page.waitForTimeout(500);
+  };
+  const открыть = async (имя) => {
+    await page.locator(".measure__item", { hasText: имя }).first().click().catch(() => undefined);
+    await page.waitForTimeout(150);
+    await page.locator('button:has-text("Править помещение")').click().catch(() => undefined);
+    await page.waitForSelector(".sheet input", { timeout: 5000 }).catch(() => undefined);
+  };
+  const закрыть = async () => {
+    for (let i = 0; i < 3 && (await page.locator(".sheet").count()) > 0; i += 1) {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(200);
+    }
+  };
+  const строкаСтены = (имя) => page.locator(`.sheet fieldset[aria-label="${имя}"]`);
+  const текстСтроки = async (имя) => ((await строкаСтены(имя).innerText().catch(() => "")) ?? "").replace(/\n+/g, " · ");
+
+  await page.goto(`${BASE}/#R-99/measure`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".measure__item", { timeout: 8000 }).catch(() => undefined);
+  await набор("После перепланировки");
+
+  /* Общий проём с обеих сторон. */
+  await открыть("Кухня-гостиная");
+  const стенКухни = await page.locator('.sheet fieldset[aria-label^="Стена"]').count();
+  if (стенКухни !== 4) note("Э11-2 стены", `демонстрация: у кухни-гостиной в листе ${стенКухни} строк стен вместо четырёх`);
+  if (!(await текстСтроки("Стена 3 · к лоджии")).includes("в «Лоджия»")) {
+    note("Э11-2 стены", "демонстрация: окно кухни-гостиной не названо общим с лоджией");
+  }
+  await закрыть();
+  await открыть("Лоджия");
+  if (!(await текстСтроки("Стена 3")).includes("из «Кухня-гостиная», Стена 3 · к лоджии")) {
+    note("Э11-2 стены", "демонстрация: у лоджии общее окно не видно со стороны Б");
+  }
+  await закрыть();
+
+  /* Первая стена спальни перепланировки снимает её итоги проёмов; дверь со
+     строки стены привязывается к стене 2 кухни-гостиной. */
+  await открыть("Спальня");
+  await page.locator('.sheet button:has-text("Добавить стену")').click().catch(() => undefined);
+  await page.waitForTimeout(150);
+  await page.keyboard.type("17,6");
+  const заметка = ((await page.locator('.sheet [role="note"]').first().innerText().catch(() => "")) ?? "");
+  if (!заметка.includes("При сохранении снимутся итоги проёмов: окна — 1 шт, 2,10\u00A0м²")) {
+    note("Э11-2 стены", `демонстрация: первая стена не назвала, что снимется: «${заметка}»`);
+  }
+  await page.locator('.sheet button[aria-label="Добавить дверь: Стена 1"]').click().catch(() => undefined);
+  await page.waitForSelector('.sheet[aria-label="Дверь: новый проём"]', { timeout: 5000 }).catch(() => undefined);
+  const полеПроёма = (подпись) => page.locator(`.sheet label.field:has(> .field__label:text-is("${подпись}"))`);
+  await полеПроёма("Ширина, м").locator("input").fill("0,8").catch(() => undefined);
+  await полеПроёма("Высота, м").locator("input").fill("2,1").catch(() => undefined);
+  await полеПроёма("Смежное помещение").locator("select").selectOption({ label: "Кухня-гостиная" }).catch(() => undefined);
+  await полеПроёма("Стена").locator("select").selectOption({ label: "Стена 2" }).catch(() => {
+    note("Э11-2 стены", "демонстрация: лист проёма не предложил стены соседа со стенами");
+  });
+  await page.locator('.sheet button[type="submit"]').click().catch(() => undefined);
+  await page.waitForTimeout(700);
+  if (!(await текстСтроки("Стена 1")).includes("в «Кухня-гостиная»")) {
+    note("Э11-2 стены", `демонстрация: дверь спальни не привязана к стене соседа: «${await текстСтроки("Стена 1")}»`);
+  }
+  await закрыть();
+  const спальня = (await page.locator(".measure .spec--inv").first().innerText().catch(() => "")) ?? "";
+  /* 17,60 × 2,70 = 47,52 − дверь 1,68 = 45,84. */
+  if (!/Площадь стен нетто\s*45,84\u00A0м²/u.test(спальня)) {
+    note("Э11-2 стены", `демонстрация: нетто спальни со стеной не 45,84 м² — «${спальня.replace(/\n/g, " · ")}»`);
+  }
+
+  /* Адрес поверхности, источник и признак. */
+  await page.click('.tabs__item:has-text("Смета")');
+  await page.waitForSelector("table.estimate", { timeout: 8000 }).catch(() => undefined);
+  const раскрыть = async () => {
+    const кнопка = page.locator('.panel__head .btn--text:has-text("Развернуть все")');
+    if ((await кнопка.count()) > 0) { await кнопка.click(); await page.waitForTimeout(300); }
+  };
+  await раскрыть();
+  const строка = page.locator("table.estimate tbody tr").filter({ hasText: "Кухня-гостиная" }).filter({ hasText: "м²" }).first();
+  /* Наименование — первый текст ячейки: помещение и пилюли стоят в ней же. */
+  const имя = ((await строка.locator(".estimate__row-name").first()
+    .evaluate((узел) => узел.firstChild?.textContent ?? "").catch(() => "")) ?? "").trim();
+  await строка.locator('.btn--text:has-text("Править")').click().catch(() => undefined);
+  await page.waitForTimeout(300);
+  const поле = (подпись) => page.locator(`.sheet label.field:has(> .field__label:text-is("${подпись}")) select`);
+  await поле("Поверхность").selectOption({ label: "Одна стена" }).catch(() => {
+    note("Э11-2 адрес", "демонстрация: в листе позиции нет поля «Поверхность» с видом «Одна стена»");
+  });
+  await поле("Стена").selectOption({ label: "Стена 1 · окна" }).catch(() => undefined);
+  await page.locator(".estimate__from-measure").filter({ hasText: "из обмера помещения" })
+    .locator(".btn").filter({ hasText: "площадь стены нетто 24,705" }).first().click({ timeout: 4000 })
+    .catch(() => { note("Э11-2 адрес", "демонстрация: у стены 1 кухни-гостиной не предложена площадь стены нетто 24,705"); });
+  await page.locator('.sheet button[type="submit"]').click().catch(() => undefined);
+  await page.waitForTimeout(600);
+  await закрыть();
+
+  await page.click('.tabs__item:has-text("Замер")');
+  await page.waitForSelector(".measure__item", { timeout: 8000 }).catch(() => undefined);
+  await набор("После перепланировки");
+  await открыть("Кухня-гостиная");
+  await строкаСтены("Стена 1 · окна").locator('label:has(> .field__label:text-is("Длина, м")) input').fill("11,3")
+    .catch(() => undefined);
+  await page.locator('.sheet button[type="submit"]').click().catch(() => undefined);
+  await page.waitForTimeout(600);
+  await page.click('.tabs__item:has-text("Смета")');
+  await page.waitForSelector("table.estimate", { timeout: 8000 }).catch(() => undefined);
+  await раскрыть();
+  const пилюля = page.locator("table.estimate tbody tr").filter({ hasText: имя }).first()
+    .locator('.pillbutton:has-text("обмер изменился")');
+  if (имя === "" || (await пилюля.count()) === 0) {
+    note("Э11-2 признак", `демонстрация: после правки стены у позиции «${имя}» нет пилюли «обмер изменился»`);
+  } else {
+    await пилюля.click();
+    await page.waitForTimeout(300);
+    const признак = (await page.locator('.sheet [role="status"]').allInnerTexts()).join(" | ");
+    if (!признак.includes("Подставлено 24,705\u00A0м², сейчас 25,11\u00A0м²")) {
+      note("Э11-2 признак", `демонстрация: лист позиции не назвал «подставлено 24,705, сейчас 25,11»: «${признак}»`);
+    }
+    await page.locator('.sheet button:has-text("Подставить заново")').click().catch(() => undefined);
+    await page.locator('.sheet button[type="submit"]').click().catch(() => undefined);
+    await page.waitForTimeout(600);
+    await раскрыть();
+    if ((await page.locator("table.estimate tbody tr").filter({ hasText: имя }).first()
+      .locator('.pillbutton:has-text("обмер изменился")').count()) > 0) {
+      note("Э11-2 признак", "демонстрация: «Подставить заново» не сняло пилюлю «обмер изменился»");
+    }
+  }
+  /* Внесённое живёт в памяти вкладки: перезагрузка возвращает двойник к слепку. */
+  await page.reload({ waitUntil: "networkidle" });
+  console.log("Э11-2: стены, общий проём, адрес поверхности и признак в демонстрации проверены");
+}
+
+/* --- Манифест приложения (этап Э8, ДР-12) -------------------------------------
+   Демонстрация собирается с относительными путями: манифест и значки
+   обязаны отвечать по адресу, объявленному страницей. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  const адрес = await page.evaluate(() => document.querySelector('link[rel="manifest"]')?.href ?? null);
+  if (адрес === null) {
+    note("ДР-12 манифест", "демонстрация не объявляет манифест");
+  } else {
+    const ответ = await page.request.get(адрес);
+    const манифест = ответ.ok() ? await ответ.json().catch(() => ({})) : {};
+    if (манифест.name !== "Приёмка" || манифест.display !== "standalone") {
+      note("ДР-12 манифест", `демонстрация: манифест «${String(манифест.name)}», окно «${String(манифест.display)}», код ${ответ.status()}`);
+    }
+    for (const значок of Array.isArray(манифест.icons) ? манифест.icons : []) {
+      const файл = await page.request.get(new URL(значок.src, адрес).href);
+      if (!файл.ok()) note("ДР-12 манифест", `демонстрация: значок ${значок.src} — код ${файл.status()}`);
+    }
+  }
+  console.log("ДР-12: манифест демонстрации проверен");
+}
+
+/* --- «Как пользоваться» заказчика (этап Э8, ДР-11) ---------------------------
+   Отметка захода в слепке есть, и сам экран не показывается; «Ещё → Как
+   пользоваться» открывает его: три блока, «Как связаться» — организация. */
+{
+  await page.goto(`${BASE}/#home`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await page.click('.demorole .segmented__option:has-text("Заказчик")');
+  await page.waitForTimeout(700);
+  if ((await page.locator(".guide").count()) > 0) note("ДР-11 первый вход", "демонстрация: экран первого входа показан заказчику с отметкой захода");
+  await page.locator(".appbar__more summary").click({ timeout: 5000 }).catch(() => { /* ниже — замечание */ });
+  await page.locator('.appbar__menu .appbar__menu-item:has-text("Как пользоваться")').click({ timeout: 5000 })
+    .catch(() => { note("ДР-11 первый вход", "демонстрация: в «Ещё» заказчика нет пункта «Как пользоваться»"); });
+  await page.waitForTimeout(500);
+  const заголовок = ((await page.locator(".cover h1").textContent().catch(() => "")) ?? "").trim();
+  if (заголовок !== "Как пользоваться «Приёмкой»") note("ДР-11 первый вход", `демонстрация: «Ещё → Как пользоваться» — «${заголовок || "экрана нет"}»`);
+  const блоки = (await page.locator(".guide h2").allTextContents()).map((текст) => текст.trim()).join("|");
+  if (блоки !== "Что вы здесь видите|Что нужно от вас|Как связаться") note("ДР-11 первый вход", `демонстрация: блоки «${блоки}»`);
+  console.log("ДР-11: «Как пользоваться» заказчика проверен из «Ещё»");
 }
 
 await browser.close();

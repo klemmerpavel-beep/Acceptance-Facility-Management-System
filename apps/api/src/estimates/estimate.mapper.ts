@@ -38,6 +38,21 @@ const section = (node: SectionNode): EstimateSectionNode => ({
           profitShare: Number(item.profitShare),
         }
       : {}),
+    /* Адрес поверхности — только там, где его оставила проекция домена:
+       ключа нет у прораба и заказчика объекта, а не пустое значение. */
+    ...("surface" in item && item.surface !== undefined
+      ? {
+          surface: {
+            kind: item.surface.kind,
+            wall: item.surface.wall,
+            source: item.surface.source === null ? null : {
+              ...item.surface.source,
+              value: item.surface.source.value.toString(),
+              now: item.surface.source.now === null ? null : item.surface.source.now.toString(),
+            },
+          },
+        }
+      : {}),
   })),
   children: node.children.map(section),
   subtotal: node.subtotal.toString(),

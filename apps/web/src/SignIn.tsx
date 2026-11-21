@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parsePhone } from "@priyomka/domain";
-import { confirmSmsCode, requestSmsCode, errorMessage } from "./api.js";
+import { confirmSmsCode, consumeLink, requestSmsCode, errorMessage } from "./api.js";
 
 /**
  * Вход по номеру телефона в два шага.
@@ -156,6 +156,69 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }): React.JSX.El
           </div>
         </form>
       )}
+    </main>
+  );
+}
+
+/**
+ * Вход по личной ссылке: `/#login/<токен>` (ADR-0008, п. 2; K5 фазы 0, П-61).
+ *
+ * Токен приходит во фрагменте адреса — на сервер фрагмент не уходит и в
+ * журнал доступа не попадает. Экран стирает фрагмент из истории до обмена,
+ * а не после: токен не должен пережить ни отказ, ни «Назад», ни закладку. Обмен —
+ * телом `POST /auth/consume`; кука сессии ставится сервером, и оболочка
+ * перечитывает вошедшего, открывая его первый раздел.
+ *
+ * Отказ называет причину словами сервера — «ссылка недействительна или
+ * истекла», «слишком много запросов» — и ведёт к входу по номеру: ссылка,
+ * которая не сработала, не должна оставлять человека на пустом экране.
+ */
+export function LinkSignIn({
+  token, onSignedIn, onPhone,
+}: { token: string; onSignedIn: () => void; onPhone: () => void }): React.JSX.Element {
+  const [error, setError] = useState<string | null>(null);
+  /* Обмен — один на экран. В режиме разработки React запускает эффект
+     дважды, а ссылка из письма гасится первым обменом: второй обмен
+     объявил бы отказ поверх состоявшегося входа. */
+  const начат = useRef(false);
+
+  useEffect(() => {
+    if (начат.current) return;
+    начат.current = true;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    void consumeLink(token)
+      .then(onSignedIn)
+      .catch((cause: unknown) => { setError(errorMessage(cause)); });
+  }, [token, onSignedIn]);
+
+  return (
+    <main className="signin" aria-busy={error === null}>
+      <div className="signin__brand">
+        <svg className="icon" aria-hidden="true"><use href="#i-mark" /></svg>
+        <span className="signin__lockup">
+          <span className="t-h3">Приёмка</span>
+          <span className="signin__org">DOLGIY STUDIO</span>
+        </span>
+      </div>
+      <div className="signin__form stack">
+        <h1 className="t-h1 signin__title">Вход по ссылке</h1>
+        {error === null ? (
+          <p className="t-sm t-muted">Проверяем ссылку…</p>
+        ) : (
+          <>
+            <p className="field__error" role="alert">{error}</p>
+            <p className="t-sm t-muted signin__note">
+              Новую ссылку выдаёт руководитель. Если ваш номер телефона заведён в системе, войдите по
+              коду подтверждения.
+            </p>
+            <div className="signin__actions">
+              <button className="btn btn--primary" type="button" onClick={onPhone}>
+                Войти по номеру телефона
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </main>
   );
 }

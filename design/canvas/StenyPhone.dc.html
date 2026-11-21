@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF0F4;
+      --ink:#0E1A28; --ink-2:#3C4C5E; --ink-3:#5A6979; --ink-inv:#FFFFFF;
+      --line:#DCE2E9; --line-strong:#B7C2CE;
+      --accent:#4A3AB8; --accent-hover:#3B2E96; --accent-soft:#F0EEFD; --accent-ink:#FFFFFF;
+      --accent-fill:#675AC3; --accent-track:#7569C9;
+      --signal:#9C5E17; --signal-soft:#FBEEDC;
+      --ok:#2C7753; --ok-soft:#E1F0E8; --warn:#8E670C; --warn-soft:#FAF0D7;
+      --danger:#A5150D; --danger-soft:#FBE4E2; --neutral-soft:#E9EDF1;
+      --band:#6C5CE7;--band-ink:#FFFFFF;--band-active:#FFFFFF;--band-active-ink:#4A3AB8;
+      --band-fill:#5F51CB;--band-track:#564AB9;
+      --surface-inv:#0E1A28; --ink-on-inv:#E8EDF2; --ink-on-inv-2:#A8B6C4; --line-inv:#28323E; --accent-inv:#B7B0F6;
+      --overlay:rgba(14,26,40,.44);
+      --radius-sm:4px; --radius-chip:6px; --radius-md:8px; --radius-lg:12px; --radius-pill:999px;
+      --shadow-1:0 1px 2px rgba(14,26,40,.06); --shadow-2:0 4px 16px rgba(14,26,40,.10);
+      --font-ui:"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+      font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+    h1,h2,h3,p,dl,dd,dt,figure{margin:0}
+    a{color:var(--accent);text-underline-offset:2px}
+    a:hover{color:var(--accent-hover)}
+    .t-h1{font-family:var(--font-ui);font-size:24px;line-height:1.2;font-weight:700;letter-spacing:.01em}
+    .t-h2{font-family:var(--font-ui);font-size:19px;line-height:1.25;font-weight:700;letter-spacing:.01em}
+    .t-h3{font-size:16px;line-height:1.3;font-weight:600}
+    .t-body{font-size:15px;line-height:1.55}
+    .t-sm{font-size:13px;line-height:1.45}
+    .t-cap{font-family:var(--font-ui);font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .t-muted{color:var(--ink-3)}
+    .t-secondary{color:var(--ink-2)}
+    .num{font-family:var(--font-mono);font-size:15px;line-height:1.3;font-weight:500;
+      font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .panel{border-block:1px solid var(--line)}
+    .panel--sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md)}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
+      font-size:13px;font-weight:500;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}
+    .pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}
+    .code-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radius-chip);
+      background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);
+      font-size:13px;font-weight:600;letter-spacing:.02em}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;
+      padding:0 16px;border:1px solid transparent;border-radius:var(--radius-md);font-size:15px;
+      font-weight:500;font-family:inherit;cursor:pointer}
+    .btn--primary{background:var(--accent);color:var(--accent-ink)}
+    .btn--secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+    .btn--text{background:transparent;color:var(--accent);padding:0 8px}
+    .segmented{display:inline-flex;padding:2px;background:var(--surface-2);border-radius:var(--radius-md)}
+    .segmented__option{min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:var(--radius-chip);
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+    .segmented__option[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+      font-weight:500;box-shadow:0 1px 2px rgba(14,26,40,.06)}
+    .appbar{display:flex;align-items:center;gap:16px;height:56px;padding:0 24px;
+      background:var(--band);color:var(--band-ink)}
+    .appbar__brand{font-size:16px;font-weight:600;letter-spacing:-.01em}
+    .appbar__nav{display:flex;gap:4px;margin-inline:auto}
+    .appbar__link{display:inline-flex;align-items:center;height:32px;padding:0 12px;
+      border-radius:var(--radius-pill);color:var(--band-ink);text-decoration:none;font-size:13px;font-weight:500}
+    .appbar__link[aria-current="page"]{background:var(--band-active);color:var(--band-active-ink)}
+    .cover{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
+    .cover__crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3)}
+    .cover__title{display:flex;align-items:center;gap:12px;margin-top:8px}
+    .stamp{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
+      background:var(--surface);border-block:1px solid var(--ink);margin-bottom:24px}
+    .stamp__cell{display:flex;flex-direction:column;gap:2px;min-inline-size:0;
+      padding:8px 12px;border-inline-start:1px solid var(--line)}
+    .stamp__cell--wide{grid-column:span 2}
+    .stamp__cell:first-child{border-inline-start:0}
+    .stamp__value{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .stamp__value--code{font-family:var(--font-mono);font-weight:600;letter-spacing:.02em}
+    .stamp__crumbs{display:flex;align-items:center;gap:8px;padding:12px 0;
+      font-size:13px;color:var(--ink-3)}
+    .scale{display:flex;flex-direction:column;gap:4px;min-inline-size:140px}
+    .scale__track{position:relative;height:10px;border:1px solid var(--line-strong)}
+    .scale__fill{position:absolute;top:0;bottom:0;left:0;background:var(--accent)}
+    .scale__tick{position:absolute;top:-4px;width:1px;height:4px;background:var(--line-strong)}
+    .scale__legend{display:flex;justify-content:space-between;gap:8px;
+      font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+    .scale__value{font-weight:600;color:var(--ink)}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+    .tabs__item{padding:12px 0;border:0;border-bottom:2px solid transparent;background:none;
+      color:var(--ink-2);font-family:inherit;font-size:15px;cursor:pointer;white-space:nowrap}
+    .tabs__item[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field__label{font-size:13px;color:var(--ink-2)}
+    .input{height:40px;padding:0 12px;background:var(--surface);border:1px solid var(--line);
+      border-radius:var(--radius-md);color:var(--ink);font-family:inherit;font-size:15px}
+    .deflist__row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .deflist__term{font-size:13px;color:var(--ink-2)}
+    .deflist__value{font-size:13px;text-align:right}
+    .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+      stroke-linecap:square;stroke-linejoin:miter}
+    .rule{border:0;border-top:1px solid var(--line);margin:0}
+    .rule--inv{border-top-color:var(--line-inv)}
+    .spec{display:flex;flex-wrap:wrap;gap:6px 20px;margin:0}
+    .spec--col{flex-direction:column;gap:8px}
+    .spec__item{display:inline-flex;align-items:baseline;gap:6px;font-size:13px;line-height:1.45;color:var(--ink-2)}
+    .spec__value{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--accent);
+      font-variant-numeric:tabular-nums;white-space:nowrap}
+    .spec--inv .spec__item{color:var(--ink-on-inv-2)}
+    .spec--inv .spec__value{color:var(--accent-inv)}
+    .toggle{display:inline-flex;align-items:center;gap:10px;padding:0;border:0;background:none;
+      font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+    .toggle__track{position:relative;width:44px;height:24px;flex:none;border-radius:var(--radius-pill);
+      background:var(--line-strong)}
+    .toggle__knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:var(--radius-pill);
+      background:var(--surface);box-shadow:var(--shadow-1)}
+    .toggle__name{font-weight:500;color:var(--ink)}
+    .toggle[aria-checked="true"] .toggle__track{background:var(--accent)}
+    .toggle[aria-checked="true"] .toggle__knob{left:22px}
+    .toggle--inv .toggle__track{background:var(--line-inv)}
+    .toggle--inv .toggle__name{color:var(--ink-on-inv)}
+    .toggle--inv[aria-checked="true"] .toggle__track{background:var(--accent-inv)}
+    .selectwrap{position:relative;display:inline-flex;align-items:center}
+    .selectwrap .input{width:100%;padding-right:32px;appearance:none;-webkit-appearance:none}
+    .selectwrap__chevron{position:absolute;right:8px;color:var(--ink-3);pointer-events:none}
+    .iconbtn{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--line-strong);
+      border-radius:var(--radius-md);background:var(--surface);color:var(--ink-2);cursor:pointer}
+    .iconbtn--inv{border-color:var(--line-inv);background:transparent;color:var(--ink-on-inv-2)}
+    .figure{display:flex;flex-direction:column;gap:4px}
+    .figure+.figure{padding-top:16px;border-top:1px solid var(--line)}
+    .figure__label{font-size:11px;line-height:1.3;font-weight:500;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--ink-3)}
+    .figure__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:32px;
+      line-height:1.15;font-weight:600}
+    .figure__value--h2{font-size:19px;line-height:1.25}
+    .figure__note{font-size:13px;color:var(--ink-3)}
+    .tile{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 16px}
+    .tile--accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+    .tile--accent .figure__label,.tile--accent .figure__note{color:var(--accent-ink);opacity:.78}
+    .tile--accent .figure__value{color:var(--accent-ink)}
+    .section-head{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;
+      gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line-strong)}
+    .metric{display:inline-flex;flex-direction:column;gap:2px;padding:8px 12px;
+      border:1px solid var(--line-strong);border-radius:var(--radius-md)}
+    .metric__value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}
+    .metric__label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+    .mail-gateway{display:inline-flex;align-items:center;flex-wrap:wrap;font-family:var(--font-mono);font-size:13px}
+    .empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:32px 16px}
+    .empty__title{font-size:16px;font-weight:600}
+    .empty__text{font-size:13px;color:var(--ink-3)}
+    .table{width:100%;border-collapse:collapse}
+    .table th{padding:8px 12px;border-bottom:1px solid var(--line-strong);font-size:11px;font-weight:500;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:left;white-space:nowrap}
+    .table td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+    .table tbody tr:nth-child(even){background:var(--surface-2)}
+    .table__sort{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;
+      font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+    .table th[aria-sort] .table__sort{color:var(--accent)}
+    /* Этап Э11, шаг 2: лист снизу на телефоне и его части — из имеющихся компонентов (норматив, раздел 55). */
+    .scrimband{height:40px;background:var(--overlay)}
+    .sheetframe{flex:1 1 auto;display:flex;flex-direction:column;gap:16px;padding:16px 16px 24px;
+      background:var(--surface);border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:var(--shadow-2)}
+    .sheetframe .input{width:100%;height:48px}
+    .sheetframe .selectwrap{display:flex;width:100%}
+    .sheetframe .btn{min-height:48px}
+    .btn--block{width:100%}
+    .btn--danger{background:var(--danger);color:var(--accent-ink)}
+    .row{display:flex;align-items:flex-end;gap:12px}
+    .row>.field{flex:1 1 0;min-inline-size:0}
+    .field__hint{font-size:13px;line-height:1.45;color:var(--ink-3)}
+    .field__error{font-size:13px;line-height:1.45;color:var(--danger)}
+    .input::placeholder{color:var(--ink-3)}
+    .wall{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid var(--line);
+      border-radius:var(--radius-md);background:var(--surface)}
+    .wall__title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:15px;font-weight:600}
+    .opening{display:flex;align-items:flex-start;gap:8px;padding-top:8px;border-top:1px solid var(--line);
+      font-size:13px;line-height:1.45;color:var(--ink-2)}
+    .opening .icon{width:16px;height:16px;margin-top:1px;color:var(--ink-3)}
+    .actions{display:flex;flex-wrap:wrap;gap:0 4px;margin-inline:-8px}
+    .group{display:flex;flex-direction:column;gap:12px;margin:0;padding:12px;border:1px solid var(--line);
+      border-radius:var(--radius-md)}
+    .group__title{font-size:13px;font-weight:500;color:var(--ink-2)}
+    .note{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:12px 16px;
+      background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);
+      font-size:13px;line-height:1.45;color:var(--ink-2)}
+    .from-measure{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+    .from-measure .btn{height:auto;min-height:48px;padding:0 12px;font-size:13px}
+    .from-measure .t-cap{flex:1 1 100%}
+  </style>
+</helmet>
+<div style="position:relative;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)">
+  <!-- Лист помещения на телефоне, этап Э11, шаг 2 (07_IA 4.8, раздел 11; норматив 3.27, раздел 55).
+       Спальня R-99 получает первые стены: строки стен, проёмы со строки стены, сумма длин против
+       периметра потолка (Д15 — предупреждение, не отказ) и заметка о снятии итогов проёмов (Э11-2.1).
+       Длины стен — вымышленные: 4,00 × 4,60 даёт ту же площадь пола 18,40 м², что у помещения.
+       Дверь в «Коридор» односторонняя: у коридора стен нет (Э11-2.2). -->
+  <div class="scrimband" aria-hidden="true"></div>
+
+  <section class="sheetframe" role="dialog" aria-label="Помещение «Спальня»">
+    <p class="t-h3">Спальня</p>
+
+    <label class="field">
+      <span class="field__label">Название</span>
+      <input class="input" value="Спальня">
+    </label>
+    <div class="row">
+      <label class="field"><span class="field__label">Площадь пола, м²</span><input class="input num" value="18,4"></label>
+      <label class="field"><span class="field__label">Высота, м</span><input class="input num" value="2,7"></label>
+    </div>
+    <div class="row">
+      <label class="field"><span class="field__label">Периметр пола, м.п.</span><input class="input num" value="17,6"></label>
+      <label class="field"><span class="field__label">Периметр потолка, м.п.</span><input class="input num" value="17,6"></label>
+    </div>
+
+    <div class="section-head">
+      <p class="t-cap" style="display:flex;align-items:center;gap:6px"><svg class="icon" style="width:16px;height:16px" aria-hidden="true"><path d="M3 4h14v12H3z"/><path d="M3 4l3 3M17 4l-3 3M3 16l3-3M17 16l-3-3"/></svg>Стены</p>
+      <span class="t-sm t-muted">пустая высота — как у помещения</span>
+    </div>
+
+    <div class="wall">
+      <p class="wall__title"><span>Стена 1 · у окна</span><span class="t-sm t-secondary" style="font-weight:400">10,80 м² · нетто <span class="spec__value">8,70 м²</span></span></p>
+      <div class="row">
+        <label class="field"><span class="field__label">Подпись</span><input class="input" value="у окна"></label>
+        <label class="field"><span class="field__label">Длина, м</span><input class="input num" value="4"></label>
+        <label class="field"><span class="field__label">Высота, м</span><input class="input num" placeholder="2,70"></label>
+      </div>
+      <p class="opening"><svg class="icon" aria-hidden="true"><path d="M4 3h12v14H4z"/><path d="M10 3v14M4 10h12"/></svg><span>Окно 1,50 × 1,40 м · откосы 5,80 м.п.</span></p>
+      <div class="actions">
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить окно</button>
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить дверь</button>
+        <button class="btn btn--text" style="color:var(--ink-2)"><svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Удалить стену</button>
+      </div>
+    </div>
+
+    <div class="wall">
+      <p class="wall__title"><span>Стена 2</span><span class="t-sm t-secondary" style="font-weight:400">12,42 м² · нетто <span class="spec__value">12,42 м²</span></span></p>
+      <div class="row">
+        <label class="field"><span class="field__label">Подпись</span><input class="input" placeholder="Стена 2"></label>
+        <label class="field"><span class="field__label">Длина, м</span><input class="input num" value="4,6"></label>
+        <label class="field"><span class="field__label">Высота, м</span><input class="input num" placeholder="2,70"></label>
+      </div>
+      <div class="actions">
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить окно</button>
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить дверь</button>
+        <button class="btn btn--text" style="color:var(--ink-2)"><svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Удалить стену</button>
+      </div>
+    </div>
+
+    <div class="wall">
+      <p class="wall__title"><span>Стена 3</span><span class="t-sm t-secondary" style="font-weight:400">10,80 м² · нетто <span class="spec__value">9,12 м²</span></span></p>
+      <div class="row">
+        <label class="field"><span class="field__label">Подпись</span><input class="input" placeholder="Стена 3"></label>
+        <label class="field"><span class="field__label">Длина, м</span><input class="input num" value="4"></label>
+        <label class="field"><span class="field__label">Высота, м</span><input class="input num" placeholder="2,70"></label>
+      </div>
+      <p class="opening"><svg class="icon" aria-hidden="true"><path d="M5 3h10v14H5z"/><path d="M12 10h1.5"/></svg><span>Дверь 0,80 × 2,10 м · откосы 5,00 м.п. · вторая сторона не привязана</span></p>
+      <div class="actions">
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить окно</button>
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить дверь</button>
+        <button class="btn btn--text" style="color:var(--ink-2)"><svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Удалить стену</button>
+      </div>
+    </div>
+
+    <div class="wall">
+      <p class="wall__title"><span>Стена 4</span><span class="t-sm t-secondary" style="font-weight:400">12,42 м² · нетто <span class="spec__value">12,42 м²</span></span></p>
+      <div class="row">
+        <label class="field"><span class="field__label">Подпись</span><input class="input" placeholder="Стена 4"></label>
+        <label class="field"><span class="field__label">Длина, м</span><input class="input num" value="4,6"></label>
+        <label class="field"><span class="field__label">Высота, м</span><input class="input num" placeholder="2,70"></label>
+      </div>
+      <div class="actions">
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить окно</button>
+        <button class="btn btn--text"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить дверь</button>
+        <button class="btn btn--text" style="color:var(--ink-2)"><svg class="icon" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Удалить стену</button>
+      </div>
+    </div>
+
+    <button class="btn btn--secondary btn--block"><svg class="icon" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Добавить стену</button>
+
+    <p class="spec spec--col">
+      <span class="spec__item">Сумма длин стен: <span class="spec__value">17,20 м</span></span>
+      <span class="spec__item">Периметр потолка: <span class="spec__value">17,60 м</span></span>
+    </p>
+    <p class="field__hint" role="status" style="display:flex;gap:8px;align-items:flex-start"><svg class="icon" style="width:16px;height:16px;margin-top:1px;color:var(--warn)" aria-hidden="true"><path d="M10 3 18 17H2z"/><path d="M10 8v4M10 14v1"/></svg><span>Сумма длин стен меньше периметра потолка на 0,40 м — больше допуска 0,35 м. Проверьте, не пропущена ли стена или ниша. Сохранить можно.</span></p>
+
+    <p class="spec">
+      <span class="spec__item">Площадь стен <span class="spec__value">46,44 м²</span></span>
+      <span class="spec__item">Площадь стен нетто <span class="spec__value">42,66 м²</span></span>
+    </p>
+
+    <div class="note" role="note">
+      <span>С первой стеной помещение считается по стенам. При сохранении снимутся итоги проёмов: окна — 1 шт, 2,10 м², откосы 5,80 м.п.; двери — 1 шт, 1,68 м², откосы 5,05 м.п. Их заменяют проёмы на стенах.</span>
+    </div>
+
+    <button class="btn btn--primary btn--block">Сохранить</button>
+    <button class="btn btn--text btn--block">Отмена</button>
+  </section>
+</div>
+</x-dc>
+</body>
+</html>

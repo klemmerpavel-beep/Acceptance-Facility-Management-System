@@ -4,7 +4,10 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { MeasureSetKind, MeasureView } from "@priyomka/contracts";
-import { createMeasureRoomSchema, measureSetSchema, updateMeasureRoomSchema } from "@priyomka/contracts";
+import {
+  createMeasureRoomSchema, createWallOpeningSchema, measureSetSchema, updateMeasureRoomSchema,
+  updateWallOpeningSchema,
+} from "@priyomka/contracts";
 import { MeasureService } from "./measure.service";
 import { SessionGuard } from "../auth/session.guard";
 import { Roles, RolesGuard } from "../common/roles.guard";
@@ -83,6 +86,45 @@ export class MeasureController {
     @Param("id") id: string,
   ): Promise<MeasureView> {
     return this.measure.deleteRoom(user, code, id);
+  }
+
+  /**
+   * Проём со строки стены (этап Э11, шаг 2): стена стороны А — из адреса.
+   * Стены помещения правятся сохранением помещения (`walls` в теле): лист
+   * помещения сохраняется одним действием, и первая стена снимает итоги
+   * проёмов тем же сохранением.
+   */
+  @Post("walls/:wallId/openings")
+  @Roles("OWNER", "FOREMAN")
+  createOpening(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("wallId") wallId: string,
+    @Body() body: unknown,
+  ): Promise<MeasureView> {
+    return this.measure.createOpening(user, code, wallId, createWallOpeningSchema.parse(body));
+  }
+
+  /** Правка проёма и привязка его второй стороны к стене соседа. */
+  @Patch("openings/:id")
+  @Roles("OWNER", "FOREMAN")
+  updateOpening(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<MeasureView> {
+    return this.measure.updateOpening(user, code, id, updateWallOpeningSchema.parse(body));
+  }
+
+  @Delete("openings/:id")
+  @Roles("OWNER", "FOREMAN")
+  deleteOpening(
+    @CurrentUser() user: RequestUser,
+    @Param("code") code: string,
+    @Param("id") id: string,
+  ): Promise<MeasureView> {
+    return this.measure.deleteOpening(user, code, id);
   }
 
   @Put("plan")

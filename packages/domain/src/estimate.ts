@@ -19,6 +19,10 @@ import {
 import type { SectionWeight } from "./plan.js";
 import { minimumQty, количествоТекстом } from "./acceptance.js";
 import {
+  revealLength, singleWallArea, singleWallAreaNet, wallArea, wallAreaNet,
+  type MeasureTotals, type RoomMeasure, type WallMeasure,
+} from "./measure.js";
+import {
   ownerLevel,
   projectEstimateItem,
   type EstimateItemRecord,
@@ -371,8 +375,13 @@ export function estimateItemWarning(edit: EstimateItemEdit): string | null {
    как количества сметы»). Требуется одно — соответствие «единица позиции ↔
    величина обмера», и оно объявлено здесь, чтобы экран не завёл своё. */
 
-/** Величина обмера, годная в количество позиции. */
-export type MeasureSource = "floorArea" | "wallArea" | "floorPerimeter" | "ceilingPerimeter";
+/**
+ * Величина обмера, годная в количество позиции. `wallArea` — площадь стен
+ * брутто, без вычета проёмов; `wallAreaNet` — за вычетом проёмов (этап
+ * Э11, шаг 1). Брутто не переименована и не заменена: по ней подставлены
+ * количества прежних смет.
+ */
+export type MeasureSource = "floorArea" | "wallArea" | "wallAreaNet" | "floorPerimeter" | "ceilingPerimeter";
 
 /**
  * Какие величины обмера подставляются позиции с этой единицей.
@@ -383,21 +392,380 @@ export type MeasureSource = "floorArea" | "wallArea" | "floorPerimeter" | "ceili
  * получает: подставлять нечего, и пустой список хуже отсутствия.
  */
 export const MEASURE_SOURCES: Readonly<Record<string, readonly MeasureSource[]>> = {
-  "м²": ["floorArea", "wallArea"],
+  /* Обе площади стен стоят рядом: какая нужна, решает работа — грунтовка
+     идёт по всей стене, обои и покраска за вычетом окон и дверей. Выбрать
+     за человека значило бы соврать в одном из двух случаев. */
+  "м²": ["floorArea", "wallArea", "wallAreaNet"],
   "м.п.": ["floorPerimeter", "ceilingPerimeter"],
 };
 
-/** Подпись величины обмера на кнопке подстановки. */
+/**
+ * Подпись величины обмера на кнопке подстановки.
+ *
+ * «Площадь стен нетто» — слово решения заказчика 07.11.2026 (`01_PROJECT.md`,
+ * редакция 1.23, раздел 6.5; ADR-0002, п. 5): прежняя «площадь стен» остаётся
+ * брутто, третья строка — нетто, за вычетом окон и дверей помещения.
+ */
 export const MEASURE_LABEL: Readonly<Record<MeasureSource, string>> = {
   floorArea: "площадь пола",
   wallArea: "площадь стен",
+  wallAreaNet: "площадь стен нетто",
   floorPerimeter: "периметр пола",
   ceilingPerimeter: "периметр потолка",
 };
 
+/**
+ * Подставленное число так, как оно легло в поле количества: до тысячной,
+ * без незначащих нулей. Округление до сотых (`количествоТекстом`) назвало
+ * бы копию «18,068» числом «18,07» — строка источника разошлась бы с полем
+ * рядом с ней.
+ */
+const подставленноеЧисло = (value: Milliunits, unit: string): string => {
+  const raw: bigint = value;
+  const модуль = raw < 0n ? -raw : raw;
+  const дробь = (модуль % 1000n).toString().padStart(3, "0").replace(/0+$/u, "");
+  const целое = (модуль / 1000n).toString();
+  return `${raw < 0n ? "−" : ""}${дробь === "" ? целое : `${целое},${дробь}`}\u00A0${unit}`;
+};
+
+/**
+ * Конец предложения после числа с единицей. «м.п.» уже кончается точкой, и
+ * вторая давала «13,2 м.п.. Это копия» — так строка источника печаталась у
+ * всех позиций в погонных метрах с шага 1 (П-78).
+ */
+const сТочкой = (text: string): string => (text.endsWith(".") ? text : `${text}.`);
+
+/**
+ * Источник подставленного количества словами: «Подставлено из обмера
+ * помещения «Спальня»: площадь стен нетто, 43,74 м²».
+ *
+ * Подставленное количество — копия, а не ссылка: правка обмера его не
+ * меняет, и уже подставленные количества не пересчитываются (ADR-0002,
+ * п. 5). Поэтому источник называется в момент подстановки: две площади
+ * стен рядом неотличимы в поле количества. Число — ровно то, что
+ * подставлено, до тысячной (`подставленноеЧисло`).
+ *
+ * `room` — имя помещения; `null` — величина объекта целиком.
+ */
+export function measureSourceNote(
+  source: MeasureSource,
+  room: string | null,
+  value: Milliunits,
+  unit: string,
+): string {
+  const откуда = room === null ? "из обмера объекта" : `из обмера помещения «${room}»`;
+  return сТочкой(`Подставлено ${откуда}: ${MEASURE_LABEL[source]}, ${подставленноеЧисло(value, unit)}`)
+    + " Это копия: правка обмера количество не изменит.";
+}
+
 /** Величины обмера, годные позиции с данной единицей. Пусто — переносить нечего. */
 export function measureSourcesFor(unit: string): readonly MeasureSource[] {
   return MEASURE_SOURCES[unit] ?? [];
+}
+
+/* --- адрес поверхности и источник подстановки (этап Э11, шаг 2) ------------
+
+   Позиция получает адрес — вид поверхности и стену (решение Д4; Э11-2.5 «а»):
+   его ставит человек выбором, из величины он не выводится. Подстановка
+   предлагает величины выбранной поверхности по единице позиции, без выбора —
+   величины помещения, как на шаге 1 (Э11-2.6 «а»). Подставленное количество
+   по-прежнему копия: правка обмера его не меняет. Но источник теперь
+   хранится — величина с областью, помещение, стена и подставленное число, —
+   и признак «обмер изменился» сравнивает подставленное с величиной сейчас
+   (Э11-2.7 «в»). Количество меняет только человек. */
+
+/** Вид поверхности: адрес работы внутри помещения. */
+export type SurfaceKind = "FLOOR" | "CEILING" | "WALLS" | "WALL" | "REVEALS";
+
+export const SURFACE_KINDS: readonly SurfaceKind[] = ["FLOOR", "CEILING", "WALLS", "WALL", "REVEALS"];
+
+/** Вид поверхности словами — списком листа позиции и в журнале. */
+export const SURFACE_LABEL: Readonly<Record<SurfaceKind, string>> = {
+  FLOOR: "пол",
+  CEILING: "потолок",
+  WALLS: "все стены",
+  WALL: "одна стена",
+  REVEALS: "откосы",
+};
+
+/**
+ * Источник подставленного количества: величина и её область. Область —
+ * помещение позиции, одна стена помещения или итог действующего набора
+ * обмера объекта. Хранится строкой целиком, а не выводится из ссылок:
+ * удаление помещения обнуляет ссылку, и источник помещения выдал бы себя
+ * за итог объекта.
+ *
+ * Перечень закрыт: «длина откосов» — только помещения (у объекта её группа
+ * «из обмера объекта» не предлагает), у стены — только две площади.
+ */
+export const QTY_SOURCES = [
+  "room:floorArea", "room:wallArea", "room:wallAreaNet",
+  "room:floorPerimeter", "room:ceilingPerimeter", "room:revealLength",
+  "wall:wallArea", "wall:wallAreaNet",
+  "project:floorArea", "project:wallArea", "project:wallAreaNet",
+  "project:floorPerimeter", "project:ceilingPerimeter",
+] as const;
+export type QtySource = (typeof QTY_SOURCES)[number];
+export type QtySourceScope = "room" | "wall" | "project";
+
+/** Область источника: помещение, стена или объект. */
+export function qtySourceScope(source: QtySource): QtySourceScope {
+  if (source.startsWith("wall:")) return "wall";
+  if (source.startsWith("project:")) return "project";
+  return "room";
+}
+
+/** Строка ли это перечня: значение пришло из базы или из запроса. */
+export function isQtySource(value: string): value is QtySource {
+  return (QTY_SOURCES as readonly string[]).includes(value);
+}
+
+/**
+ * Подпись величины источника. У одной стены — «площадь стены», а не «стен»
+ * (норматив, раздел 55.6); у потолка в м² — «площадь пола» под своим
+ * именем: площади потолка обмер не знает (Э11-2.6 «а»).
+ */
+export const QTY_SOURCE_LABEL: Readonly<Record<QtySource, string>> = {
+  "room:floorArea": MEASURE_LABEL.floorArea,
+  "room:wallArea": MEASURE_LABEL.wallArea,
+  "room:wallAreaNet": MEASURE_LABEL.wallAreaNet,
+  "room:floorPerimeter": MEASURE_LABEL.floorPerimeter,
+  "room:ceilingPerimeter": MEASURE_LABEL.ceilingPerimeter,
+  "room:revealLength": "длина откосов",
+  "wall:wallArea": "площадь стены",
+  "wall:wallAreaNet": "площадь стены нетто",
+  "project:floorArea": MEASURE_LABEL.floorArea,
+  "project:wallArea": MEASURE_LABEL.wallArea,
+  "project:wallAreaNet": MEASURE_LABEL.wallAreaNet,
+  "project:floorPerimeter": MEASURE_LABEL.floorPerimeter,
+  "project:ceilingPerimeter": MEASURE_LABEL.ceilingPerimeter,
+};
+
+/**
+ * Величины поверхности для подстановки, по единице позиции (решение
+ * Э11-2.6 «а»; ADR-0002, раздел «Решения шага 2», п. 6). Карта литеральная —
+ * по доводу у `MEASURE_SOURCES`: какая из величин нужна, решает человек.
+ *
+ *   без выбора — величины помещения шага 1;
+ *   пол        — м²: площадь пола; м.п.: периметр пола;
+ *   потолок    — м²: площадь пола; м.п.: периметр потолка;
+ *   все стены  — м²: площадь стен брутто и нетто;
+ *   одна стена — м²: площадь стены брутто и нетто;
+ *   откосы     — м.п.: длина откосов своей стороны.
+ *
+ * Штук окон и дверей нет — вторая очередь: пока на объекте есть помещения
+ * без стен, их итоги считают межкомнатную дверь с обеих сторон.
+ */
+const ПО_ПОВЕРХНОСТИ: Readonly<Record<SurfaceKind, Readonly<Record<string, readonly QtySource[]>>>> = {
+  FLOOR: { "м²": ["room:floorArea"], "м.п.": ["room:floorPerimeter"] },
+  CEILING: { "м²": ["room:floorArea"], "м.п.": ["room:ceilingPerimeter"] },
+  WALLS: { "м²": ["room:wallArea", "room:wallAreaNet"] },
+  WALL: { "м²": ["wall:wallArea", "wall:wallAreaNet"] },
+  REVEALS: { "м.п.": ["room:revealLength"] },
+};
+
+/** Величины «из обмера помещения» для адреса и единицы позиции. */
+export function surfaceSources(surface: SurfaceKind | null, unit: string): readonly QtySource[] {
+  if (surface === null) {
+    return measureSourcesFor(unit).map((source): QtySource => `room:${source}`);
+  }
+  return ПО_ПОВЕРХНОСТИ[surface][unit] ?? [];
+}
+
+/** Величины «из обмера объекта» — итог действующего набора, как на шаге 1. */
+export function projectSources(unit: string): readonly QtySource[] {
+  return measureSourcesFor(unit).map((source): QtySource => `project:${source}`);
+}
+
+/** Откуда величина источника берётся сейчас. */
+export interface QtySourceContext {
+  /** Помещение источника; `null` — его нет. */
+  readonly room: RoomMeasure | null;
+  /** Стена источника внутри `room`; `null` — её нет. */
+  readonly wall: WallMeasure | null;
+  /** Итоги действующего набора обмера объекта. */
+  readonly totals: MeasureTotals | null;
+}
+
+/**
+ * Величина источника сейчас — тем же доменом, что экран обмера, чтобы
+ * подставленное и показанное не могли разойтись. `null` — посчитать не из
+ * чего: помещения, стены или итогов нет.
+ */
+export function qtySourceValue(source: QtySource, context: QtySourceContext): Milliunits | null {
+  const { room, wall, totals } = context;
+  switch (source) {
+    case "room:floorArea": return room === null ? null : room.floorArea;
+    case "room:floorPerimeter": return room === null ? null : room.floorPerimeter;
+    case "room:ceilingPerimeter": return room === null ? null : room.ceilingPerimeter;
+    case "room:wallArea": return room === null ? null : wallArea(room);
+    case "room:wallAreaNet": return room === null ? null : wallAreaNet(room);
+    case "room:revealLength": return room === null ? null : revealLength(room);
+    case "wall:wallArea": return room === null || wall === null ? null : singleWallArea(room, wall);
+    case "wall:wallAreaNet": return room === null || wall === null ? null : singleWallAreaNet(room, wall);
+    case "project:floorArea": return totals === null ? null : totals.floorArea;
+    case "project:wallArea": return totals === null ? null : totals.wallArea;
+    case "project:wallAreaNet": return totals === null ? null : totals.wallAreaNet;
+    case "project:floorPerimeter": return totals === null ? null : totals.floorPerimeter;
+    case "project:ceilingPerimeter": return totals === null ? null : totals.ceilingPerimeter;
+  }
+}
+
+/**
+ * Причина отказа в адресе поверхности или `null`. Адрес — помещение, вид и
+ * стена: вид без помещения не адрес, стена — только у вида «одна стена».
+ */
+export function surfaceFault(address: {
+  readonly roomId: string | null;
+  readonly surface: SurfaceKind | null;
+  readonly wallId: string | null;
+}): string | null {
+  if (address.surface !== null && address.roomId === null) {
+    return "Поверхность выбирается у помещения: сначала выберите помещение позиции.";
+  }
+  if (address.wallId !== null && address.surface !== "WALL") {
+    return "Стена выбирается только у поверхности «одна стена».";
+  }
+  return null;
+}
+
+/**
+ * Причина отказа в источнике подстановки или `null`: величина обязана быть
+ * из тех, что лист предложил бы этому адресу и этой единице. Источник,
+ * которого лист не предлагал, назвал бы основанием количества не ту
+ * величину.
+ */
+export function qtySourceFault(source: QtySource, address: {
+  readonly roomId: string | null;
+  readonly surface: SurfaceKind | null;
+  readonly wallId: string | null;
+  readonly unit: string;
+}): string | null {
+  const подпись = QTY_SOURCE_LABEL[source];
+  const область = qtySourceScope(source);
+  if (область === "project") {
+    return projectSources(address.unit).includes(source)
+      ? null
+      : `Величина «${подпись}» объекта не подставляется позиции в «${address.unit}».`;
+  }
+  if (address.roomId === null) {
+    return `Величина «${подпись}» берётся из обмера помещения: выберите помещение позиции.`;
+  }
+  if (!surfaceSources(address.surface, address.unit).includes(source)) {
+    const поверхность = address.surface === null ? "без поверхности" : `«${SURFACE_LABEL[address.surface]}»`;
+    return `Величина «${подпись}» не относится к поверхности ${поверхность} позиции в «${address.unit}».`;
+  }
+  if (область === "wall" && address.wallId === null) {
+    return `Величина «${подпись}» берётся со стены: выберите стену.`;
+  }
+  return null;
+}
+
+/**
+ * Отказ, если подставляемое количество не совпадает с величиной источника
+ * сейчас. Источник называет основание количества, и основание, которое уже
+ * в момент записи с ним расходится, было бы неправдой: лист показывал
+ * прежнее число, а обмер тем временем поправили.
+ */
+export function qtySourceMismatch(qty: Milliunits, now: Milliunits | null, unit: string): string | null {
+  if (now === null) return "Величины обмера, из которой подставлено количество, больше нет. Подставьте заново.";
+  if (qty === now) return null;
+  return `Подставлено ${подставленноеЧисло(qty, unit)}, а в обмере сейчас ${подставленноеЧисло(now, unit)}:`
+    + " обмер изменился, пока лист был открыт. Подставьте заново.";
+}
+
+/**
+ * Строка источника (норматив, раздел 55.7): «Подставлено из обмера помещения
+ * «Спальня», стена «Стена 1 · у окна»: площадь стены нетто, 8,7 м². Это
+ * копия: правка обмера количество не изменит». Число — ровно подставленное,
+ * до тысячной, как у `measureSourceNote`.
+ */
+export function qtySourceNote(
+  source: QtySource,
+  where: { readonly room: string | null; readonly wall: string | null },
+  value: Milliunits,
+  unit: string,
+): string {
+  const область = qtySourceScope(source);
+  /* Удалённое помещение или стена так и называются: источник помещения без
+     имени не должен выдавать себя за итог объекта. */
+  const стена = область !== "wall" ? "" : where.wall === null ? ", стена удалена" : `, стена «${where.wall}»`;
+  const откуда = область === "project"
+    ? "из обмера объекта"
+    : where.room === null
+      ? "из обмера удалённого помещения"
+      : `из обмера помещения «${where.room}»${стена}`;
+  return сТочкой(`Подставлено ${откуда}: ${QTY_SOURCE_LABEL[source]}, ${подставленноеЧисло(value, unit)}`)
+    + " Это копия: правка обмера количество не изменит.";
+}
+
+/** Хранимый источник позиции. */
+export interface QtySourceRecord {
+  readonly source: QtySource;
+  /** Подставленное число. */
+  readonly value: Milliunits;
+  /** Помещение и стена источника; пусто — удалены (или итог объекта). */
+  readonly roomId: string | null;
+  readonly wallId: string | null;
+}
+
+/**
+ * Признак «обмер изменился» (решение Э11-2.7 «в»).
+ *
+ * `same` — величина источника сейчас та же; `changed` — другая: «подставлено
+ * X, сейчас Y»; `removed` — источника больше нет: удалено помещение или
+ * стена, либо позицию перевели на помещение после перепланировки, а
+ * источник остался в прежнем наборе.
+ */
+export type MeasureDrift =
+  | { readonly state: "same"; readonly now: Milliunits }
+  | { readonly state: "changed"; readonly now: Milliunits }
+  | { readonly state: "removed"; readonly reason: string };
+
+/**
+ * Признак источника позиции. Чистая функция: величину сейчас считает тот же
+ * домен, что экран обмера. Количество признак не трогает — его меняет
+ * только человек действием «подставить заново».
+ *
+ * `itemRoomId` — помещение позиции сейчас. Источник помещения или стены,
+ * чьё помещение — не помещение позиции, — это позиция, переведённая на
+ * перепланировку: ручная смена помещения источник снимает и сюда не
+ * доходит.
+ */
+export function measureDrift(
+  record: QtySourceRecord,
+  itemRoomId: string | null,
+  context: QtySourceContext,
+): MeasureDrift {
+  const область = qtySourceScope(record.source);
+  if (область !== "project") {
+    if (record.roomId === null || context.room === null) {
+      return { state: "removed", reason: "Помещения источника больше нет в обмере." };
+    }
+    if (itemRoomId !== record.roomId) {
+      return {
+        state: "removed",
+        reason: "Позицию перевели на обмер после перепланировки: источник остался в прежнем наборе.",
+      };
+    }
+    if (область === "wall" && (record.wallId === null || context.wall === null)) {
+      return { state: "removed", reason: "Стены источника больше нет в обмере." };
+    }
+  }
+  const now = qtySourceValue(record.source, context);
+  if (now === null) return { state: "removed", reason: "Величины источника больше нет в обмере." };
+  return { state: now === record.value ? "same" : "changed", now };
+}
+
+/**
+ * Признак словами (норматив, раздел 55.7): «Подставлено 8,97 м², сейчас
+ * 8,7 м². Количество само не меняется». `null` — расхождения нет.
+ */
+export function measureDriftNote(drift: MeasureDrift, substituted: Milliunits, unit: string): string | null {
+  if (drift.state === "same") return null;
+  if (drift.state === "removed") return `${drift.reason} Количество само не меняется.`;
+  return сТочкой(`Подставлено ${подставленноеЧисло(substituted, unit)}, сейчас ${подставленноеЧисло(drift.now, unit)}`)
+    + " Количество само не меняется.";
 }
 
 /* --- разделы для выбора (пункт плана 5.2, решение Р19) ---------------------
